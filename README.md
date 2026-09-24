@@ -22,6 +22,20 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 
 ## Cómo ejecutarla
 
+### Opción A: con Docker (recomendada para probar como en producción)
+
+Requiere Docker Desktop (o Docker Engine) abierto. Usa PostgreSQL, igual que en DigitalOcean.
+
+```bash
+cp .env.example .env      # completa ANTHROPIC_API_KEY si vas a probar la IA en la nube
+docker compose up --build
+docker compose exec web python manage.py createsuperuser
+```
+
+Entra a http://localhost:8000/admin/. Para detenerla: `docker compose down` (agrega `-v` si además quieres borrar la base de datos de prueba).
+
+### Opción B: en tu máquina, sin Docker
+
 Requiere Tesseract con el idioma español, el modelo de spaCy en español (`python -m spacy download es_core_news_md`) y, para el proveedor en la nube, una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY` (en Ubuntu/Debian: `sudo apt install tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de UB Mannheim).
 
 ```bash
@@ -38,3 +52,4 @@ Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py te
 
 Los criterios cargados son **borradores**; se reemplazan por los validados en la Fase 4.
 Cómo se relaciona MAZUCA con la tesis: `docs/mazuca-valor-agregado.md`.
+Cómo montarla en DigitalOcean, una vez probada aquí: `docs/despliegue-digitalocean.md`.

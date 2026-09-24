@@ -1,7 +1,10 @@
 .venv/
+.git/
 __pycache__/
 *.pyc
-db.sqlite3
+plataforma/db.sqlite3
 plataforma/media/
-.env
 plataforma/staticfiles/
+.env
+docs/
+*.md

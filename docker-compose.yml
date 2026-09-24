@@ -1,0 +1,46 @@
+# Entorno de prueba local de MAZUCA. Levanta la aplicación con PostgreSQL,
+# igual que en producción, para probar aquí antes de montarla en DigitalOcean.
+#
+# Uso:
+#   cp .env.example .env      # completa ANTHROPIC_API_KEY y una clave propia
+#   docker compose up --build
+#   abre http://localhost:8000/admin/
+#
+# Para crear el primer usuario administrador:
+#   docker compose exec web python manage.py createsuperuser
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mazuca
+      POSTGRES_USER: mazuca
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mazuca}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mazuca"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    ports:
+      - "8000:8000"
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  media:
