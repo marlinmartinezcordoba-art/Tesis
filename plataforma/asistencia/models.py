@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
-from acervo.models import Documento, EventoPreservacion, registrar_evento
+from acervo.models import Documento, Entidad, EventoPreservacion, registrar_evento
 from lineamientos.models import Criterio, Proceso
 
 # Campos del documento que una sugerencia puede completar.
@@ -21,6 +21,9 @@ CAMPOS_EDITABLES = {
     "productor",
     "alcance_contenido",
 }
+
+# Sugerencias que, al aceptarse, vinculan una entidad al documento.
+CAMPOS_ENTIDAD = {"persona", "lugar", "institucion"}
 
 
 class SugerenciaIA(models.Model):
@@ -37,6 +40,12 @@ class SugerenciaIA(models.Model):
     campo = models.CharField(max_length=50)
     valor_propuesto = models.TextField()
     justificacion = models.TextField(blank=True)
+    evidencia = models.TextField(
+        blank=True, help_text="Fragmento literal del documento que respalda la propuesta."
+    )
+    evidencia_verificada = models.BooleanField(
+        null=True, help_text="Si MAZUCA encontró la evidencia en el texto del documento."
+    )
     confianza = models.FloatField(help_text="Entre 0 y 1, según el proveedor de IA.")
     modelo = models.CharField(max_length=100)
     version_modelo = models.CharField(max_length=50)
@@ -87,6 +96,15 @@ class SugerenciaIA(models.Model):
                         EventoPreservacion.Tipo.MODIFICACION,
                         agente=usuario,
                         detalle={"campo": self.campo, "antes": anterior, "despues": valor},
+                    )
+                elif self.campo in CAMPOS_ENTIDAD:
+                    entidad, _ = Entidad.objects.get_or_create(tipo=self.campo, nombre=valor)
+                    entidad.documentos.add(self.documento)
+                    registrar_evento(
+                        self.documento,
+                        EventoPreservacion.Tipo.MODIFICACION,
+                        agente=usuario,
+                        detalle={"entidad_vinculada": str(entidad)},
                     )
             else:
                 self.estado = self.Estado.RECHAZADA

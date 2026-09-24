@@ -58,6 +58,20 @@
  {
   "model": "lineamientos.criterio",
   "fields": {
+   "codigo": "DES-03",
+   "proceso": "descripcion",
+   "atributo": "autenticidad",
+   "enunciado": "Todo dato descriptivo propuesto por IA cita un fragmento literal del documento que lo respalda, y la plataforma verifica que ese fragmento exista en el texto; los datos sin evidencia solo se incorporan si una persona los corrige.",
+   "verificacion": "Ninguna sugerencia aceptada sin cambios tiene evidencia no verificada.",
+   "fuente_normativa": "ISAD(G) 2.ª ed.; ISO 15489-1:2016; Recomendación sobre la ética de la IA (UNESCO)",
+   "obligatorio": true,
+   "riesgo_asociado": "Datos inventados por la IA (alucinaciones)",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
    "codigo": "VAL-01",
    "proceso": "valoracion",
    "atributo": "integridad",
@@ -150,6 +164,20 @@
    "fuente_normativa": "Ley 1712 de 2014; Ley 1581 de 2012; Ley 594 de 2000",
    "obligatorio": true,
    "riesgo_asociado": "Difusión de información no validada o con datos personales",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "ACC-04",
+   "proceso": "acceso",
+   "atributo": "accesibilidad",
+   "enunciado": "Solo se envía a servicios de IA en la nube el texto de documentos con la revisión de datos personales decidida; si se decidió anonimizar, se envía el texto anonimizado, y los documentos restringidos no se envían.",
+   "verificacion": "Las sugerencias generadas por proveedores en la nube corresponden a documentos con revisión decidida y no restringidos.",
+   "fuente_normativa": "Ley 1581 de 2012, art. 26 (transferencia internacional de datos)",
+   "obligatorio": true,
+   "riesgo_asociado": "Transferencia de datos personales a terceros",
    "estado": "borrador"
   }
  }

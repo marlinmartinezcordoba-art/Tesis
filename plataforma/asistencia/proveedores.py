@@ -21,14 +21,32 @@ class Propuesta:
     valor: str
     confianza: float
     justificacion: str
+    evidencia: str = ""  # fragmento literal del documento
     criterios: list = field(default_factory=list)  # códigos de criterio
+
+
+# Confianza máxima de una propuesta cuya evidencia no aparece en el texto.
+CONFIANZA_SIN_EVIDENCIA = 0.3
+
+
+def _normalizar(texto):
+    return " ".join(texto.lower().split())
+
+
+def evidencia_en_texto(evidencia, texto):
+    """Comprueba que la cita exista en el texto (sin importar espacios ni mayúsculas)."""
+    return bool(evidencia.strip()) and _normalizar(evidencia) in _normalizar(texto)
 
 
 class ProveedorIA:
     nombre = "base"
     version = "0"
 
-    def proponer(self, documento):
+    def texto_de(self, documento):
+        """Texto que el proveedor puede leer; un proveedor en la nube lo restringe."""
+        return documento.texto_extraido
+
+    def proponer(self, documento, texto):
         raise NotImplementedError
 
 
@@ -39,8 +57,8 @@ class ProveedorReglas(ProveedorIA):
     version = "0.1"
     ANIO = re.compile(r"\b(1[5-9]\d{2}|20[0-2]\d)\b")
 
-    def proponer(self, documento):
-        anios = sorted({int(a) for a in self.ANIO.findall(documento.texto_extraido)})
+    def proponer(self, documento, texto):
+        anios = sorted({int(a) for a in self.ANIO.findall(texto)})
         if not anios:
             return []
         valor = str(anios[0]) if len(anios) == 1 else f"{anios[0]}-{anios[-1]}"
@@ -51,22 +69,36 @@ class ProveedorReglas(ProveedorIA):
                 valor=valor,
                 confianza=0.6,
                 justificacion=f"Años encontrados en el texto: {anios}",
+                evidencia=str(anios[0]),
             )
         ]
 
 
 def generar_sugerencias(documento, proveedor):
+    """Crea sugerencias pendientes y verifica la evidencia de cada una.
+
+    La verificación la hace MAZUCA, no el proveedor: así el control contra
+    datos inventados es el mismo para cualquier modelo de IA.
+    """
     from lineamientos.models import Criterio
 
+    texto = proveedor.texto_de(documento)
     creadas = []
-    for p in proveedor.proponer(documento):
+    for p in proveedor.proponer(documento, texto):
+        verificada = evidencia_en_texto(p.evidencia, texto)
+        confianza, justificacion = p.confianza, p.justificacion
+        if not verificada:
+            confianza = min(confianza, CONFIANZA_SIN_EVIDENCIA)
+            justificacion = f"⚠ Evidencia no encontrada en el texto. {justificacion}"
         s = SugerenciaIA.objects.create(
             documento=documento,
             proceso=p.proceso,
             campo=p.campo,
             valor_propuesto=p.valor,
-            justificacion=p.justificacion,
-            confianza=p.confianza,
+            justificacion=justificacion,
+            evidencia=p.evidencia,
+            evidencia_verificada=verificada,
+            confianza=confianza,
             modelo=proveedor.nombre,
             version_modelo=proveedor.version,
         )
@@ -76,7 +108,12 @@ def generar_sugerencias(documento, proveedor):
             documento,
             EventoPreservacion.Tipo.SUGERENCIA_IA,
             agente=f"{proveedor.nombre} {proveedor.version}",
-            detalle={"sugerencia": s.pk, "campo": p.campo, "confianza": p.confianza},
+            detalle={
+                "sugerencia": s.pk,
+                "campo": p.campo,
+                "confianza": confianza,
+                "evidencia_verificada": verificada,
+            },
         )
         creadas.append(s)
     return creadas

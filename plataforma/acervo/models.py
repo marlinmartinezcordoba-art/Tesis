@@ -84,6 +84,27 @@ class Documento(models.Model):
         return ok
 
 
+class Entidad(models.Model):
+    """Persona, lugar o institución validada; base de los índices y de Records in Contexts."""
+
+    class Tipo(models.TextChoices):
+        PERSONA = "persona", "Persona"
+        LUGAR = "lugar", "Lugar"
+        INSTITUCION = "institucion", "Institución"
+
+    tipo = models.CharField(max_length=12, choices=Tipo.choices)
+    nombre = models.CharField(max_length=255)
+    documentos = models.ManyToManyField(Documento, related_name="entidades", blank=True)
+
+    class Meta:
+        ordering = ["tipo", "nombre"]
+        unique_together = ["tipo", "nombre"]
+        verbose_name_plural = "entidades"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+
 class EventoPreservacion(models.Model):
     class Tipo(models.TextChoices):
         INGRESO = "ingreso", "Ingreso"

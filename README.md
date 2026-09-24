@@ -18,11 +18,11 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 - `lineamientos`: criterios por proceso y atributo, con su fuente normativa, e informe de verificación por documento.
 - `acervo`: documentos con elementos ISAD(G), hash SHA-256, bitácora de preservación encadenada (estilo PREMIS) y extracción de texto con OCR (Tesseract en español) para PDF, imágenes y texto plano.
 - `acceso`: detección de datos personales (Ley 1581 de 2012), decisión humana (publicar, anonimizar o restringir) y aprobación controlada para el futuro portal de consulta.
-- `asistencia`: sugerencias de IA con validación humana y proveedores de IA intercambiables.
+- `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables para la descripción asistida (ISAD(G)): uno en la nube con Claude (salida estructurada, verificación de evidencia) y uno local con spaCy en español (sin conexión a internet).
 
 ## Cómo ejecutarla
 
-Requiere Tesseract con el idioma español (en Ubuntu/Debian: `sudo apt install tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de UB Mannheim).
+Requiere Tesseract con el idioma español, el modelo de spaCy en español (`python -m spacy download es_core_news_md`) y, para el proveedor en la nube, una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY` (en Ubuntu/Debian: `sudo apt install tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de UB Mannheim).
 
 ```bash
 python3 -m venv .venv

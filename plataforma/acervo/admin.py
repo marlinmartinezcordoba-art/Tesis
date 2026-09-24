@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from . import extraccion
-from .models import Documento, EventoPreservacion
+from .models import Documento, Entidad, EventoPreservacion
 
 
 class EventoInline(admin.TabularInline):
@@ -24,7 +24,8 @@ class DocumentoAdmin(admin.ModelAdmin):
     search_fields = ("titulo", "codigo_referencia", "productor", "texto_extraido")
     readonly_fields = ("sha256", "formato", "tamano_bytes", "fecha_ingreso", "publicado", "texto_publico")
     inlines = [EventoInline]
-    actions = ["verificar_fijeza", "extraer_texto", "revisar_datos_personales", "aprobar_publicacion"]
+    actions = ["verificar_fijeza", "extraer_texto", "revisar_datos_personales", "aprobar_publicacion",
+               "generar_descripcion_nube", "generar_descripcion_local"]
 
     def get_readonly_fields(self, request, obj=None):
         # El archivo no se puede reemplazar después del ingreso.
@@ -81,6 +82,51 @@ class DocumentoAdmin(admin.ModelAdmin):
                 self.message_user(request, f"{doc}: aprobado para publicación.")
             else:
                 self.message_user(request, f"{doc}: no se puede publicar. " + " ".join(faltantes), level="warning")
+
+
+    def _generar_descripcion(self, request, queryset, proveedor_cls, error_cls, etiqueta):
+        from asistencia.proveedores import generar_sugerencias
+
+        for doc in queryset:
+            try:
+                proveedor = proveedor_cls()
+                sugerencias = generar_sugerencias(doc, proveedor)
+            except error_cls as e:
+                self.message_user(request, f"{doc}: {e}", level="warning")
+                continue
+            if not sugerencias:
+                self.message_user(request, f"{doc}: {etiqueta} no propuso datos nuevos.")
+                continue
+            sin_evidencia = sum(1 for s in sugerencias if not s.evidencia_verificada)
+            aviso = f" ({sin_evidencia} sin evidencia verificada)" if sin_evidencia else ""
+            self.message_user(
+                request,
+                f"{doc}: {len(sugerencias)} sugerencia(s) de {etiqueta} pendientes de validación{aviso}.",
+            )
+
+    @admin.action(description="Generar borrador de descripción (IA en la nube, Claude)")
+    def generar_descripcion_nube(self, request, queryset):
+        from asistencia.proveedor_claude import ErrorProveedorIA, ProveedorClaude
+
+        self._generar_descripcion(request, queryset, ProveedorClaude, ErrorProveedorIA, "la IA en la nube")
+
+    @admin.action(description="Generar borrador de descripción (IA local, sin conexión)")
+    def generar_descripcion_local(self, request, queryset):
+        from asistencia.proveedor_local import ErrorProveedorIA, ProveedorLocal
+
+        self._generar_descripcion(request, queryset, ProveedorLocal, ErrorProveedorIA, "la IA local")
+
+
+@admin.register(Entidad)
+class EntidadAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "tipo", "num_documentos")
+    list_filter = ("tipo",)
+    search_fields = ("nombre",)
+    filter_horizontal = ("documentos",)
+
+    @admin.display(description="Documentos")
+    def num_documentos(self, obj):
+        return obj.documentos.count()
 
 
 @admin.register(EventoPreservacion)

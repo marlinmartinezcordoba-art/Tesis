@@ -84,6 +84,20 @@ def _decision_humana(doc):
     return CUMPLE, f"Las {total} sugerencias tienen decisión humana registrada."
 
 
+def _des_03(doc):
+    aceptadas = doc.sugerencias.filter(estado="aceptada")
+    if not doc.sugerencias.exists():
+        return MANUAL, "Aún no hay sugerencias de IA para este documento."
+    sin_evidencia = aceptadas.filter(evidencia_verificada=False).count()
+    if sin_evidencia:
+        return NO_CUMPLE, f"{sin_evidencia} dato(s) de IA aceptado(s) sin cambios y sin evidencia verificada."
+    verificadas = doc.sugerencias.filter(evidencia_verificada=True).count()
+    return CUMPLE, (
+        f"{verificadas} de {doc.sugerencias.count()} sugerencias con evidencia verificada; "
+        "ninguna sin evidencia se aceptó sin corrección."
+    )
+
+
 def _acc_01(doc):
     revision = doc.revisiones_datos.first()
     if revision is None:
@@ -117,6 +131,7 @@ VERIFICADORES = {
     "MET-03": _met_03,
     "DES-01": _des_01,
     "DES-02": _decision_humana,
+    "DES-03": _des_03,
     "CLA-01": _decision_humana,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,

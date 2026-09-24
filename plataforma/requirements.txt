@@ -2,3 +2,4 @@ django>=5.2,<6
 pytesseract>=0.3
 pypdf>=4
 pillow>=10
+anthropic>=1.8
