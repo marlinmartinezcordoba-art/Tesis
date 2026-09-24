@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Informe de verificación · {{ documento.titulo }}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  .meta { color: #52606d; margin-top: 0; }
+  .resumen { display: flex; gap: 12px; flex-wrap: wrap; margin: 1rem 0; }
+  .resumen div { border: 1px solid #d9e2ec; border-radius: 8px; padding: 8px 14px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e4e7eb; vertical-align: top; font-size: .92rem; }
+  .estado { font-weight: 600; white-space: nowrap; }
+  .cumple { color: #1f7a3a; } .no_cumple { color: #b42318; } .revision_manual { color: #8a6100; }
+  .fuente { color: #52606d; font-size: .82rem; }
+  .borrador { font-size: .75rem; background: #fff4d6; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>Informe de verificación</h1>
+<p class="meta">{{ documento.codigo_referencia|default:"Sin código" }} · {{ documento.titulo }} · SHA-256 {{ documento.sha256|truncatechars:20 }}</p>
+
+<div class="resumen">
+  <div><strong>{{ cumple }}</strong> cumplen</div>
+  <div><strong>{{ no_cumple }}</strong> no cumplen</div>
+  <div><strong>{{ total }}</strong> criterios evaluados</div>
+</div>
+
+{% for proceso, resultados in secciones %}
+<h2>{{ proceso }}</h2>
+<table>
+  <tr><th>Criterio</th><th>Atributo</th><th>Resultado</th><th>Evidencia</th></tr>
+  {% for r in resultados %}
+  <tr>
+    <td><strong>{{ r.criterio.codigo }}</strong> {{ r.criterio.enunciado }}
+      {% if r.criterio.estado == "borrador" %}<span class="borrador">borrador</span>{% endif %}
+      <div class="fuente">Fuente: {{ r.criterio.fuente_normativa }}</div></td>
+    <td>{{ r.criterio.get_atributo_display }}</td>
+    <td class="estado {{ r.estado }}">{% if r.estado == "cumple" %}Cumple{% elif r.estado == "no_cumple" %}No cumple{% else %}Revisión manual{% endif %}</td>
+    <td>{{ r.evidencia }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+</body>
+</html>
