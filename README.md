@@ -17,6 +17,7 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 
 - `lineamientos`: criterios por proceso y atributo, con su fuente normativa, e informe de verificación por documento.
 - `acervo`: documentos con elementos ISAD(G), hash SHA-256, bitácora de preservación encadenada (estilo PREMIS) y extracción de texto con OCR (Tesseract en español) para PDF, imágenes y texto plano.
+- `acceso`: detección de datos personales (Ley 1581 de 2012), decisión humana (publicar, anonimizar o restringir) y aprobación controlada para el futuro portal de consulta.
 - `asistencia`: sugerencias de IA con validación humana y proveedores de IA intercambiables.
 
 ## Cómo ejecutarla

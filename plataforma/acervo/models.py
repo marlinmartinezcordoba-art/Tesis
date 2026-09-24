@@ -44,6 +44,11 @@ class Documento(models.Model):
     formato = models.CharField(max_length=100, blank=True, editable=False)
     tamano_bytes = models.BigIntegerField(default=0, editable=False)
     texto_extraido = models.TextField(blank=True)
+    texto_publico = models.TextField(
+        blank=True, editable=False,
+        help_text="Texto que se muestra al público, con los datos personales ocultos si se decidió anonimizar.",
+    )
+    publicado = models.BooleanField(default=False, editable=False)
     fecha_ingreso = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -87,6 +92,8 @@ class EventoPreservacion(models.Model):
         SUGERENCIA_IA = "sugerencia_ia", "Sugerencia generada por IA"
         VALIDACION = "validacion_humana", "Validación humana"
         MODIFICACION = "modificacion_metadatos", "Modificación de metadatos"
+        REVISION_DATOS = "revision_datos_personales", "Revisión de datos personales"
+        PUBLICACION = "aprobacion_publicacion", "Aprobación de publicación"
 
     documento = models.ForeignKey(
         Documento, on_delete=models.PROTECT, related_name="eventos"

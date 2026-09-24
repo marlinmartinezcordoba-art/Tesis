@@ -51,6 +51,8 @@ MAZUCA no agrega objetivos ni se presenta como un resultado validado.
 | Integridad (ISO 14721, OAIS) | Hash SHA-256 al ingresar y verificación periódica de fijeza. |
 | Autenticidad (ISO 15489) | Bitácora de eventos encadenada con hashes: cualquier alteración se detecta. |
 | Procedencia del texto (OCR) | El texto extraído registra herramienta, versión y confianza; por debajo de 75 % exige revisión humana. |
+| Protección de datos personales (Ley 1581 de 2012) | El detector señala identificación, contacto y datos sensibles; la persona archivista decide publicar, anonimizar o restringir, con motivo. El texto original nunca se altera. |
+| Publicación controlada (Ley 1712 de 2014) | Solo se aprueba para el portal un documento con descripción completa, integridad verificada, datos personales revisados y sin sugerencias de IA pendientes. Si el texto cambia, sale del portal. |
 | Criterios de verificación | Informe por documento: cumple, no cumple o revisión manual, con la fuente normativa. |
 
 ## 5. Alcance y cronograma

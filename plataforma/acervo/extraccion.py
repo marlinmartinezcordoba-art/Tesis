@@ -105,6 +105,12 @@ def extraer_texto(documento, agente="sistema"):
         detalle["herramienta"] = f"Tesseract {pytesseract.get_tesseract_version()} ({IDIOMA_OCR})"
 
     documento.texto_extraido = texto
-    documento.save(update_fields=["texto_extraido"])
+    if documento.publicado:
+        # El texto cambió: la revisión de datos personales ya no aplica y
+        # el documento sale del portal hasta que se revise de nuevo.
+        detalle["publicacion_retirada"] = True
+    documento.publicado = False
+    documento.texto_publico = ""
+    documento.save(update_fields=["texto_extraido", "publicado", "texto_publico"])
     registrar_evento(documento, EventoPreservacion.Tipo.EXTRACCION, agente=agente, detalle=detalle)
     return texto, detalle

@@ -138,5 +138,19 @@
    "riesgo_asociado": "Pérdida de contexto",
    "estado": "borrador"
   }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "ACC-03",
+   "proceso": "acceso",
+   "atributo": "accesibilidad",
+   "enunciado": "Solo se publica en el portal de consulta el documento que tiene descripción completa, integridad verificada, revisión de datos personales decidida y ninguna sugerencia de IA pendiente.",
+   "verificacion": "El documento publicado cumple todos los requisitos y su aprobación está en la bitácora.",
+   "fuente_normativa": "Ley 1712 de 2014; Ley 1581 de 2012; Ley 594 de 2000",
+   "obligatorio": true,
+   "riesgo_asociado": "Difusión de información no validada o con datos personales",
+   "estado": "borrador"
+  }
  }
 ]

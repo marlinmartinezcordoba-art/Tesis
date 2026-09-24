@@ -19,12 +19,12 @@ class EventoInline(admin.TabularInline):
 
 @admin.register(Documento)
 class DocumentoAdmin(admin.ModelAdmin):
-    list_display = ("titulo", "codigo_referencia", "nivel_descripcion", "fecha_ingreso", "informe")
-    list_filter = ("nivel_descripcion",)
+    list_display = ("titulo", "codigo_referencia", "nivel_descripcion", "publicado", "fecha_ingreso", "informe")
+    list_filter = ("nivel_descripcion", "publicado")
     search_fields = ("titulo", "codigo_referencia", "productor", "texto_extraido")
-    readonly_fields = ("sha256", "formato", "tamano_bytes", "fecha_ingreso")
+    readonly_fields = ("sha256", "formato", "tamano_bytes", "fecha_ingreso", "publicado", "texto_publico")
     inlines = [EventoInline]
-    actions = ["verificar_fijeza", "extraer_texto"]
+    actions = ["verificar_fijeza", "extraer_texto", "revisar_datos_personales", "aprobar_publicacion"]
 
     def get_readonly_fields(self, request, obj=None):
         # El archivo no se puede reemplazar después del ingreso.
@@ -53,6 +53,34 @@ class DocumentoAdmin(admin.ModelAdmin):
             confianza = detalle["confianza_ocr"]
             aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
             self.message_user(request, f"{doc}: {detalle['caracteres']} caracteres extraídos{aviso}.")
+
+
+    @admin.action(description="Revisar datos personales (Ley 1581 de 2012)")
+    def revisar_datos_personales(self, request, queryset):
+        from acceso.servicios import revisar_datos_personales
+
+        for doc in queryset:
+            try:
+                r = revisar_datos_personales(doc, agente=request.user)
+            except ValueError as e:
+                self.message_user(request, f"{doc}: {e}", level="warning")
+                continue
+            self.message_user(
+                request,
+                f"{doc}: {len(r.hallazgos)} posible(s) dato(s) personal(es), "
+                f"{r.total_sensibles} sensible(s). Decida en «Revisiones de datos personales».",
+            )
+
+    @admin.action(description="Aprobar publicación en el portal de consulta")
+    def aprobar_publicacion(self, request, queryset):
+        from acceso.servicios import aprobar_publicacion
+
+        for doc in queryset:
+            ok, faltantes = aprobar_publicacion(doc, request.user)
+            if ok:
+                self.message_user(request, f"{doc}: aprobado para publicación.")
+            else:
+                self.message_user(request, f"{doc}: no se puede publicar. " + " ".join(faltantes), level="warning")
 
 
 @admin.register(EventoPreservacion)

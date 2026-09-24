@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "lineamientos",
     "acervo",
     "asistencia",
+    "acceso",
 ]
 
 MIDDLEWARE = [

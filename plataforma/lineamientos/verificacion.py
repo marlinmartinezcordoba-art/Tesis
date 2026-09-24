@@ -84,6 +84,33 @@ def _decision_humana(doc):
     return CUMPLE, f"Las {total} sugerencias tienen decisión humana registrada."
 
 
+def _acc_01(doc):
+    revision = doc.revisiones_datos.first()
+    if revision is None:
+        return MANUAL, "Aún no se han revisado los datos personales."
+    if not revision.vigente:
+        return NO_CUMPLE, "El texto cambió después de la última revisión de datos personales."
+    if revision.decision == "pendiente":
+        return NO_CUMPLE, f"{len(revision.hallazgos)} posible(s) dato(s) personal(es) sin decisión humana."
+    return CUMPLE, (
+        f"{revision.get_decision_display()} (decidido por {revision.decidido_por}); "
+        f"{len(revision.hallazgos)} hallazgo(s) revisado(s)."
+    )
+
+
+def _acc_03(doc):
+    from acceso.servicios import requisitos_publicacion
+
+    faltantes = requisitos_publicacion(doc)
+    if doc.publicado and not faltantes:
+        return CUMPLE, "Publicado con todos los requisitos cumplidos."
+    if doc.publicado:
+        return NO_CUMPLE, "Publicado, pero ya no cumple: " + " ".join(faltantes)
+    if faltantes:
+        return MANUAL, "No publicado. Falta: " + " ".join(faltantes)
+    return MANUAL, "No publicado; cumple los requisitos para aprobar su publicación."
+
+
 VERIFICADORES = {
     "MET-01": _met_01,
     "MET-02": _met_02,
@@ -91,6 +118,8 @@ VERIFICADORES = {
     "DES-01": _des_01,
     "DES-02": _decision_humana,
     "CLA-01": _decision_humana,
+    "ACC-01": _acc_01,
+    "ACC-03": _acc_03,
 }
 
 
