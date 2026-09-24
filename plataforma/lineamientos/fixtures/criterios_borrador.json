@@ -1,11 +1,142 @@
 [
- {"model": "lineamientos.criterio", "fields": {"codigo": "CLA-01", "proceso": "clasificacion", "atributo": "autenticidad", "enunciado": "La IA propone la ubicación del documento dentro del cuadro de clasificación, pero la asignación definitiva la hace una persona archivista.", "verificacion": "Toda clasificación registrada tiene una validación humana asociada en la bitácora.", "fuente_normativa": "Ley 594 de 2000; Acuerdo 001 de 2024 (AGN)", "obligatorio": true, "riesgo_asociado": "Clasificación automática sin control humano", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "CLA-02", "proceso": "clasificacion", "atributo": "integridad", "enunciado": "La clasificación sugerida respeta el principio de procedencia y el orden original del fondo.", "verificacion": "La propuesta no mezcla documentos de productores distintos en una misma agrupación.", "fuente_normativa": "ISAD(G) 2.ª ed.; Ley 594 de 2000", "obligatorio": true, "riesgo_asociado": "Pérdida de contexto", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "DES-01", "proceso": "descripcion", "atributo": "accesibilidad", "enunciado": "Los borradores de descripción cubren los elementos esenciales de ISAD(G): código de referencia, título, productor, fechas, extensión y nivel de descripción.", "verificacion": "El registro validado tiene diligenciados los seis elementos esenciales.", "fuente_normativa": "ISAD(G) 2.ª ed., elementos 3.1.1–3.1.5 y 3.2.1", "obligatorio": true, "riesgo_asociado": "Descripciones incompletas", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "DES-02", "proceso": "descripcion", "atributo": "autenticidad", "enunciado": "Cada dato generado por IA identifica el modelo, la versión y el nivel de confianza, y se distingue del dato creado por la persona archivista.", "verificacion": "La sugerencia conserva modelo, versión, confianza y decisión humana.", "fuente_normativa": "Recomendación sobre la ética de la IA (UNESCO); ISO 15489-1:2016", "obligatorio": true, "riesgo_asociado": "Trazabilidad; sesgo", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "VAL-01", "proceso": "valoracion", "atributo": "integridad", "enunciado": "La IA puede señalar indicios de valores secundarios, pero no recomienda ni ejecuta eliminación documental.", "verificacion": "La herramienta no ofrece acciones de eliminación derivadas de la IA.", "fuente_normativa": "Decreto 1080 de 2015; Acuerdo 001 de 2024 (AGN)", "obligatorio": true, "riesgo_asociado": "Pérdida irreversible de patrimonio", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "MET-01", "proceso": "metadatos", "atributo": "integridad", "enunciado": "Cada objeto digital tiene un valor de fijeza (hash) desde su ingreso y se verifica periódicamente.", "verificacion": "Existe un evento de ingreso con SHA-256 y verificaciones de fijeza exitosas.", "fuente_normativa": "ISO 14721 (OAIS), información de fijeza", "obligatorio": true, "riesgo_asociado": "Alteración no detectada", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "MET-02", "proceso": "metadatos", "atributo": "autenticidad", "enunciado": "Todas las acciones sobre el documento, humanas o de IA, quedan en una bitácora que no se puede alterar sin que se note.", "verificacion": "La cadena de hashes de la bitácora está intacta.", "fuente_normativa": "ISO 15489-1:2016; ISO 14721 (OAIS), información de procedencia", "obligatorio": true, "riesgo_asociado": "Trazabilidad", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "ACC-01", "proceso": "acceso", "atributo": "accesibilidad", "enunciado": "Antes de publicar, la IA señala posibles datos personales sensibles para que se decida su restricción o anonimización.", "verificacion": "Los documentos publicados tienen una revisión de datos personales registrada.", "fuente_normativa": "Ley 1581 de 2012; Ley 1712 de 2014", "obligatorio": true, "riesgo_asociado": "Exposición de datos personales", "estado": "borrador"}},
- {"model": "lineamientos.criterio", "fields": {"codigo": "ACC-02", "proceso": "acceso", "atributo": "accesibilidad", "enunciado": "La búsqueda asistida por IA muestra la descripción archivística y el contexto del documento, no solo fragmentos aislados.", "verificacion": "Cada resultado enlaza con su nivel de descripción y su productor.", "fuente_normativa": "ISAD(G) 2.ª ed.; Records in Contexts (ICA)", "obligatorio": false, "riesgo_asociado": "Pérdida de contexto", "estado": "borrador"}}
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "CLA-01",
+   "proceso": "clasificacion",
+   "atributo": "autenticidad",
+   "enunciado": "La IA propone la ubicación del documento dentro del cuadro de clasificación, pero la asignación definitiva la hace una persona archivista.",
+   "verificacion": "Toda clasificación registrada tiene una validación humana asociada en la bitácora.",
+   "fuente_normativa": "Ley 594 de 2000; Acuerdo 001 de 2024 (AGN)",
+   "obligatorio": true,
+   "riesgo_asociado": "Clasificación automática sin control humano",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "CLA-02",
+   "proceso": "clasificacion",
+   "atributo": "integridad",
+   "enunciado": "La clasificación sugerida respeta el principio de procedencia y el orden original del fondo.",
+   "verificacion": "La propuesta no mezcla documentos de productores distintos en una misma agrupación.",
+   "fuente_normativa": "ISAD(G) 2.ª ed.; Ley 594 de 2000",
+   "obligatorio": true,
+   "riesgo_asociado": "Pérdida de contexto",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "DES-01",
+   "proceso": "descripcion",
+   "atributo": "accesibilidad",
+   "enunciado": "Los borradores de descripción cubren los elementos esenciales de ISAD(G): código de referencia, título, productor, fechas, extensión y nivel de descripción.",
+   "verificacion": "El registro validado tiene diligenciados los seis elementos esenciales.",
+   "fuente_normativa": "ISAD(G) 2.ª ed., elementos 3.1.1–3.1.5 y 3.2.1",
+   "obligatorio": true,
+   "riesgo_asociado": "Descripciones incompletas",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "DES-02",
+   "proceso": "descripcion",
+   "atributo": "autenticidad",
+   "enunciado": "Cada dato generado por IA identifica el modelo, la versión y el nivel de confianza, y se distingue del dato creado por la persona archivista.",
+   "verificacion": "La sugerencia conserva modelo, versión, confianza y decisión humana.",
+   "fuente_normativa": "Recomendación sobre la ética de la IA (UNESCO); ISO 15489-1:2016",
+   "obligatorio": true,
+   "riesgo_asociado": "Trazabilidad; sesgo",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "VAL-01",
+   "proceso": "valoracion",
+   "atributo": "integridad",
+   "enunciado": "La IA puede señalar indicios de valores secundarios, pero no recomienda ni ejecuta eliminación documental.",
+   "verificacion": "La herramienta no ofrece acciones de eliminación derivadas de la IA.",
+   "fuente_normativa": "Decreto 1080 de 2015; Acuerdo 001 de 2024 (AGN)",
+   "obligatorio": true,
+   "riesgo_asociado": "Pérdida irreversible de patrimonio",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "MET-01",
+   "proceso": "metadatos",
+   "atributo": "integridad",
+   "enunciado": "Cada objeto digital tiene un valor de fijeza (hash) desde su ingreso y se verifica periódicamente.",
+   "verificacion": "Existe un evento de ingreso con SHA-256 y verificaciones de fijeza exitosas.",
+   "fuente_normativa": "ISO 14721 (OAIS), información de fijeza",
+   "obligatorio": true,
+   "riesgo_asociado": "Alteración no detectada",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "MET-02",
+   "proceso": "metadatos",
+   "atributo": "autenticidad",
+   "enunciado": "Todas las acciones sobre el documento, humanas o de IA, quedan en una bitácora que no se puede alterar sin que se note.",
+   "verificacion": "La cadena de hashes de la bitácora está intacta.",
+   "fuente_normativa": "ISO 15489-1:2016; ISO 14721 (OAIS), información de procedencia",
+   "obligatorio": true,
+   "riesgo_asociado": "Trazabilidad",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "MET-03",
+   "proceso": "metadatos",
+   "atributo": "autenticidad",
+   "enunciado": "El texto obtenido automáticamente (OCR) declara la herramienta, su versión y su nivel de confianza; si la confianza es baja, una persona debe revisarlo antes de usarlo para describir o dar acceso.",
+   "verificacion": "La última extracción de texto registra método y confianza; la confianza del OCR es igual o superior al umbral definido (75 %).",
+   "fuente_normativa": "ISO 15489-1:2016; ISO 14721 (OAIS), información de procedencia",
+   "obligatorio": true,
+   "riesgo_asociado": "Errores de transcripción que se propagan a la descripción",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "ACC-01",
+   "proceso": "acceso",
+   "atributo": "accesibilidad",
+   "enunciado": "Antes de publicar, la IA señala posibles datos personales sensibles para que se decida su restricción o anonimización.",
+   "verificacion": "Los documentos publicados tienen una revisión de datos personales registrada.",
+   "fuente_normativa": "Ley 1581 de 2012; Ley 1712 de 2014",
+   "obligatorio": true,
+   "riesgo_asociado": "Exposición de datos personales",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "ACC-02",
+   "proceso": "acceso",
+   "atributo": "accesibilidad",
+   "enunciado": "La búsqueda asistida por IA muestra la descripción archivística y el contexto del documento, no solo fragmentos aislados.",
+   "verificacion": "Cada resultado enlaza con su nivel de descripción y su productor.",
+   "fuente_normativa": "ISAD(G) 2.ª ed.; Records in Contexts (ICA)",
+   "obligatorio": false,
+   "riesgo_asociado": "Pérdida de contexto",
+   "estado": "borrador"
+  }
+ }
 ]

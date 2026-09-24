@@ -40,6 +40,25 @@ def _met_02(doc):
     return NO_CUMPLE, f"La cadena se rompe en el evento {roto.pk}."
 
 
+UMBRAL_OCR = 75
+
+
+def _met_03(doc):
+    extraccion = doc.eventos.filter(tipo=EventoPreservacion.Tipo.EXTRACCION).last()
+    if not extraccion:
+        return MANUAL, "Aún no se ha extraído el texto del documento."
+    confianza = extraccion.detalle.get("confianza_ocr")
+    if confianza is None:
+        return CUMPLE, "Texto leído directamente del archivo, sin OCR."
+    herramienta = extraccion.detalle.get("herramienta", "OCR")
+    if confianza >= UMBRAL_OCR:
+        return CUMPLE, f"{herramienta}: confianza media {confianza} %."
+    return NO_CUMPLE, (
+        f"{herramienta}: confianza media {confianza} %, por debajo de {UMBRAL_OCR} %. "
+        "El texto requiere revisión humana."
+    )
+
+
 def _des_01(doc):
     campos = {
         "código de referencia": doc.codigo_referencia,
@@ -68,6 +87,7 @@ def _decision_humana(doc):
 VERIFICADORES = {
     "MET-01": _met_01,
     "MET-02": _met_02,
+    "MET-03": _met_03,
     "DES-01": _des_01,
     "DES-02": _decision_humana,
     "CLA-01": _decision_humana,

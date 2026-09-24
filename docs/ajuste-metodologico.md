@@ -85,6 +85,7 @@ prototipo de software que los aplica.
 | Trazabilidad del uso de IA | Cada sugerencia guarda modelo, versión, confianza, justificación y decisión humana |
 | Integridad (OAIS, fijeza) | SHA-256 al ingresar y verificación periódica de fijeza |
 | Autenticidad (ISO 15489) | Bitácora de eventos encadenada con hashes: cualquier alteración se detecta |
+| Procedencia del texto (OCR) | El texto extraído registra herramienta, versión y confianza; por debajo de 75 % exige revisión humana |
 | Criterios de verificación | Informe por documento: cumple, no cumple o revisión manual, con la fuente normativa |
 
 ## 7. Precauciones éticas y de datos

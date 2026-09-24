@@ -83,6 +83,7 @@ class EventoPreservacion(models.Model):
     class Tipo(models.TextChoices):
         INGRESO = "ingreso", "Ingreso"
         FIJEZA = "verificacion_fijeza", "Verificación de fijeza"
+        EXTRACCION = "extraccion_texto", "Extracción de texto (OCR)"
         SUGERENCIA_IA = "sugerencia_ia", "Sugerencia generada por IA"
         VALIDACION = "validacion_humana", "Validación humana"
         MODIFICACION = "modificacion_metadatos", "Modificación de metadatos"

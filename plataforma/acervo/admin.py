@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
+from . import extraccion
 from .models import Documento, EventoPreservacion
 
 
@@ -23,7 +24,7 @@ class DocumentoAdmin(admin.ModelAdmin):
     search_fields = ("titulo", "codigo_referencia", "productor", "texto_extraido")
     readonly_fields = ("sha256", "formato", "tamano_bytes", "fecha_ingreso")
     inlines = [EventoInline]
-    actions = ["verificar_fijeza"]
+    actions = ["verificar_fijeza", "extraer_texto"]
 
     def get_readonly_fields(self, request, obj=None):
         # El archivo no se puede reemplazar después del ingreso.
@@ -41,6 +42,18 @@ class DocumentoAdmin(admin.ModelAdmin):
         else:
             self.message_user(request, f"{queryset.count()} documento(s) íntegro(s).")
 
+    @admin.action(description="Extraer texto (OCR) de los documentos seleccionados")
+    def extraer_texto(self, request, queryset):
+        for doc in queryset:
+            try:
+                _, detalle = extraccion.extraer_texto(doc, agente=request.user)
+            except extraccion.FormatoNoSoportado as e:
+                self.message_user(request, f"{doc}: {e}", level="warning")
+                continue
+            confianza = detalle["confianza_ocr"]
+            aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
+            self.message_user(request, f"{doc}: {detalle['caracteres']} caracteres extraídos{aviso}.")
+
 
 @admin.register(EventoPreservacion)
 class EventoAdmin(admin.ModelAdmin):
@@ -56,3 +69,4 @@ class EventoAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
