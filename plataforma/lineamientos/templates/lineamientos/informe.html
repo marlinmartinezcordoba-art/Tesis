@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Informe de verificación · {{ documento.titulo }}</title>
+<title>Informe de verificación · MAZUCA</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
   h1 { font-size: 1.4rem; margin-bottom: .2rem; }
@@ -19,6 +19,7 @@
 </style>
 </head>
 <body>
+<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA</p>
 <h1>Informe de verificación</h1>
 <p class="meta">{{ documento.codigo_referencia|default:"Sin código" }} · {{ documento.titulo }} · SHA-256 {{ documento.sha256|truncatechars:20 }}</p>
 

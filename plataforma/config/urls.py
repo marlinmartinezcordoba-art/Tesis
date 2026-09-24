@@ -5,7 +5,9 @@ from django.urls import path
 
 from lineamientos.views import informe
 
-admin.site.site_header = "Plataforma de automatización archivística asistida por IA"
+admin.site.site_header = "MAZUCA · Automatización archivística asistida por IA"
+admin.site.site_title = "MAZUCA"
+admin.site.index_title = "Archivo histórico"
 
 urlpatterns = [
     path("admin/", admin.site.urls),

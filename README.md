@@ -1,6 +1,10 @@
-# Plataforma de automatización archivística asistida por IA
+# MAZUCA
 
-Prototipo de la tesis de maestría en Gestión de la Información Documental
+**Automatización archivística asistida por inteligencia artificial para archivos históricos.**
+
+**MA**rlín · **ZU**lly · **CA**talina: tres autoras, tres sílabas y tres atributos del patrimonio documental: autenticidad, integridad y accesibilidad.
+
+Prototipo demostrativo que acompaña la tesis de maestría en Gestión de la Información Documental
 (Universidad de La Salle): *Incorporación de inteligencia artificial en la
 automatización asistida de procesos archivísticos en archivos históricos del
 orden nacional en Colombia*.
@@ -32,4 +36,4 @@ cd plataforma
 Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py test tests`.
 
 Los criterios cargados son **borradores**; se reemplazan por los validados en la Fase 4.
-El ajuste metodológico está en `docs/ajuste-metodologico.md`.
+Cómo se relaciona MAZUCA con la tesis: `docs/mazuca-valor-agregado.md`.
