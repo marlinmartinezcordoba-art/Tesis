@@ -86,20 +86,17 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# En desarrollo (o si no se define DATABASE_URL) se usa SQLite.
-# En Docker y en producción, DATABASE_URL apunta a PostgreSQL, por ejemplo:
-# postgres://usuario:clave@host:5432/mazuca
-if os.environ.get("DATABASE_URL"):
-    import dj_database_url
+# MAZUCA usa siempre PostgreSQL, en desarrollo, en Docker y en producción,
+# para probar contra la misma base de datos en todos los entornos. La
+# conexión se toma de DATABASE_URL; en desarrollo local (sin Docker), por
+# defecto apunta al PostgreSQL de esta máquina con la base "mazuca" creada
+# en la Fase de configuración (ver README).
+import dj_database_url
 
-    DATABASES = {"default": dj_database_url.parse(os.environ["DATABASE_URL"])}
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgres://mazuca:mazuca@127.0.0.1:5432/mazuca"
+)
+DATABASES = {"default": dj_database_url.parse(DATABASE_URL)}
 
 
 # Password validation

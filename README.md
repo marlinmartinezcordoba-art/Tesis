@@ -36,7 +36,14 @@ Entra a http://localhost:8000/admin/. Para detenerla: `docker compose down` (agr
 
 ### Opción B: en tu máquina, sin Docker
 
-Requiere Tesseract con el idioma español, el modelo de spaCy en español (`python -m spacy download es_core_news_md`) y, para el proveedor en la nube, una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY` (en Ubuntu/Debian: `sudo apt install tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de UB Mannheim).
+MAZUCA usa **siempre PostgreSQL** (en desarrollo, en Docker y en producción), para probar contra la misma base de datos en todos los entornos. Además de Tesseract con español y el modelo de spaCy en español, necesitas PostgreSQL instalado y corriendo (en Ubuntu/Debian: `sudo apt install postgresql tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de PostgreSQL y el de Tesseract de UB Mannheim). Para el proveedor de IA en la nube hace falta además una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY`.
+
+Crea el rol y la base de datos una sola vez (los valores por defecto que espera la aplicación son usuario `mazuca`, clave `mazuca`, base `mazuca`; puedes cambiarlos si defines tu propia `DATABASE_URL`):
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE mazuca WITH LOGIN PASSWORD 'mazuca' CREATEDB;"
+sudo -u postgres psql -c "CREATE DATABASE mazuca OWNER mazuca;"
+```
 
 ```bash
 python3 -m venv .venv
@@ -48,7 +55,7 @@ cd plataforma
 ../.venv/bin/python manage.py runserver
 ```
 
-Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py test tests`.
+Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py test tests` (el rol necesita `CREATEDB` porque Django crea una base de datos temporal para las pruebas).
 
 Los criterios cargados son **borradores**; se reemplazan por los validados en la Fase 4.
 Cómo se relaciona MAZUCA con la tesis: `docs/mazuca-valor-agregado.md`.

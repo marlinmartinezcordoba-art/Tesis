@@ -111,6 +111,7 @@ MAZUCA se desplegará en **DigitalOcean**. Consideraciones:
 - Variables de entorno relevantes: `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=0` en
   producción, `ANTHROPIC_API_KEY`, `MAZUCA_MODELO_IA` (por defecto
   `claude-opus-5`).
-- Los documentos y `db.sqlite3` no van al repositorio (`.gitignore`); en
-  producción conviene una base de datos gestionada (PostgreSQL) y
-  almacenamiento de objetos (Spaces) para los archivos.
+- MAZUCA usa siempre PostgreSQL (en desarrollo, en Docker y en producción),
+  para probar contra la misma base de datos en todos los entornos. Los
+  documentos subidos no van al repositorio (`.gitignore`); en producción
+  conviene además almacenamiento de objetos (Spaces) para los archivos.
