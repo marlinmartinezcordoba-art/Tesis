@@ -12,6 +12,8 @@ costo. El modelo de spaCy se carga una sola vez por proceso.
 import re
 from functools import lru_cache
 
+from acervo.models import UnidadClasificacion
+
 from .proveedores import Propuesta, ProveedorIA
 
 MODELO_SPACY = "es_core_news_md"
@@ -89,3 +91,52 @@ class ProveedorLocal(ProveedorIA):
                 criterios=["DES-01", "DES-02", "DES-03"],
             ))
         return propuestas
+
+
+def _normalizar(s):
+    return " ".join(s.lower().split())
+
+
+class ProveedorClasificacionLocal(ProveedorIA):
+    """Propone la serie por coincidencia de palabras clave, sin conexión a
+    internet. Es más simple que un modelo de lenguaje: solo compara qué
+    unidad del cuadro tiene más palabras clave presentes en el texto."""
+
+    nombre = "local-reglas"
+    version = "0.1"
+
+    def proponer(self, documento, texto):
+        if not texto.strip():
+            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
+
+        texto_norm = _normalizar(texto)
+        unidades = list(
+            UnidadClasificacion.objects.filter(
+                tipo__in=[UnidadClasificacion.Tipo.SERIE, UnidadClasificacion.Tipo.SUBSERIE]
+            ).exclude(palabras_clave="")
+        )
+        if not unidades:
+            raise ErrorProveedorIA(
+                "No hay unidades del cuadro de clasificación con palabras clave cargadas."
+            )
+
+        mejor, mejor_coincidencias = None, []
+        for unidad in unidades:
+            terminos = [t.strip() for t in unidad.palabras_clave.split(",") if t.strip()]
+            coincidencias = [t for t in terminos if _normalizar(t) in texto_norm]
+            if len(coincidencias) > len(mejor_coincidencias):
+                mejor, mejor_coincidencias = unidad, coincidencias
+
+        if not mejor or not mejor_coincidencias:
+            return []  # ninguna serie coincide: mejor no proponer que adivinar
+
+        confianza = min(0.3 + 0.1 * len(mejor_coincidencias), 0.6)
+        return [Propuesta(
+            proceso="clasificacion",
+            campo="clasificacion",
+            valor=mejor.codigo,
+            confianza=confianza,
+            justificacion=f"Coincide con las palabras clave de «{mejor.nombre}»: {', '.join(mejor_coincidencias)}.",
+            evidencia=mejor_coincidencias[0],
+            criterios=["CLA-01", "CLA-02", "CLA-03"],
+        )]

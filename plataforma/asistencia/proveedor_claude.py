@@ -17,6 +17,8 @@ import anthropic
 from django.conf import settings
 from pydantic import BaseModel, Field
 
+from acervo.models import UnidadClasificacion
+
 from .proveedores import Propuesta, ProveedorIA
 
 CONFIANZA = {"alta": 0.9, "media": 0.7, "baja": 0.4}
@@ -106,18 +108,18 @@ class ProveedorClaude(ProveedorIA):
             return documento.texto_publico
         return documento.texto_extraido
 
-    def _consultar(self, texto):
+    def _consultar_generico(self, texto, instrucciones, formato, contexto=""):
+        """Llama a Claude con salida estructurada; usada por descripción y clasificación."""
+        partes = [f"<documento>\n{texto}\n</documento>"]
+        if contexto:
+            partes.append(contexto)
         try:
-            return self.cliente.beta.messages.parse(
+            respuesta = self.cliente.beta.messages.parse(
                 model=self.modelo,
                 max_tokens=16000,
-                system=INSTRUCCIONES,
-                messages=[{
-                    "role": "user",
-                    "content": f"<documento>\n{texto}\n</documento>\n\n"
-                               "Propón el borrador de descripción de este documento.",
-                }],
-                output_format=BorradorDescripcion,
+                system=instrucciones,
+                messages=[{"role": "user", "content": "\n\n".join(partes)}],
+                output_format=formato,
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
             )
@@ -130,14 +132,19 @@ class ProveedorClaude(ProveedorIA):
         except anthropic.APIStatusError as e:
             raise ErrorProveedorIA(f"El servicio de IA respondió con un error ({e.status_code}).")
 
-    def proponer(self, documento, texto):
-        if not texto.strip():
-            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
-        respuesta = self._consultar(texto)
         if respuesta.stop_reason == "refusal":
             raise ErrorProveedorIA("El servicio de IA no procesó este documento.")
         if respuesta.stop_reason == "max_tokens" or respuesta.parsed_output is None:
             raise ErrorProveedorIA("La respuesta del servicio de IA llegó incompleta.")
+        return respuesta
+
+    def proponer(self, documento, texto):
+        if not texto.strip():
+            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
+        respuesta = self._consultar_generico(
+            texto, INSTRUCCIONES, BorradorDescripcion,
+            contexto="Propón el borrador de descripción de este documento.",
+        )
 
         # Registra el modelo que respondió realmente (puede ser el de respaldo).
         self.version = respuesta.model
@@ -170,3 +177,84 @@ class ProveedorClaude(ProveedorIA):
                     criterios=["DES-02", "DES-03", "ACC-02"],
                 ))
         return propuestas
+
+
+# --- Clasificación --------------------------------------------------------
+
+class ClasificacionPropuesta(BaseModel):
+    codigo_unidad: str = Field(
+        description="Código exacto de la serie o subserie elegida, copiado de la lista dada; "
+                    "cadena vacía si ninguna encaja."
+    )
+    evidencia: str = Field(description="Fragmento literal del documento que respalda la elección.")
+    confianza: Literal["alta", "media", "baja"]
+    justificacion: str = Field(description="Por qué el documento pertenece a esa serie.")
+
+
+INSTRUCCIONES_CLASIFICACION = """Eres una persona experta en archivística que apoya la \
+clasificación de un archivo histórico colombiano, según el principio de procedencia \
+(Ley 594 de 2000; ISAD(G)). Debes ubicar el documento en UNA de las series o \
+subseries del cuadro de clasificación que te doy, nunca crear una nueva.
+
+Reglas:
+- Elige el código exacto de la lista, tal como aparece.
+- Si ninguna serie encaja razonablemente, deja codigo_unidad vacío; no elijas \
+la que menos mal quede.
+- Evidencia: copia literalmente el fragmento del documento que justifica la \
+elección. Si no hay evidencia clara, deja codigo_unidad vacío.
+- El texto puede contener errores de OCR y la marca [DATO RESERVADO]."""
+
+
+class ProveedorClasificacionClaude(ProveedorIA):
+    """Propone la serie del cuadro de clasificación; reutiliza las reglas de
+    privacidad y el cliente de ProveedorClaude (composición, no herencia,
+    para no mezclar la salida estructurada de descripción con la de aquí)."""
+
+    nombre = "claude"
+
+    def __init__(self, cliente=None, modelo=None):
+        self._base = ProveedorClaude(cliente=cliente, modelo=modelo)
+        self.version = self._base.version
+
+    def texto_de(self, documento):
+        return self._base.texto_de(documento)
+
+    def proponer(self, documento, texto):
+        if not texto.strip():
+            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
+
+        unidades = list(
+            UnidadClasificacion.objects.filter(
+                tipo__in=[UnidadClasificacion.Tipo.SERIE, UnidadClasificacion.Tipo.SUBSERIE]
+            )
+        )
+        if not unidades:
+            raise ErrorProveedorIA(
+                "No hay cuadro de clasificación cargado. Cárguelo antes de clasificar con IA."
+            )
+        codigos_validos = {u.codigo for u in unidades}
+        cuadro = "\n".join(f"- {u.codigo}: {u.ruta()} — {u.descripcion}" for u in unidades)
+
+        respuesta = self._base._consultar_generico(
+            texto, INSTRUCCIONES_CLASIFICACION, ClasificacionPropuesta,
+            contexto=f"<cuadro_de_clasificacion>\n{cuadro}\n</cuadro_de_clasificacion>",
+        )
+        self.version = respuesta.model
+
+        propuesta = respuesta.parsed_output
+        codigo = propuesta.codigo_unidad.strip()
+        if not codigo:
+            return []
+        if codigo not in codigos_validos:
+            # La IA propuso un código que no está en el cuadro: se descarta
+            # en vez de crear una sugerencia con una unidad inexistente.
+            return []
+        return [Propuesta(
+            proceso="clasificacion",
+            campo="clasificacion",
+            valor=codigo,
+            confianza=CONFIANZA[propuesta.confianza],
+            justificacion=propuesta.justificacion,
+            evidencia=propuesta.evidencia,
+            criterios=["CLA-01", "CLA-02", "CLA-03"],
+        )]

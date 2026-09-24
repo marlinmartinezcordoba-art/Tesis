@@ -18,7 +18,7 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 - `lineamientos`: criterios por proceso y atributo, con su fuente normativa, e informe de verificación por documento.
 - `acervo`: documentos con elementos ISAD(G), hash SHA-256, bitácora de preservación encadenada (estilo PREMIS) y extracción de texto con OCR (Tesseract en español) para PDF, imágenes y texto plano.
 - `acceso`: detección de datos personales (Ley 1581 de 2012), decisión humana (publicar, anonimizar o restringir) y aprobación controlada para el futuro portal de consulta.
-- `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables para la descripción asistida (ISAD(G)): uno en la nube con Claude (salida estructurada, verificación de evidencia) y uno local con spaCy en español (sin conexión a internet).
+- `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables para la descripción asistida (ISAD(G)) y para la clasificación asistida (ubicación en el cuadro de clasificación de la entidad): uno en la nube con Claude (salida estructurada, verificación de evidencia) y uno local (spaCy y palabras clave, sin conexión a internet).
 
 ## Cómo ejecutarla
 
@@ -51,6 +51,7 @@ python3 -m venv .venv
 cd plataforma
 ../.venv/bin/python manage.py migrate
 ../.venv/bin/python manage.py loaddata criterios_borrador
+../.venv/bin/python manage.py loaddata cuadro_demo  # opcional: un cuadro de clasificación de ejemplo
 ../.venv/bin/python manage.py createsuperuser
 ../.venv/bin/python manage.py runserver
 ```

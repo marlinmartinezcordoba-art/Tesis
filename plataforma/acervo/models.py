@@ -21,6 +21,50 @@ def calcular_sha256(archivo):
     return h.hexdigest()
 
 
+class UnidadClasificacion(models.Model):
+    """Entrada del cuadro de clasificación de la entidad (fondo, sección, serie o subserie).
+
+    La entidad carga su propio cuadro; MAZUCA no impone uno. La IA solo
+    propone entre las unidades ya existentes: nunca crea niveles nuevos.
+    """
+
+    class Tipo(models.TextChoices):
+        FONDO = "fondo", "Fondo"
+        SECCION = "seccion", "Sección"
+        SERIE = "serie", "Serie"
+        SUBSERIE = "subserie", "Subserie"
+
+    codigo = models.CharField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=255)
+    tipo = models.CharField(max_length=10, choices=Tipo.choices)
+    padre = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="hijos"
+    )
+    descripcion = models.TextField(
+        blank=True, help_text="Qué tipo de documentos agrupa; es lo que la IA compara contra el texto."
+    )
+    palabras_clave = models.CharField(
+        max_length=500, blank=True,
+        help_text="Términos separados por comas, usados por el proveedor de IA local para proponer coincidencias.",
+    )
+
+    class Meta:
+        ordering = ["codigo"]
+        verbose_name = "unidad del cuadro de clasificación"
+        verbose_name_plural = "cuadro de clasificación"
+
+    def __str__(self):
+        return f"{self.codigo} · {self.nombre}"
+
+    def ruta(self):
+        """Fondo > sección > serie, para mostrar el contexto completo."""
+        unidades, actual = [self], self.padre
+        while actual:
+            unidades.append(actual)
+            actual = actual.padre
+        return " > ".join(u.nombre for u in reversed(unidades))
+
+
 class Documento(models.Model):
     class Nivel(models.TextChoices):
         FONDO = "fondo", "Fondo"
@@ -38,6 +82,10 @@ class Documento(models.Model):
     volumen_soporte = models.CharField(max_length=255, blank=True)
     productor = models.CharField(max_length=255, blank=True)
     alcance_contenido = models.TextField(blank=True)
+    unidad_clasificacion = models.ForeignKey(
+        UnidadClasificacion, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="documentos", help_text="Serie o subserie del cuadro de clasificación.",
+    )
 
     archivo = models.FileField(upload_to="acervo/%Y/%m/")
     sha256 = models.CharField(max_length=64, editable=False)

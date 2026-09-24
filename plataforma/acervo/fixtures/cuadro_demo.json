@@ -1,0 +1,9 @@
+[
+ {"model": "acervo.unidadclasificacion", "pk": 1, "fields": {"codigo": "F.01", "nombre": "Fondo Gobierno Colonial", "tipo": "fondo", "padre": null, "descripcion": "Documentos producidos por las autoridades coloniales.", "palabras_clave": ""}},
+ {"model": "acervo.unidadclasificacion", "pk": 2, "fields": {"codigo": "F.01.S01", "nombre": "Correspondencia oficial", "tipo": "seccion", "padre": 1, "descripcion": "Comunicaciones entre autoridades.", "palabras_clave": ""}},
+ {"model": "acervo.unidadclasificacion", "pk": 3, "fields": {"codigo": "F.01.S01.SE01", "nombre": "Cartas del virreinato", "tipo": "serie", "padre": 2, "descripcion": "Correspondencia enviada o recibida por el Virreinato de la Nueva Granada.", "palabras_clave": "virrey, virreinato, real audiencia, cabildo"}},
+ {"model": "acervo.unidadclasificacion", "pk": 4, "fields": {"codigo": "F.01.S02", "nombre": "Actas", "tipo": "seccion", "padre": 1, "descripcion": "Registros de reuniones y decisiones.", "palabras_clave": ""}},
+ {"model": "acervo.unidadclasificacion", "pk": 5, "fields": {"codigo": "F.01.S02.SE01", "nombre": "Actas de cabildo", "tipo": "serie", "padre": 4, "descripcion": "Actas de las reuniones del Cabildo.", "palabras_clave": "acta, cabildo, sesión, vecinos"}},
+ {"model": "acervo.unidadclasificacion", "pk": 6, "fields": {"codigo": "F.01.S03", "nombre": "Justicia", "tipo": "seccion", "padre": 1, "descripcion": "Procesos y diligencias judiciales.", "palabras_clave": ""}},
+ {"model": "acervo.unidadclasificacion", "pk": 7, "fields": {"codigo": "F.01.S03.SE01", "nombre": "Procesos judiciales", "tipo": "serie", "padre": 6, "descripcion": "Expedientes de procesos civiles y criminales.", "palabras_clave": "proceso, juicio, demanda, sentencia, acusado"}}
+]

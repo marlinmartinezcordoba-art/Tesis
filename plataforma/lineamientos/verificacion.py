@@ -98,6 +98,27 @@ def _des_03(doc):
     )
 
 
+def _cla_03(doc):
+    if doc.sugerencias.filter(proceso="clasificacion", estado="pendiente").exists():
+        return NO_CUMPLE, "Hay una propuesta de clasificación de IA sin validar."
+    if not doc.unidad_clasificacion:
+        return MANUAL, "El documento aún no está clasificado."
+    sugerencia = (
+        doc.sugerencias.filter(proceso="clasificacion")
+        .exclude(estado="pendiente")
+        .order_by("-fecha_validacion")
+        .first()
+    )
+    if sugerencia is None:
+        return MANUAL, f"Clasificado en «{doc.unidad_clasificacion}», sin pasar por una sugerencia de IA."
+    if sugerencia.estado != "rechazada" and sugerencia.evidencia_verificada is False:
+        return NO_CUMPLE, "La clasificación vigente vino de una sugerencia sin evidencia verificada."
+    return CUMPLE, (
+        f"Clasificado en «{doc.unidad_clasificacion.ruta()}», "
+        f"validado por {sugerencia.validado_por}."
+    )
+
+
 def _acc_01(doc):
     revision = doc.revisiones_datos.first()
     if revision is None:
@@ -133,6 +154,7 @@ VERIFICADORES = {
     "DES-02": _decision_humana,
     "DES-03": _des_03,
     "CLA-01": _decision_humana,
+    "CLA-03": _cla_03,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,
 }

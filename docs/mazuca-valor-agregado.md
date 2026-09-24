@@ -100,7 +100,28 @@ entidad decide qué solución de IA usar:
   (incluido un modelo de respaldo, si el servicio de IA declinó la
   solicitud original).
 
-## 8. Despliegue
+## 8. Clasificación asistida
+
+La entidad carga su propio **cuadro de clasificación** (fondo, sección,
+serie, subserie) en MAZUCA. La IA nunca crea niveles nuevos: solo propone
+en cuál serie o subserie **ya existente** ubicar el documento, siempre con
+evidencia textual.
+
+| | Proveedor en la nube (Claude) | Proveedor local (palabras clave) |
+|---|---|---|
+| Cómo decide | Compara el texto contra el nombre y la descripción de cada serie | Compara el texto contra las palabras clave que la entidad asignó a cada serie |
+| Si ninguna serie encaja | No propone nada (mejor no proponer que adivinar) | No propone nada |
+| Si la IA inventa un código que no está en el cuadro | MAZUCA lo descarta antes de crear la sugerencia | No aplica (solo usa códigos reales) |
+
+**Nuevo criterio CLA-03:** el documento clasificado por IA queda vinculado a
+una unidad real del cuadro y con una validación humana registrada; una
+sugerencia pendiente o sin evidencia verificada marca el criterio como no
+cumplido.
+
+Hay un cuadro de clasificación de ejemplo (`cuadro_demo`) para pruebas; en la
+Fase 4 se reemplaza por el cuadro real de la entidad.
+
+## 9. Despliegue
 
 MAZUCA se desplegará en **DigitalOcean**. Consideraciones:
 

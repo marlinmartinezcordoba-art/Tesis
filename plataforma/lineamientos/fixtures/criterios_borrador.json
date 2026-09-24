@@ -30,6 +30,20 @@
  {
   "model": "lineamientos.criterio",
   "fields": {
+   "codigo": "CLA-03",
+   "proceso": "clasificacion",
+   "atributo": "autenticidad",
+   "enunciado": "La IA solo propone entre las unidades del cuadro de clasificación que la entidad ya cargó; nunca crea fondos, secciones, series o subseries nuevas. Toda propuesta cita evidencia textual verificable.",
+   "verificacion": "El documento clasificado queda vinculado a una unidad existente del cuadro, con una validación humana registrada en la bitácora.",
+   "fuente_normativa": "Ley 594 de 2000; Acuerdo 001 de 2024 (AGN); ISO 15489-1:2016",
+   "obligatorio": true,
+   "riesgo_asociado": "Datos inventados por la IA (alucinaciones); cuadro de clasificación alterado",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
    "codigo": "DES-01",
    "proceso": "descripcion",
    "atributo": "accesibilidad",

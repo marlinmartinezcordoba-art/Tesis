@@ -9,7 +9,13 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
-from acervo.models import Documento, Entidad, EventoPreservacion, registrar_evento
+from acervo.models import (
+    Documento,
+    Entidad,
+    EventoPreservacion,
+    UnidadClasificacion,
+    registrar_evento,
+)
 from lineamientos.models import Criterio, Proceso
 
 # Campos del documento que una sugerencia puede completar.
@@ -24,6 +30,11 @@ CAMPOS_EDITABLES = {
 
 # Sugerencias que, al aceptarse, vinculan una entidad al documento.
 CAMPOS_ENTIDAD = {"persona", "lugar", "institucion"}
+
+# Sugerencia cuyo valor es el código de una unidad ya existente del cuadro
+# de clasificación. La IA nunca crea unidades nuevas, solo elige entre las
+# que la entidad ya cargó.
+CAMPO_CLASIFICACION = "clasificacion"
 
 
 class SugerenciaIA(models.Model):
@@ -105,6 +116,26 @@ class SugerenciaIA(models.Model):
                         EventoPreservacion.Tipo.MODIFICACION,
                         agente=usuario,
                         detalle={"entidad_vinculada": str(entidad)},
+                    )
+                elif self.campo == CAMPO_CLASIFICACION:
+                    try:
+                        unidad = UnidadClasificacion.objects.get(codigo=valor)
+                    except UnidadClasificacion.DoesNotExist:
+                        raise ValueError(
+                            f"No existe la unidad «{valor}» en el cuadro de clasificación."
+                        )
+                    anterior = self.documento.unidad_clasificacion
+                    self.documento.unidad_clasificacion = unidad
+                    self.documento.save(update_fields=["unidad_clasificacion"])
+                    registrar_evento(
+                        self.documento,
+                        EventoPreservacion.Tipo.MODIFICACION,
+                        agente=usuario,
+                        detalle={
+                            "campo": self.campo,
+                            "antes": str(anterior) if anterior else "",
+                            "despues": str(unidad),
+                        },
                     )
             else:
                 self.estado = self.Estado.RECHAZADA
