@@ -18,7 +18,8 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 - `lineamientos`: criterios por proceso y atributo, con su fuente normativa, e informe de verificación por documento.
 - `acervo`: documentos con elementos ISAD(G), hash SHA-256, bitácora de preservación encadenada (estilo PREMIS) y extracción de texto con OCR (Tesseract en español) para PDF, imágenes y texto plano.
 - `acceso`: detección de datos personales (Ley 1581 de 2012), decisión humana (publicar, anonimizar o restringir) y aprobación controlada para el futuro portal de consulta.
-- `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables (nube con Claude, local sin conexión) para tres procesos: descripción asistida (ISAD(G)), clasificación asistida (cuadro de clasificación de la entidad) y valoración asistida (indicios de valor histórico, cultural o científico; la plataforma nunca ofrece eliminar documentos).
+- `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables (nube con Claude, local sin conexión) para descripción asistida (ISAD(G), con relaciones tipadas RiC), clasificación asistida y valoración asistida (la plataforma nunca ofrece eliminar documentos). Incluye auditoría periódica por muestreo (`manage.py auditoria_muestra`) de la exactitud y el sesgo de las sugerencias de IA ya aceptadas.
+- Exportación de metadatos a **Dublin Core** y **PREMIS** desde la lista de documentos (`acervo/exportacion.py`).
 
 ## Cómo ejecutarla
 

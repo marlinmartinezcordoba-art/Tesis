@@ -44,6 +44,20 @@
  {
   "model": "lineamientos.criterio",
   "fields": {
+   "codigo": "CLA-04",
+   "proceso": "clasificacion",
+   "atributo": "integridad",
+   "enunciado": "La entidad audita periódicamente, por muestreo, la exactitud de las propuestas de clasificación aceptadas sin corrección, y ajusta el cuadro de palabras clave o los ejemplos dados a la IA cuando el error supera un umbral definido por la entidad.",
+   "verificacion": "Existen muestras de auditoría revisadas para el proceso de clasificación, con un porcentaje de exactitud calculado.",
+   "fuente_normativa": "ISO 15489-1:2016 (mejora continua de procesos); UNESCO, 2021",
+   "obligatorio": false,
+   "riesgo_asociado": "Errores sistemáticos de clasificación no detectados",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
    "codigo": "DES-01",
    "proceso": "descripcion",
    "atributo": "accesibilidad",
@@ -86,6 +100,20 @@
  {
   "model": "lineamientos.criterio",
   "fields": {
+   "codigo": "DES-04",
+   "proceso": "descripcion",
+   "atributo": "accesibilidad",
+   "enunciado": "Las personas, lugares e instituciones identificadas por IA se registran con la relación que tienen con el documento (productor, mencionado, destinatario), siguiendo el modelo de Records in Context en lugar de tratarlas como texto libre.",
+   "verificacion": "Los documentos con entidades vinculadas tienen al menos una relación tipada registrada.",
+   "fuente_normativa": "Records in Contexts – Conceptual Model (ICA)",
+   "obligatorio": false,
+   "riesgo_asociado": "Pérdida de contexto relacional entre entidades y documentos",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
    "codigo": "VAL-01",
    "proceso": "valoracion",
    "atributo": "integridad",
@@ -108,6 +136,20 @@
    "fuente_normativa": "ISO 15489-1:2016; Decreto 1080 de 2015; Recomendación sobre la ética de la IA (UNESCO)",
    "obligatorio": true,
    "riesgo_asociado": "Datos inventados por la IA (alucinaciones); pérdida irreversible de patrimonio",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "VAL-03",
+   "proceso": "valoracion",
+   "atributo": "integridad",
+   "enunciado": "La entidad revisa periódicamente, por muestreo, si los indicios de valor secundario señalados por IA concentran sesgos temáticos o geográficos, y documenta el hallazgo.",
+   "verificacion": "Existen muestras de auditoría de valoración revisadas, desglosadas por tipo de indicio (histórico, cultural, científico).",
+   "fuente_normativa": "UNESCO, 2021, principio de equidad y no discriminación",
+   "obligatorio": false,
+   "riesgo_asociado": "Sesgo sistemático de la IA no detectado",
    "estado": "borrador"
   }
  },
@@ -150,6 +192,20 @@
    "fuente_normativa": "ISO 15489-1:2016; ISO 14721 (OAIS), información de procedencia",
    "obligatorio": true,
    "riesgo_asociado": "Errores de transcripción que se propagan a la descripción",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "MET-04",
+   "proceso": "metadatos",
+   "atributo": "accesibilidad",
+   "enunciado": "Los metadatos técnicos y descriptivos del documento se pueden exportar en un esquema estándar interoperable (Dublin Core o PREMIS), para que la entidad no quede atada a un formato propietario.",
+   "verificacion": "El documento tiene al menos una exportación de metadatos registrada en la bitácora.",
+   "fuente_normativa": "ISO 15489-1:2016 (interoperabilidad)",
+   "obligatorio": false,
+   "riesgo_asociado": "Dependencia de un formato propietario (vendor lock-in)",
    "estado": "borrador"
   }
  },
@@ -206,6 +262,20 @@
    "fuente_normativa": "Ley 1581 de 2012, art. 26 (transferencia internacional de datos)",
    "obligatorio": true,
    "riesgo_asociado": "Transferencia de datos personales a terceros",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
+   "codigo": "ACC-05",
+   "proceso": "acceso",
+   "atributo": "accesibilidad",
+   "enunciado": "Los documentos publicados incluyen una alternativa textual o una transcripción para las personas que usan lectores de pantalla, siguiendo como referencia las Pautas de Accesibilidad para el Contenido Web (WCAG).",
+   "verificacion": "Pendiente: corresponde al futuro portal público de consulta, todavía no construido.",
+   "fuente_normativa": "Ley 1712 de 2014; WCAG 2.2 como referencia técnica",
+   "obligatorio": false,
+   "riesgo_asociado": "Exclusión de personas con discapacidad visual",
    "estado": "borrador"
   }
  }

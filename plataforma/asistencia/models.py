@@ -13,6 +13,7 @@ from acervo.models import (
     Documento,
     Entidad,
     EventoPreservacion,
+    RelacionEntidadDocumento,
     UnidadClasificacion,
     registrar_evento,
 )
@@ -56,6 +57,11 @@ class SugerenciaIA(models.Model):
     )
     evidencia_verificada = models.BooleanField(
         null=True, help_text="Si MAZUCA encontró la evidencia en el texto del documento."
+    )
+    relacion = models.CharField(
+        max_length=15, blank=True,
+        help_text="Solo para entidades (DES-04): tipo de relación con el documento "
+                   "(productor, mencionado, destinatario), al estilo Records in Context.",
     )
     confianza = models.FloatField(help_text="Entre 0 y 1, según el proveedor de IA.")
     modelo = models.CharField(max_length=100)
@@ -110,12 +116,20 @@ class SugerenciaIA(models.Model):
                     )
                 elif self.campo in CAMPOS_ENTIDAD:
                     entidad, _ = Entidad.objects.get_or_create(tipo=self.campo, nombre=valor)
-                    entidad.documentos.add(self.documento)
+                    tipo_relacion = (
+                        self.relacion or RelacionEntidadDocumento.TipoRelacion.MENCIONADO
+                    )
+                    RelacionEntidadDocumento.objects.get_or_create(
+                        documento=self.documento, entidad=entidad, tipo_relacion=tipo_relacion
+                    )
                     registrar_evento(
                         self.documento,
                         EventoPreservacion.Tipo.MODIFICACION,
                         agente=usuario,
-                        detalle={"entidad_vinculada": str(entidad)},
+                        detalle={
+                            "entidad_vinculada": str(entidad),
+                            "tipo_relacion": tipo_relacion,
+                        },
                     )
                 elif self.campo == CAMPO_CLASIFICACION:
                     try:

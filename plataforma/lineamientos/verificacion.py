@@ -138,6 +138,25 @@ def _val_02(doc):
     )
 
 
+def _des_04(doc):
+    relaciones = doc.relacionentidaddocumento_set.select_related("entidad")
+    if not relaciones.exists():
+        return MANUAL, "El documento no tiene entidades vinculadas todavía."
+    resumen = ", ".join(f"{r.entidad} ({r.get_tipo_relacion_display()})" for r in relaciones[:5])
+    return CUMPLE, f"{relaciones.count()} relación(es) tipada(s): {resumen}."
+
+
+def _met_04(doc):
+    exportaciones = doc.eventos.filter(tipo=EventoPreservacion.Tipo.EXPORTACION)
+    if not exportaciones.exists():
+        return MANUAL, (
+            "El documento aún no se ha exportado. Use los enlaces «Dublin Core» o «PREMIS» "
+            "en la lista de documentos."
+        )
+    ultima = exportaciones.last()
+    return CUMPLE, f"Exportado por última vez a {ultima.detalle.get('esquema', '—')} el {ultima.fecha:%Y-%m-%d}."
+
+
 def _acc_01(doc):
     revision = doc.revisiones_datos.first()
     if revision is None:
@@ -172,6 +191,7 @@ VERIFICADORES = {
     "DES-01": _des_01,
     "DES-02": _decision_humana,
     "DES-03": _des_03,
+    "DES-04": _des_04,
     "CLA-01": _decision_humana,
     "CLA-03": _cla_03,
     "VAL-01": lambda doc: (
@@ -180,6 +200,7 @@ VERIFICADORES = {
         "la IA solo puede señalar indicios de valor secundario.",
     ),
     "VAL-02": _val_02,
+    "MET-04": _met_04,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,
 }

@@ -138,7 +138,7 @@ class ProveedorClaudeTest(TestCase):
             alcance_contenido=CampoPropuesto(valor="Reunión del Cabildo.", evidencia="Se reunió",
                                                confianza="media", justificacion="Resumen."),
             entidades=[
-                EntidadPropuesta(tipo="persona", nombre="José Acevedo y Gómez",
+                EntidadPropuesta(tipo="persona", nombre="José Acevedo y Gómez", relacion="productor",
                                    evidencia="José Acevedo y Gómez", confianza="alta"),
             ],
         )

@@ -142,7 +142,9 @@ class Entidad(models.Model):
 
     tipo = models.CharField(max_length=12, choices=Tipo.choices)
     nombre = models.CharField(max_length=255)
-    documentos = models.ManyToManyField(Documento, related_name="entidades", blank=True)
+    documentos = models.ManyToManyField(
+        Documento, related_name="entidades", blank=True, through="RelacionEntidadDocumento"
+    )
 
     class Meta:
         ordering = ["tipo", "nombre"]
@@ -151,6 +153,34 @@ class Entidad(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.get_tipo_display()})"
+
+
+class RelacionEntidadDocumento(models.Model):
+    """El tipo de vínculo entre una entidad y un documento (DES-04).
+
+    Sigue el modelo de Records in Context (ICA): una entidad no solo "se
+    menciona" en un documento, tiene un papel específico frente a él.
+    """
+
+    class TipoRelacion(models.TextChoices):
+        PRODUCTOR = "productor", "Productor"
+        MENCIONADO = "mencionado", "Mencionado"
+        DESTINATARIO = "destinatario", "Destinatario"
+
+    documento = models.ForeignKey(Documento, on_delete=models.CASCADE)
+    entidad = models.ForeignKey(Entidad, on_delete=models.CASCADE)
+    tipo_relacion = models.CharField(
+        max_length=15, choices=TipoRelacion.choices, default=TipoRelacion.MENCIONADO
+    )
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["documento", "entidad", "tipo_relacion"]
+        verbose_name = "relación entidad–documento"
+        verbose_name_plural = "relaciones entidad–documento"
+
+    def __str__(self):
+        return f"{self.entidad} · {self.get_tipo_relacion_display()} de {self.documento}"
 
 
 class EventoPreservacion(models.Model):
@@ -163,6 +193,7 @@ class EventoPreservacion(models.Model):
         MODIFICACION = "modificacion_metadatos", "Modificación de metadatos"
         REVISION_DATOS = "revision_datos_personales", "Revisión de datos personales"
         PUBLICACION = "aprobacion_publicacion", "Aprobación de publicación"
+        EXPORTACION = "exportacion_metadatos", "Exportación de metadatos"
 
     documento = models.ForeignKey(
         Documento, on_delete=models.PROTECT, related_name="eventos"

@@ -23,6 +23,7 @@ class Propuesta:
     justificacion: str
     evidencia: str = ""  # fragmento literal del documento
     criterios: list = field(default_factory=list)  # códigos de criterio
+    relacion: str = ""  # solo para entidades (DES-04): productor/mencionado/destinatario
 
 
 # Confianza máxima de una propuesta cuya evidencia no aparece en el texto.
@@ -98,6 +99,7 @@ def generar_sugerencias(documento, proveedor):
             justificacion=justificacion,
             evidencia=p.evidencia,
             evidencia_verificada=verificada,
+            relacion=p.relacion,
             confianza=confianza,
             modelo=proveedor.nombre,
             version_modelo=proveedor.version,

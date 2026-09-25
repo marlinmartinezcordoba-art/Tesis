@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from . import extraccion
-from .models import Documento, Entidad, EventoPreservacion, UnidadClasificacion
+from .models import Documento, Entidad, EventoPreservacion, RelacionEntidadDocumento, UnidadClasificacion
 
 
 class EventoInline(admin.TabularInline):
@@ -44,7 +44,13 @@ class DocumentoAdmin(admin.ModelAdmin):
 
     @admin.display(description="Verificación")
     def informe(self, obj):
-        return format_html('<a href="{}">Ver informe</a>', reverse("informe", args=[obj.pk]))
+        return format_html(
+            '<a href="{}">Ver informe</a> · '
+            '<a href="{}">Dublin Core</a> · <a href="{}">PREMIS</a>',
+            reverse("informe", args=[obj.pk]),
+            reverse("exportar_dublin_core", args=[obj.pk]),
+            reverse("exportar_premis", args=[obj.pk]),
+        )
 
     @admin.action(description="Verificar fijeza (hash) de los documentos seleccionados")
     def verificar_fijeza(self, request, queryset):
@@ -171,12 +177,18 @@ class UnidadClasificacionAdmin(admin.ModelAdmin):
         return obj.documentos.count()
 
 
+class RelacionInline(admin.TabularInline):
+    model = RelacionEntidadDocumento
+    extra = 0
+    autocomplete_fields = ["documento"]
+
+
 @admin.register(Entidad)
 class EntidadAdmin(admin.ModelAdmin):
     list_display = ("nombre", "tipo", "num_documentos")
     list_filter = ("tipo",)
     search_fields = ("nombre",)
-    filter_horizontal = ("documentos",)
+    inlines = [RelacionInline]
 
     @admin.display(description="Documentos")
     def num_documentos(self, obj):

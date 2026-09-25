@@ -75,7 +75,11 @@ class ProveedorLocal(ProveedorIA):
                 confianza=0.55,  # reconocimiento de entidades sin verificación semántica
                 justificacion=f"{tipo.capitalize()} reconocida por spaCy ({MODELO_SPACY}).",
                 evidencia=nombre,
-                criterios=["DES-02", "DES-03", "ACC-02"],
+                criterios=["DES-02", "DES-03", "ACC-02", "DES-04"],
+                # spaCy solo reconoce entidades, no su papel frente al documento
+                # (limitación conocida frente al proveedor en la nube): se marca
+                # "mencionado" por defecto y la persona archivista corrige si hace falta.
+                relacion="mencionado",
             ))
 
         anios = sorted({int(a) for a in ANIO.findall(texto)})

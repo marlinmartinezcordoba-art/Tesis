@@ -40,6 +40,10 @@ class CampoPropuesto(BaseModel):
 class EntidadPropuesta(BaseModel):
     tipo: Literal["persona", "lugar", "institucion"]
     nombre: str = Field(description="Forma normalizada del nombre.")
+    relacion: Literal["productor", "mencionado", "destinatario"] = Field(
+        description="Papel de la entidad frente al documento: quién lo produjo, "
+                    "quién lo recibió, o quién simplemente aparece mencionado."
+    )
     evidencia: str = Field(description="Fragmento literal donde aparece la entidad.")
     confianza: Literal["alta", "media", "baja"]
 
@@ -66,7 +70,8 @@ título atribuido breve y escríbelo entre corchetes, por ejemplo \
 destinatario.
 - Alcance y contenido (3.3.1): resumen neutral de tres a cinco líneas.
 - Entidades: personas, lugares e instituciones mencionadas, con su nombre \
-normalizado.
+normalizado y su relación con el documento (RiC): "productor" si lo produjo \
+o lo firmó, "destinatario" si lo recibió, "mencionado" en cualquier otro caso.
 - Evidencia: copia literalmente, sin corregir ortografía, el fragmento del \
 documento que respalda cada dato. Si no hay fragmento que lo respalde, deja \
 el valor vacío.
@@ -172,9 +177,10 @@ class ProveedorClaude(ProveedorIA):
                     campo=e.tipo,
                     valor=e.nombre.strip(),
                     confianza=CONFIANZA[e.confianza],
-                    justificacion=f"{e.tipo.capitalize()} mencionada en el documento.",
+                    justificacion=f"{e.tipo.capitalize()} ({e.relacion}) del documento.",
                     evidencia=e.evidencia,
-                    criterios=["DES-02", "DES-03", "ACC-02"],
+                    criterios=["DES-02", "DES-03", "ACC-02", "DES-04"],
+                    relacion=e.relacion,
                 ))
         return propuestas
 

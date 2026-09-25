@@ -88,7 +88,7 @@ investigación:
 | **CLA-01** | La IA propone la ubicación del documento dentro del cuadro de clasificación vigente de la entidad; la asignación definitiva la hace una persona con competencia archivística. | Autenticidad | Ley 594 de 2000, art. 24 (obligación de clasificar según cuadro); Acuerdo 001 de 2024 del AGN (verificar artículo en Fase 3) | Sí | Implementado |
 | **CLA-02** | La propuesta de clasificación respeta el principio de procedencia y el orden original: no agrupa documentos de productores distintos en una misma unidad, ni reinterpreta la estructura del fondo. | Integridad | Ley 594 de 2000, art. 4 (principio de procedencia); ISAD(G) 2.ª ed., área de contexto | Sí | Implementado (control de diseño; no hay una prueba automática que detecte mezcla de productores) |
 | **CLA-03** | La IA solo propone entre las unidades del cuadro de clasificación que la entidad ya cargó; nunca crea fondos, secciones, series ni subseries nuevas. Toda propuesta cita evidencia textual verificable contra el documento. | Autenticidad | Ley 594 de 2000; ISO 15489-1:2016 | Sí | Implementado |
-| **CLA-04** *(nuevo, propuesto)* | La entidad audita periódicamente, por muestreo, la exactitud de las propuestas de clasificación aceptadas sin corrección, y ajusta el cuadro de palabras clave o los ejemplos dados a la IA cuando el error supera un umbral definido por la entidad. | Integridad | ISO 15489-1:2016 (mejora continua de procesos); UNESCO, 2021 (evaluación de impacto y monitoreo continuo) | Recomendado | **Trabajo futuro**: no hay todavía un reporte de exactitud por muestreo en el prototipo. |
+| **CLA-04** | La entidad audita periódicamente, por muestreo, la exactitud de las propuestas de clasificación aceptadas sin corrección, y ajusta el cuadro de palabras clave o los ejemplos dados a la IA cuando el error supera un umbral definido por la entidad. | Integridad | ISO 15489-1:2016 (mejora continua de procesos); UNESCO, 2021 (evaluación de impacto y monitoreo continuo) | Recomendado | **Implementado**: comando `auditoria_muestra clasificacion`, con reporte de exactitud. |
 
 ### 4.3.2 Descripción
 
@@ -97,7 +97,7 @@ investigación:
 | **DES-01** | Los borradores de descripción generados por IA cubren, como mínimo, los seis elementos esenciales de ISAD(G): código de referencia, título, productor, fecha(s), volumen y soporte, y nivel de descripción. | Accesibilidad | ISAD(G) 2.ª ed., elementos 3.1.1–3.1.5 y 3.2.1 | Sí | Implementado |
 | **DES-02** | Cada dato generado por IA identifica el modelo, la versión y el nivel de confianza declarado por el proveedor, y se distingue del dato ingresado directamente por una persona. | Autenticidad | ISO 15489-1:2016; UNESCO, 2021 | Sí | Implementado |
 | **DES-03** | Todo dato descriptivo propuesto por IA cita un fragmento literal del documento que lo respalda; la plataforma verifica automáticamente que ese fragmento exista en el texto fuente antes de mostrar la sugerencia. Un dato sin evidencia verificable solo se incorpora si una persona lo corrige o lo redacta de nuevo. | Autenticidad | ISAD(G) 2.ª ed.; ISO 15489-1:2016; UNESCO, 2021 (fiabilidad y explicabilidad) | Sí | Implementado |
-| **DES-04** *(nuevo, propuesto)* | Las personas, lugares e instituciones identificadas por IA se registran como entidades vinculables, con la relación que tienen con el documento (productor, mencionado, destinatario), siguiendo el modelo de Records in Context en lugar de tratarlas como texto libre. | Accesibilidad | Records in Contexts – Conceptual Model (ICA) | Recomendado | **Parcial**: MAZUCA ya vincula personas, lugares e instituciones al documento, pero no distingue todavía el tipo de relación (productor / mencionado / destinatario) que exige RiC-CM. |
+| **DES-04** | Las personas, lugares e instituciones identificadas por IA se registran como entidades vinculables, con la relación que tienen con el documento (productor, mencionado, destinatario), siguiendo el modelo de Records in Context en lugar de tratarlas como texto libre. | Accesibilidad | Records in Contexts – Conceptual Model (ICA) | Recomendado | **Implementado** en el proveedor en la nube. El proveedor local (spaCy) solo reconoce entidades, no su papel: propone siempre "mencionado" por defecto, limitación documentada. |
 
 ### 4.3.3 Valoración
 
@@ -105,7 +105,7 @@ investigación:
 |---|---|---|---|---|---|
 | **VAL-01** | La IA puede señalar indicios de valor secundario (histórico, cultural o científico), pero en ningún caso recomienda, prioriza ni ejecuta una acción de eliminación o disposición documental. En un archivo histórico de conservación permanente, esta restricción es absoluta. | Integridad | Decreto 1080 de 2015; Acuerdo 001 de 2024 del AGN (verificar artículo en Fase 3) | Sí | Implementado — y reforzado estructuralmente: la plataforma no ofrece ninguna función de eliminar un documento, ni para la IA ni para una persona usuaria. |
 | **VAL-02** | Todo indicio de valor secundario señalado por IA cita un fragmento literal del documento que lo respalda, y la plataforma verifica esa evidencia antes de considerarlo válido. | Autenticidad | ISO 15489-1:2016; UNESCO, 2021 | Sí | Implementado |
-| **VAL-03** *(nuevo, propuesto)* | La entidad revisa periódicamente, por muestreo, si los indicios de valor secundario señalados por IA concentran sesgos temáticos o geográficos (por ejemplo, favorecer sistemáticamente documentos de ciertas regiones o actores sobre otros), y documenta el hallazgo. | Integridad | UNESCO, 2021, principio de equidad y no discriminación | Recomendado | **Trabajo futuro**: requiere acumular un volumen de indicios suficiente para un muestreo con sentido; no aplica todavía a un prototipo en fase de prueba. |
+| **VAL-03** | La entidad revisa periódicamente, por muestreo, si los indicios de valor secundario señalados por IA concentran sesgos temáticos o geográficos (por ejemplo, favorecer sistemáticamente documentos de ciertas regiones o actores sobre otros), y documenta el hallazgo. | Integridad | UNESCO, 2021, principio de equidad y no discriminación | Recomendado | **Implementado**: comando `auditoria_muestra valoracion --reporte`, desglosado por tipo de indicio. Sigue dependiendo de que se acumule volumen suficiente para que el muestreo tenga sentido estadístico. |
 
 ### 4.3.4 Gestión de metadatos
 
@@ -114,7 +114,7 @@ investigación:
 | **MET-01** | Todo objeto digital recibe un valor de fijeza (hash criptográfico) desde el momento de su ingreso, y ese valor se puede volver a verificar en cualquier momento posterior. | Integridad | ISO 14721 (OAIS), información de fijeza (*fixity information*) | Sí | Implementado (SHA-256) |
 | **MET-02** | Todas las acciones sobre un documento —humanas o generadas por IA— quedan registradas en una bitácora que permite detectar si algún registro fue alterado o eliminado después de creado. | Autenticidad | ISO 15489-1:2016; ISO 14721 (OAIS), información de procedencia | Sí | Implementado (bitácora encadenada por hash, al estilo PREMIS) |
 | **MET-03** | El texto obtenido por reconocimiento óptico de caracteres declara la herramienta, la versión y el nivel de confianza; por debajo de un umbral definido por la entidad, el texto debe marcarse para revisión humana antes de usarse en descripción o en acceso. | Autenticidad | ISO 15489-1:2016; ISO 14721 (OAIS) | Sí | Implementado (umbral de referencia: 75 %, a validar por la entidad) |
-| **MET-04** *(nuevo, propuesto)* | Los metadatos técnicos y descriptivos del documento se pueden exportar en un esquema estándar interoperable (por ejemplo, Dublin Core o PREMIS), para que la entidad no quede atada a un formato propietario. | Accesibilidad | ISO 15489-1:2016 (interoperabilidad); buenas prácticas de preservación digital | Recomendado | **Trabajo futuro**: no implementado todavía; se había mencionado como idea inicial pero no se ha construido la exportación. |
+| **MET-04** | Los metadatos técnicos y descriptivos del documento se pueden exportar en un esquema estándar interoperable (por ejemplo, Dublin Core o PREMIS), para que la entidad no quede atada a un formato propietario. | Accesibilidad | ISO 15489-1:2016 (interoperabilidad); buenas prácticas de preservación digital | Recomendado | **Implementado**: exportación a Dublin Core (oai_dc) y PREMIS 3, con evento en la bitácora. |
 
 ### 4.3.5 Acceso
 
@@ -124,7 +124,7 @@ investigación:
 | **ACC-02** | La búsqueda asistida por IA muestra el resultado dentro de su contexto archivístico (nivel de descripción, productor, fondo), nunca como un fragmento aislado sin procedencia. | Accesibilidad | ISAD(G) 2.ª ed.; Records in Contexts (ICA) | Recomendado | Parcial: los datos ya existen, pero todavía no hay un buscador propio en el portal (queda pendiente el portal público). |
 | **ACC-03** | Solo se publica en el portal de consulta el documento que tiene descripción completa, integridad verificada, revisión de datos personales decidida y ninguna sugerencia de IA pendiente de validación. | Accesibilidad | Ley 1712 de 2014; Ley 1581 de 2012; Ley 594 de 2000 | Sí | Implementado |
 | **ACC-04** | Solo se envía a un servicio de IA en la nube el texto de un documento cuya revisión de datos personales ya fue decidida; si se decidió anonimizar, se envía la versión anonimizada, y un documento restringido no se envía a ningún servicio externo. | Integridad | Ley 1581 de 2012, art. 26 (transferencia internacional de datos) | Sí | Implementado |
-| **ACC-05** *(nuevo, propuesto)* | Los documentos publicados incluyen una alternativa textual o una transcripción para las personas que usan lectores de pantalla, siguiendo como referencia las Pautas de Accesibilidad para el Contenido Web (WCAG). | Accesibilidad | Ley 1712 de 2014 (acceso en condiciones de igualdad); WCAG 2.2 como referencia técnica | Recomendado | **Trabajo futuro**: no implementado; corresponde al futuro portal público, no a la gestión interna. |
+| **ACC-05** | Los documentos publicados incluyen una alternativa textual o una transcripción para las personas que usan lectores de pantalla, siguiendo como referencia las Pautas de Accesibilidad para el Contenido Web (WCAG). | Accesibilidad | Ley 1712 de 2014 (acceso en condiciones de igualdad); WCAG 2.2 como referencia técnica | Recomendado | **Trabajo futuro, deliberadamente**: depende del portal público de consulta, que el equipo decidió dejar fuera del alcance de la tesis. No tiene sentido construirlo antes de tener dónde mostrarlo. |
 
 ## 4.4 Matriz resumen: cobertura por atributo y por proceso
 
@@ -142,6 +142,15 @@ acceso. No es necesariamente un error —hay procesos donde la integridad se
 protege sobre todo desde metadatos—, pero es un punto que el diagnóstico
 normativo debería confirmar o corregir con literatura y con los hallazgos
 del análisis de contenido, no solo con este borrador.
+
+## 4.4bis Actualización: cuatro lineamientos nuevos ya construidos
+
+Después de la primera versión de este capítulo, se implementaron cuatro de
+los cinco lineamientos que estaban marcados como "trabajo futuro":
+CLA-04, DES-04, VAL-03 y MET-04 (columna "Estado en MAZUCA" arriba, ya
+actualizada). El único que sigue pendiente es **ACC-05**, y de forma
+deliberada: depende del portal público de consulta, que el equipo decidió
+mantener fuera del alcance de esta tesis.
 
 ## 4.5 Lo que falta antes de que estos lineamientos sean definitivos
 

@@ -146,7 +146,27 @@ igual patrón que DES-03 y CLA-03):**
   acciones de eliminación derivadas de la IA") se cumpla siempre, para todo
   documento.
 
-## 10. Despliegue
+## 10. Lo que faltaba en el capítulo IV, ya construido
+
+Después de escribir el capítulo IV (`docs/lineamientos-tesis.md`), cinco
+lineamientos habían quedado marcados como "trabajo futuro". Se construyeron
+cuatro:
+
+| Lineamiento | Qué se agregó |
+|---|---|
+| **DES-04** (relaciones tipadas) | Las personas, lugares e instituciones ya no solo "se mencionan": el proveedor en la nube indica si son productor, destinatario o mencionado del documento (Records in Context). El proveedor local (spaCy) no distingue el papel, así que propone siempre "mencionado" por defecto — limitación documentada, no oculta. |
+| **MET-04** (exportación estándar) | Cada documento se puede exportar a **Dublin Core** (oai_dc) y a **PREMIS 3** (fijeza y eventos de la bitácora), desde la lista de documentos. La entidad no queda atada al formato propio de MAZUCA. |
+| **CLA-04 y VAL-03** (auditoría por muestreo) | Comando `python manage.py auditoria_muestra clasificacion` (o `valoracion`) `--tamano N`: elige al azar sugerencias ya aceptadas para que una persona confirme si la IA acertó. Con `--reporte` da el porcentaje de exactitud, y para valoración lo desglosa por tipo de indicio (histórico, cultural, científico), para detectar sesgos. |
+
+**ACC-05** (texto alternativo para lectores de pantalla) queda pendiente
+**a propósito**: depende del portal público de consulta, que el equipo
+decidió dejar fuera del alcance de la tesis. No tiene sentido construirlo
+antes de tener dónde mostrarlo.
+
+Con esto, MAZUCA implementa **19 de los 20 lineamientos** del capítulo IV
+(el único pendiente es ACC-05, por la razón de alcance ya explicada).
+
+## 11. Despliegue
 
 MAZUCA se desplegará en **DigitalOcean**. Consideraciones:
 
