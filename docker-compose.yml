@@ -4,10 +4,13 @@
 # Uso:
 #   cp .env.example .env      # completa ANTHROPIC_API_KEY y una clave propia
 #   docker compose up --build
-#   abre http://localhost:8000/admin/
+#   abre http://localhost:8080/admin/
 #
 # Para crear el primer usuario administrador:
 #   docker compose exec web python manage.py createsuperuser
+#
+# Si el puerto 8080 ya está ocupado en tu máquina, cambia MAZUCA_PUERTO en .env
+# (por ejemplo MAZUCA_PUERTO=8081) y vuelve a entrar por ese puerto.
 
 services:
   db:
@@ -34,7 +37,7 @@ services:
       DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
     ports:
-      - "8000:8000"
+      - "${MAZUCA_PUERTO:-8080}:8000"
     volumes:
       - media:/app/media
     depends_on:

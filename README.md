@@ -33,7 +33,7 @@ docker compose up --build
 docker compose exec web python manage.py createsuperuser
 ```
 
-Entra a http://localhost:8000/admin/. Para detenerla: `docker compose down` (agrega `-v` si además quieres borrar la base de datos de prueba).
+Entra a http://localhost:8080/admin/. Si ese puerto ya está ocupado en tu máquina, cambia `MAZUCA_PUERTO` en `.env` (por ejemplo a `8081`) y entra por ese puerto. Para detenerla: `docker compose down` (agrega `-v` si además quieres borrar la base de datos de prueba).
 
 ### Opción B: en tu máquina, sin Docker
 
