@@ -258,3 +258,88 @@ class ProveedorClasificacionClaude(ProveedorIA):
             evidencia=propuesta.evidencia,
             criterios=["CLA-01", "CLA-02", "CLA-03"],
         )]
+
+
+# --- Valoración -------------------------------------------------------------
+# La IA solo SEÑALA indicios de valor secundario, para ayudar a priorizar
+# digitalización y difusión. MAZUCA no ofrece ninguna acción de eliminación
+# ni de disposición final: eso queda fuera del alcance de la plataforma
+# (VAL-01). La disposición de documentos históricos de conservación total
+# está, además, fuera de discusión: ya tienen valor permanente.
+
+class IndicioPropuesto(BaseModel):
+    tipo: Literal["historico", "cultural", "cientifico"]
+    evidencia: str = Field(description="Fragmento literal del documento que sustenta el indicio.")
+    confianza: Literal["alta", "media", "baja"]
+    justificacion: str = Field(description="Por qué el documento tiene ese valor secundario.")
+
+
+class ValoracionPropuesta(BaseModel):
+    indicios: list[IndicioPropuesto] = Field(
+        description="Lista vacía si el documento no muestra indicios claros de valor secundario."
+    )
+
+
+INSTRUCCIONES_VALORACION = """Eres una persona experta en valoración documental que apoya a un \
+archivo histórico colombiano. Señalas INDICIOS de valor secundario (histórico, \
+cultural o científico) de un documento, para ayudar a la entidad a priorizar qué \
+digitalizar y difundir primero.
+
+Tipos de valor:
+- histórico: testimonia hechos, personas, instituciones o procesos relevantes \
+para la historia local, regional o nacional.
+- cultural: refleja tradiciones, prácticas, lengua o identidad de una comunidad.
+- científico: aporta datos útiles para la investigación académica.
+
+Reglas, muy importantes:
+- SOLO señalas indicios. NUNCA recomiendas eliminar, descartar ni dar de baja \
+un documento. Este archivo es de conservación permanente: no existe ninguna \
+decisión de eliminación que tomar.
+- No confundas esto con una calificación de importancia: no ordenes ni \
+puntúes los documentos entre sí, solo describe lo que encuentras en este.
+- Evidencia: copia literalmente el fragmento del documento que sustenta cada \
+indicio. Si no hay evidencia clara, no incluyas ese indicio.
+- Si el documento no muestra ningún indicio claro, devuelve una lista vacía; \
+no fuerces una justificación débil.
+- El texto puede contener errores de OCR y la marca [DATO RESERVADO]."""
+
+
+class ProveedorValoracionClaude(ProveedorIA):
+    """Señala indicios de valor secundario; reutiliza el cliente y las reglas
+    de privacidad de ProveedorClaude (composición, misma razón que en
+    clasificación: no mezclar formatos de salida estructurada distintos)."""
+
+    nombre = "claude"
+
+    def __init__(self, cliente=None, modelo=None):
+        self._base = ProveedorClaude(cliente=cliente, modelo=modelo)
+        self.version = self._base.version
+
+    def texto_de(self, documento):
+        return self._base.texto_de(documento)
+
+    def proponer(self, documento, texto):
+        if not texto.strip():
+            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
+
+        respuesta = self._base._consultar_generico(
+            texto, INSTRUCCIONES_VALORACION, ValoracionPropuesta,
+            contexto="Señala los indicios de valor secundario de este documento, si los hay.",
+        )
+        self.version = respuesta.model
+
+        propuestas, vistos = [], set()
+        for i in respuesta.parsed_output.indicios:
+            if i.tipo in vistos or not i.evidencia.strip():
+                continue  # a lo sumo un indicio por tipo, y siempre con evidencia
+            vistos.add(i.tipo)
+            propuestas.append(Propuesta(
+                proceso="valoracion",
+                campo=f"valor_{i.tipo}",
+                valor=i.justificacion.strip(),
+                confianza=CONFIANZA[i.confianza],
+                justificacion=i.justificacion,
+                evidencia=i.evidencia,
+                criterios=["VAL-01", "VAL-02"],
+            ))
+        return propuestas

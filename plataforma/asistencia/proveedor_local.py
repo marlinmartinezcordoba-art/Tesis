@@ -140,3 +140,54 @@ class ProveedorClasificacionLocal(ProveedorIA):
             evidencia=mejor_coincidencias[0],
             criterios=["CLA-01", "CLA-02", "CLA-03"],
         )]
+
+
+# Palabras clave genéricas por tipo de valor secundario. A diferencia de la
+# clasificación, no dependen del cuadro de la entidad: son un apoyo básico,
+# pensado para revisarse y ampliarse en la Fase 4 según el marco teórico.
+PALABRAS_VALORACION = {
+    "historico": [
+        "independencia", "guerra", "fundación", "real cédula", "virreinato",
+        "revolución", "conquista", "colonia", "república", "batalla",
+    ],
+    "cultural": [
+        "tradición", "fiesta", "costumbre", "patrimonio", "lengua",
+        "comunidad", "ritual", "identidad",
+    ],
+    "cientifico": [
+        "expedición", "observación", "estudio", "descubrimiento",
+        "investigación", "especie", "medición",
+    ],
+}
+
+
+class ProveedorValoracionLocal(ProveedorIA):
+    """Señala indicios de valor secundario por coincidencia de palabras
+    clave genéricas, sin conexión a internet. A diferencia de la
+    clasificación, los tipos no son excluyentes: un documento puede tener
+    a la vez valor histórico y cultural."""
+
+    nombre = "local-reglas"
+    version = "0.1"
+
+    def proponer(self, documento, texto):
+        if not texto.strip():
+            raise ErrorProveedorIA("El documento no tiene texto. Extraiga el texto primero.")
+
+        texto_norm = _normalizar(texto)
+        propuestas = []
+        for tipo, terminos in PALABRAS_VALORACION.items():
+            coincidencias = [t for t in terminos if _normalizar(t) in texto_norm]
+            if not coincidencias:
+                continue
+            confianza = min(0.3 + 0.1 * len(coincidencias), 0.6)
+            propuestas.append(Propuesta(
+                proceso="valoracion",
+                campo=f"valor_{tipo}",
+                valor=f"Posible valor {tipo}: coincide con {', '.join(coincidencias)}.",
+                confianza=confianza,
+                justificacion=f"El texto contiene términos asociados a valor {tipo}: {', '.join(coincidencias)}.",
+                evidencia=coincidencias[0],
+                criterios=["VAL-01", "VAL-02"],
+            ))
+        return propuestas

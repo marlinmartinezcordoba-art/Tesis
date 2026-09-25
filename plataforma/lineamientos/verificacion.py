@@ -119,6 +119,25 @@ def _cla_03(doc):
     )
 
 
+def _val_02(doc):
+    sugerencias = doc.sugerencias.filter(proceso="valoracion")
+    if not sugerencias.exists():
+        return MANUAL, "Aún no se han generado indicios de valoración para este documento."
+    if sugerencias.filter(estado="pendiente").exists():
+        return MANUAL, "Hay indicios de valor propuestos por IA pendientes de validación."
+    aceptados = sugerencias.filter(estado__in=["aceptada", "modificada"])
+    if not aceptados.exists():
+        return CUMPLE, "Los indicios propuestos fueron rechazados; no hay ningún indicio vigente."
+    sin_evidencia = aceptados.filter(evidencia_verificada=False).count()
+    if sin_evidencia:
+        return NO_CUMPLE, f"{sin_evidencia} indicio(s) de valor aceptado(s) sin evidencia verificada."
+    return CUMPLE, (
+        f"{aceptados.count()} indicio(s) de valor secundario validado(s) por una persona archivista, "
+        "todos con evidencia verificada; ninguno se usó para justificar una eliminación "
+        "(la plataforma no ofrece esa función)."
+    )
+
+
 def _acc_01(doc):
     revision = doc.revisiones_datos.first()
     if revision is None:
@@ -155,6 +174,12 @@ VERIFICADORES = {
     "DES-03": _des_03,
     "CLA-01": _decision_humana,
     "CLA-03": _cla_03,
+    "VAL-01": lambda doc: (
+        CUMPLE,
+        "La plataforma no ofrece ninguna acción de eliminación ni de disposición documental; "
+        "la IA solo puede señalar indicios de valor secundario.",
+    ),
+    "VAL-02": _val_02,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,
 }

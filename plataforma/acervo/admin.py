@@ -27,11 +27,20 @@ class DocumentoAdmin(admin.ModelAdmin):
     inlines = [EventoInline]
     actions = ["verificar_fijeza", "extraer_texto", "revisar_datos_personales", "aprobar_publicacion",
                "generar_descripcion_nube", "generar_descripcion_local",
-               "clasificar_nube", "clasificar_local"]
+               "clasificar_nube", "clasificar_local",
+               "valorar_nube", "valorar_local"]
 
     def get_readonly_fields(self, request, obj=None):
         # El archivo no se puede reemplazar después del ingreso.
         return self.readonly_fields + (("archivo",) if obj else ())
+
+    def has_delete_permission(self, request, obj=None):
+        # Un archivo histórico de conservación total no elimina documentos
+        # desde la interfaz (lineamiento VAL-01): ni la IA ni una persona
+        # con acceso a MAZUCA pueden borrar un documento ya ingresado. Una
+        # disposición real requeriría un proceso aparte, fuera de esta
+        # plataforma.
+        return False
 
     @admin.display(description="Verificación")
     def informe(self, obj):
@@ -132,6 +141,22 @@ class DocumentoAdmin(admin.ModelAdmin):
 
         self._generar_sugerencias(
             request, queryset, ProveedorClasificacionLocal, ErrorProveedorIA, "la clasificación por IA local"
+        )
+
+    @admin.action(description="Señalar indicios de valor secundario (IA en la nube, Claude)")
+    def valorar_nube(self, request, queryset):
+        from asistencia.proveedor_claude import ErrorProveedorIA, ProveedorValoracionClaude
+
+        self._generar_sugerencias(
+            request, queryset, ProveedorValoracionClaude, ErrorProveedorIA, "la valoración por IA en la nube"
+        )
+
+    @admin.action(description="Señalar indicios de valor secundario (IA local, por palabras clave)")
+    def valorar_local(self, request, queryset):
+        from asistencia.proveedor_local import ErrorProveedorIA, ProveedorValoracionLocal
+
+        self._generar_sugerencias(
+            request, queryset, ProveedorValoracionLocal, ErrorProveedorIA, "la valoración por IA local"
         )
 
 

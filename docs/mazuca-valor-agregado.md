@@ -121,7 +121,32 @@ cumplido.
 Hay un cuadro de clasificación de ejemplo (`cuadro_demo`) para pruebas; en la
 Fase 4 se reemplaza por el cuadro real de la entidad.
 
-## 9. Despliegue
+## 9. Valoración asistida: cierre de los cinco procesos
+
+Con este módulo MAZUCA cubre los cinco procesos archivísticos de la tesis
+(clasificación, descripción, valoración, gestión de metadatos y acceso). La
+IA solo **señala indicios** de valor secundario, nunca decide ni ejecuta
+ninguna disposición documental:
+
+| | Proveedor en la nube (Claude) | Proveedor local (palabras clave) |
+|---|---|---|
+| Qué señala | Indicios de valor histórico, cultural o científico, con evidencia textual | Los mismos tres tipos, por coincidencia de palabras clave genéricas |
+| Cuántos a la vez | Uno por tipo como máximo; no son excluyentes entre sí (un documento puede tener valor histórico y cultural a la vez) | Igual |
+| Si no hay indicios claros | No propone nada | No propone nada |
+
+**Dos salvaguardas, más allá de la evidencia verificable (criterio VAL-02,
+igual patrón que DES-03 y CLA-03):**
+- El texto de las instrucciones a la IA prohíbe explícitamente recomendar
+  eliminación, descarte o disposición final.
+- **La plataforma misma no ofrece ninguna acción de eliminar un documento**,
+  ni desde la IA ni desde la interfaz humana: se quitó el permiso de borrado
+  en el panel de administración. Cualquier disposición real de un documento
+  histórico de conservación total queda, por diseño, fuera del alcance de
+  MAZUCA. Esto hace que el criterio **VAL-01** ("la herramienta no ofrece
+  acciones de eliminación derivadas de la IA") se cumpla siempre, para todo
+  documento.
+
+## 10. Despliegue
 
 MAZUCA se desplegará en **DigitalOcean**. Consideraciones:
 

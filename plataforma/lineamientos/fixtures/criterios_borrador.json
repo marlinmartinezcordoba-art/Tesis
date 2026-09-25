@@ -100,6 +100,20 @@
  {
   "model": "lineamientos.criterio",
   "fields": {
+   "codigo": "VAL-02",
+   "proceso": "valoracion",
+   "atributo": "autenticidad",
+   "enunciado": "Todo indicio de valor secundario señalado por IA cita un fragmento literal del documento que lo respalda, y la plataforma verifica que ese fragmento exista en el texto. Los indicios sirven para priorizar digitalización y difusión, nunca para justificar una eliminación.",
+   "verificacion": "Ningún indicio aceptado sin cambios tiene evidencia no verificada.",
+   "fuente_normativa": "ISO 15489-1:2016; Decreto 1080 de 2015; Recomendación sobre la ética de la IA (UNESCO)",
+   "obligatorio": true,
+   "riesgo_asociado": "Datos inventados por la IA (alucinaciones); pérdida irreversible de patrimonio",
+   "estado": "borrador"
+  }
+ },
+ {
+  "model": "lineamientos.criterio",
+  "fields": {
    "codigo": "MET-01",
    "proceso": "metadatos",
    "atributo": "integridad",
