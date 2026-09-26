@@ -139,3 +139,71 @@ class FlujoPublicacionTest(TestCase):
         revision.refresh_from_db()
         self.assertEqual(revision.decidido_por, admin_user)
         self.assertEqual(self.client.get(url).status_code, 200)  # queda en solo lectura
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class Acc04SugerenciasNubeTest(TestCase):
+    """ACC-04: las sugerencias de un proveedor en la nube (que envía el texto
+    a un servicio externo) solo deben existir sobre documentos con la
+    revisión de datos personales ya decidida y sin restricción de acceso."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        from asistencia.models import SugerenciaIA
+
+        call_command("loaddata", "criterios_borrador", verbosity=0)
+        self.SugerenciaIA = SugerenciaIA
+        self.archivista = User.objects.create_user("archivista", password="x")
+        self.doc = Documento.objects.create(
+            titulo="Certificado médico", archivo=SimpleUploadedFile("cert.txt", TEXTO.encode())
+        )
+        extraer_texto(self.doc)
+
+    def criterio(self, codigo):
+        return next(r for r in evaluar_documento(self.doc) if r.criterio.codigo == codigo)
+
+    def _sugerencia_nube(self):
+        return self.SugerenciaIA.objects.create(
+            documento=self.doc, proceso="descripcion", campo="titulo",
+            valor_propuesto="x", confianza=0.9, modelo="claude", version_modelo="claude-x",
+        )
+
+    def _sugerencia_local(self):
+        return self.SugerenciaIA.objects.create(
+            documento=self.doc, proceso="descripcion", campo="titulo",
+            valor_propuesto="x", confianza=0.9, modelo="local-reglas", version_modelo="0.1",
+        )
+
+    def test_sin_sugerencias_de_nube_es_manual(self):
+        self.assertEqual(self.criterio("ACC-04").estado, MANUAL)
+
+    def test_sugerencias_solo_locales_no_cuentan(self):
+        self._sugerencia_local()
+        self.assertEqual(self.criterio("ACC-04").estado, MANUAL)
+
+    def test_nube_sin_revision_de_datos_personales_no_cumple(self):
+        self._sugerencia_nube()
+        self.assertEqual(self.criterio("ACC-04").estado, NO_CUMPLE)
+
+    def test_nube_con_revision_pendiente_no_cumple(self):
+        self._sugerencia_nube()
+        revisar_datos_personales(self.doc)
+        self.assertEqual(self.criterio("ACC-04").estado, NO_CUMPLE)
+
+    def test_nube_sobre_documento_restringido_no_cumple(self):
+        self._sugerencia_nube()
+        revision = revisar_datos_personales(self.doc)
+        revision.decidir(self.archivista, Revision.Decision.RESTRINGIDO, "Historia clínica")
+        r = self.criterio("ACC-04")
+        self.assertEqual(r.estado, NO_CUMPLE)
+        self.assertIn("no debió salir de la entidad", r.evidencia)
+
+    def test_nube_con_revision_decidida_y_no_restringida_cumple(self):
+        self._sugerencia_nube()
+        revision = revisar_datos_personales(self.doc)
+        revision.decidir(self.archivista, Revision.Decision.ANONIMIZAR, "Persona posiblemente viva")
+        self.assertEqual(self.criterio("ACC-04").estado, CUMPLE)

@@ -253,6 +253,38 @@ def _acc_03(doc):
     return MANUAL, "No publicado; cumple los requisitos para aprobar su publicación."
 
 
+def _acc_04(doc):
+    """Las sugerencias que salieron de un proveedor en la nube (Claude, que
+    envía el texto a un servicio externo) solo deben existir sobre documentos
+    con la revisión de datos personales ya decidida y sin restricción de
+    acceso; los proveedores locales (spaCy, palabras clave) no importan aquí
+    porque no salen del equipo de la entidad."""
+    nube = doc.sugerencias.filter(modelo="claude")
+    if not nube.exists():
+        return MANUAL, "El documento no tiene sugerencias generadas por un proveedor en la nube."
+
+    revision = doc.revisiones_datos.first()
+    if revision is None or not revision.vigente:
+        return NO_CUMPLE, (
+            f"{nube.count()} sugerencia(s) de un proveedor en la nube, pero el documento no "
+            "tiene una revisión de datos personales vigente."
+        )
+    if revision.decision == "pendiente":
+        return NO_CUMPLE, (
+            f"{nube.count()} sugerencia(s) de un proveedor en la nube, pero la revisión de "
+            "datos personales sigue sin decisión."
+        )
+    if revision.decision == "restringido":
+        return NO_CUMPLE, (
+            f"{nube.count()} sugerencia(s) de un proveedor en la nube sobre un documento de "
+            "acceso restringido: el texto no debió salir de la entidad."
+        )
+    return CUMPLE, (
+        f"{nube.count()} sugerencia(s) de un proveedor en la nube; revisión de datos "
+        f"personales decidida ({revision.get_decision_display()}), documento no restringido."
+    )
+
+
 VERIFICADORES = {
     "MET-01": _met_01,
     "MET-02": _met_02,
@@ -275,6 +307,7 @@ VERIFICADORES = {
     "MET-04": _met_04,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,
+    "ACC-04": _acc_04,
 }
 
 
