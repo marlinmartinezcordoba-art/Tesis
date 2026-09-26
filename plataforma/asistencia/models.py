@@ -10,6 +10,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from acervo.models import (
+    RELACIONES_VALIDAS_POR_TIPO,
     Documento,
     Entidad,
     EventoPreservacion,
@@ -30,7 +31,7 @@ CAMPOS_EDITABLES = {
 }
 
 # Sugerencias que, al aceptarse, vinculan una entidad al documento.
-CAMPOS_ENTIDAD = {"persona", "lugar", "institucion"}
+CAMPOS_ENTIDAD = {"persona", "lugar", "institucion", "actividad"}
 
 # Sugerencia cuyo valor es el código de una unidad ya existente del cuadro
 # de clasificación. La IA nunca crea unidades nuevas, solo elige entre las
@@ -59,9 +60,10 @@ class SugerenciaIA(models.Model):
         null=True, help_text="Si MAZUCA encontró la evidencia en el texto del documento."
     )
     relacion = models.CharField(
-        max_length=15, blank=True,
+        max_length=20, blank=True,
         help_text="Solo para entidades (DES-04): tipo de relación con el documento "
-                   "(productor, mencionado, destinatario), al estilo Records in Context.",
+                   "(productor, mencionado, destinatario, documenta, trata_sobre, "
+                   "lugar_produccion), al estilo Records in Context.",
     )
     confianza = models.FloatField(help_text="Entre 0 y 1, según el proveedor de IA.")
     modelo = models.CharField(max_length=100)
@@ -115,10 +117,16 @@ class SugerenciaIA(models.Model):
                         detalle={"campo": self.campo, "antes": anterior, "despues": valor},
                     )
                 elif self.campo in CAMPOS_ENTIDAD:
-                    entidad, _ = Entidad.objects.get_or_create(tipo=self.campo, nombre=valor)
                     tipo_relacion = (
                         self.relacion or RelacionEntidadDocumento.TipoRelacion.MENCIONADO
                     )
+                    permitidas = RELACIONES_VALIDAS_POR_TIPO.get(self.campo, set())
+                    if tipo_relacion not in permitidas:
+                        raise ValueError(
+                            f"«{tipo_relacion}» no es una relación válida para una entidad "
+                            f"de tipo «{self.campo}» (válidas: {', '.join(sorted(permitidas))})."
+                        )
+                    entidad, _ = Entidad.objects.get_or_create(tipo=self.campo, nombre=valor)
                     RelacionEntidadDocumento.objects.get_or_create(
                         documento=self.documento, entidad=entidad, tipo_relacion=tipo_relacion
                     )

@@ -19,6 +19,11 @@ from .proveedores import Propuesta, ProveedorIA
 MODELO_SPACY = "es_core_news_md"
 
 # spaCy: PER=persona, LOC/GPE=lugar, ORG=institución.
+# Limitación conocida frente al proveedor en la nube: el modelo de spaCy no
+# tiene una etiqueta para "actividad" (RiC-E15), así que este proveedor
+# nunca propone entidades de ese tipo. Tampoco distingue relaciones más
+# específicas (productor, trata_sobre, etc.): todo lo que reconoce queda
+# como "mencionado" por defecto (ver más abajo).
 ETIQUETAS = {"PER": "persona", "LOC": "lugar", "GPE": "lugar", "ORG": "institucion"}
 
 ANIO = re.compile(r"\b(1[5-9]\d{2}|20[0-2]\d)\b")

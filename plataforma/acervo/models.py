@@ -133,12 +133,24 @@ class Documento(models.Model):
 
 
 class Entidad(models.Model):
-    """Persona, lugar o institución validada; base de los índices y de Records in Contexts."""
+    """Agente, lugar o actividad, al estilo Records in Contexts (RiC-CM 1.0, ICA-EGAD, 2023).
+
+    Corresponde a los tipos de entidad RiC-E07 Agent (con sus subtipos
+    Person y Group/Corporate Body → persona, institucion), RiC-E22 Place
+    (→ lugar) y RiC-E15 Activity (→ actividad).
+
+    RiC-CM NO tiene un tipo de entidad "Concepto" o "Tema" separado: el
+    "de qué trata" un documento se modela como una relación asociativa
+    hacia una entidad que ya existe (ver TipoRelacion.TRATA_SOBRE más
+    abajo), no como un tipo de entidad nuevo. Por eso este modelo no tiene
+    un tipo "concepto".
+    """
 
     class Tipo(models.TextChoices):
         PERSONA = "persona", "Persona"
         LUGAR = "lugar", "Lugar"
         INSTITUCION = "institucion", "Institución"
+        ACTIVIDAD = "actividad", "Actividad"
 
     tipo = models.CharField(max_length=12, choices=Tipo.choices)
     nombre = models.CharField(max_length=255)
@@ -158,19 +170,34 @@ class Entidad(models.Model):
 class RelacionEntidadDocumento(models.Model):
     """El tipo de vínculo entre una entidad y un documento (DES-04).
 
-    Sigue el modelo de Records in Context (ICA): una entidad no solo "se
-    menciona" en un documento, tiene un papel específico frente a él.
+    Sigue las categorías de relación de RiC-CM: PRODUCTOR es una relación
+    de procedencia (≈ CreationRelation); MENCIONADO, DESTINATARIO,
+    TRATA_SOBRE y LUGAR_PRODUCCION son relaciones asociativas (≈
+    isOrWasSubjectOf); DOCUMENTA conecta el documento con la actividad que
+    testimonia (≈ hasOrHadParticipant, de Activity a Agent, aplicada aquí
+    en la dirección documento→actividad).
+
+    Nota de alcance: estos nombres en español son una implementación
+    práctica inspirada en las categorías de RiC-O, no una importación
+    literal de las URIs de la ontología OWL. Para publicar datos en
+    RDF/RiC-O habría que mapear cada uno al nombre exacto de propiedad de
+    la ontología oficial (ica.org/standards/RiC), verificándolo contra el
+    archivo fuente — no se hizo aquí porque ese sitio no fue accesible al
+    construir este módulo.
     """
 
     class TipoRelacion(models.TextChoices):
         PRODUCTOR = "productor", "Productor"
         MENCIONADO = "mencionado", "Mencionado"
         DESTINATARIO = "destinatario", "Destinatario"
+        DOCUMENTA = "documenta", "Documenta (actividad testimoniada)"
+        TRATA_SOBRE = "trata_sobre", "Trata sobre"
+        LUGAR_PRODUCCION = "lugar_produccion", "Lugar de producción"
 
     documento = models.ForeignKey(Documento, on_delete=models.CASCADE)
     entidad = models.ForeignKey(Entidad, on_delete=models.CASCADE)
     tipo_relacion = models.CharField(
-        max_length=15, choices=TipoRelacion.choices, default=TipoRelacion.MENCIONADO
+        max_length=20, choices=TipoRelacion.choices, default=TipoRelacion.MENCIONADO
     )
     fecha = models.DateTimeField(auto_now_add=True)
 
@@ -181,6 +208,18 @@ class RelacionEntidadDocumento(models.Model):
 
     def __str__(self):
         return f"{self.entidad} · {self.get_tipo_relacion_display()} de {self.documento}"
+
+
+# Qué tipo de relación tiene sentido para cada tipo de entidad. Se usa para
+# validar las propuestas de la IA antes de guardarlas (defensa en
+# profundidad: no basta con que el modelo de lenguaje elija una combinación
+# válida, MAZUCA la vuelve a comprobar).
+RELACIONES_VALIDAS_POR_TIPO = {
+    "persona": {"productor", "mencionado", "destinatario", "trata_sobre"},
+    "institucion": {"productor", "mencionado", "destinatario", "trata_sobre"},
+    "lugar": {"mencionado", "lugar_produccion", "trata_sobre"},
+    "actividad": {"documenta", "trata_sobre"},
+}
 
 
 class EventoPreservacion(models.Model):

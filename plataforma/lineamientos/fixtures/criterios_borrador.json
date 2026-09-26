@@ -103,9 +103,9 @@
    "codigo": "DES-04",
    "proceso": "descripcion",
    "atributo": "accesibilidad",
-   "enunciado": "Las personas, lugares e instituciones identificadas por IA se registran con la relación que tienen con el documento (productor, mencionado, destinatario), siguiendo el modelo de Records in Context en lugar de tratarlas como texto libre.",
-   "verificacion": "Los documentos con entidades vinculadas tienen al menos una relación tipada registrada.",
-   "fuente_normativa": "Records in Contexts – Conceptual Model (ICA)",
+   "enunciado": "Las personas, instituciones, lugares y actividades identificadas por IA se registran con la relación que tienen con el documento (productor, mencionado, destinatario, documenta, trata sobre, lugar de producción), siguiendo las categorías de relación de RiC-CM en lugar de tratarlas como texto libre. RiC-CM no tiene un tipo de entidad \"concepto\" separado: el tema de un documento se modela como relación hacia una entidad existente.",
+   "verificacion": "Los documentos con entidades vinculadas tienen al menos una relación tipada registrada, con una combinación tipo de entidad / tipo de relación válida.",
+   "fuente_normativa": "Records in Contexts – Conceptual Model, RiC-CM 1.0 (ICA-EGAD, 30 de noviembre de 2023)",
    "obligatorio": false,
    "riesgo_asociado": "Pérdida de contexto relacional entre entidades y documentos",
    "estado": "borrador"

@@ -17,7 +17,7 @@ import anthropic
 from django.conf import settings
 from pydantic import BaseModel, Field
 
-from acervo.models import UnidadClasificacion
+from acervo.models import RELACIONES_VALIDAS_POR_TIPO, UnidadClasificacion
 
 from .proveedores import Propuesta, ProveedorIA
 
@@ -38,12 +38,11 @@ class CampoPropuesto(BaseModel):
 
 
 class EntidadPropuesta(BaseModel):
-    tipo: Literal["persona", "lugar", "institucion"]
+    tipo: Literal["persona", "lugar", "institucion", "actividad"]
     nombre: str = Field(description="Forma normalizada del nombre.")
-    relacion: Literal["productor", "mencionado", "destinatario"] = Field(
-        description="Papel de la entidad frente al documento: quién lo produjo, "
-                    "quién lo recibió, o quién simplemente aparece mencionado."
-    )
+    relacion: Literal[
+        "productor", "mencionado", "destinatario", "documenta", "trata_sobre", "lugar_produccion"
+    ] = Field(description="Papel de la entidad frente al documento, según su tipo (ver instrucciones).")
     evidencia: str = Field(description="Fragmento literal donde aparece la entidad.")
     confianza: Literal["alta", "media", "baja"]
 
@@ -69,9 +68,22 @@ título atribuido breve y escríbelo entre corchetes, por ejemplo \
 - Productor (3.2.1): la persona o institución que produjo el documento, no el \
 destinatario.
 - Alcance y contenido (3.3.1): resumen neutral de tres a cinco líneas.
-- Entidades: personas, lugares e instituciones mencionadas, con su nombre \
-normalizado y su relación con el documento (RiC): "productor" si lo produjo \
-o lo firmó, "destinatario" si lo recibió, "mencionado" en cualquier otro caso.
+- Entidades (RiC-CM): identifica personas, instituciones, lugares y \
+ACTIVIDADES (una sesión, una expedición, un trámite, un proceso judicial — \
+la acción que el documento testimonia), con su nombre normalizado. Cada \
+entidad debe tener una relación válida según su tipo:
+  - persona / institucion: "productor" si la produjo o la firmó, \
+"destinatario" si la recibió, "mencionado" en cualquier otro caso, o \
+"trata_sobre" si el documento habla específicamente sobre ella sin que \
+sea productora, destinataria ni una simple mención de paso.
+  - lugar: "lugar_produccion" si es donde se produjo el documento, \
+"trata_sobre" si el documento trata sobre ese lugar, o "mencionado" en \
+cualquier otro caso.
+  - actividad: siempre "documenta" (el documento es evidencia de esa \
+actividad) o "trata_sobre" si solo se refiere a ella de forma tangencial.
+No inventes una entidad de tipo "concepto" o "tema": si el documento trata \
+sobre un tema, usa la relación "trata_sobre" apuntando a la persona, lugar \
+o actividad correspondiente, no crees un tipo de entidad nuevo.
 - Evidencia: copia literalmente, sin corregir ortografía, el fragmento del \
 documento que respalda cada dato. Si no hay fragmento que lo respalde, deja \
 el valor vacío.
@@ -170,7 +182,8 @@ class ProveedorClaude(ProveedorIA):
         vistas = set()
         for e in borrador.entidades:
             clave = (e.tipo, e.nombre.strip().lower())
-            if e.nombre.strip() and clave not in vistas:
+            valida = e.relacion in RELACIONES_VALIDAS_POR_TIPO.get(e.tipo, set())
+            if e.nombre.strip() and clave not in vistas and valida:
                 vistas.add(clave)
                 propuestas.append(Propuesta(
                     proceso="descripcion",
