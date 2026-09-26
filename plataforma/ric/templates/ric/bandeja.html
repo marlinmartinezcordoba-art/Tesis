@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bandeja de validación · MAZUCA</title>
+<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  .meta { color: #52606d; margin-top: 0; }
+  .sin-datos { color: #8a6100; font-style: italic; }
+  .mensajes { list-style: none; padding: 0; margin: 1rem 0; }
+  .mensajes li { padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: .92rem; }
+  .mensajes .success { background: #e3f9e5; color: #1b4d2e; }
+  .mensajes .error { background: #fde8e8; color: #7a1f1f; }
+  .mensajes .info { background: #e6f0fb; color: #1f3a5f; }
+
+  .propuesta { border: 1px solid #e4e7eb; border-radius: 6px; margin-bottom: 1.2rem; padding: 14px 16px; }
+  .propuesta h2 { font-size: 1rem; margin: 0 0 .4rem; }
+  .confianza { float: right; font-weight: 600; }
+  .confianza.baja { color: #b3541e; }
+  .confianza.alta { color: #1b7a3d; }
+  .seccion { margin: .6rem 0; font-size: .92rem; }
+  .seccion .etiqueta { color: #52606d; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
+  blockquote { margin: .2rem 0; padding: 6px 10px; background: #f8f9fb; border-left: 3px solid #cbd2d9; font-style: italic; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: .78rem; margin-left: 6px; }
+  .badge.ok { background: #e3f9e5; color: #1b4d2e; }
+  .badge.no { background: #fde8e8; color: #7a1f1f; }
+  .decision { margin-top: .8rem; padding-top: .8rem; border-top: 1px dashed #e4e7eb; }
+  .decision textarea { width: 100%; box-sizing: border-box; font-family: inherit; font-size: .9rem; padding: 6px; margin-bottom: 6px; }
+  .decision select { font-size: .9rem; padding: 4px; margin-right: 6px; }
+  .decision button { font-size: .88rem; padding: 6px 12px; margin-right: 6px; border-radius: 4px; border: 1px solid #cbd2d9; background: #fff; cursor: pointer; }
+  .decision button[value="aceptar"] { background: #1b7a3d; color: #fff; border-color: #1b7a3d; }
+  .decision button[value="vincular"] { background: #1f3a5f; color: #fff; border-color: #1f3a5f; }
+  .decision button[value="rechazar"] { background: #b3221e; color: #fff; border-color: #b3221e; }
+</style>
+</head>
+<body hx-boost="true">
+<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA</p>
+<h1>Bandeja de validación (RiC)</h1>
+<p class="meta">{{ total }} propuesta(s) de IA pendiente(s). Para cada una: el documento y el
+fragmento citado como evidencia, la relación RiC-CM/RiC-O propuesta, y la decisión de la persona
+archivista — aceptar, vincular a una entidad ya existente, o rechazar. La IA propone, la persona decide.</p>
+
+{% if messages %}
+<ul class="mensajes">
+  {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if not filas %}
+<p class="sin-datos">No hay propuestas pendientes de validación en este momento.</p>
+{% endif %}
+
+{% for fila in filas %}
+{% with p=fila.propuesta %}
+<div class="propuesta">
+  <span class="confianza {% if p.confianza >= 0.7 %}alta{% else %}baja{% endif %}">{{ p.confianza|floatformat:2 }}</span>
+  <h2>{{ p.relacion_id }}{% if fila.info_relacion %} · {{ fila.info_relacion.nombre }}{% endif %}</h2>
+  <p class="meta">Origen: {{ p.origen }} · Proveedor: {{ p.proveedor }} {{ p.version_modelo }}</p>
+
+  <div class="seccion">
+    <div class="etiqueta">Documento y evidencia</div>
+    {% if p.evidencia %}
+      {{ p.evidencia.instanciacion }}{% if p.evidencia.pagina %}, página {{ p.evidencia.pagina }}{% endif %}
+      <span class="badge {% if p.evidencia.verificada %}ok{% else %}no{% endif %}">
+        {% if p.evidencia.verificada %}✓ verificada en el texto{% else %}⚠ no encontrada en el texto{% endif %}
+      </span>
+      <blockquote>{{ p.evidencia.fragmento }}</blockquote>
+    {% else %}
+      <span class="sin-datos">Sin evidencia asociada.</span>
+    {% endif %}
+  </div>
+
+  <div class="seccion">
+    <div class="etiqueta">Entidad/relación RiC propuesta</div>
+    Destino: <strong>{{ p.entidad_nombre }}</strong> ({{ fila.modelo_nombre }}, {{ p.entidad_tipo }})
+    {% if fila.info_relacion %}
+      <br>Dominio/rango verificados: {{ fila.info_relacion.dominio_cm }} → {{ fila.info_relacion.rango_cm }}
+      {% if fila.info_relacion.uri_rico %} · <code>{{ fila.info_relacion.uri_rico }}</code>{% endif %}
+    {% endif %}
+    {% if p.justificacion %}<br><em>{{ p.justificacion }}</em>{% endif %}
+  </div>
+
+  <form class="decision" method="post" action="{% url 'ric_decidir_propuesta' p.pk %}">
+    {% csrf_token %}
+    <textarea name="motivo" rows="2" placeholder="Observación u motivo de rechazo (obligatorio solo para rechazar)"></textarea>
+    {% if fila.candidatas %}
+    <select name="entidad_existente">
+      <option value="">— vincular a una entidad ya existente —</option>
+      {% for c in fila.candidatas %}<option value="{{ c.pk }}">{{ c.nombre }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <div>
+      <button type="submit" name="accion" value="aceptar">Aceptar tal como fue propuesta</button>
+      {% if fila.candidatas %}<button type="submit" name="accion" value="vincular">Vincular a la entidad elegida</button>{% endif %}
+      <button type="submit" name="accion" value="rechazar">Rechazar</button>
+    </div>
+  </form>
+</div>
+{% endwith %}
+{% endfor %}
+</body>
+</html>

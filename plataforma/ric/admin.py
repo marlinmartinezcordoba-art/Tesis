@@ -1,4 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.urls import reverse
+from django.utils.html import format_html
 
 from .models import (
     Activity,
@@ -117,6 +119,17 @@ class PropuestaRiCAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def changelist_view(self, request, extra_context=None):
+        messages.info(
+            request,
+            format_html(
+                'Para validar viendo a la vez el documento, la evidencia y la propuesta: '
+                '<a href="{}">bandeja de validación</a>.',
+                reverse("ric_bandeja"),
+            ),
+        )
+        return super().changelist_view(request, extra_context)
 
     actions = ["aceptar"]
 
