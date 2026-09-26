@@ -12,8 +12,8 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import busqueda, grafo, metricas, reglas, rdf, sparql, tipos
-from .models import PropuestaRiC, Record
+from . import auditoria, busqueda, grafo, metricas, reglas, rdf, sparql, tipos
+from .models import PropuestaRiC, Record, RelacionRiC
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
 # para las vistas que reciben el tipo de entidad como texto en la URL.
@@ -192,11 +192,22 @@ def evaluacion_datos(request):
 @login_required
 def inicio(request):
     """Panel de inicio para uso diario: un punto de entrada en español
-    sencillo, con las tareas más comunes como tarjetas — en vez de dejar
-    al archivista en el admin de Django, pensado para quien administra el
+    sencillo, con las tareas más comunes a la vista — en vez de dejar al
+    archivista en el admin de Django, pensado para quien administra el
     sistema, no para el uso diario."""
-    pendientes = PropuestaRiC.objects.filter(estado=PropuestaRiC.Estado.PENDIENTE).count()
-    return render(request, "ric/inicio.html", {"pendientes": pendientes})
+    propuestas_pendientes = PropuestaRiC.objects.filter(estado=PropuestaRiC.Estado.PENDIENTE)
+    muestras_pendientes = auditoria.MuestraRiC.objects.filter(
+        resultado=auditoria.MuestraRiC.Resultado.PENDIENTE
+    ).count()
+    return render(request, "ric/inicio.html", {
+        "pendientes": propuestas_pendientes.count(),
+        "total_registros": Record.objects.count(),
+        "relaciones_validadas": RelacionRiC.objects.filter(
+            estado__in=(RelacionRiC.Estado.ACEPTADA, RelacionRiC.Estado.MODIFICADA)
+        ).count(),
+        "muestras_pendientes": muestras_pendientes,
+        "atencion": [_fila(p) for p in propuestas_pendientes.order_by("-confianza")[:5]],
+    })
 
 
 @login_required

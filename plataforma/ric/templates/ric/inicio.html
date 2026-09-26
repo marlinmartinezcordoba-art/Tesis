@@ -1,51 +1,99 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Inicio · RICORA{% endblock %}
+{% block estilos_extra %}
+  .ricora-saludo { margin-bottom: 1.5rem; }
+  .ricora-saludo h1 { margin: 0 0 .2rem; font-size: 1.6rem; }
+  .ricora-saludo p { margin: 0; color: #6b7280; }
+
+  .ricora-dashboard { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.25rem; align-items: start; }
+  @media (max-width: 960px) { .ricora-dashboard { grid-template-columns: 1fr; } }
+
+  .ricora-hero { background: var(--ricora-dark); border-radius: 16px; padding: 1.5rem; color: #fff; }
+  .ricora-hero h2 { margin: 0 0 .2rem; font-size: 1rem; color: #cfd8e3; font-weight: 600; }
+  .ricora-hero .sub { color: #8593a6; font-size: .82rem; margin-bottom: 1.1rem; }
+  .ricora-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+  .ricora-tile { background: var(--ricora-dark-2); border-radius: 12px; padding: 1rem 1.1rem; }
+  .ricora-tile .numero { font-size: 1.9rem; font-weight: 700; color: #fff; }
+  .ricora-tile .etiqueta { font-size: .82rem; color: #cfd8e3; margin-top: .15rem; }
+  .ricora-tile .detalle { font-size: .72rem; color: #8593a6; margin-top: .1rem; }
+  .ricora-tile a { color: var(--ricora-accent-2); text-decoration: none; font-size: .78rem; }
+
+  .ricora-atencion { background: #fff; border-radius: 16px; padding: 1.25rem 1.4rem; border: 1px solid #e6e3dc; }
+  .ricora-atencion header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
+  .ricora-atencion h2 { margin: 0; font-size: .95rem; }
+  .ricora-atencion header a { font-size: .8rem; }
+  .ricora-item { padding: .6rem 0; border-bottom: 1px solid #f0efe9; }
+  .ricora-item:last-child { border-bottom: none; }
+  .ricora-badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; text-transform: uppercase; }
+  .ricora-badge.alta { background: #fde8e8; color: var(--ricora-critical); }
+  .ricora-badge.media { background: #fff2df; color: #a9660a; }
+  .ricora-item .titulo { font-size: .88rem; font-weight: 600; margin: .3rem 0 0; }
+  .ricora-item .origen { font-size: .78rem; color: #8a94a3; }
+
+  .ricora-atajos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; }
+  @media (max-width: 720px) { .ricora-atajos { grid-template-columns: 1fr; } }
+  .ricora-atajo { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; text-decoration: none; color: inherit; display: block; }
+  .ricora-atajo h3 { margin: 0 0 .25rem; font-size: .92rem; }
+  .ricora-atajo p { margin: 0; font-size: .78rem; color: #6b7280; }
+{% endblock %}
 {% block contenido %}
-<hgroup>
+<div class="ricora-saludo">
   <h1>Bienvenido/a, {{ request.user.get_username }}</h1>
-  <p>Elige qué quieres hacer. Cada tarjeta te lleva a una sola pantalla, sin partes técnicas de más.</p>
-</hgroup>
-
-<div class="grid">
-  <article>
-    <h3>📋 Bandeja de validación</h3>
-    <p>Revisa las propuestas de IA pendientes: el documento, el fragmento que las respalda, y decides
-    si se aceptan, se corrigen o se rechazan.</p>
-    {% if pendientes %}<p><strong>{{ pendientes }}</strong> pendiente{{ pendientes|pluralize }} ahora mismo.</p>{% endif %}
-    <a href="{% url 'ric_bandeja' %}" role="button">Abrir bandeja</a>
-  </article>
-
-  <article>
-    <h3>📁 Registros</h3>
-    <p>Consulta los documentos ya cargados, su grafo de relaciones y su exportación como RDF.</p>
-    <a href="{% url 'ric_registros' %}" role="button" class="secondary">Ver registros</a>
-  </article>
-
-  <article>
-    <h3>🔎 Búsqueda</h3>
-    <p>Busca por palabra en el texto extraído, o por nombre de una persona, lugar, entidad...</p>
-    <a href="{% url 'ric_busqueda' %}" role="button" class="secondary">Buscar</a>
-  </article>
+  <p>Este es el estado actual del grafo RiC.</p>
 </div>
 
-<div class="grid">
-  <article>
-    <h3>🕸️ Consulta SPARQL</h3>
-    <p>Preguntas avanzadas sobre el grafo ya validado, para quien conozca este lenguaje de consulta.</p>
-    <a href="{% url 'ric_sparql' %}" role="button" class="secondary">Abrir consola</a>
-  </article>
+<div class="ricora-dashboard">
+  <div class="ricora-hero">
+    <h2>Estado del grafo RiC</h2>
+    <div class="sub">Datos reales del sistema, nunca simulados</div>
+    <div class="ricora-tiles">
+      <div class="ricora-tile">
+        <div class="numero">{{ pendientes }}</div>
+        <div class="etiqueta">propuestas de IA pendientes</div>
+        <a href="{% url 'ric_bandeja' %}">Ir a la bandeja →</a>
+      </div>
+      <div class="ricora-tile">
+        <div class="numero">{{ total_registros }}</div>
+        <div class="etiqueta">registros cargados</div>
+        <a href="{% url 'ric_registros' %}">Ver registros →</a>
+      </div>
+      <div class="ricora-tile">
+        <div class="numero">{{ relaciones_validadas }}</div>
+        <div class="etiqueta">relaciones ya validadas</div>
+        <div class="detalle">aceptadas o corregidas</div>
+      </div>
+      <div class="ricora-tile">
+        <div class="numero">{{ muestras_pendientes }}</div>
+        <div class="etiqueta">muestras de auditoría por revisar</div>
+        <div class="detalle">M03 · panel técnico</div>
+      </div>
+    </div>
+  </div>
 
-  <article>
-    <h3>📊 Laboratorio de evaluación</h3>
-    <p>Las métricas de calidad del sistema, calculadas con datos reales — nunca inventadas.</p>
-    <a href="{% url 'ric_evaluacion' %}" role="button" class="secondary">Ver métricas</a>
-  </article>
+  <div class="ricora-atencion">
+    <header>
+      <h2>Requieren atención</h2>
+      <a href="{% url 'ric_bandeja' %}">Ver todas</a>
+    </header>
+    {% if atencion %}
+      {% for fila in atencion %}
+      <div class="ricora-item">
+        <span class="ricora-badge {% if fila.propuesta.confianza >= 0.7 %}alta{% else %}media{% endif %}">
+          {% if fila.propuesta.confianza >= 0.7 %}Alta confianza{% else %}Revisar{% endif %}
+        </span>
+        <div class="titulo">{{ fila.propuesta.relacion_id }} · {{ fila.propuesta.entidad_nombre }}</div>
+        <div class="origen">{{ fila.propuesta.origen }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="sin-datos">No hay propuestas pendientes ahora mismo.</p>
+    {% endif %}
+  </div>
+</div>
 
-  <article>
-    <h3>⚙️ Panel técnico</h3>
-    <p>Para cargar un documento nuevo, ejecutar el OCR, o pedirle a la IA que proponga relaciones —
-    es la vista más técnica, pensada para quien administra el sistema.</p>
-    <a href="/admin/" role="button" class="contrast">Abrir panel técnico</a>
-  </article>
+<div class="ricora-atajos">
+  <a class="ricora-atajo" href="{% url 'ric_busqueda' %}"><h3>🔎 Búsqueda</h3><p>Texto extraído y nombres de entidades del grafo.</p></a>
+  <a class="ricora-atajo" href="{% url 'ric_sparql' %}"><h3>🕸️ SPARQL</h3><p>Consultas avanzadas sobre el grafo ya validado.</p></a>
+  <a class="ricora-atajo" href="/admin/"><h3>⚙️ Panel técnico</h3><p>Cargar documentos nuevos, ejecutar OCR y proponer relaciones de IA.</p></a>
 </div>
 {% endblock %}

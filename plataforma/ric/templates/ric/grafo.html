@@ -2,10 +2,9 @@
 {% load static %}
 {% block titulo %}{{ entidad }} · Grafo · RICORA{% endblock %}
 {% block scripts_head %}<script src="{% static 'ric/js/cytoscape.min.js' %}"></script>{% endblock %}
-{% block main_class %}{% endblock %}
+{% block main_class %}ricora-main ricora-main--ancho{% endblock %}
 {% block estilos_extra %}
-  main { padding: 0; }
-  .grafo-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+  .grafo-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e6e3dc; }
   .grafo-header h1 { font-size: 1.2rem; margin: 0 0 .3rem; }
   #cy { width: 100%; height: calc(100vh - 130px); }
 {% endblock %}

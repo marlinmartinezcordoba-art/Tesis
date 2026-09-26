@@ -7,39 +7,84 @@
 <title>{% block titulo %}RICORA{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
 <style>
-  .ricora-marca { font-weight: 700; font-size: 1.15rem; text-decoration: none; }
-  .ricora-marca small { display: block; font-weight: 400; font-size: .72rem; color: var(--pico-muted-color); }
-  header.ricora-nav { padding-block: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--pico-muted-border-color); }
-  .mensaje { padding: .75rem 1rem; border-radius: var(--pico-border-radius); margin-bottom: .75rem; }
+  :root {
+    --ricora-dark: #16202c;
+    --ricora-dark-2: #202f42;
+    --ricora-accent: #c08a3e;
+    --ricora-accent-2: #e0b566;
+    --ricora-bg: #f6f5f2;
+    --ricora-critical: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ricora-bg); color: #1f2933; font-family: system-ui, sans-serif; display: flex; min-height: 100vh; }
+
+  .ricora-sidebar {
+    width: 240px; flex-shrink: 0; background: var(--ricora-dark); color: #cfd8e3;
+    padding: 1.25rem 1rem; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .ricora-brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-decoration: none; display: block; margin-bottom: 1.75rem; }
+  .ricora-brand span { color: var(--ricora-accent-2); }
+  .ricora-brand small { display: block; font-weight: 400; font-size: .68rem; color: #8593a6; margin-top: 2px; }
+  .ricora-sidebar nav { display: flex; flex-direction: column; gap: .15rem; }
+  .ricora-sidebar nav a {
+    color: #cfd8e3; text-decoration: none; padding: .55rem .7rem; border-radius: 8px;
+    font-size: .9rem; display: flex; align-items: center; gap: .55rem;
+  }
+  .ricora-sidebar nav a:hover { background: rgba(255,255,255,.06); }
+  .ricora-sidebar nav a.activo { background: var(--ricora-accent); color: #1a1204; font-weight: 600; }
+  .ricora-sidebar nav a.separador { margin-top: .6rem; padding-top: .6rem; border-top: 1px solid rgba(255,255,255,.12); }
+
+  .ricora-shell { flex: 1; min-width: 0; }
+  .ricora-topbar {
+    display: flex; justify-content: flex-end; align-items: center; gap: .75rem;
+    padding: .9rem 1.75rem; border-bottom: 1px solid #e6e3dc; background: #fff;
+  }
+  .ricora-topbar .usuario { font-size: .85rem; color: #52606d; }
+  .ricora-topbar .usuario strong { color: #1f2933; }
+  .ricora-topbar a { font-size: .82rem; }
+
+  .ricora-main { padding: 1.75rem; max-width: 1180px; }
+  .ricora-main--ancho { max-width: none; padding: 0; }
+
+  .mensaje { padding: .75rem 1rem; border-radius: 8px; margin-bottom: .75rem; }
   .mensaje.success { background: #e3f9e5; color: #1b4d2e; }
   .mensaje.error { background: #fde8e8; color: #7a1f1f; }
-  .mensaje.info, .mensaje.warning { background: #e6f0fb; color: #1f3a5f; }
-  .sin-datos { color: var(--pico-muted-color); font-style: italic; }
+  .mensaje.info, .mensaje.warning { background: #eaf1fb; color: #1f3a5f; }
+  .sin-datos { color: #8a6100; font-style: italic; }
+
+  @media (max-width: 860px) {
+    body { flex-direction: column; }
+    .ricora-sidebar { width: 100%; height: auto; position: static; }
+    .ricora-sidebar nav { flex-direction: row; flex-wrap: wrap; }
+  }
   {% block estilos_extra %}{% endblock %}
 </style>
 {% block scripts_head %}{% endblock %}
 </head>
 <body hx-boost="true">
-<header class="ricora-nav">
-  <nav class="container">
-    <ul>
-      <li><a href="{% url 'ric_inicio' %}" class="ricora-marca">RICORA<small>Automatización archivística asistida por IA</small></a></li>
-    </ul>
-    <ul>
-      <li><a href="{% url 'ric_bandeja' %}">Bandeja de validación</a></li>
-      <li><a href="{% url 'ric_registros' %}">Registros</a></li>
-      <li><a href="{% url 'ric_busqueda' %}">Búsqueda</a></li>
-      <li><a href="{% url 'ric_sparql' %}">SPARQL</a></li>
-      <li><a href="{% url 'ric_evaluacion' %}">Evaluación</a></li>
-      <li><a href="/admin/">Panel técnico</a></li>
-    </ul>
+<aside class="ricora-sidebar">
+  <a href="{% url 'ric_inicio' %}" class="ricora-brand">RIC<span>ORA</span><small>Automatización archivística asistida por IA</small></a>
+  <nav>
+    <a href="{% url 'ric_inicio' %}" class="{% if request.resolver_match.url_name == 'ric_inicio' %}activo{% endif %}">🏠 Inicio</a>
+    <a href="{% url 'ric_bandeja' %}" class="{% if request.resolver_match.url_name == 'ric_bandeja' %}activo{% endif %}">📋 Bandeja de validación</a>
+    <a href="{% url 'ric_registros' %}" class="{% if request.resolver_match.url_name == 'ric_registros' %}activo{% endif %}">📁 Registros</a>
+    <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>
+    <a href="{% url 'ric_sparql' %}" class="{% if request.resolver_match.url_name == 'ric_sparql' %}activo{% endif %}">🕸️ SPARQL</a>
+    <a href="{% url 'ric_evaluacion' %}" class="{% if request.resolver_match.url_name == 'ric_evaluacion' %}activo{% endif %}">📊 Evaluación</a>
+    <a href="/admin/" class="separador">⚙️ Panel técnico</a>
   </nav>
-</header>
-<main class="{% block main_class %}container{% endblock %}">
-  {% if messages %}
-  {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}
-  {% endif %}
-  {% block contenido %}{% endblock %}
-</main>
+</aside>
+<div class="ricora-shell">
+  <div class="ricora-topbar">
+    <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong></span>
+    <a href="/admin/logout/">Salir</a>
+  </div>
+  <main class="{% block main_class %}ricora-main{% endblock %}">
+    {% if messages %}
+    {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}
+    {% endif %}
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
 </body>
 </html>
