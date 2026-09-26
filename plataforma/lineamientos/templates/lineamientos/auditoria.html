@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reporte de auditoría · MAZUCA</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; }
+  .meta { color: #52606d; margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e4e7eb; vertical-align: top; font-size: .92rem; }
+  .sin-datos { color: #8a6100; font-style: italic; }
+</style>
+</head>
+<body>
+<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA</p>
+<h1>Reporte de auditoría por muestreo</h1>
+<p class="meta">CLA-04 y VAL-03: exactitud de las sugerencias de IA aceptadas, medida por una persona
+sobre una muestra al azar (comando <code>auditoria_muestra</code>).</p>
+
+<h2>CLA-04 · Clasificación</h2>
+{% if clasificacion.total_revisadas %}
+<table>
+  <tr><th>Muestras revisadas</th><th>Aciertos</th><th>Exactitud</th></tr>
+  <tr>
+    <td>{{ clasificacion.total_revisadas }}</td>
+    <td>{{ clasificacion.correctas }}</td>
+    <td>{{ clasificacion.exactitud }} %</td>
+  </tr>
+</table>
+{% else %}
+<p class="sin-datos">Aún no hay muestras de clasificación revisadas.</p>
+{% endif %}
+
+<h2>VAL-03 · Valoración, general</h2>
+{% if valoracion.total_revisadas %}
+<table>
+  <tr><th>Muestras revisadas</th><th>Aciertos</th><th>Exactitud</th></tr>
+  <tr>
+    <td>{{ valoracion.total_revisadas }}</td>
+    <td>{{ valoracion.correctas }}</td>
+    <td>{{ valoracion.exactitud }} %</td>
+  </tr>
+</table>
+{% else %}
+<p class="sin-datos">Aún no hay muestras de valoración revisadas.</p>
+{% endif %}
+
+<h2>VAL-03 · Valoración, desglosada por tipo de indicio</h2>
+<table>
+  <tr><th>Tipo de indicio</th><th>Muestras revisadas</th><th>Aciertos</th><th>Exactitud</th></tr>
+  {% for campo, r in sesgo_valoracion.items %}
+  <tr>
+    <td>{{ campo }}</td>
+    <td>{{ r.total_revisadas }}</td>
+    <td>{{ r.correctas }}</td>
+    <td>{% if r.exactitud is not None %}{{ r.exactitud }} %{% else %}—{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="meta">Sirve para detectar sesgos: por ejemplo, si la IA acierta mucho más en un tipo
+de valor que en otro.</p>
+</body>
+</html>

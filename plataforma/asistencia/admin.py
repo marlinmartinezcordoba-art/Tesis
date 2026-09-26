@@ -1,5 +1,7 @@
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.urls import reverse
+from django.utils.html import format_html
 
 from .auditoria import MuestraAuditoria
 from .models import SugerenciaIA
@@ -49,6 +51,16 @@ class MuestraAuditoriaAdmin(admin.ModelAdmin):
     form = RevisionMuestraForm
     list_display = ("sugerencia", "fecha_seleccion", "resultado", "revisado_por")
     list_filter = ("resultado", "sugerencia__proceso", "sugerencia__campo")
+
+    def changelist_view(self, request, extra_context=None):
+        messages.info(
+            request,
+            format_html(
+                'Exactitud calculada por proceso (CLA-04, VAL-03): <a href="{}">ver reporte de auditoría</a>.',
+                reverse("informe_auditoria"),
+            ),
+        )
+        return super().changelist_view(request, extra_context)
 
     def has_add_permission(self, request):
         return False

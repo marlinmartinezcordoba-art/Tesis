@@ -10,6 +10,17 @@ from .verificacion import CUMPLE, NO_CUMPLE, evaluar_documento
 
 
 @login_required
+def informe_auditoria(request):
+    from asistencia.auditoria import reporte_exactitud, reporte_sesgo_valoracion
+
+    return render(request, "lineamientos/auditoria.html", {
+        "clasificacion": reporte_exactitud("clasificacion"),
+        "valoracion": reporte_exactitud("valoracion"),
+        "sesgo_valoracion": reporte_sesgo_valoracion(),
+    })
+
+
+@login_required
 def informe(request, pk):
     documento = get_object_or_404(Documento, pk=pk)
     resultados = evaluar_documento(documento)

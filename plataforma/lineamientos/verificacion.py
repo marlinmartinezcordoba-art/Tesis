@@ -138,6 +138,21 @@ def _cla_02(doc):
     )
 
 
+def _cla_04(doc):
+    from asistencia.auditoria import reporte_exactitud
+
+    reporte = reporte_exactitud("clasificacion")
+    if reporte["total_revisadas"] == 0:
+        return MANUAL, (
+            "Aún no hay muestras de auditoría de clasificación revisadas. "
+            "Genérelas con el comando `auditoria_muestra`."
+        )
+    return CUMPLE, (
+        f"{reporte['total_revisadas']} muestra(s) de auditoría de clasificación revisada(s), "
+        f"exactitud {reporte['exactitud']} %."
+    )
+
+
 def _cla_03(doc):
     if doc.sugerencias.filter(proceso="clasificacion", estado="pendiente").exists():
         return NO_CUMPLE, "Hay una propuesta de clasificación de IA sin validar."
@@ -176,6 +191,20 @@ def _val_02(doc):
         "todos con evidencia verificada; ninguno se usó para justificar una eliminación "
         "(la plataforma no ofrece esa función)."
     )
+
+
+def _val_03(doc):
+    from asistencia.auditoria import reporte_sesgo_valoracion
+
+    reporte = reporte_sesgo_valoracion()
+    revisados = {campo: r for campo, r in reporte.items() if r["total_revisadas"] > 0}
+    if not revisados:
+        return MANUAL, (
+            "Aún no hay muestras de auditoría de valoración revisadas por tipo de indicio. "
+            "Genérelas con el comando `auditoria_muestra`."
+        )
+    resumen = ", ".join(f"{campo}: {r['exactitud']} %" for campo, r in revisados.items())
+    return CUMPLE, f"Exactitud desglosada por tipo de indicio ({resumen})."
 
 
 def _des_04(doc):
@@ -235,12 +264,14 @@ VERIFICADORES = {
     "CLA-01": _decision_humana,
     "CLA-02": _cla_02,
     "CLA-03": _cla_03,
+    "CLA-04": _cla_04,
     "VAL-01": lambda doc: (
         CUMPLE,
         "La plataforma no ofrece ninguna acción de eliminación ni de disposición documental; "
         "la IA solo puede señalar indicios de valor secundario.",
     ),
     "VAL-02": _val_02,
+    "VAL-03": _val_03,
     "MET-04": _met_04,
     "ACC-01": _acc_01,
     "ACC-03": _acc_03,

@@ -169,6 +169,9 @@ class AuditoriaMuestreoTest(TestCase):
                 s.validar(self.archivista, aceptar=True)
             self.docs.append(doc)
 
+    def criterio(self, codigo):
+        return next(r for r in evaluar_documento(self.docs[0]) if r.criterio.codigo == codigo)
+
     def test_seleccionar_muestra_solo_toma_aceptadas_no_auditadas(self):
         from asistencia.models import SugerenciaIA
 
@@ -224,3 +227,69 @@ class AuditoriaMuestreoTest(TestCase):
         self.assertEqual(r.status_code, 302)
         m.refresh_from_db()
         self.assertEqual(m.revisado_por, admin_user)
+
+    def test_val_03_es_manual_sin_muestras_revisadas(self):
+        self.assertEqual(self.criterio("VAL-03").estado, MANUAL)
+
+    def test_val_03_cumple_con_muestras_revisadas(self):
+        for m in seleccionar_muestra("valoracion", tamano=100):
+            m.revisar(self.archivista, MuestraAuditoria.Resultado.CORRECTA)
+        r = self.criterio("VAL-03")
+        self.assertEqual(r.estado, CUMPLE)
+        self.assertIn("valor_historico", r.evidencia)
+
+    def test_informe_auditoria_requiere_login(self):
+        r = self.client.get("/auditoria/")
+        self.assertEqual(r.status_code, 302)
+
+    def test_informe_auditoria_muestra_exactitud(self):
+        for m in seleccionar_muestra("valoracion", tamano=100):
+            m.revisar(self.archivista, MuestraAuditoria.Resultado.CORRECTA)
+        self.client.force_login(self.archivista)
+        r = self.client.get("/auditoria/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "100,0")
+        self.assertContains(r, "valor_historico")
+
+    def test_muestraauditoria_admin_enlaza_al_reporte(self):
+        admin_user = User.objects.create_superuser("admin", password="x")
+        self.client.force_login(admin_user)
+        r = self.client.get("/admin/asistencia/muestraauditoria/")
+        self.assertContains(r, "/auditoria/")
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class Cla04AuditoriaClasificacionTest(TestCase):
+    """CLA-04: la exactitud de clasificación se calcula igual que la de
+    valoración, sobre el proceso 'clasificacion'."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        call_command("loaddata", "criterios_borrador", verbosity=0)
+        call_command("loaddata", "cuadro_demo", verbosity=0)
+        self.archivista = User.objects.create_user("archivista", password="x")
+        self.doc = Documento.objects.create(
+            titulo="Acta", archivo=SimpleUploadedFile("acta.txt", TEXTO.encode())
+        )
+        extraer_texto(self.doc)
+
+    def criterio(self, codigo):
+        return next(r for r in evaluar_documento(self.doc) if r.criterio.codigo == codigo)
+
+    def test_cla_04_es_manual_sin_muestras(self):
+        self.assertEqual(self.criterio("CLA-04").estado, MANUAL)
+
+    def test_cla_04_cumple_con_muestra_revisada(self):
+        from asistencia.proveedor_local import ProveedorClasificacionLocal
+
+        for s in generar_sugerencias(self.doc, ProveedorClasificacionLocal()):
+            s.validar(self.archivista, aceptar=True)
+        for m in seleccionar_muestra("clasificacion", tamano=100):
+            m.revisar(self.archivista, MuestraAuditoria.Resultado.CORRECTA)
+        r = self.criterio("CLA-04")
+        self.assertEqual(r.estado, CUMPLE)
+        self.assertIn("100.0", r.evidencia)
