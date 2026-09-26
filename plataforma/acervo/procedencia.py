@@ -2,7 +2,7 @@
 
 No es una llamada a un modelo de lenguaje: es una propuesta basada en datos
 que ya existen en el grafo (qué productor aparece más entre los documentos
-ya clasificados en esta serie). MAZUCA ya trata proveedores así de simples
+ya clasificados en esta serie). RICORA ya trata proveedores así de simples
 como "IA" en otras partes (por ejemplo, ProveedorClasificacionLocal, que
 compara palabras clave), así que esto sigue la misma lógica: es una
 propuesta, no una escritura automática. La persona archivista sigue

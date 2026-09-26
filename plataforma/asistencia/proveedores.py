@@ -82,7 +82,7 @@ class ProveedorReglas(ProveedorIA):
 def generar_sugerencias(documento, proveedor):
     """Crea sugerencias pendientes y verifica la evidencia de cada una.
 
-    La verificación la hace MAZUCA, no el proveedor: así el control contra
+    La verificación la hace RICORA, no el proveedor: así el control contra
     datos inventados es el mismo para cualquier modelo de IA.
     """
     from lineamientos.models import Criterio

@@ -357,7 +357,7 @@ class Place(Thing):
 
 # ---------------------------------------------------------------------------
 # Evidencia, propuesta de IA y relaciones (no son entidades RiC; son el
-# mecanismo propio de MAZUCA que hace cumplir "la IA propone, la persona
+# mecanismo propio de RICORA que hace cumplir "la IA propone, la persona
 # decide" sobre el grafo RiC de arriba)
 # ---------------------------------------------------------------------------
 

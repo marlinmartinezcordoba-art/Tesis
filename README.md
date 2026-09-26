@@ -1,8 +1,8 @@
-# MAZUCA
+# RICORA
 
 **Automatización archivística asistida por inteligencia artificial para archivos históricos.**
 
-**MA**rlín · **ZU**lly · **CA**talina: tres autoras, tres sílabas y tres atributos del patrimonio documental: autenticidad, integridad y accesibilidad.
+Nombre anterior del prototipo: MAZUCA (**MA**rlín · **ZU**lly · **CA**talina, las tres autoras).
 
 Prototipo demostrativo que acompaña la tesis de maestría en Gestión de la Información Documental
 (Universidad de La Salle): *Incorporación de inteligencia artificial en la
@@ -37,7 +37,7 @@ Entra a http://localhost:8080/admin/. Si ese puerto ya está ocupado en tu máqu
 
 ### Opción B: en tu máquina, sin Docker
 
-MAZUCA usa **siempre PostgreSQL** (en desarrollo, en Docker y en producción), para probar contra la misma base de datos en todos los entornos. Además de Tesseract con español y el modelo de spaCy en español, necesitas PostgreSQL instalado y corriendo (en Ubuntu/Debian: `sudo apt install postgresql tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de PostgreSQL y el de Tesseract de UB Mannheim). Para el proveedor de IA en la nube hace falta además una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY`.
+RICORA usa **siempre PostgreSQL** (en desarrollo, en Docker y en producción), para probar contra la misma base de datos en todos los entornos. Además de Tesseract con español y el modelo de spaCy en español, necesitas PostgreSQL instalado y corriendo (en Ubuntu/Debian: `sudo apt install postgresql tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de PostgreSQL y el de Tesseract de UB Mannheim). Para el proveedor de IA en la nube hace falta además una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY`.
 
 Crea el rol y la base de datos una sola vez (los valores por defecto que espera la aplicación son usuario `mazuca`, clave `mazuca`, base `mazuca`; puedes cambiarlos si defines tu propia `DATABASE_URL`):
 
@@ -60,5 +60,5 @@ cd plataforma
 Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py test tests` (el rol necesita `CREATEDB` porque Django crea una base de datos temporal para las pruebas).
 
 Los criterios cargados son **borradores**; se reemplazan por los validados en la Fase 4.
-Cómo se relaciona MAZUCA con la tesis (ajuste metodológico aprobado: el software es el eje central, no un anexo): `docs/mazuca-eje-central.md`. El capítulo de lineamientos: `docs/lineamientos-tesis.md`.
+Cómo se relaciona RICORA con la tesis (ajuste metodológico aprobado: el software es el eje central, no un anexo): `docs/mazuca-eje-central.md`. El capítulo de lineamientos: `docs/lineamientos-tesis.md`.
 Cómo montarla en DigitalOcean, una vez probada aquí: `docs/despliegue-digitalocean.md`.

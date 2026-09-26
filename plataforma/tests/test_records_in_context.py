@@ -95,7 +95,7 @@ class RicModeloTest(TestCase):
         self.assertEqual(relacion.tipo_relacion, "documenta")
 
     def test_combinacion_invalida_se_descarta_al_proponer(self):
-        # "productor" no tiene sentido para una actividad: MAZUCA lo descarta
+        # "productor" no tiene sentido para una actividad: RICORA lo descarta
         # antes de crear la sugerencia, sin confiar ciegamente en el modelo.
         self._publicable()
         borrador = self._borrador_con_entidades([
@@ -236,7 +236,7 @@ class RicModeloTest(TestCase):
 
 @override_settings(MEDIA_ROOT=MEDIA)
 class Cla02ProcedenciaTest(TestCase):
-    """CLA-02: MAZUCA verifica el principio de procedencia comparando, en
+    """CLA-02: RICORA verifica el principio de procedencia comparando, en
     el grafo RiC, el productor del documento contra el productor
     declarado para la unidad del cuadro de clasificación (Record Set)."""
 

@@ -1,4 +1,4 @@
-# MAZUCA · Automatización archivística asistida por IA
+# RICORA · Automatización archivística asistida por IA
 # Imagen para desarrollo local con Docker y para DigitalOcean (App Platform
 # o un Droplet). Basada en Python slim + Tesseract (OCR en español).
 

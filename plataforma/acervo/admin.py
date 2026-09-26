@@ -44,7 +44,7 @@ class DocumentoAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Un archivo histórico de conservación total no elimina documentos
         # desde la interfaz (lineamiento VAL-01): ni la IA ni una persona
-        # con acceso a MAZUCA pueden borrar un documento ya ingresado. Una
+        # con acceso a RICORA pueden borrar un documento ya ingresado. Una
         # disposición real requeriría un proceso aparte, fuera de esta
         # plataforma.
         return False
@@ -220,7 +220,7 @@ class UnidadClasificacionAdmin(admin.ModelAdmin):
                 request,
                 f"{unidad}: sugerencia de productor «{entidad}» ({coincidencias} de {total} "
                 "documento(s) clasificados aquí). Confírmelo agregándolo en «Productor "
-                "(procedencia, CLA-02)» más abajo; MAZUCA no lo escribe automáticamente.",
+                "(procedencia, CLA-02)» más abajo; RICORA no lo escribe automáticamente.",
             )
 
 

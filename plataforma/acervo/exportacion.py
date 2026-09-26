@@ -1,6 +1,6 @@
 """Exportación de metadatos a esquemas estándar interoperables (MET-04).
 
-La entidad no debe quedar atada al formato propio de MAZUCA: los metadatos
+La entidad no debe quedar atada al formato propio de RICORA: los metadatos
 descriptivos se pueden exportar a Dublin Core (oai_dc), y la bitácora de
 preservación a un resumen de eventos al estilo PREMIS.
 """

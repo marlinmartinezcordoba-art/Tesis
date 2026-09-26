@@ -8,7 +8,7 @@ para M07-M09, texto de referencia para el OCR en M13, una encuesta de
 usabilidad para M14), el valor es `None` con una nota que dice exactamente
 qué falta, en vez de inventar un número. M03 sí se puede calcular con
 datos reales: `ric.auditoria` (T071) audita por muestreo las relaciones ya
-aceptadas, igual que CLA-04/VAL-03 en MAZUCA — mientras no haya muestras
+aceptadas, igual que CLA-04/VAL-03 en RICORA — mientras no haya muestras
 revisadas todavía, M03 también queda en None.
 """
 

@@ -87,7 +87,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# MAZUCA usa siempre PostgreSQL, en desarrollo, en Docker y en producción,
+# RICORA usa siempre PostgreSQL, en desarrollo, en Docker y en producción,
 # para probar contra la misma base de datos en todos los entornos. La
 # conexión se toma de DATABASE_URL; en desarrollo local (sin Docker), por
 # defecto apunta al PostgreSQL de esta máquina con la base "mazuca" creada

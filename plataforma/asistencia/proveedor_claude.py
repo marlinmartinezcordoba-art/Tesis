@@ -5,7 +5,7 @@ Reglas que aplica este proveedor (lineamientos de la tesis):
   con la revisión de datos personales decidida. Si se decidió anonimizar, se
   envía el texto anonimizado; si el documento está restringido, no se envía.
 - Evidencia: cada dato propuesto debe citar el fragmento literal que lo
-  respalda. MAZUCA verifica la cita en `generar_sugerencias`.
+  respalda. RICORA verifica la cita en `generar_sugerencias`.
 - Trazabilidad: la sugerencia guarda el modelo que respondió realmente.
 
 La clave de API se lee de la variable de entorno ANTHROPIC_API_KEY.
@@ -281,7 +281,7 @@ class ProveedorClasificacionClaude(ProveedorIA):
 
 # --- Valoración -------------------------------------------------------------
 # La IA solo SEÑALA indicios de valor secundario, para ayudar a priorizar
-# digitalización y difusión. MAZUCA no ofrece ninguna acción de eliminación
+# digitalización y difusión. RICORA no ofrece ninguna acción de eliminación
 # ni de disposición final: eso queda fuera del alcance de la plataforma
 # (VAL-01). La disposición de documentos históricos de conservación total
 # está, además, fuera de discusión: ya tienen valor permanente.

@@ -57,7 +57,7 @@ class SugerenciaIA(models.Model):
         blank=True, help_text="Fragmento literal del documento que respalda la propuesta."
     )
     evidencia_verificada = models.BooleanField(
-        null=True, help_text="Si MAZUCA encontró la evidencia en el texto del documento."
+        null=True, help_text="Si RICORA encontró la evidencia en el texto del documento."
     )
     relacion = models.CharField(
         max_length=20, blank=True,

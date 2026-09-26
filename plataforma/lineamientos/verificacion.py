@@ -106,7 +106,7 @@ def _cla_02(doc):
     """Verifica el principio de procedencia comparando, en el grafo RiC, el
     productor del documento (Record) contra el productor declarado para la
     serie donde quedó clasificado (Record Set). Es la parte de CLA-02 que
-    MAZUCA puede comprobar de forma automática; el resto (que la propuesta
+    RICORA puede comprobar de forma automática; el resto (que la propuesta
     no mezcle niveles de un fondo distinto) sigue siendo revisión manual."""
     if not doc.unidad_clasificacion:
         return MANUAL, "El documento aún no está clasificado."

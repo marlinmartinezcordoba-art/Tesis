@@ -24,7 +24,7 @@ def calcular_sha256(archivo):
 class UnidadClasificacion(models.Model):
     """Entrada del cuadro de clasificación de la entidad (fondo, sección, serie o subserie).
 
-    La entidad carga su propio cuadro; MAZUCA no impone uno. La IA solo
+    La entidad carga su propio cuadro; RICORA no impone uno. La IA solo
     propone entre las unidades ya existentes: nunca crea niveles nuevos.
 
     Corresponde a RiC-E03 Record Set: una agrupación jerárquica de
@@ -221,7 +221,7 @@ class RelacionEntidadDocumento(models.Model):
 # Qué tipo de relación tiene sentido para cada tipo de entidad. Se usa para
 # validar las propuestas de la IA antes de guardarlas (defensa en
 # profundidad: no basta con que el modelo de lenguaje elija una combinación
-# válida, MAZUCA la vuelve a comprobar).
+# válida, RICORA la vuelve a comprobar).
 RELACIONES_VALIDAS_POR_TIPO = {
     "persona": {"productor", "mencionado", "destinatario", "trata_sobre"},
     "institucion": {"productor", "mencionado", "destinatario", "trata_sobre"},

@@ -1,6 +1,6 @@
 """Proveedores de IA intercambiables sobre el núcleo RiC (AIProvider del
 Entregable 3): cada uno lee un Record y su texto, y devuelve candidatos de
-relación. MAZUCA nunca confía en el proveedor a ciegas: `generar_propuestas`
+relación. RICORA nunca confía en el proveedor a ciegas: `generar_propuestas`
 verifica la evidencia contra el texto real y el dominio/rango contra
 `ric.reglas` antes de guardar nada, y solo guarda — nunca escribe el grafo
 directamente (eso solo lo hace `PropuestaRiC.validar()`).
