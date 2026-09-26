@@ -1,0 +1,1034 @@
+{
+  "fuente": {
+    "ric_cm": "RiC-CM 1.0 (ICA-EGAD, noviembre 2023) - https://raw.githubusercontent.com/ICA-EGAD/RiC-CM/master/current-version/RiC-CM-1.0.pdf",
+    "ric_o": "RiC-O 1.1 (ICA-EGAD) - https://raw.githubusercontent.com/ICA-EGAD/RiC-O/master/ontology/current-version/RiC-O_1-1.rdf",
+    "verificado": "2026-09-26"
+  },
+  "entidades": {
+    "E01": {
+      "nombre": "Thing",
+      "uri_rico": "rico:Thing"
+    },
+    "E02": {
+      "nombre": "Record Resource",
+      "uri_rico": "rico:RecordResource"
+    },
+    "E03": {
+      "nombre": "Record Set",
+      "uri_rico": "rico:RecordSet"
+    },
+    "E04": {
+      "nombre": "Record",
+      "uri_rico": "rico:Record"
+    },
+    "E05": {
+      "nombre": "Record Part",
+      "uri_rico": "rico:RecordPart"
+    },
+    "E06": {
+      "nombre": "Instantiation",
+      "uri_rico": "rico:Instantiation"
+    },
+    "E07": {
+      "nombre": "Agent",
+      "uri_rico": "rico:Agent"
+    },
+    "E08": {
+      "nombre": "Person",
+      "uri_rico": "rico:Person"
+    },
+    "E09": {
+      "nombre": "Group",
+      "uri_rico": "rico:Group"
+    },
+    "E10": {
+      "nombre": "Family",
+      "uri_rico": "rico:Family"
+    },
+    "E11": {
+      "nombre": "Corporate Body",
+      "uri_rico": "rico:CorporateBody"
+    },
+    "E12": {
+      "nombre": "Position",
+      "uri_rico": "rico:Position"
+    },
+    "E13": {
+      "nombre": "Mechanism",
+      "uri_rico": "rico:Mechanism"
+    },
+    "E14": {
+      "nombre": "Event",
+      "uri_rico": "rico:Event"
+    },
+    "E15": {
+      "nombre": "Activity",
+      "uri_rico": "rico:Activity"
+    },
+    "E16": {
+      "nombre": "Rule",
+      "uri_rico": "rico:Rule"
+    },
+    "E17": {
+      "nombre": "Mandate",
+      "uri_rico": "rico:Mandate"
+    },
+    "E18": {
+      "nombre": "Date",
+      "uri_rico": "rico:Date"
+    },
+    "E22": {
+      "nombre": "Place",
+      "uri_rico": "rico:Place"
+    }
+  },
+  "relaciones": {
+    "R001": {
+      "nombre": "is related to",
+      "dominio_cm": "Thing",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isRelatedTo",
+      "inversa_rico": []
+    },
+    "R002": {
+      "nombre": "has or had part",
+      "dominio_cm": "Thing",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:hasOrHadPart",
+      "inversa_rico": [
+        "rico:isOrWasPartOf"
+      ]
+    },
+    "R003": {
+      "nombre": "has or had constituent",
+      "dominio_cm": "Record or Record Part",
+      "rango_cm": "Record or Record Part",
+      "uri_rico": "rico:hasOrHadConstituent",
+      "inversa_rico": [
+        "rico:isOrWasConstituentOf"
+      ]
+    },
+    "R004": {
+      "nombre": "has or had component",
+      "dominio_cm": "Instantiation",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:hasOrHadComponent",
+      "inversa_rico": [
+        "rico:isOrWasComponentOf"
+      ]
+    },
+    "R005": {
+      "nombre": "has or had subdivision",
+      "dominio_cm": "Group",
+      "rango_cm": "Group",
+      "uri_rico": "rico:hasOrHadSubdivision",
+      "inversa_rico": [
+        "rico:isOrWasSubdivisionOf"
+      ]
+    },
+    "R006": {
+      "nombre": "has or had subevent",
+      "dominio_cm": "Event",
+      "rango_cm": "Event",
+      "uri_rico": "rico:hasOrHadSubevent",
+      "inversa_rico": [
+        "rico:isOrWasSubeventOf"
+      ]
+    },
+    "R007": {
+      "nombre": "contains or contained",
+      "dominio_cm": "Place",
+      "rango_cm": "Place",
+      "uri_rico": "rico:containsOrContained",
+      "inversa_rico": [
+        "rico:isOrWasContainedBy"
+      ]
+    },
+    "R008": {
+      "nombre": "precedes or preceded",
+      "dominio_cm": "Thing",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:precedesOrPreceded",
+      "inversa_rico": [
+        "rico:followsOrFollowed"
+      ]
+    },
+    "R009": {
+      "nombre": "precedes in time",
+      "dominio_cm": "Thing",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:precedesInTime",
+      "inversa_rico": [
+        "rico:followsInTime"
+      ]
+    },
+    "R010": {
+      "nombre": "is original of",
+      "dominio_cm": "Record or Record Part",
+      "rango_cm": "Record or Record Part",
+      "uri_rico": "rico:isOriginalOf",
+      "inversa_rico": [
+        "rico:hasOriginal"
+      ]
+    },
+    "R011": {
+      "nombre": "is draft of",
+      "dominio_cm": "Record",
+      "rango_cm": "Record",
+      "uri_rico": "rico:isDraftOf",
+      "inversa_rico": [
+        "rico:hasDraft"
+      ]
+    },
+    "R012": {
+      "nombre": "has copy",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Record Resource",
+      "uri_rico": "rico:hasCopy",
+      "inversa_rico": [
+        "rico:isCopyOf"
+      ]
+    },
+    "R013": {
+      "nombre": "has reply",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Record Resource",
+      "uri_rico": "rico:hasReply",
+      "inversa_rico": [
+        "rico:isReplyTo"
+      ]
+    },
+    "R014": {
+      "nombre": "has or had derived instantiation",
+      "dominio_cm": "Instantiation",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:hasOrHadDerivedInstantiation",
+      "inversa_rico": [
+        "rico:isOrWasDerivedFromInstantiation"
+      ]
+    },
+    "R015": {
+      "nombre": "migrated into",
+      "dominio_cm": "Instantiation",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:migratedInto",
+      "inversa_rico": [
+        "rico:migratedFrom"
+      ]
+    },
+    "R016": {
+      "nombre": "has successor",
+      "dominio_cm": "Agent",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasSuccessor",
+      "inversa_rico": [
+        "rico:isSuccessorOf"
+      ]
+    },
+    "R017": {
+      "nombre": "has descendant",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasDescendant",
+      "inversa_rico": [
+        "rico:hasAncestor"
+      ]
+    },
+    "R018": {
+      "nombre": "has child",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasChild",
+      "inversa_rico": [
+        "rico:isChildOf"
+      ]
+    },
+    "R019": {
+      "nombre": "has or had subject",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:hasOrHadSubject",
+      "inversa_rico": [
+        "rico:isOrWasSubjectOf"
+      ]
+    },
+    "R020": {
+      "nombre": "has or had main subject",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:hasOrHadMainSubject",
+      "inversa_rico": [
+        "rico:isOrWasMainSubjectOf"
+      ]
+    },
+    "R021": {
+      "nombre": "describes or described",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:describesOrDescribed",
+      "inversa_rico": [
+        "rico:isOrWasDescribedBy"
+      ]
+    },
+    "R022": {
+      "nombre": "is record resource associated with record resource",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Record Resource",
+      "uri_rico": "rico:isRecordResourceAssociatedWithRecordResource",
+      "inversa_rico": []
+    },
+    "R023": {
+      "nombre": "has genetic link to record resource",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Record Resource",
+      "uri_rico": "rico:hasGeneticLinkToRecordResource",
+      "inversa_rico": []
+    },
+    "R024": {
+      "nombre": "includes or included",
+      "dominio_cm": "Record Set",
+      "rango_cm": "Record or Record Set",
+      "uri_rico": "rico:includesOrIncluded",
+      "inversa_rico": [
+        "rico:isOrWasIncludedIn"
+      ]
+    },
+    "R025": {
+      "nombre": "has or had instantiation",
+      "dominio_cm": "Record Resource",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:hasOrHadInstantiation",
+      "inversa_rico": [
+        "rico:isOrWasInstantiationOf"
+      ]
+    },
+    "R026": {
+      "nombre": "has provenance",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasOrganicOrFunctionalProvenance",
+      "inversa_rico": [
+        "rico:isOrganicOrFunctionalProvenanceOf"
+      ]
+    },
+    "R027": {
+      "nombre": "has creator",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasCreator",
+      "inversa_rico": [
+        "rico:isCreatorOf"
+      ]
+    },
+    "R028": {
+      "nombre": "has accumulator",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasAccumulator",
+      "inversa_rico": [
+        "rico:isAccumulatorOf"
+      ]
+    },
+    "R029": {
+      "nombre": "has receiver",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasReceiver",
+      "inversa_rico": [
+        "rico:isReceiverOf"
+      ]
+    },
+    "R030": {
+      "nombre": "has collector",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasCollector",
+      "inversa_rico": [
+        "rico:isCollectorOf"
+      ]
+    },
+    "R031": {
+      "nombre": "has sender",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasSender",
+      "inversa_rico": [
+        "rico:isSenderOf"
+      ]
+    },
+    "R032": {
+      "nombre": "has addressee",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasAddressee",
+      "inversa_rico": [
+        "rico:isAddresseeOf"
+      ]
+    },
+    "R033": {
+      "nombre": "documents",
+      "dominio_cm": "Record Resource or Instantiation",
+      "rango_cm": "Activity",
+      "uri_rico": "rico:documents",
+      "inversa_rico": [
+        "rico:documentedBy"
+      ]
+    },
+    "R034": {
+      "nombre": "is instantiation associated with instantiation",
+      "dominio_cm": "Instantiation",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:isInstantiationAssociatedWithInstantiation",
+      "inversa_rico": []
+    },
+    "R035": {
+      "nombre": "is functionally equivalent to",
+      "dominio_cm": "Instantiation",
+      "rango_cm": "Instantiation",
+      "uri_rico": "rico:isFunctionallyEquivalentTo",
+      "inversa_rico": []
+    },
+    "R036": {
+      "nombre": "has or had authority over",
+      "dominio_cm": "Agent",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:hasOrHadAuthorityOver",
+      "inversa_rico": [
+        "rico:isOrWasUnderAuthorityOf"
+      ]
+    },
+    "R037": {
+      "nombre": "is or was owner of",
+      "dominio_cm": "Group or Person or Position",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isOrWasOwnerOf",
+      "inversa_rico": [
+        "rico:hasOrHadOwner"
+      ]
+    },
+    "R038": {
+      "nombre": "is or was manager of",
+      "dominio_cm": "Agent",
+      "rango_cm": "Record Resource or Instantiation",
+      "uri_rico": "rico:isOrWasManagerOf",
+      "inversa_rico": [
+        "rico:hasOrHadManager"
+      ]
+    },
+    "R039": {
+      "nombre": "is or was holder of",
+      "dominio_cm": "Agent",
+      "rango_cm": "Record Resource or Instantiation",
+      "uri_rico": "rico:isOrWasHolderOf",
+      "inversa_rico": [
+        "rico:hasOrHadHolder"
+      ]
+    },
+    "R040": {
+      "nombre": "is or was holder of intellectual property rights of",
+      "dominio_cm": "Group, Person or Position",
+      "rango_cm": "Record Resource or Instantiation",
+      "uri_rico": "rico:isOrWasHolderOfIntellectualPropertyRightsOf",
+      "inversa_rico": [
+        "rico:hasOrHadIntellectualPropertyRightsHolder"
+      ]
+    },
+    "R041": {
+      "nombre": "is or was controller of",
+      "dominio_cm": "Agent",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:isOrWasControllerOf",
+      "inversa_rico": [
+        "rico:hasOrHadController"
+      ]
+    },
+    "R042": {
+      "nombre": "is or was leader of",
+      "dominio_cm": "Person",
+      "rango_cm": "Group",
+      "uri_rico": "rico:isOrWasLeaderOf",
+      "inversa_rico": [
+        "rico:hasOrHadLeader"
+      ]
+    },
+    "R044": {
+      "nombre": "is agent associated with agent",
+      "dominio_cm": "Agent",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:isAgentAssociatedWithAgent",
+      "inversa_rico": []
+    },
+    "R045": {
+      "nombre": "has or had subordinate",
+      "dominio_cm": "Agent",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasOrHadSubordinate",
+      "inversa_rico": [
+        "rico:isOrWasSubordinateTo"
+      ]
+    },
+    "R046": {
+      "nombre": "has or had work relation with",
+      "dominio_cm": "Agent",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:hasOrHadWorkRelationWith",
+      "inversa_rico": []
+    },
+    "R047": {
+      "nombre": "has family association with",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasFamilyAssociationWith",
+      "inversa_rico": []
+    },
+    "R048": {
+      "nombre": "has sibling",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasSibling",
+      "inversa_rico": []
+    },
+    "R049": {
+      "nombre": "has or had spouse",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasOrHadSpouse",
+      "inversa_rico": []
+    },
+    "R050": {
+      "nombre": "knows of",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:knowsOf",
+      "inversa_rico": [
+        "rico:knownBy"
+      ]
+    },
+    "R051": {
+      "nombre": "knows",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:knows",
+      "inversa_rico": []
+    },
+    "R052": {
+      "nombre": "has or had correspondent",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasOrHadCorrespondent",
+      "inversa_rico": []
+    },
+    "R053": {
+      "nombre": "has or had teacher",
+      "dominio_cm": "Person",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasOrHadTeacher",
+      "inversa_rico": [
+        "rico:hasOrHadStudent"
+      ]
+    },
+    "R054": {
+      "nombre": "occupies or occupied",
+      "dominio_cm": "Person",
+      "rango_cm": "Position",
+      "uri_rico": "rico:occupiesOrOccupied",
+      "inversa_rico": [
+        "rico:isOrWasOccupiedBy"
+      ]
+    },
+    "R055": {
+      "nombre": "has or had member",
+      "dominio_cm": "Group",
+      "rango_cm": "Person",
+      "uri_rico": "rico:hasOrHadMember",
+      "inversa_rico": [
+        "rico:isOrWasMemberOf"
+      ]
+    },
+    "R056": {
+      "nombre": "exists or existed in",
+      "dominio_cm": "Position",
+      "rango_cm": "Group",
+      "uri_rico": "rico:existsOrExistedIn",
+      "inversa_rico": [
+        "rico:hasOrHadPosition"
+      ]
+    },
+    "R057": {
+      "nombre": "is event associated with",
+      "dominio_cm": "Event",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isEventAssociatedWith",
+      "inversa_rico": [
+        "rico:isAssociatedWithEvent"
+      ]
+    },
+    "R058": {
+      "nombre": "has or had participant",
+      "dominio_cm": "Event",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:hasOrHadParticipant",
+      "inversa_rico": [
+        "rico:isOrWasParticipantIn"
+      ]
+    },
+    "R059": {
+      "nombre": "affects or affected",
+      "dominio_cm": "Event",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:affectsOrAffected",
+      "inversa_rico": [
+        "rico:isOrWasAffectedBy"
+      ]
+    },
+    "R060": {
+      "nombre": "is or was performed by",
+      "dominio_cm": "Activity",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:isOrWasPerformedBy",
+      "inversa_rico": [
+        "rico:performsOrPerformed"
+      ]
+    },
+    "R061": {
+      "nombre": "results or resulted in",
+      "dominio_cm": "Event",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:resultsOrResultedIn",
+      "inversa_rico": [
+        "rico:resultsOrResultedFrom"
+      ]
+    },
+    "R062": {
+      "nombre": "is rule associated with",
+      "dominio_cm": "Rule",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isRuleAssociatedWith",
+      "inversa_rico": [
+        "rico:isAssociatedWithRule"
+      ]
+    },
+    "R063": {
+      "nombre": "regulates or regulated",
+      "dominio_cm": "Rule",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:regulatesOrRegulated",
+      "inversa_rico": [
+        "rico:isOrWasRegulatedBy"
+      ]
+    },
+    "R064": {
+      "nombre": "is or was expressed by",
+      "dominio_cm": "Rule",
+      "rango_cm": "Record Resource",
+      "uri_rico": "rico:isOrWasExpressedBy",
+      "inversa_rico": [
+        "rico:expressesOrExpressed"
+      ]
+    },
+    "R065": {
+      "nombre": "issued by",
+      "dominio_cm": "Rule",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:issuedBy",
+      "inversa_rico": [
+        "rico:isResponsibleForIssuing"
+      ]
+    },
+    "R066": {
+      "nombre": "is or was enforced by",
+      "dominio_cm": "Rule",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:isOrWasEnforcedBy",
+      "inversa_rico": [
+        "rico:isOrWasResponsibleForEnforcing"
+      ]
+    },
+    "R067": {
+      "nombre": "authorizes",
+      "dominio_cm": "Mandate",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:authorizes",
+      "inversa_rico": [
+        "rico:authorizedBy"
+      ]
+    },
+    "R068": {
+      "nombre": "is date associated with",
+      "dominio_cm": "Date",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isDateAssociatedWith",
+      "inversa_rico": [
+        "rico:isAssociatedWithDate"
+      ]
+    },
+    "R069": {
+      "nombre": "is beginning date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isBeginningDateOf",
+      "inversa_rico": [
+        "rico:hasBeginningDate"
+      ]
+    },
+    "R070": {
+      "nombre": "is birth date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Person",
+      "uri_rico": "rico:isBirthDateOf",
+      "inversa_rico": [
+        "rico:hasBirthDate"
+      ]
+    },
+    "R071": {
+      "nombre": "is end date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isEndDateOf",
+      "inversa_rico": [
+        "rico:hasEndDate"
+      ]
+    },
+    "R072": {
+      "nombre": "is death date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Person",
+      "uri_rico": "rico:isDeathDateOf",
+      "inversa_rico": [
+        "rico:hasDeathDate"
+      ]
+    },
+    "R073": {
+      "nombre": "is modification date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isModificationDateOf",
+      "inversa_rico": [
+        "rico:hasModificationDate"
+      ]
+    },
+    "R074": {
+      "nombre": "is place associated with",
+      "dominio_cm": "Place",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isPlaceAssociatedWith",
+      "inversa_rico": [
+        "rico:isAssociatedWithPlace"
+      ]
+    },
+    "R075": {
+      "nombre": "is or was location of",
+      "dominio_cm": "Place",
+      "rango_cm": "Thing",
+      "uri_rico": "rico:isOrWasLocationOf",
+      "inversa_rico": [
+        "rico:hasOrHadLocation"
+      ]
+    },
+    "R076": {
+      "nombre": "is or was jurisdiction of",
+      "dominio_cm": "Place",
+      "rango_cm": "Agent",
+      "uri_rico": "rico:isOrWasJurisdictionOf",
+      "inversa_rico": [
+        "rico:hasOrHadJurisdiction"
+      ]
+    },
+    "R077": {
+      "nombre": "is or was adjacent to",
+      "dominio_cm": "Place",
+      "rango_cm": "Place",
+      "uri_rico": "rico:isOrWasAdjacentTo",
+      "inversa_rico": []
+    },
+    "R078": {
+      "nombre": "overlaps or overlapped",
+      "dominio_cm": "Place",
+      "rango_cm": "Place",
+      "uri_rico": "rico:overlapsOrOverlapped",
+      "inversa_rico": []
+    },
+    "R079": {
+      "nombre": "has author",
+      "dominio_cm": "Record",
+      "rango_cm": "Person, Group or Position",
+      "uri_rico": "rico:hasAuthor",
+      "inversa_rico": [
+        "rico:isAuthorOf"
+      ]
+    },
+    "R080": {
+      "nombre": "is creation date of",
+      "dominio_cm": "Date",
+      "rango_cm": "Record Resource, Instantiation",
+      "uri_rico": "rico:isCreationDateOf",
+      "inversa_rico": [
+        "rico:hasCreationDate"
+      ]
+    },
+    "R081": {
+      "nombre": "is or was creation date of all members of",
+      "dominio_cm": "Date",
+      "rango_cm": "Record Set",
+      "uri_rico": "rico:isOrWasCreationDateOfAllMembersOf",
+      "inversa_rico": [
+        "rico:hasOrHadAllMembersWithCreationDate"
+      ]
+    },
+    "R082": {
+      "nombre": "is or was creation date of some members of",
+      "dominio_cm": "Date",
+      "rango_cm": "Record Set",
+      "uri_rico": "rico:isOrWasCreationDateOfSomeMembersOf",
+      "inversa_rico": [
+        "rico:hasOrHadSomeMembersWithCreationDate"
+      ]
+    },
+    "R083": {
+      "nombre": "is or was creation date of most members of",
+      "dominio_cm": "Date",
+      "rango_cm": "Record Set",
+      "uri_rico": "rico:isOrWasCreationDateOfMostMembersOf",
+      "inversa_rico": [
+        "rico:hasOrHadMostMembersWithCreationDate"
+      ]
+    },
+    "R084": {
+      "nombre": "is date of occurrence of",
+      "dominio_cm": "Date",
+      "rango_cm": "Event",
+      "uri_rico": "rico:isDateOfOccurrenceOf",
+      "inversa_rico": [
+        "rico:occurredAtDate"
+      ]
+    },
+    "R085": {
+      "nombre": "is within",
+      "dominio_cm": "Date",
+      "rango_cm": "Date",
+      "uri_rico": "rico:isWithin",
+      "inversa_rico": [
+        "rico:hasWithin"
+      ]
+    },
+    "R086": {
+      "nombre": "intersects",
+      "dominio_cm": "Date",
+      "rango_cm": "Date",
+      "uri_rico": "rico:intersects",
+      "inversa_rico": []
+    }
+  },
+  "atributos": {
+    "A01": {
+      "nombre": "Accruals",
+      "dominio_cm": "Record Set",
+      "uri_rico": "rico:accruals"
+    },
+    "A02": {
+      "nombre": "Activity Type",
+      "dominio_cm": "Activity",
+      "uri_rico": "rico:hasActivityType"
+    },
+    "A03": {
+      "nombre": "Authenticity Note",
+      "dominio_cm": "Record Resource; Instantiation",
+      "uri_rico": "rico:authenticityNote"
+    },
+    "A04": {
+      "nombre": "Carrier Extent",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:carrierExtent"
+    },
+    "A05": {
+      "nombre": "Carrier Type",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:hasCarrierType"
+    },
+    "A07": {
+      "nombre": "Classification",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:classification"
+    },
+    "A08": {
+      "nombre": "Conditions of Access",
+      "dominio_cm": "Record Resource; Instantiation",
+      "uri_rico": "rico:conditionsOfAccess"
+    },
+    "A09": {
+      "nombre": "Conditions of Use",
+      "dominio_cm": "Record Resource; Instantiation",
+      "uri_rico": "rico:conditionsOfUse"
+    },
+    "A10": {
+      "nombre": "Content Type",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:hasContentOfType"
+    },
+    "A11": {
+      "nombre": "Coordinates",
+      "dominio_cm": "Place",
+      "uri_rico": "rico:hasOrHadCoordinates"
+    },
+    "A12": {
+      "nombre": "Corporate Body Type",
+      "dominio_cm": "Corporate Body",
+      "uri_rico": "rico:hasOrHadCorporateBodyType"
+    },
+    "A13": {
+      "nombre": "Date Qualifier",
+      "dominio_cm": "Date",
+      "uri_rico": "rico:dateQualifier"
+    },
+    "A42": {
+      "nombre": "Date Type",
+      "dominio_cm": "Date",
+      "uri_rico": "rico:hasDateType"
+    },
+    "A15": {
+      "nombre": "Demographic Group",
+      "dominio_cm": "Person; Group",
+      "uri_rico": "rico:hasOrHadDemographicGroup"
+    },
+    "A17": {
+      "nombre": "Documentary Form Type",
+      "dominio_cm": "Record Set; Record; Record Part",
+      "uri_rico": "rico:hasDocumentaryFormType"
+    },
+    "A18": {
+      "nombre": "Event Type",
+      "dominio_cm": "Event",
+      "uri_rico": "rico:hasEventType"
+    },
+    "A19": {
+      "nombre": "Expressed Date",
+      "dominio_cm": "Date",
+      "uri_rico": "rico:expressedDate"
+    },
+    "A20": {
+      "nombre": "Family Type",
+      "dominio_cm": "Family",
+      "uri_rico": "rico:hasFamilyType"
+    },
+    "A43": {
+      "nombre": "General Description",
+      "dominio_cm": "Thing",
+      "uri_rico": "rico:generalDescription"
+    },
+    "A21": {
+      "nombre": "History",
+      "dominio_cm": "Record Resource; Instantiation; Agent; Event; Rule; Place",
+      "uri_rico": "rico:history"
+    },
+    "A22": {
+      "nombre": "Identifier",
+      "dominio_cm": "Thing",
+      "uri_rico": "rico:identifier"
+    },
+    "A23": {
+      "nombre": "Instantiation Extent",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:instantiationExtent"
+    },
+    "A24": {
+      "nombre": "Integrity Note",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:integrityNote"
+    },
+    "A25": {
+      "nombre": "Language",
+      "dominio_cm": "Record Resource; Agent",
+      "uri_rico": "rico:hasOrHadLanguage"
+    },
+    "A26": {
+      "nombre": "Legal Status",
+      "dominio_cm": "Record Resource; Agent",
+      "uri_rico": "rico:hasOrHadLegalStatus"
+    },
+    "A27": {
+      "nombre": "Location",
+      "dominio_cm": "Place",
+      "uri_rico": "rico:location"
+    },
+    "A44": {
+      "nombre": "Mandate Type",
+      "dominio_cm": "Mandate",
+      "uri_rico": "rico:hasOrHadMandateType"
+    },
+    "A28": {
+      "nombre": "Name",
+      "dominio_cm": "Thing",
+      "uri_rico": "rico:name"
+    },
+    "A29": {
+      "nombre": "Normalized Date",
+      "dominio_cm": "Date",
+      "uri_rico": "rico:normalizedDateValue"
+    },
+    "A30": {
+      "nombre": "Occupation Type",
+      "dominio_cm": "Person",
+      "uri_rico": "rico:hasOrHadOccupationOfType"
+    },
+    "A31": {
+      "nombre": "Physical Characteristics Note",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:physicalCharacteristicsNote"
+    },
+    "A32": {
+      "nombre": "Place Type",
+      "dominio_cm": "Place",
+      "uri_rico": "rico:hasOrHadPlaceType"
+    },
+    "A33": {
+      "nombre": "Production Technique",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:productionTechnique"
+    },
+    "A34": {
+      "nombre": "Quality of Representation Note",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:qualityOfRepresentationNote"
+    },
+    "A35": {
+      "nombre": "Record Resource Extent",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:recordResourceExtent"
+    },
+    "A36": {
+      "nombre": "Record Set Type",
+      "dominio_cm": "Record Set",
+      "uri_rico": "rico:hasRecordSetType"
+    },
+    "A37": {
+      "nombre": "Representation Type",
+      "dominio_cm": "Instantiation",
+      "uri_rico": "rico:hasRepresentationType"
+    },
+    "A45": {
+      "nombre": "Rule Type",
+      "dominio_cm": "Rule",
+      "uri_rico": "rico:hasOrHadRuleType"
+    },
+    "A38": {
+      "nombre": "Scope and content",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:scopeAndContent"
+    },
+    "A39": {
+      "nombre": "State",
+      "dominio_cm": "Record Resource",
+      "uri_rico": "rico:hasRecordState"
+    },
+    "A40": {
+      "nombre": "Structure",
+      "dominio_cm": "Record Resource; Instantiation",
+      "uri_rico": "rico:structure"
+    },
+    "A41": {
+      "nombre": "Technical Characteristics",
+      "dominio_cm": "Mechanism",
+      "uri_rico": "rico:technicalCharacteristics"
+    }
+  }
+}

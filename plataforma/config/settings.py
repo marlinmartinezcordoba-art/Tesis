@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "acervo",
     "asistencia",
     "acceso",
+    "ric",
 ]
 
 MIDDLEWARE = [
