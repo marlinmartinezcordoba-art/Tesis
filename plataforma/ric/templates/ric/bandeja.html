@@ -1,10 +1,11 @@
+{% load static %}
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bandeja de validación · MAZUCA</title>
-<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+<script src="{% static 'ric/js/htmx.min.js' %}" defer></script>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
   h1 { font-size: 1.4rem; margin-bottom: .2rem; }

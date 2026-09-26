@@ -26,18 +26,34 @@ from .models import (
     Rule,
 )
 
+class VerGrafoAdminMixin:
+    """T052: un enlace directo, desde cualquier admin de entidad, al grafo
+    de conocimiento navegable (Cytoscape.js) centrado en esa fila."""
+
+    @admin.display(description="Grafo")
+    def ver_grafo(self, obj):
+        return format_html(
+            '<a href="{}">grafo ↗</a>',
+            reverse("ric_grafo", args=[type(obj).__name__.lower(), obj.pk]),
+        )
+
+
+class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
+    list_display = ("nombre", "ver_grafo")
+
+
 ENTIDADES = [
     RecordSet, RecordPart,
     Person, Group, Family, CorporateBody, Position, Mechanism,
     Event, Activity, Rule, Mandate, Date, Place,
 ]
 for modelo in ENTIDADES:
-    admin.site.register(modelo)
+    admin.site.register(modelo, EntidadRicAdmin)
 
 
 @admin.register(Record)
-class RecordAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "record_set", "tipo_forma_documental")
+class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
+    list_display = ("nombre", "record_set", "tipo_forma_documental", "ver_grafo")
     actions = ["proponer_relaciones_nube", "proponer_relaciones_local"]
 
     def _generar(self, request, queryset, proveedor_cls, error_cls, etiqueta):
