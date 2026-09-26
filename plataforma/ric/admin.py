@@ -11,6 +11,7 @@ from .models import (
     Instantiation,
     Mandate,
     Mechanism,
+    PaginaTexto,
     Person,
     Place,
     Position,
@@ -22,12 +23,45 @@ from .models import (
 )
 
 ENTIDADES = [
-    RecordSet, Record, RecordPart, Instantiation,
+    RecordSet, Record, RecordPart,
     Person, Group, Family, CorporateBody, Position, Mechanism,
     Event, Activity, Rule, Mandate, Date, Place,
 ]
 for modelo in ENTIDADES:
     admin.site.register(modelo)
+
+
+class PaginaTextoInline(admin.TabularInline):
+    model = PaginaTexto
+    extra = 0
+    readonly_fields = ("numero", "texto", "uso_ocr", "confianza_ocr")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Instantiation)
+class InstantiationAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "record_resource", "sha256", "fecha_registro")
+    readonly_fields = ("sha256",)
+    inlines = [PaginaTextoInline]
+
+    actions = ["extraer_texto"]
+
+    @admin.action(description="Extraer texto (OCR por página)")
+    def extraer_texto(self, request, queryset):
+        from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
+
+        for inst in queryset:
+            try:
+                _, detalle = extraer_texto_de_instanciacion(inst)
+            except FormatoNoSoportado as e:
+                self.message_user(request, f"{inst}: {e}", level="warning")
+                continue
+            confianza = detalle["confianza_ocr"]
+            aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
+            self.message_user(request, f"{inst}: {detalle['paginas']} página(s), {detalle['caracteres']} caracteres{aviso}.")
 
 
 @admin.register(Evidencia)

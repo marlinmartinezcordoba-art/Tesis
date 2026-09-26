@@ -164,6 +164,33 @@ class Instantiation(Thing):
         self.archivo.seek(0)
         self.sha256 = h.hexdigest()
 
+    @property
+    def texto_extraido(self):
+        """Todas las páginas unidas; para buscar evidencia con su página exacta,
+        recorrer `self.paginas` en vez de esto."""
+        return "\n\n".join(p.texto for p in self.paginas.all())
+
+
+class PaginaTexto(models.Model):
+    """Texto extraído de una página de una Instantiation, con su confianza de
+    OCR si aplica. Permite que la Evidencia de una propuesta señale la
+    página exacta, no solo "en algún lugar del documento"."""
+
+    instanciacion = models.ForeignKey(Instantiation, on_delete=models.CASCADE, related_name="paginas")
+    numero = models.PositiveIntegerField()
+    texto = models.TextField(blank=True)
+    uso_ocr = models.BooleanField(default=False)
+    confianza_ocr = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["numero"]
+        unique_together = ["instanciacion", "numero"]
+        verbose_name = "página de texto"
+        verbose_name_plural = "páginas de texto"
+
+    def __str__(self):
+        return f"{self.instanciacion} · p.{self.numero}"
+
 
 # ---------------------------------------------------------------------------
 # Agent: RiC-E07, con Person/Group/Family/CorporateBody/Position/Mechanism
