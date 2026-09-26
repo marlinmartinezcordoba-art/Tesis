@@ -98,6 +98,46 @@ def _des_03(doc):
     )
 
 
+def _normalizar(texto):
+    return " ".join(texto.strip().lower().split())
+
+
+def _cla_02(doc):
+    """Verifica el principio de procedencia comparando, en el grafo RiC, el
+    productor del documento (Record) contra el productor declarado para la
+    serie donde quedó clasificado (Record Set). Es la parte de CLA-02 que
+    MAZUCA puede comprobar de forma automática; el resto (que la propuesta
+    no mezcle niveles de un fondo distinto) sigue siendo revisión manual."""
+    if not doc.unidad_clasificacion:
+        return MANUAL, "El documento aún no está clasificado."
+
+    relacion_unidad = doc.unidad_clasificacion.relaciones_entidad.filter(
+        tipo_relacion="productor"
+    ).first()
+    if relacion_unidad is None:
+        return MANUAL, (
+            f"«{doc.unidad_clasificacion}» no tiene un productor declarado; "
+            "no se puede verificar la procedencia automáticamente."
+        )
+    productor_unidad = relacion_unidad.entidad.nombre
+
+    relacion_doc = doc.relacionentidaddocumento_set.filter(tipo_relacion="productor").first()
+    productor_doc = relacion_doc.entidad.nombre if relacion_doc else doc.productor
+    if not productor_doc:
+        return MANUAL, (
+            f"El documento no tiene productor identificado (ni en el grafo ni en la ficha); "
+            f"la serie declara como productor a «{productor_unidad}»."
+        )
+
+    if _normalizar(productor_doc) == _normalizar(productor_unidad):
+        return CUMPLE, f"El productor del documento coincide con el de la serie: «{productor_unidad}»."
+    return NO_CUMPLE, (
+        f"El productor del documento («{productor_doc}») no coincide con el productor "
+        f"declarado para «{doc.unidad_clasificacion}» («{productor_unidad}»): posible mezcla "
+        "de procedencias."
+    )
+
+
 def _cla_03(doc):
     if doc.sugerencias.filter(proceso="clasificacion", estado="pendiente").exists():
         return NO_CUMPLE, "Hay una propuesta de clasificación de IA sin validar."
@@ -193,6 +233,7 @@ VERIFICADORES = {
     "DES-03": _des_03,
     "DES-04": _des_04,
     "CLA-01": _decision_humana,
+    "CLA-02": _cla_02,
     "CLA-03": _cla_03,
     "VAL-01": lambda doc: (
         CUMPLE,

@@ -26,6 +26,14 @@ class UnidadClasificacion(models.Model):
 
     La entidad carga su propio cuadro; MAZUCA no impone uno. La IA solo
     propone entre las unidades ya existentes: nunca crea niveles nuevos.
+
+    Corresponde a RiC-E03 Record Set: una agrupación jerárquica de
+    documentos, con relaciones de inclusión entre sí (`padre`/`hijos`) y de
+    procedencia hacia el Agente que la produjo (ver
+    `RelacionEntidadUnidad` más abajo). Que un fondo tenga un productor no
+    es una idea nueva de RiC-CM: es la propia definición legal de "fondo"
+    en la Ley 594 de 2000, art. 3 — "totalidad de las series documentales
+    de la misma procedencia".
     """
 
     class Tipo(models.TextChoices):
@@ -219,6 +227,42 @@ RELACIONES_VALIDAS_POR_TIPO = {
     "institucion": {"productor", "mencionado", "destinatario", "trata_sobre"},
     "lugar": {"mencionado", "lugar_produccion", "trata_sobre"},
     "actividad": {"documenta", "trata_sobre"},
+}
+
+
+class RelacionEntidadUnidad(models.Model):
+    """Relación de procedencia entre una unidad del cuadro (Record Set,
+    RiC-E03) y el Agente que la produjo (CLA-02, principio de procedencia).
+
+    Solo personas e instituciones pueden ser productoras de un fondo o una
+    serie — un lugar o una actividad no "produce" documentos en el sentido
+    archivístico, así que RELACIONES_VALIDAS_UNIDAD_POR_TIPO no los admite.
+    """
+
+    class TipoRelacion(models.TextChoices):
+        PRODUCTOR = "productor", "Productor"
+
+    unidad = models.ForeignKey(
+        UnidadClasificacion, on_delete=models.CASCADE, related_name="relaciones_entidad"
+    )
+    entidad = models.ForeignKey(Entidad, on_delete=models.CASCADE)
+    tipo_relacion = models.CharField(
+        max_length=20, choices=TipoRelacion.choices, default=TipoRelacion.PRODUCTOR
+    )
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["unidad", "entidad", "tipo_relacion"]
+        verbose_name = "relación entidad–unidad de clasificación"
+        verbose_name_plural = "relaciones entidad–unidad de clasificación"
+
+    def __str__(self):
+        return f"{self.entidad} · {self.get_tipo_relacion_display()} de {self.unidad}"
+
+
+RELACIONES_VALIDAS_UNIDAD_POR_TIPO = {
+    "persona": {"productor"},
+    "institucion": {"productor"},
 }
 
 

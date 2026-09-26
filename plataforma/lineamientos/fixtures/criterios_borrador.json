@@ -19,9 +19,9 @@
    "codigo": "CLA-02",
    "proceso": "clasificacion",
    "atributo": "integridad",
-   "enunciado": "La clasificación sugerida respeta el principio de procedencia y el orden original del fondo.",
-   "verificacion": "La propuesta no mezcla documentos de productores distintos en una misma agrupación.",
-   "fuente_normativa": "ISAD(G) 2.ª ed.; Ley 594 de 2000",
+   "enunciado": "La clasificación sugerida respeta el principio de procedencia y el orden original del fondo: el productor del documento debe coincidir con el productor declarado para la serie o fondo donde se clasifica.",
+   "verificacion": "MAZUCA compara, en el grafo RiC, el productor del documento contra el productor declarado para la unidad del cuadro de clasificación (relación de procedencia entre Record Set y Agente); si no coinciden, marca el criterio como no cumplido.",
+   "fuente_normativa": "Ley 594 de 2000, art. 3 (definición de fondo); ISAD(G) 2.ª ed.; RiC-CM 1.0 (relación de procedencia entre Record Set y Agent)",
    "obligatorio": true,
    "riesgo_asociado": "Pérdida de contexto",
    "estado": "borrador"

@@ -16,7 +16,7 @@ from acceso.models import RevisionDatosPersonales as Revision
 from acceso.servicios import revisar_datos_personales
 from acervo import exportacion
 from acervo.extraccion import extraer_texto
-from acervo.models import Documento, Entidad, RelacionEntidadDocumento
+from acervo.models import Documento, Entidad, RelacionEntidadDocumento, RelacionEntidadUnidad
 from asistencia.proveedor_claude import (
     BorradorDescripcion,
     CampoPropuesto,
@@ -232,3 +232,86 @@ class RicModeloTest(TestCase):
         self.assertEqual(
             RelacionEntidadDocumento.objects.get().entidad_id, existente.pk
         )
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class Cla02ProcedenciaTest(TestCase):
+    """CLA-02: MAZUCA verifica el principio de procedencia comparando, en
+    el grafo RiC, el productor del documento contra el productor
+    declarado para la unidad del cuadro de clasificación (Record Set)."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        call_command("loaddata", "criterios_borrador", verbosity=0)
+        from acervo.models import UnidadClasificacion
+
+        self.doc = Documento.objects.create(
+            titulo="Acta", archivo=SimpleUploadedFile("acta.txt", TEXTO.encode())
+        )
+        self.serie = UnidadClasificacion.objects.create(
+            codigo="F.01.S01", nombre="Actas del Cabildo", tipo="serie"
+        )
+
+    def criterio(self, codigo):
+        from lineamientos.verificacion import evaluar_documento
+
+        return next(r for r in evaluar_documento(self.doc) if r.criterio.codigo == codigo)
+
+    def test_sin_clasificar_es_manual(self):
+        self.assertEqual(self.criterio("CLA-02").estado, "revision_manual")
+
+    def test_serie_sin_productor_declarado_es_manual(self):
+        self.doc.unidad_clasificacion = self.serie
+        self.doc.save()
+        r = self.criterio("CLA-02")
+        self.assertEqual(r.estado, "revision_manual")
+        self.assertIn("no tiene un productor declarado", r.evidencia)
+
+    def test_productores_coinciden_cumple(self):
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadUnidad.objects.create(unidad=self.serie, entidad=cabildo, tipo_relacion="productor")
+        self.doc.unidad_clasificacion = self.serie
+        self.doc.productor = "Cabildo de Santafé"
+        self.doc.save()
+        self.assertEqual(self.criterio("CLA-02").estado, "cumple")
+
+    def test_productores_distintos_no_cumple(self):
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadUnidad.objects.create(unidad=self.serie, entidad=cabildo, tipo_relacion="productor")
+        self.doc.unidad_clasificacion = self.serie
+        self.doc.productor = "Real Audiencia"
+        self.doc.save()
+        r = self.criterio("CLA-02")
+        self.assertEqual(r.estado, "no_cumple")
+        self.assertIn("mezcla de procedencias", r.evidencia)
+
+    def test_usa_el_grafo_en_vez_del_texto_si_existe(self):
+        # Si el documento tiene un productor distinto en el grafo (más
+        # confiable) que en el campo de texto, se usa el del grafo.
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadUnidad.objects.create(unidad=self.serie, entidad=cabildo, tipo_relacion="productor")
+        self.doc.unidad_clasificacion = self.serie
+        self.doc.productor = "texto desactualizado"
+        self.doc.save()
+        RelacionEntidadDocumento.objects.create(
+            documento=self.doc, entidad=cabildo, tipo_relacion="productor"
+        )
+        self.assertEqual(self.criterio("CLA-02").estado, "cumple")
+
+    def test_solo_persona_o_institucion_pueden_ser_productoras(self):
+        from acervo.models import RELACIONES_VALIDAS_UNIDAD_POR_TIPO
+
+        self.assertEqual(RELACIONES_VALIDAS_UNIDAD_POR_TIPO.get("lugar"), None)
+        self.assertEqual(RELACIONES_VALIDAS_UNIDAD_POR_TIPO["institucion"], {"productor"})
+
+    def test_admin_muestra_productor_en_la_lista(self):
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadUnidad.objects.create(unidad=self.serie, entidad=cabildo, tipo_relacion="productor")
+        admin_user = User.objects.create_superuser("admin", password="x")
+        self.client.force_login(admin_user)
+        r = self.client.get("/admin/acervo/unidadclasificacion/")
+        self.assertContains(r, "Cabildo de Santafé")

@@ -3,7 +3,14 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from . import extraccion
-from .models import Documento, Entidad, EventoPreservacion, RelacionEntidadDocumento, UnidadClasificacion
+from .models import (
+    Documento,
+    Entidad,
+    EventoPreservacion,
+    RelacionEntidadDocumento,
+    RelacionEntidadUnidad,
+    UnidadClasificacion,
+)
 
 
 class EventoInline(admin.TabularInline):
@@ -166,11 +173,25 @@ class DocumentoAdmin(admin.ModelAdmin):
         )
 
 
+class RelacionEntidadUnidadInline(admin.TabularInline):
+    model = RelacionEntidadUnidad
+    extra = 0
+    autocomplete_fields = ["entidad"]
+    verbose_name = "productor (procedencia, CLA-02)"
+    verbose_name_plural = "productor (procedencia, CLA-02)"
+
+
 @admin.register(UnidadClasificacion)
 class UnidadClasificacionAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nombre", "tipo", "padre", "num_documentos")
+    list_display = ("codigo", "nombre", "tipo", "padre", "productor", "num_documentos")
     list_filter = ("tipo",)
     search_fields = ("codigo", "nombre", "descripcion", "palabras_clave")
+    inlines = [RelacionEntidadUnidadInline]
+
+    @admin.display(description="Productor")
+    def productor(self, obj):
+        r = obj.relaciones_entidad.filter(tipo_relacion="productor").first()
+        return r.entidad if r else "—"
 
     @admin.display(description="Documentos")
     def num_documentos(self, obj):
