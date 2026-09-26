@@ -7,9 +7,12 @@
 #   curl -fsSL https://raw.githubusercontent.com/marlinmartinezcordoba-art/Tesis/claude/plataforma-base/deploy-ricora.sh | bash
 set -e
 
-echo "Instalando Docker..."
+echo "Instalando dependencias..."
 apt-get update -qq
-apt-get install -y -qq docker.io docker-compose-plugin git openssl
+apt-get install -y -qq curl git openssl
+
+echo "Instalando Docker (script oficial de Docker: el paquete docker-compose-plugin no está en los repos de Ubuntu 24.04)..."
+curl -fsSL https://get.docker.com | sh
 systemctl enable --now docker
 
 IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
