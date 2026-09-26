@@ -9,6 +9,8 @@ from ric.views import (
     bandeja_validacion,
     busqueda_html,
     decidir_propuesta,
+    evaluacion_datos,
+    evaluacion_html,
     exportar_rdf,
     exportar_rdf_completo,
     grafo_datos,
@@ -36,4 +38,6 @@ urlpatterns = [
     path("ric/sparql/", sparql_html, name="ric_sparql"),
     path("ric/sparql/consultar/", sparql_endpoint, name="ric_sparql_endpoint"),
     path("ric/search/", busqueda_html, name="ric_busqueda"),
+    path("ric/evaluacion/", evaluacion_html, name="ric_evaluacion"),
+    path("ric/evaluacion/datos.json", evaluacion_datos, name="ric_evaluacion_datos"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

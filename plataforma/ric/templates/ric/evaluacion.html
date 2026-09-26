@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio de evaluación · MAZUCA</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  .meta { color: #52606d; margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e4e7eb; vertical-align: top; font-size: .9rem; }
+  .valor { font-weight: 600; }
+  .pendiente { color: #8a6100; font-style: italic; font-weight: normal; }
+  .formula { color: #52606d; font-size: .82rem; }
+  .prioridad-p0 { color: #1b4d2e; }
+  .prioridad-p1 { color: #7a5a00; }
+</style>
+</head>
+<body>
+<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA ·
+  <a href="{% url 'ric_bandeja' %}">bandeja de validación</a> · <a href="{% url 'ric_busqueda' %}">búsqueda</a></p>
+<h1>Laboratorio de evaluación (T070)</h1>
+<p class="meta">Las 14 métricas definidas en la matriz maestra (07_Metricas), calculadas de datos
+reales del sistema. Donde todavía falta el dato que una métrica necesita, se marca
+"pendiente" con lo que hace falta — nunca un número inventado.
+También en <a href="{% url 'ric_evaluacion_datos' %}">JSON</a>.</p>
+
+<table>
+  <tr><th>ID</th><th>Métrica</th><th>Valor</th><th>Fórmula</th></tr>
+  {% for m in metricas %}
+  <tr>
+    <td>{{ m.codigo }}</td>
+    <td>{{ m.nombre }}</td>
+    <td>
+      {% if m.valor is not None %}
+        <span class="valor">{{ m.valor|floatformat:4 }}</span>
+      {% else %}
+        <span class="pendiente">pendiente — {{ m.nota }}</span>
+      {% endif %}
+    </td>
+    <td class="formula">{{ m.formula }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<p class="meta">M03 (precisión de relaciones) se calcula por auditoría de muestreo — ver el
+comando <code>auditoria_muestra_ric</code> — el mismo patrón que MAZUCA ya usa para CLA-04/VAL-03.</p>
+</body>
+</html>

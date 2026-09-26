@@ -1,7 +1,9 @@
+from django import forms
 from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.html import format_html
 
+from .auditoria import MuestraRiC
 from .models import (
     Activity,
     CorporateBody,
@@ -61,8 +63,9 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
             request,
             format_html(
                 'Buscar en el texto extraído y en los nombres de entidades: <a href="{}">búsqueda</a>. '
-                'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>.',
-                reverse("ric_busqueda"), reverse("ric_sparql"),
+                'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>. '
+                'Métricas del sistema: <a href="{}">laboratorio de evaluación</a>.',
+                reverse("ric_busqueda"), reverse("ric_sparql"), reverse("ric_evaluacion"),
             ),
         )
         return super().changelist_view(request, extra_context)
@@ -206,3 +209,64 @@ class RelacionRiCAdmin(admin.ModelAdmin):
             r.fecha_validacion = timezone.now()
             r.save()
         self.message_user(request, "Relaciones aceptadas.")
+
+
+class RevisionMuestraRiCForm(forms.ModelForm):
+    class Meta:
+        model = MuestraRiC
+        fields = ("resultado", "observacion")
+
+    def clean(self):
+        datos = super().clean()
+        original = MuestraRiC.objects.get(pk=self.instance.pk)
+        try:
+            original.validar_resultado(datos.get("resultado"), datos.get("observacion", ""))
+        except ValueError as e:
+            raise forms.ValidationError(str(e))
+        return datos
+
+
+@admin.register(MuestraRiC)
+class MuestraRiCAdmin(admin.ModelAdmin):
+    """Auditoría periódica por muestreo de relaciones RiC (T071).
+
+    Las muestras se seleccionan con el comando `auditoria_muestra_ric`, no
+    desde aquí: es una tarea periódica de la entidad, no una acción sobre
+    un documento puntual.
+    """
+
+    form = RevisionMuestraRiCForm
+    list_display = ("relacion", "fecha_seleccion", "resultado", "revisado_por")
+    list_filter = ("resultado", "relacion__relacion_id")
+
+    def changelist_view(self, request, extra_context=None):
+        messages.info(
+            request,
+            format_html(
+                'Exactitud calculada (M03, T071): <a href="{}">ver laboratorio de evaluación</a>.',
+                reverse("ric_evaluacion"),
+            ),
+        )
+        return super().changelist_view(request, extra_context)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        campos = ["relacion", "fecha_seleccion", "revisado_por", "fecha_revision"]
+        if obj and obj.resultado != MuestraRiC.Resultado.PENDIENTE:
+            campos += ["resultado", "observacion"]
+        return campos
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.resultado != MuestraRiC.Resultado.PENDIENTE:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def save_model(self, request, obj, form, change):
+        resultado, observacion = obj.resultado, obj.observacion
+        obj.refresh_from_db()
+        obj.revisar(request.user, resultado, observacion)

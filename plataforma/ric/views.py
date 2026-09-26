@@ -12,7 +12,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import busqueda, grafo, reglas, rdf, sparql, tipos
+from . import busqueda, grafo, metricas, reglas, rdf, sparql, tipos
 from .models import PropuestaRiC
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
@@ -173,3 +173,17 @@ def busqueda_html(request):
             for e in busqueda.buscar_entidades(q)
         ]
     return render(request, "ric/busqueda.html", {"q": q, "paginas": paginas, "entidades": filas_entidades})
+
+
+@login_required
+def evaluacion_html(request):
+    """T070: laboratorio de evaluación — M01-M14 calculadas de datos
+    reales, con una nota explícita donde todavía falta el dato que una
+    métrica necesita (nunca un número inventado)."""
+    return render(request, "ric/evaluacion.html", {"metricas": metricas.calcular_metricas()})
+
+
+@login_required
+def evaluacion_datos(request):
+    """T070: lo mismo que evaluacion_html, como JSON (GET /evaluation)."""
+    return JsonResponse({"metricas": metricas.calcular_metricas()})
