@@ -39,6 +39,13 @@ class BuscarTextoTest(TestCase):
     def test_consulta_sin_coincidencia_no_devuelve_nada(self):
         self.assertEqual(list(busqueda.buscar_texto("dinosaurio")), [])
 
+    def test_consulta_de_varias_palabras_sin_coincidencia_no_devuelve_nada(self):
+        # ts_rank puede devolver un valor flotante minúsculo pero distinto de
+        # cero para una consulta AND de varios términos que no encaja del
+        # todo (p. ej. 1e-20) — filtrar por rank__gt=0 lo dejaría pasar; hay
+        # que filtrar por la coincidencia booleana real (@@), no por el rank.
+        self.assertEqual(list(busqueda.buscar_texto("dinosaurios en la luna")), [])
+
 
 class BuscarEntidadesTest(TestCase):
     def setUp(self):

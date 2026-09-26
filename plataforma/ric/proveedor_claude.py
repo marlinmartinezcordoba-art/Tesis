@@ -24,7 +24,7 @@ import anthropic
 from django.conf import settings
 from pydantic import BaseModel, Field
 
-from . import reglas, tipos
+from . import aprendizaje, reglas, tipos
 from .proveedores import ErrorProveedorIA as _ErrorBase
 from .proveedores import PropuestaCandidata, ProveedorIA
 
@@ -104,6 +104,13 @@ lugar o actividad de la que trata.
 - El texto puede tener errores de OCR y la marca [DATO RESERVADO]; no intentes \
 reconstruir los datos reservados."""
 
+EJEMPLOS = """
+
+Ejemplos de decisiones ya validadas por la persona archivista en documentos parecidos \
+(úsalos para aprender el patrón, pero cada propuesta debe seguir basándose en evidencia \
+real de ESTE documento, no de los ejemplos):
+{lista}"""
+
 
 class ProveedorClaude(ProveedorIA):
     nombre = "claude"
@@ -124,6 +131,10 @@ class ProveedorClaude(ProveedorIA):
         if not aplicables:
             return []
         instrucciones = INSTRUCCIONES.format(tabla_relaciones=_tabla_relaciones(aplicables))
+
+        ejemplos = aprendizaje.ejemplos_similares(texto, origen_modelo=type(record))
+        if ejemplos:
+            instrucciones += EJEMPLOS.format(lista=aprendizaje.formatear_ejemplos(ejemplos))
 
         try:
             respuesta = self.cliente.beta.messages.parse(

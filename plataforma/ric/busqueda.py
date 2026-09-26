@@ -34,8 +34,8 @@ def buscar_texto(q, limite=20):
     vector = SearchVector("texto", config="spanish")
     query = SearchQuery(q, config="spanish")
     return (
-        PaginaTexto.objects.annotate(rank=SearchRank(vector, query))
-        .filter(rank__gt=0)
+        PaginaTexto.objects.annotate(busqueda=vector, rank=SearchRank(vector, query))
+        .filter(busqueda=query)
         .select_related("instanciacion", "instanciacion__record_resource")
         .order_by("-rank")[:limite]
     )
