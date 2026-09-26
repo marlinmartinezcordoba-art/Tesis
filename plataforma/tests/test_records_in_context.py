@@ -14,6 +14,7 @@ from django.test import TestCase, override_settings
 
 from acceso.models import RevisionDatosPersonales as Revision
 from acceso.servicios import revisar_datos_personales
+from acervo import exportacion
 from acervo.extraccion import extraer_texto
 from acervo.models import Documento, Entidad, RelacionEntidadDocumento
 from asistencia.proveedor_claude import (
@@ -135,3 +136,36 @@ class RicModeloTest(TestCase):
 
         sugerencias = generar_sugerencias(self.doc, ProveedorLocal())
         self.assertNotIn("actividad", {s.campo for s in sugerencias})
+
+    def test_dublin_core_usa_el_grafo_de_entidades(self):
+        # MET-04 (exportación) debe reflejar el grafo RiC construido en
+        # descripción, no solo los campos planos de la ficha ISAD(G).
+        productor = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadDocumento.objects.create(
+            documento=self.doc, entidad=productor, tipo_relacion="productor"
+        )
+        tema = Entidad.objects.create(tipo="persona", nombre="José Acevedo y Gómez")
+        RelacionEntidadDocumento.objects.create(
+            documento=self.doc, entidad=tema, tipo_relacion="trata_sobre"
+        )
+        lugar = Entidad.objects.create(tipo="lugar", nombre="Santafé")
+        RelacionEntidadDocumento.objects.create(
+            documento=self.doc, entidad=lugar, tipo_relacion="lugar_produccion"
+        )
+        actividad = Entidad.objects.create(tipo="actividad", nombre="Sesión del Cabildo")
+        RelacionEntidadDocumento.objects.create(
+            documento=self.doc, entidad=actividad, tipo_relacion="documenta"
+        )
+
+        xml = exportacion.dublin_core_xml(self.doc)
+        self.assertIn("<dc:creator>Cabildo de Santafé</dc:creator>", xml)
+        self.assertIn("<dc:subject>José Acevedo y Gómez</dc:subject>", xml)
+        self.assertIn("<dc:coverage>Santafé</dc:coverage>", xml)
+        self.assertIn("Documenta: Sesión del Cabildo", xml)
+
+    def test_dublin_core_sin_entidades_no_falla(self):
+        # Documento sin ninguna entidad vinculada: la exportación no debe
+        # romperse, solo omitir los campos derivados del grafo.
+        xml = exportacion.dublin_core_xml(self.doc)
+        self.assertNotIn("dc:subject", xml)
+        self.assertNotIn("dc:coverage", xml)

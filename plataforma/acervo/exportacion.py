@@ -13,13 +13,39 @@ def _el(tag, texto):
 
 
 def dublin_core_xml(documento):
-    """15 elementos Dublin Core simple (oai_dc), a partir de la descripción ISAD(G)."""
+    """15 elementos Dublin Core simple (oai_dc), a partir de la descripción ISAD(G)
+    y del grafo de entidades RiC-CM (personas, instituciones, lugares y
+    actividades vinculadas al documento con una relación tipada — DES-04).
+    """
+    relaciones = documento.relacionentidaddocumento_set.select_related("entidad")
+
+    # dc:creator: el productor declarado en la ficha ISAD(G), más cualquier
+    # persona o institución vinculada como productor en el grafo RiC.
+    creadores = {documento.productor} if documento.productor else set()
+    creadores |= {
+        r.entidad.nombre for r in relaciones if r.tipo_relacion == "productor"
+    }
+    # dc:subject: entidades de las que el documento "trata" (relación
+    # asociativa trata_sobre), sin importar su tipo — así se ve el tema del
+    # documento aunque RiC-CM no tenga una entidad "concepto" separada.
+    temas = {r.entidad.nombre for r in relaciones if r.tipo_relacion == "trata_sobre"}
+    # dc:coverage: lugares mencionados o de producción.
+    lugares = {
+        r.entidad.nombre for r in relaciones
+        if r.entidad.tipo == "lugar" and r.tipo_relacion in ("mencionado", "lugar_produccion")
+    }
+    # Actividades que el documento documenta (sin equivalente directo en
+    # Dublin Core simple; se agregan como dc:relation adicionales).
+    actividades = {r.entidad.nombre for r in relaciones if r.tipo_relacion == "documenta"}
+
     campos = [
         _el("dc:identifier", documento.codigo_referencia),
         _el("dc:title", documento.titulo),
-        _el("dc:creator", documento.productor),
+        *[_el("dc:creator", c) for c in sorted(creadores)],
         _el("dc:date", documento.fechas),
         _el("dc:description", documento.alcance_contenido),
+        *[_el("dc:subject", t) for t in sorted(temas)],
+        *[_el("dc:coverage", l) for l in sorted(lugares)],
         _el("dc:format", documento.formato or documento.volumen_soporte),
         _el(
             "dc:type",
@@ -27,6 +53,7 @@ def dublin_core_xml(documento):
             .get(documento.nivel_descripcion, documento.nivel_descripcion),
         ),
         _el("dc:relation", documento.unidad_clasificacion.ruta() if documento.unidad_clasificacion else ""),
+        *[_el("dc:relation", f"Documenta: {a}") for a in sorted(actividades)],
         _el("dc:identifier", f"urn:sha256:{documento.sha256}"),
     ]
     cuerpo = "\n  ".join(c for c in campos if c)
