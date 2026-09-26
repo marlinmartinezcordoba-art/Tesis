@@ -60,5 +60,5 @@ cd plataforma
 Entra a http://127.0.0.1:8000/admin/. Pruebas: `../.venv/bin/python manage.py test tests` (el rol necesita `CREATEDB` porque Django crea una base de datos temporal para las pruebas).
 
 Los criterios cargados son **borradores**; se reemplazan por los validados en la Fase 4.
-Cómo se relaciona MAZUCA con la tesis: `docs/mazuca-valor-agregado.md`.
+Cómo se relaciona MAZUCA con la tesis (ajuste metodológico aprobado: el software es el eje central, no un anexo): `docs/mazuca-eje-central.md`. El capítulo de lineamientos: `docs/lineamientos-tesis.md`.
 Cómo montarla en DigitalOcean, una vez probada aquí: `docs/despliegue-digitalocean.md`.

@@ -1,8 +1,62 @@
-# MAZUCA como valor agregado de la tesis
+# MAZUCA como eje central de la tesis
 
-> Documento de trabajo del equipo investigador. MAZUCA **no cambia** el enfoque,
-> la pregunta, los objetivos ni el producto de la tesis: es un prototipo
-> demostrativo que acompaña a los lineamientos.
+> Documento de trabajo del equipo investigador. **Reemplaza** al enfoque
+> anterior ("MAZUCA como valor agregado"). Registra el ajuste metodológico
+> **aprobado por la dirección de la tesis**: el desarrollo de software deja
+> de ser un anexo demostrativo y pasa a ser el punto de partida desde el
+> cual se ajustan los demás elementos de la tesis.
+
+## 0. El ajuste metodológico aprobado
+
+**Decisión:** la tesis parte de la solución de software (MAZUCA) ya
+construida, y los capítulos y el marco metodológico se ajustan a partir de
+ella — no al revés, como se había planteado originalmente (lineamientos
+primero, prototipo como anexo después).
+
+**Aprobación:** la dirección de la tesis aprobó este ajuste. Queda
+pendiente, si el reglamento de la Universidad de La Salle lo exige,
+formalizarlo también ante el comité del programa; conviene que el equipo lo
+confirme directamente con la dirección.
+
+### Qué cambia respecto al planteamiento anterior
+
+| Elemento | Antes ("valor agregado") | Ahora (aprobado) |
+|---|---|---|
+| Punto de partida | Los lineamientos (Fases 2 y 3) primero; MAZUCA los aplica después, como anexo | **MAZUCA ya construida**; los lineamientos se documentan, contrastan y ajustan a partir de lo que el software ya implementa y de lo que falta por implementar |
+| Método | Cualitativo (hermenéutico, análisis de contenido, estudio de casos) | **Investigación en Ciencia del Diseño** (*Design Science Research*; Hevner et al., 2004; Peffers et al., 2007), que integra el análisis de contenido y el estudio de casos como actividades del método, no como el método completo |
+| Producto de la tesis | Lineamientos técnicos, con MAZUCA como ilustración opcional | **Dos artefactos:** los lineamientos técnicos (artefacto de tipo método) y MAZUCA (artefacto de tipo instanciación), evaluados juntos |
+| Capítulo V | "Proyección de los lineamientos" en unas páginas, con MAZUCA como demostración breve | Capítulo completo: arquitectura de MAZUCA, tabla de trazabilidad lineamiento → funcionalidad, y evaluación del prototipo |
+
+### Qué se mantiene sin cambios
+
+- La pregunta de investigación: cómo incide la IA en la automatización de
+  los procesos archivísticos, en relación con la autenticidad, la
+  integridad y la accesibilidad del patrimonio documental.
+- El marco normativo (Ley 594 de 2000, Decreto 1080 de 2015, Acuerdo 001 de
+  2024 del AGN, ISO 15489, ISO 14721/OAIS, ISAD(G), Records in Contexts,
+  CONPES 4144 de 2025, Recomendación de la UNESCO sobre ética de la IA).
+- Los cinco procesos archivísticos como eje de análisis: clasificación,
+  descripción, valoración, gestión de metadatos y acceso.
+
+### Objetivos ajustados (propuesta para validar con la dirección)
+
+**Objetivo general:** Formular lineamientos técnicos para la incorporación
+de inteligencia artificial en la automatización asistida de los procesos de
+clasificación, descripción, valoración, gestión de metadatos y acceso en
+archivos históricos del orden nacional, **a partir del desarrollo y la
+evaluación de MAZUCA**, un prototipo de software que los instancia.
+
+**Objetivos específicos propuestos:**
+1. Desarrollar y documentar la arquitectura de MAZUCA, con sus salvaguardas
+   de autenticidad, integridad y accesibilidad (ya en curso, ver secciones
+   7–11).
+2. Contrastar el marco normativo y la literatura académica (Fases 2 y 3)
+   con las decisiones de diseño ya tomadas en el prototipo, para
+   confirmarlas, ajustarlas o señalar vacíos.
+3. Formular los lineamientos técnicos definitivos, con criterios de
+   verificación, a partir de esa validación.
+4. Evaluar MAZUCA con profesionales en archivística (y, si el alcance lo
+   permite, con investigadores) mediante un estudio de caso.
 
 ## 1. El nombre
 
@@ -16,33 +70,16 @@ El subtítulo retoma el título de la tesis: *Incorporación de inteligencia
 artificial en la automatización asistida de procesos archivísticos en archivos
 históricos del orden nacional en Colombia*.
 
-## 2. Qué se mantiene en la tesis
-
-- Enfoque cualitativo, descriptivo y de alcance propositivo.
-- Método hermenéutico, análisis de contenido y estudio de casos.
-- Pregunta, objetivos, fases y cronograma sin cambios.
-- Producto: lineamientos técnicos para clasificación, descripción, valoración,
-  gestión de metadatos y acceso, con criterios de verificación.
-
-MAZUCA no agrega objetivos ni se presenta como un resultado validado.
-
-## 3. Dónde aparece MAZUCA en la tesis
+## 2. Dónde aparece MAZUCA en la tesis
 
 | Lugar | Contenido |
 |---|---|
-| Capítulo V, apartado final "Proyección de los lineamientos" | Dos o tres páginas que muestran cómo los lineamientos pueden llevarse a una herramienta: tabla lineamiento → funcionalidad y algunas capturas. Se presenta como prototipo demostrativo. |
-| Anexo | Descripción breve de MAZUCA y enlace al repositorio. |
-| Recomendaciones y trabajo futuro | Desarrollar y evaluar MAZUCA en un archivo histórico con archivistas e investigadores, incluido el portal de consulta. |
+| Capítulo III (Metodología) | El apartado 0 de este documento, ajustado a la estructura formal de la tesis. |
+| Capítulo IV (Lineamientos) | `docs/lineamientos-tesis.md`, contrastado con las Fases 2 y 3. |
+| Capítulo V (Aplicación y evaluación) | Arquitectura de MAZUCA, tabla lineamiento → funcionalidad (secciones 7–11 de este documento), y los resultados de la evaluación con archivistas. |
 | Declaratoria de uso de IA | Declarar que el prototipo se desarrolló con asistencia de IA. |
 
-**Texto sugerido:**
-
-> Como valor agregado, se presenta MAZUCA, un prototipo demostrativo que ilustra
-> cómo los lineamientos propuestos pueden aplicarse en un entorno tecnológico.
-> Su desarrollo completo y su evaluación se plantean como línea de
-> investigación futura.
-
-## 4. Cómo MAZUCA aplica los lineamientos
+## 3. Cómo MAZUCA aplica los lineamientos (tabla base para el capítulo V)
 
 | Lineamiento | Funcionalidad del prototipo |
 |---|---|
@@ -55,26 +92,27 @@ MAZUCA no agrega objetivos ni se presenta como un resultado validado.
 | Publicación controlada (Ley 1712 de 2014) | Solo se aprueba para el portal un documento con descripción completa, integridad verificada, datos personales revisados y sin sugerencias de IA pendientes. Si el texto cambia, sale del portal. |
 | Criterios de verificación | Informe por documento: cumple, no cumple o revisión manual, con la fuente normativa. |
 
-## 5. Alcance y cronograma
+## 4. Cronograma ajustado
 
-La tesis tiene prioridad. MAZUCA avanza en paralelo, sin presión.
+| Periodo | Actividad |
+|---|---|
+| Ya en curso | Desarrollo de MAZUCA (clasificación, descripción, valoración, metadatos, acceso — los cinco procesos ya implementados) |
+| Oct–nov 2026 | Fases 2 y 3, ahora usadas para **contrastar** las decisiones ya tomadas en el software, no para partir de cero |
+| Ene–feb 2027 | Ajuste de los lineamientos definitivos a partir de ese contraste; ajustes al software si el contraste señala algo que corregir |
+| Mar 2027 | Estudio de caso: evaluación de MAZUCA con archivistas; redacción final |
+| Abr 2027 | Sustentación |
 
-| Periodo | Tesis | MAZUCA |
-|---|---|---|
-| Oct–nov 2026 | Fases 2 y 3 | Avance ligero |
-| Ene–feb 2027 | Fase 4: lineamientos | Cargar los criterios definitivos |
-| Mar 2027 | Redacción final | Capturas y tabla para el capítulo V y el anexo |
-| Abr 2027 | Sustentación | Demostración opcional |
-| Después | — | Portal de consulta para investigadores (difusión como parte del proceso de acceso), como proyecto del SENA o línea de investigación futura |
+## 5. Pendientes del equipo
 
-## 6. Pendientes del equipo
-
-- Contarle al tutor que la tesis tendrá un anexo con un prototipo demostrativo.
-- Acordar con Zully y Catalina la inclusión del anexo.
+- Confirmar con la dirección si el ajuste requiere aval adicional del
+  comité del programa, según el reglamento de la Universidad de La Salle.
+- Acordar con Zully y Catalina la redacción final de los objetivos y del
+  capítulo de metodología a partir de la propuesta de la sección 0.
+- Diseñar el instrumento de evaluación del estudio de caso (marzo de 2027).
 - Usar solo documentos de dominio público o con autorización expresa.
 - Mantener el repositorio privado hasta la sustentación.
 
-## 7. Descripción asistida: dos proveedores de IA
+## 6. Descripción asistida: dos proveedores de IA
 
 MAZUCA usa un proveedor de IA intercambiable, según el lineamiento de que la
 entidad decide qué solución de IA usar:
@@ -100,7 +138,7 @@ entidad decide qué solución de IA usar:
   (incluido un modelo de respaldo, si el servicio de IA declinó la
   solicitud original).
 
-## 8. Clasificación asistida
+## 7. Clasificación asistida
 
 La entidad carga su propio **cuadro de clasificación** (fondo, sección,
 serie, subserie) en MAZUCA. La IA nunca crea niveles nuevos: solo propone
@@ -113,7 +151,7 @@ evidencia textual.
 | Si ninguna serie encaja | No propone nada (mejor no proponer que adivinar) | No propone nada |
 | Si la IA inventa un código que no está en el cuadro | MAZUCA lo descarta antes de crear la sugerencia | No aplica (solo usa códigos reales) |
 
-**Nuevo criterio CLA-03:** el documento clasificado por IA queda vinculado a
+**Criterio CLA-03:** el documento clasificado por IA queda vinculado a
 una unidad real del cuadro y con una validación humana registrada; una
 sugerencia pendiente o sin evidencia verificada marca el criterio como no
 cumplido.
@@ -121,7 +159,7 @@ cumplido.
 Hay un cuadro de clasificación de ejemplo (`cuadro_demo`) para pruebas; en la
 Fase 4 se reemplaza por el cuadro real de la entidad.
 
-## 9. Valoración asistida: cierre de los cinco procesos
+## 8. Valoración asistida: cierre de los cinco procesos
 
 Con este módulo MAZUCA cubre los cinco procesos archivísticos de la tesis
 (clasificación, descripción, valoración, gestión de metadatos y acceso). La
@@ -146,7 +184,7 @@ igual patrón que DES-03 y CLA-03):**
   acciones de eliminación derivadas de la IA") se cumpla siempre, para todo
   documento.
 
-## 10. Lo que faltaba en el capítulo IV, ya construido
+## 9. Lo que faltaba en el capítulo IV, ya construido
 
 Después de escribir el capítulo IV (`docs/lineamientos-tesis.md`), cinco
 lineamientos habían quedado marcados como "trabajo futuro". Se construyeron
@@ -165,6 +203,20 @@ antes de tener dónde mostrarlo.
 
 Con esto, MAZUCA implementa **19 de los 20 lineamientos** del capítulo IV
 (el único pendiente es ACC-05, por la razón de alcance ya explicada).
+
+## 10. Alineación con Records in Context (en curso)
+
+Se está ampliando el modelo de datos de MAZUCA para que las relaciones entre
+documentos y entidades (personas, lugares, instituciones) sigan más de
+cerca la estructura real de **RiC-CM** (*Records in Contexts – Conceptual
+Model*, ICA-EGAD, versión 1.0, publicada el 30 de noviembre de 2023), que
+reemplaza a ISAD(G), ISAAR(CPF), ISDF e ISDIAH.
+
+Punto clave verificado contra la norma: RiC-CM **no** tiene una entidad de
+tipo "Concepto" o "Tema" separada. El "de qué trata" un documento se modela
+como una **relación asociativa** hacia una entidad que ya existe en el
+modelo (una persona, un lugar, una actividad), no como un tipo de entidad
+nuevo. Esta sección se actualizará cuando el desarrollo esté terminado.
 
 ## 11. Despliegue
 

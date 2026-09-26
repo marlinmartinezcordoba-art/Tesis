@@ -2,16 +2,21 @@
 artificial en la automatización asistida de procesos archivísticos en
 archivos históricos del orden nacional
 
-> **Nota de trazabilidad metodológica.** Este documento es un **borrador
-> experto de trabajo**, elaborado para adelantar la estructura y el
-> contenido técnico del capítulo IV antes de cerrar las Fases 2 y 3. Cada
-> lineamiento debe contrastarse con los hallazgos del análisis de contenido
-> (Fase 2, hasta el 13/10/2026) y con el diagnóstico normativo (Fase 3,
-> 16/10–16/11/2026), y validarse con la dirección de la tesis y con Zully y
-> Catalina antes de considerarse definitivo. Donde la redacción de una norma
-> específica (Acuerdo 001 de 2024 del AGN; CONPES 4144 de 2025) requiere el
-> número exacto de artículo, se deja señalado "**verificar en Fase 3**" en
-> vez de inventar una cita que el equipo no ha confirmado todavía.
+> **Nota de trazabilidad metodológica (actualizada tras el ajuste aprobado
+> por la dirección — ver `docs/mazuca-eje-central.md`, sección 0).** Con el
+> nuevo orden metodológico, este documento ya no precede al prototipo: los
+> lineamientos que siguen se redactaron en paralelo al desarrollo de MAZUCA,
+> y varios ya están **construidos y probados** en el software (columna
+> "Estado en MAZUCA" de cada tabla). Las Fases 2 y 3 ahora sirven para
+> **contrastar** estas decisiones ya tomadas —confirmarlas, ajustarlas o
+> señalar vacíos— en vez de partir de cero. Cada lineamiento debe
+> contrastarse con los hallazgos del análisis de contenido (Fase 2, hasta el
+> 13/10/2026) y con el diagnóstico normativo (Fase 3, 16/10–16/11/2026), y
+> validarse con la dirección de la tesis y con Zully y Catalina antes de
+> considerarse definitivo. Donde la redacción de una norma específica
+> (Acuerdo 001 de 2024 del AGN; CONPES 4144 de 2025) requiere el número
+> exacto de artículo, se deja señalado "**verificar en Fase 3**" en vez de
+> inventar una cita que el equipo no ha confirmado todavía.
 >
 > **Una precisión normativa para el equipo:** la Recomendación sobre la
 > Ética de la Inteligencia Artificial fue adoptada por la Conferencia
