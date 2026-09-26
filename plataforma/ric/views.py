@@ -10,8 +10,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
-from . import grafo, reglas, rdf, tipos
+from . import busqueda, grafo, reglas, rdf, sparql, tipos
 from .models import PropuestaRiC
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
@@ -133,3 +134,42 @@ def grafo_datos(request, tipo, pk):
 def grafo_html(request, tipo, pk):
     entidad = _entidad_o_404(tipo, pk)
     return render(request, "ric/grafo.html", {"entidad": entidad, "tipo": tipo})
+
+
+@login_required
+def sparql_html(request):
+    """T051: una página simple con un cuadro de consulta que llama al mismo
+    endpoint POST /ric/sparql/ y muestra los resultados."""
+    return render(request, "ric/sparql.html")
+
+
+@login_required
+@require_POST
+def sparql_endpoint(request):
+    """T051: ejecuta la consulta SPARQL de solo lectura recibida en el
+    campo `query` (form-encoded) contra el grafo RiC ya validado, y
+    devuelve el resultado en el formato estándar SPARQL 1.1 JSON."""
+    query = request.POST.get("query", "").strip()
+    if not query:
+        return JsonResponse({"error": "Falta el parámetro 'query'."}, status=400)
+    base = request.build_absolute_uri("/ric/entidad/")
+    try:
+        resultado = sparql.ejecutar(query, base)
+    except sparql.ErrorSparql as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse(resultado)
+
+
+@login_required
+def busqueda_html(request):
+    """T053 / F14: búsqueda contextual — texto completo ya extraído +
+    nombre de entidades, cada una enlazada a su grafo de relaciones."""
+    q = request.GET.get("q", "").strip()
+    paginas, filas_entidades = [], []
+    if q:
+        paginas = busqueda.buscar_texto(q)
+        filas_entidades = [
+            {"entidad": e, "tipo_slug": type(e).__name__.lower(), "tipo_nombre": type(e).__name__}
+            for e in busqueda.buscar_entidades(q)
+        ]
+    return render(request, "ric/busqueda.html", {"q": q, "paginas": paginas, "entidades": filas_entidades})

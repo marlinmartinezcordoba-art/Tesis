@@ -18,7 +18,8 @@
 </head>
 <body>
 <header>
-  <p class="meta"><strong>MAZUCA</strong> · Grafo de conocimiento (RiC)</p>
+  <p class="meta"><strong>MAZUCA</strong> · Grafo de conocimiento (RiC) ·
+    <a href="{% url 'ric_busqueda' %}">búsqueda</a> · <a href="{% url 'ric_sparql' %}">SPARQL</a></p>
   <h1>{{ entidad }}</h1>
   <a href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">descargar como RDF (Turtle) ↗</a>
 </header>

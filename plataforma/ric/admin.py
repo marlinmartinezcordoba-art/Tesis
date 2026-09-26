@@ -56,6 +56,17 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "record_set", "tipo_forma_documental", "ver_grafo")
     actions = ["proponer_relaciones_nube", "proponer_relaciones_local"]
 
+    def changelist_view(self, request, extra_context=None):
+        messages.info(
+            request,
+            format_html(
+                'Buscar en el texto extraído y en los nombres de entidades: <a href="{}">búsqueda</a>. '
+                'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>.',
+                reverse("ric_busqueda"), reverse("ric_sparql"),
+            ),
+        )
+        return super().changelist_view(request, extra_context)
+
     def _generar(self, request, queryset, proveedor_cls, error_cls, etiqueta):
         from .proveedores import generar_propuestas
 

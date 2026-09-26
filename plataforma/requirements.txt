@@ -9,3 +9,4 @@ psycopg[binary]>=3.2
 dj-database-url>=2.3
 whitenoise>=6.7
 rdflib>=7
+pyoxigraph>=0.4

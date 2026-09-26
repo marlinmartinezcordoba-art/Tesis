@@ -1,0 +1,87 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPARQL · MAZUCA</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+  .meta { color: #52606d; margin-top: 0; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: .9rem; padding: 8px; height: 160px; }
+  button { margin-top: 8px; font-size: .9rem; padding: 6px 14px; border-radius: 4px; border: 1px solid #1f3a5f; background: #1f3a5f; color: #fff; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e4e7eb; font-size: .85rem; word-break: break-all; }
+  .error { background: #fde8e8; color: #7a1f1f; padding: 8px 12px; border-radius: 4px; margin-top: 1rem; }
+  .sin-datos { color: #8a6100; font-style: italic; }
+  .ejemplo { font-size: .85rem; color: #52606d; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA ·
+  <a href="{% url 'ric_bandeja' %}">bandeja de validación</a> · <a href="{% url 'ric_busqueda' %}">búsqueda</a></p>
+<h1>Consultas SPARQL sobre el grafo RiC validado</h1>
+<p class="meta">Solo lectura (SELECT/ASK/CONSTRUCT/DESCRIBE): la consulta corre contra una
+proyección en memoria del grafo ya validado, nunca modifica la base de datos.
+<span class="ejemplo" id="ejemplo">Cargar una consulta de ejemplo</span></p>
+
+<form id="form-sparql">
+  <textarea name="query" id="query" placeholder="SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 20"></textarea>
+  <div><button type="submit">Ejecutar</button></div>
+</form>
+
+<div id="resultado"></div>
+
+<script>
+document.getElementById("ejemplo").addEventListener("click", () => {
+  document.getElementById("query").value =
+    "PREFIX rico: <https://www.ica.org/standards/RiC/ontology#>\n" +
+    "SELECT ?entidad ?nombre WHERE { ?entidad rico:name ?nombre } LIMIT 20";
+});
+
+function celda(termino) {
+  if (!termino) return "";
+  return termino.value + (termino.type === "uri" ? " (uri)" : "");
+}
+
+document.getElementById("form-sparql").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const query = document.getElementById("query").value;
+  const contenedor = document.getElementById("resultado");
+  contenedor.innerHTML = "Consultando…";
+
+  const resp = await fetch("{% url 'ric_sparql_endpoint' %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-CSRFToken": "{{ csrf_token }}",
+    },
+    body: "query=" + encodeURIComponent(query),
+  });
+  const datos = await resp.json();
+
+  if (!resp.ok) {
+    contenedor.innerHTML = '<p class="error">' + datos.error + "</p>";
+    return;
+  }
+  if ("boolean" in datos) {
+    contenedor.innerHTML = "<p><strong>" + datos.boolean + "</strong></p>";
+    return;
+  }
+  const filas = datos.results.bindings;
+  if (filas.length === 0) {
+    contenedor.innerHTML = '<p class="sin-datos">Sin resultados.</p>';
+    return;
+  }
+  const columnas = datos.head.vars || Object.keys(filas[0]);
+  let html = "<table><tr>" + columnas.map(c => "<th>" + c + "</th>").join("") + "</tr>";
+  for (const fila of filas) {
+    html += "<tr>" + columnas.map(c => "<td>" + celda(fila[c]) + "</td>").join("") + "</tr>";
+  }
+  html += "</table>";
+  contenedor.innerHTML = html;
+});
+</script>
+</body>
+</html>

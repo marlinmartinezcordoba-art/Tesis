@@ -7,11 +7,14 @@ from acervo.views import exportar_dublin_core, exportar_premis
 from lineamientos.views import informe, informe_auditoria
 from ric.views import (
     bandeja_validacion,
+    busqueda_html,
     decidir_propuesta,
     exportar_rdf,
     exportar_rdf_completo,
     grafo_datos,
     grafo_html,
+    sparql_endpoint,
+    sparql_html,
 )
 
 admin.site.site_header = "MAZUCA · Automatización archivística asistida por IA"
@@ -30,4 +33,7 @@ urlpatterns = [
     path("ric/rdf/<str:tipo>/<int:pk>/", exportar_rdf, name="ric_exportar_rdf"),
     path("ric/grafo/<str:tipo>/<int:pk>/", grafo_html, name="ric_grafo"),
     path("ric/grafo/<str:tipo>/<int:pk>/datos.json", grafo_datos, name="ric_grafo_datos"),
+    path("ric/sparql/", sparql_html, name="ric_sparql"),
+    path("ric/sparql/consultar/", sparql_endpoint, name="ric_sparql_endpoint"),
+    path("ric/search/", busqueda_html, name="ric_busqueda"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
