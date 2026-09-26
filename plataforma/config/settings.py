@@ -160,3 +160,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Modelo de IA en la nube para la descripción asistida (clave en ANTHROPIC_API_KEY).
 MAZUCA_MODELO_IA = os.environ.get("MAZUCA_MODELO_IA", "claude-opus-5")
+
+# Al iniciar sesión sin un "next" explícito, llevar al panel de inicio
+# pensado para uso diario, no al admin técnico.
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "ric_inicio"

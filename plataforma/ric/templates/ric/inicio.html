@@ -1,0 +1,51 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Inicio · MAZUCA{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Bienvenido/a, {{ request.user.get_username }}</h1>
+  <p>Elige qué quieres hacer. Cada tarjeta te lleva a una sola pantalla, sin partes técnicas de más.</p>
+</hgroup>
+
+<div class="grid">
+  <article>
+    <h3>📋 Bandeja de validación</h3>
+    <p>Revisa las propuestas de IA pendientes: el documento, el fragmento que las respalda, y decides
+    si se aceptan, se corrigen o se rechazan.</p>
+    {% if pendientes %}<p><strong>{{ pendientes }}</strong> pendiente{{ pendientes|pluralize }} ahora mismo.</p>{% endif %}
+    <a href="{% url 'ric_bandeja' %}" role="button">Abrir bandeja</a>
+  </article>
+
+  <article>
+    <h3>📁 Registros</h3>
+    <p>Consulta los documentos ya cargados, su grafo de relaciones y su exportación como RDF.</p>
+    <a href="{% url 'ric_registros' %}" role="button" class="secondary">Ver registros</a>
+  </article>
+
+  <article>
+    <h3>🔎 Búsqueda</h3>
+    <p>Busca por palabra en el texto extraído, o por nombre de una persona, lugar, entidad...</p>
+    <a href="{% url 'ric_busqueda' %}" role="button" class="secondary">Buscar</a>
+  </article>
+</div>
+
+<div class="grid">
+  <article>
+    <h3>🕸️ Consulta SPARQL</h3>
+    <p>Preguntas avanzadas sobre el grafo ya validado, para quien conozca este lenguaje de consulta.</p>
+    <a href="{% url 'ric_sparql' %}" role="button" class="secondary">Abrir consola</a>
+  </article>
+
+  <article>
+    <h3>📊 Laboratorio de evaluación</h3>
+    <p>Las métricas de calidad del sistema, calculadas con datos reales — nunca inventadas.</p>
+    <a href="{% url 'ric_evaluacion' %}" role="button" class="secondary">Ver métricas</a>
+  </article>
+
+  <article>
+    <h3>⚙️ Panel técnico</h3>
+    <p>Para cargar un documento nuevo, ejecutar el OCR, o pedirle a la IA que proponga relaciones —
+    es la vista más técnica, pensada para quien administra el sistema.</p>
+    <a href="/admin/" role="button" class="contrast">Abrir panel técnico</a>
+  </article>
+</div>
+{% endblock %}

@@ -1,41 +1,30 @@
-{% load static %}
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SPARQL · MAZUCA</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; color: #1f2933; background: #fff; }
-  h1 { font-size: 1.4rem; margin-bottom: .2rem; }
-  .meta { color: #52606d; margin-top: 0; }
-  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: .9rem; padding: 8px; height: 160px; }
-  button { margin-top: 8px; font-size: .9rem; padding: 6px 14px; border-radius: 4px; border: 1px solid #1f3a5f; background: #1f3a5f; color: #fff; cursor: pointer; }
-  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e4e7eb; font-size: .85rem; word-break: break-all; }
-  .error { background: #fde8e8; color: #7a1f1f; padding: 8px 12px; border-radius: 4px; margin-top: 1rem; }
-  .sin-datos { color: #8a6100; font-style: italic; }
-  .ejemplo { font-size: .85rem; color: #52606d; cursor: pointer; text-decoration: underline; }
-</style>
-</head>
-<body>
-<p class="meta"><strong>MAZUCA</strong> · Automatización archivística asistida por IA ·
-  <a href="{% url 'ric_bandeja' %}">bandeja de validación</a> · <a href="{% url 'ric_busqueda' %}">búsqueda</a> ·
-  <a href="{% url 'ric_evaluacion' %}">evaluación</a></p>
-<h1>Consultas SPARQL sobre el grafo RiC validado</h1>
-<p class="meta">Solo lectura (SELECT/ASK/CONSTRUCT/DESCRIBE): la consulta corre contra una
-proyección en memoria del grafo ya validado, nunca modifica la base de datos.
-<span class="ejemplo" id="ejemplo">Cargar una consulta de ejemplo</span></p>
+{% extends "ric/_base.html" %}
+{% block titulo %}SPARQL · MAZUCA{% endblock %}
+{% block estilos_extra %}
+  textarea#query { font-family: ui-monospace, monospace; font-size: .9rem; }
+  table { font-size: .85rem; }
+  td { word-break: break-all; }
+  .error { background: #fde8e8; color: #7a1f1f; padding: .75rem 1rem; border-radius: var(--pico-border-radius); margin-top: 1rem; }
+  .ejemplo { cursor: pointer; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Consultas SPARQL</h1>
+  <p>Solo lectura (SELECT/ASK/CONSTRUCT/DESCRIBE): la consulta corre contra una copia en memoria del
+  grafo ya validado, nunca modifica la base de datos.
+  <a href="#" class="ejemplo" id="ejemplo">Cargar una consulta de ejemplo</a></p>
+</hgroup>
 
 <form id="form-sparql">
-  <textarea name="query" id="query" placeholder="SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 20"></textarea>
-  <div><button type="submit">Ejecutar</button></div>
+  <textarea name="query" id="query" rows="6" placeholder="SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 20"></textarea>
+  <button type="submit">Ejecutar</button>
 </form>
 
 <div id="resultado"></div>
 
 <script>
-document.getElementById("ejemplo").addEventListener("click", () => {
+document.getElementById("ejemplo").addEventListener("click", (ev) => {
+  ev.preventDefault();
   document.getElementById("query").value =
     "PREFIX rico: <https://www.ica.org/standards/RiC/ontology#>\n" +
     "SELECT ?entidad ?nombre WHERE { ?entidad rico:name ?nombre } LIMIT 20";
@@ -84,5 +73,4 @@ document.getElementById("form-sparql").addEventListener("submit", async (ev) => 
   contenedor.innerHTML = html;
 });
 </script>
-</body>
-</html>
+{% endblock %}

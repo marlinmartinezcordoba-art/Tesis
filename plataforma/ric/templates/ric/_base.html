@@ -1,0 +1,45 @@
+{% load static %}
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}MAZUCA{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
+<style>
+  .mazuca-marca { font-weight: 700; font-size: 1.15rem; text-decoration: none; }
+  .mazuca-marca small { display: block; font-weight: 400; font-size: .72rem; color: var(--pico-muted-color); }
+  header.mazuca-nav { padding-block: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+  .mensaje { padding: .75rem 1rem; border-radius: var(--pico-border-radius); margin-bottom: .75rem; }
+  .mensaje.success { background: #e3f9e5; color: #1b4d2e; }
+  .mensaje.error { background: #fde8e8; color: #7a1f1f; }
+  .mensaje.info, .mensaje.warning { background: #e6f0fb; color: #1f3a5f; }
+  .sin-datos { color: var(--pico-muted-color); font-style: italic; }
+  {% block estilos_extra %}{% endblock %}
+</style>
+{% block scripts_head %}{% endblock %}
+</head>
+<body hx-boost="true">
+<header class="mazuca-nav">
+  <nav class="container">
+    <ul>
+      <li><a href="{% url 'ric_inicio' %}" class="mazuca-marca">MAZUCA<small>Automatización archivística asistida por IA</small></a></li>
+    </ul>
+    <ul>
+      <li><a href="{% url 'ric_bandeja' %}">Bandeja de validación</a></li>
+      <li><a href="{% url 'ric_registros' %}">Registros</a></li>
+      <li><a href="{% url 'ric_busqueda' %}">Búsqueda</a></li>
+      <li><a href="{% url 'ric_sparql' %}">SPARQL</a></li>
+      <li><a href="{% url 'ric_evaluacion' %}">Evaluación</a></li>
+      <li><a href="/admin/">Panel técnico</a></li>
+    </ul>
+  </nav>
+</header>
+<main class="{% block main_class %}container{% endblock %}">
+  {% if messages %}
+  {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}
+  {% endif %}
+  {% block contenido %}{% endblock %}
+</main>
+</body>
+</html>

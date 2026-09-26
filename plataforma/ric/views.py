@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import busqueda, grafo, metricas, reglas, rdf, sparql, tipos
-from .models import PropuestaRiC
+from .models import PropuestaRiC, Record
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
 # para las vistas que reciben el tipo de entidad como texto en la URL.
@@ -187,3 +187,20 @@ def evaluacion_html(request):
 def evaluacion_datos(request):
     """T070: lo mismo que evaluacion_html, como JSON (GET /evaluation)."""
     return JsonResponse({"metricas": metricas.calcular_metricas()})
+
+
+@login_required
+def inicio(request):
+    """Panel de inicio para uso diario: un punto de entrada en español
+    sencillo, con las tareas más comunes como tarjetas — en vez de dejar
+    al archivista en el admin de Django, pensado para quien administra el
+    sistema, no para el uso diario."""
+    pendientes = PropuestaRiC.objects.filter(estado=PropuestaRiC.Estado.PENDIENTE).count()
+    return render(request, "ric/inicio.html", {"pendientes": pendientes})
+
+
+@login_required
+def registros_html(request):
+    """Lista de Record ya cargados, con acceso directo a su grafo y su RDF."""
+    registros = Record.objects.select_related("record_set").order_by("nombre")
+    return render(request, "ric/registros.html", {"registros": registros})

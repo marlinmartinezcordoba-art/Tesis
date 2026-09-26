@@ -15,6 +15,8 @@ from ric.views import (
     exportar_rdf_completo,
     grafo_datos,
     grafo_html,
+    inicio,
+    registros_html,
     sparql_endpoint,
     sparql_html,
 )
@@ -29,6 +31,8 @@ urlpatterns = [
     path("documentos/<int:pk>/informe/", informe, name="informe"),
     path("documentos/<int:pk>/exportar/dublin-core.xml", exportar_dublin_core, name="exportar_dublin_core"),
     path("documentos/<int:pk>/exportar/premis.xml", exportar_premis, name="exportar_premis"),
+    path("ric/", inicio, name="ric_inicio"),
+    path("ric/registros/", registros_html, name="ric_registros"),
     path("ric/bandeja/", bandeja_validacion, name="ric_bandeja"),
     path("ric/bandeja/<int:pk>/decidir/", decidir_propuesta, name="ric_decidir_propuesta"),
     path("ric/rdf/", exportar_rdf_completo, name="ric_exportar_rdf_completo"),

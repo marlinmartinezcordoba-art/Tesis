@@ -1,0 +1,32 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Registros · MAZUCA{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Registros</h1>
+  <p>Los documentos (Record, en RiC-CM) ya cargados en el sistema. Para cargar uno nuevo o ejecutar
+  el OCR, usa el <a href="/admin/ric/record/add/">panel técnico</a>.</p>
+</hgroup>
+
+{% if not registros %}
+<p class="sin-datos">Todavía no hay registros cargados.</p>
+{% else %}
+<table>
+  <thead>
+    <tr><th>Nombre</th><th>Conjunto (fondo)</th><th>Forma documental</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for r in registros %}
+    <tr>
+      <td>{{ r.nombre }}</td>
+      <td>{{ r.record_set|default:"—" }}</td>
+      <td>{{ r.tipo_forma_documental|default:"—" }}</td>
+      <td>
+        <a href="{% url 'ric_grafo' 'record' r.pk %}">grafo</a> ·
+        <a href="{% url 'ric_exportar_rdf' 'record' r.pk %}">RDF</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

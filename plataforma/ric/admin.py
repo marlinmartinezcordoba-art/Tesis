@@ -64,8 +64,9 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
             format_html(
                 'Buscar en el texto extraído y en los nombres de entidades: <a href="{}">búsqueda</a>. '
                 'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>. '
-                'Métricas del sistema: <a href="{}">laboratorio de evaluación</a>.',
-                reverse("ric_busqueda"), reverse("ric_sparql"), reverse("ric_evaluacion"),
+                'Métricas del sistema: <a href="{}">laboratorio de evaluación</a>. '
+                '<a href="{}">← Volver al panel de inicio</a>.',
+                reverse("ric_busqueda"), reverse("ric_sparql"), reverse("ric_evaluacion"), reverse("ric_inicio"),
             ),
         )
         return super().changelist_view(request, extra_context)
