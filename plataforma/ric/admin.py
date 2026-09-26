@@ -15,6 +15,7 @@ from .models import (
     Person,
     Place,
     Position,
+    PropuestaRiC,
     Record,
     RecordPart,
     RecordSet,
@@ -23,12 +24,48 @@ from .models import (
 )
 
 ENTIDADES = [
-    RecordSet, Record, RecordPart,
+    RecordSet, RecordPart,
     Person, Group, Family, CorporateBody, Position, Mechanism,
     Event, Activity, Rule, Mandate, Date, Place,
 ]
 for modelo in ENTIDADES:
     admin.site.register(modelo)
+
+
+@admin.register(Record)
+class RecordAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "record_set", "tipo_forma_documental")
+    actions = ["proponer_relaciones_nube", "proponer_relaciones_local"]
+
+    def _generar(self, request, queryset, proveedor_cls, error_cls, etiqueta):
+        from .proveedores import generar_propuestas
+
+        for record in queryset:
+            try:
+                propuestas = generar_propuestas(record, proveedor_cls())
+            except error_cls as e:
+                self.message_user(request, f"{record}: {e}", level="warning")
+                continue
+            if not propuestas:
+                self.message_user(request, f"{record}: {etiqueta} no propuso nada.")
+                continue
+            rechazadas = sum(1 for p in propuestas if p.estado == "rechazada")
+            aviso = f" ({rechazadas} rechazada(s) automáticamente por el motor de reglas)" if rechazadas else ""
+            self.message_user(
+                request, f"{record}: {len(propuestas)} propuesta(s) de {etiqueta} pendientes de validación{aviso}."
+            )
+
+    @admin.action(description="Proponer relaciones (IA en la nube, Claude)")
+    def proponer_relaciones_nube(self, request, queryset):
+        from .proveedor_claude import ErrorProveedorIA, ProveedorClaude
+
+        self._generar(request, queryset, ProveedorClaude, ErrorProveedorIA, "la IA en la nube")
+
+    @admin.action(description="Proponer relaciones (IA local, spaCy)")
+    def proponer_relaciones_local(self, request, queryset):
+        from .proveedor_local import ErrorProveedorIA, ProveedorLocal
+
+        self._generar(request, queryset, ProveedorLocal, ErrorProveedorIA, "la IA local")
 
 
 class PaginaTextoInline(admin.TabularInline):
@@ -69,6 +106,30 @@ class EvidenciaAdmin(admin.ModelAdmin):
     list_display = ("instanciacion", "pagina", "verificada")
     list_filter = ("verificada",)
     search_fields = ("fragmento",)
+
+
+@admin.register(PropuestaRiC)
+class PropuestaRiCAdmin(admin.ModelAdmin):
+    list_display = ("relacion_id", "entidad_tipo", "entidad_nombre", "origen", "proveedor", "confianza", "estado")
+    list_filter = ("estado", "proveedor", "relacion_id")
+    readonly_fields = [f.name for f in PropuestaRiC._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    actions = ["aceptar"]
+
+    @admin.action(description="Aceptar las propuestas seleccionadas tal como fueron generadas")
+    def aceptar(self, request, queryset):
+        aceptadas, fallidas = 0, 0
+        for p in queryset.filter(estado=PropuestaRiC.Estado.PENDIENTE):
+            try:
+                p.validar(request.user, aceptar=True)
+                aceptadas += 1
+            except Exception as e:
+                fallidas += 1
+                self.message_user(request, f"{p}: {e}", level="warning")
+        self.message_user(request, f"{aceptadas} propuesta(s) aceptada(s), registradas en el grafo RiC.")
 
 
 @admin.register(RelacionRiC)

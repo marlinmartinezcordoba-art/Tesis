@@ -14,7 +14,7 @@ Record Set, un Record o un Record Part, igual que en RiC-CM.
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 
 
 class Thing(models.Model):
@@ -449,3 +449,90 @@ class RelacionRiC(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class PropuestaRiC(models.Model):
+    """Una propuesta de IA sobre el grafo RiC: 'este Record se relaciona con
+    esta entidad (nueva o existente) mediante esta relación'.
+
+    La IA nunca escribe RelacionRiC ni entidades directamente — solo crea
+    filas aquí. `validar()` es el único camino para que una propuesta se
+    convierta en grafo real, y solo lo hace una persona autenticada.
+    """
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente de validación"
+        ACEPTADA = "aceptada", "Aceptada"
+        MODIFICADA = "modificada", "Aceptada con cambios"
+        RECHAZADA = "rechazada", "Rechazada"
+
+    origen_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, related_name="+")
+    origen_object_id = models.PositiveBigIntegerField()
+    origen = GenericForeignKey("origen_content_type", "origen_object_id")
+
+    relacion_id = models.CharField(max_length=10, help_text="Ej. 'R027'.")
+    entidad_tipo = models.CharField(max_length=10, help_text="Ej. 'E11'. Tipo de la entidad destino propuesta.")
+    entidad_nombre = models.CharField(max_length=500)
+
+    proveedor = models.CharField(max_length=50, help_text="Nombre del ProveedorIA que la generó.")
+    version_modelo = models.CharField(max_length=100, blank=True)
+    confianza = models.FloatField(help_text="Entre 0 y 1.")
+    justificacion = models.TextField(blank=True)
+    evidencia = models.ForeignKey(Evidencia, null=True, blank=True, on_delete=models.SET_NULL, related_name="propuestas")
+
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
+    motivo_decision = models.TextField(
+        blank=True,
+        help_text="Por qué se rechazó: del motor de reglas (automático) o de la persona archivista.",
+    )
+    validado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="propuestas_ric_validadas"
+    )
+    fecha_validacion = models.DateTimeField(null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "propuesta de IA (RiC)"
+        verbose_name_plural = "propuestas de IA (RiC)"
+        ordering = ["-fecha_creacion"]
+
+    def __str__(self):
+        return f"{self.relacion_id} · {self.entidad_tipo} {self.entidad_nombre} ({self.estado})"
+
+    def validar(self, usuario, aceptar, entidad_nombre_final=None, motivo=""):
+        from django.utils import timezone
+
+        from . import tipos
+
+        if self.estado != self.Estado.PENDIENTE:
+            raise ValueError("Esta propuesta ya fue validada.")
+        if not usuario or not usuario.is_authenticated:
+            raise PermissionError("Solo una persona autenticada puede validar.")
+        if not aceptar and not motivo:
+            raise ValueError("Indique el motivo del rechazo.")
+
+        with transaction.atomic():
+            if aceptar:
+                nombre_final = entidad_nombre_final or self.entidad_nombre
+                modelo = tipos.ric_id_a_modelo(self.entidad_tipo)
+                if modelo is None:
+                    raise ValueError(f"Tipo de entidad desconocido: {self.entidad_tipo!r}")
+                entidad, _creada = modelo.objects.get_or_create(nombre=nombre_final)
+                relacion = RelacionRiC(
+                    relacion_id=self.relacion_id, origen=self.origen, destino=entidad,
+                    evidencia=self.evidencia, validado_por=usuario, fecha_validacion=timezone.now(),
+                )
+                relacion.save()  # revalida dominio/rango (segunda pasada, defensa en profundidad)
+                relacion.estado = (
+                    RelacionRiC.Estado.ACEPTADA if nombre_final == self.entidad_nombre
+                    else RelacionRiC.Estado.MODIFICADA
+                )
+                relacion.save()
+                self.estado = relacion.estado
+            else:
+                self.estado = self.Estado.RECHAZADA
+
+            self.motivo_decision = motivo
+            self.validado_por = usuario
+            self.fecha_validacion = timezone.now()
+            self.save()
