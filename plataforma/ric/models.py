@@ -167,6 +167,14 @@ class Instantiation(Thing):
         self.archivo.seek(0)
         self.sha256 = h.hexdigest()
 
+    def save(self, *args, **kwargs):
+        # F01: el hash se calcula una sola vez, sobre el archivo tal como
+        # se ingirió — nunca se recalcula después, para que sea el hash del
+        # original inmutable y no de una posible edición posterior del campo.
+        if self.archivo and not self.sha256:
+            self.calcular_y_guardar_hash()
+        super().save(*args, **kwargs)
+
     @property
     def texto_extraido(self):
         """Todas las páginas unidas; para buscar evidencia con su página exacta,

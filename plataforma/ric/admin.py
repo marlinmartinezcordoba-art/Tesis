@@ -44,6 +44,20 @@ class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "ver_grafo")
 
 
+def _ingerir(instanciacion, agente):
+    """F01/F02: lo que pasa automáticamente al ingerir un archivo nuevo —
+    el hash ya lo calcula Instantiation.save() solo; aquí falta el OCR,
+    para que el archivista no tenga que acordarse de pedirlo aparte. Si el
+    formato no tiene OCR soportado, el archivo igual queda preservado (el
+    hash es lo que garantiza F01; el texto es un paso aparte, best-effort)."""
+    from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
+
+    try:
+        extraer_texto_de_instanciacion(instanciacion, agente=agente)
+    except FormatoNoSoportado:
+        pass
+
+
 ENTIDADES = [
     RecordSet, RecordPart,
     Person, Group, Family, CorporateBody, Position, Mechanism,
@@ -53,10 +67,33 @@ for modelo in ENTIDADES:
     admin.site.register(modelo, EntidadRicAdmin)
 
 
+class InstantiationInline(admin.TabularInline):
+    """F01: carga masiva — varios archivos (instanciaciones) de una vez sobre
+    el mismo Record, cada uno hash+OCR automáticos al guardar (ver save_formset)."""
+
+    model = Instantiation
+    fk_name = "record_resource"
+    extra = 1
+    fields = ("nombre", "archivo", "sha256", "tipo_soporte")
+    readonly_fields = ("sha256",)
+
+
 @admin.register(Record)
 class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "record_set", "tipo_forma_documental", "ver_grafo")
     actions = ["proponer_relaciones_nube", "proponer_relaciones_local"]
+    inlines = [InstantiationInline]
+
+    def save_formset(self, request, form, formset, change):
+        instancias = formset.save(commit=False)
+        for eliminada in formset.deleted_objects:
+            eliminada.delete()
+        for instanciacion in instancias:
+            es_nueva = instanciacion.pk is None
+            instanciacion.save()
+            if es_nueva:
+                _ingerir(instanciacion, agente=request.user)
+        formset.save_m2m()
 
     def changelist_view(self, request, extra_context=None):
         messages.info(
@@ -119,6 +156,12 @@ class InstantiationAdmin(admin.ModelAdmin):
     inlines = [PaginaTextoInline]
 
     actions = ["extraer_texto"]
+
+    def save_model(self, request, obj, form, change):
+        es_nueva = obj.pk is None
+        super().save_model(request, obj, form, change)
+        if es_nueva:
+            _ingerir(obj, agente=request.user)
 
     @admin.action(description="Extraer texto (OCR por página)")
     def extraer_texto(self, request, queryset):
