@@ -6,6 +6,7 @@ from .models import (
     Date,
     Evidencia,
     Event,
+    EventoRiC,
     Family,
     Group,
     Instantiation,
@@ -92,7 +93,7 @@ class InstantiationAdmin(admin.ModelAdmin):
 
         for inst in queryset:
             try:
-                _, detalle = extraer_texto_de_instanciacion(inst)
+                _, detalle = extraer_texto_de_instanciacion(inst, agente=request.user)
             except FormatoNoSoportado as e:
                 self.message_user(request, f"{inst}: {e}", level="warning")
                 continue
@@ -130,6 +131,21 @@ class PropuestaRiCAdmin(admin.ModelAdmin):
                 fallidas += 1
                 self.message_user(request, f"{p}: {e}", level="warning")
         self.message_user(request, f"{aceptadas} propuesta(s) aceptada(s), registradas en el grafo RiC.")
+
+
+@admin.register(EventoRiC)
+class EventoRiCAdmin(admin.ModelAdmin):
+    list_display = ("fecha", "instanciacion", "tipo", "agente", "exitoso")
+    list_filter = ("tipo", "exitoso")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(RelacionRiC)

@@ -87,6 +87,8 @@ def generar_propuestas(record, proveedor):
 
         from django.contrib.contenttypes.models import ContentType
 
+        from .models import EventoRiC, registrar_evento
+
         propuesta = PropuestaRiC.objects.create(
             origen_content_type=ContentType.objects.get_for_model(record),
             origen_object_id=record.pk,
@@ -100,6 +102,15 @@ def generar_propuestas(record, proveedor):
             evidencia=evidencia,
             estado=PropuestaRiC.Estado.RECHAZADA if motivo_rechazo else PropuestaRiC.Estado.PENDIENTE,
             motivo_decision=motivo_rechazo,
+        )
+        registrar_evento(
+            instanciacion, EventoRiC.Tipo.PROPUESTA_IA,
+            agente=f"{proveedor.nombre} {proveedor.version}",
+            detalle={
+                "propuesta": propuesta.pk, "relacion_id": cand.relacion_id,
+                "confianza": confianza, "evidencia_verificada": evidencia.verificada,
+                "rechazada_automaticamente": bool(motivo_rechazo),
+            },
         )
         creadas.append(propuesta)
     return creadas

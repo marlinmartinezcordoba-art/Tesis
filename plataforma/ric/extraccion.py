@@ -12,14 +12,14 @@ from acervo.extraccion import FormatoNoSoportado, extraer_paginas
 __all__ = ["FormatoNoSoportado", "extraer_texto_de_instanciacion"]
 
 
-def extraer_texto_de_instanciacion(instanciacion):
+def extraer_texto_de_instanciacion(instanciacion, agente="sistema"):
     """Extrae el texto de `instanciacion.archivo`, reemplaza sus PaginaTexto
-    existentes (si la reextracción es porque el archivo cambió) y devuelve
-    (texto_completo, detalle), con el mismo `detalle` que arma
-    `acervo.extraccion.resumir_paginas`."""
+    existentes (si la reextracción es porque el archivo cambió), registra el
+    evento en la bitácora y devuelve (texto_completo, detalle), con el mismo
+    `detalle` que arma `acervo.extraccion.resumir_paginas`."""
     from acervo.extraccion import resumir_paginas
 
-    from .models import PaginaTexto
+    from .models import EventoRiC, PaginaTexto, registrar_evento
 
     paginas = extraer_paginas(instanciacion.archivo.path)
     texto, detalle = resumir_paginas(paginas)
@@ -33,4 +33,5 @@ def extraer_texto_de_instanciacion(instanciacion):
         )
         for i, p in enumerate(paginas, start=1)
     ])
+    registrar_evento(instanciacion, EventoRiC.Tipo.EXTRACCION, agente=agente, detalle=detalle)
     return texto, detalle

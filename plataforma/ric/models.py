@@ -12,6 +12,9 @@ campo `tipo`: así una FK a `RecordResource` acepta indistintamente un
 Record Set, un Record o un Record Part, igual que en RiC-CM.
 """
 
+import hashlib
+import json
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
@@ -499,7 +502,13 @@ class PropuestaRiC(models.Model):
     def __str__(self):
         return f"{self.relacion_id} · {self.entidad_tipo} {self.entidad_nombre} ({self.estado})"
 
-    def validar(self, usuario, aceptar, entidad_nombre_final=None, motivo=""):
+    def validar(self, usuario, aceptar, entidad_nombre_final=None, entidad_existente=None, motivo=""):
+        """`entidad_existente`: una instancia ya guardada del modelo que
+        corresponde a `self.entidad_tipo`, para VINCULAR la propuesta a una
+        entidad que el archivista sabe que ya existe (evita duplicados que
+        una simple coincidencia de nombre no detectaría). Si no se da, se
+        usa `entidad_nombre_final` (o el nombre propuesto) con
+        `get_or_create` por nombre, como antes."""
         from django.utils import timezone
 
         from . import tipos
@@ -513,18 +522,29 @@ class PropuestaRiC(models.Model):
 
         with transaction.atomic():
             if aceptar:
-                nombre_final = entidad_nombre_final or self.entidad_nombre
                 modelo = tipos.ric_id_a_modelo(self.entidad_tipo)
                 if modelo is None:
                     raise ValueError(f"Tipo de entidad desconocido: {self.entidad_tipo!r}")
-                entidad, _creada = modelo.objects.get_or_create(nombre=nombre_final)
+
+                if entidad_existente is not None:
+                    if not isinstance(entidad_existente, modelo):
+                        raise ValueError(
+                            f"La entidad elegida no es de tipo {modelo.__name__} "
+                            f"({self.entidad_tipo}: {type(entidad_existente).__name__})."
+                        )
+                    entidad = entidad_existente
+                    nombre_final = entidad.nombre
+                else:
+                    nombre_final = entidad_nombre_final or self.entidad_nombre
+                    entidad, _creada = modelo.objects.get_or_create(nombre=nombre_final)
+
                 relacion = RelacionRiC(
                     relacion_id=self.relacion_id, origen=self.origen, destino=entidad,
                     evidencia=self.evidencia, validado_por=usuario, fecha_validacion=timezone.now(),
                 )
                 relacion.save()  # revalida dominio/rango (segunda pasada, defensa en profundidad)
                 relacion.estado = (
-                    RelacionRiC.Estado.ACEPTADA if nombre_final == self.entidad_nombre
+                    RelacionRiC.Estado.ACEPTADA if nombre_final == self.entidad_nombre and entidad_existente is None
                     else RelacionRiC.Estado.MODIFICADA
                 )
                 relacion.save()
@@ -536,3 +556,103 @@ class PropuestaRiC(models.Model):
             self.validado_por = usuario
             self.fecha_validacion = timezone.now()
             self.save()
+
+            instanciacion = self.evidencia.instanciacion if self.evidencia else None
+            registrar_evento(
+                instanciacion, EventoRiC.Tipo.VALIDACION,
+                agente=usuario,
+                detalle={"propuesta": self.pk, "estado": self.estado, "motivo": motivo},
+            )
+
+
+class EventoRiC(models.Model):
+    """Bitácora de preservación del núcleo `ric`, mismo patrón que
+    `acervo.EventoPreservacion` (estilo PREMIS: cada evento se encadena con
+    el anterior mediante un hash, así que alterar o borrar uno rompe la
+    cadena) pero encadenada por `Instantiation` en vez de por `Documento`.
+
+    Limitación conocida y aceptada: un evento sobre una relación entre dos
+    entidades sin ninguna Instantiation de por medio (por ejemplo, una
+    relación de parentesco entre dos Person) no tiene una cadena continua
+    que integrar — `instanciacion` queda vacío y el evento no se encadena
+    con nada. Para el ciclo experimental P0 (procedencia, tema, fechas de
+    un Record) esto no aplica: esas relaciones siempre nacen de evidencia
+    en una Instantiation.
+    """
+
+    class Tipo(models.TextChoices):
+        EXTRACCION = "extraccion_texto", "Extracción de texto (OCR)"
+        PROPUESTA_IA = "propuesta_ia", "Propuesta generada por IA"
+        VALIDACION = "validacion_humana", "Validación humana"
+
+    instanciacion = models.ForeignKey(
+        Instantiation, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos"
+    )
+    tipo = models.CharField(max_length=30, choices=Tipo.choices)
+    fecha = models.DateTimeField(auto_now_add=True)
+    agente = models.CharField(max_length=255)
+    detalle = models.JSONField(default=dict)
+    exitoso = models.BooleanField(default=True)
+    hash_anterior = models.CharField(max_length=64, editable=False)
+    hash_evento = models.CharField(max_length=64, editable=False)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "evento (bitácora RiC)"
+        verbose_name_plural = "eventos (bitácora RiC)"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} · {self.instanciacion or 'sin instanciación'}"
+
+    def calcular_hash(self):
+        contenido = json.dumps(
+            {
+                "instanciacion": self.instanciacion_id,
+                "tipo": self.tipo,
+                "agente": self.agente,
+                "detalle": self.detalle,
+                "exitoso": self.exitoso,
+                "hash_anterior": self.hash_anterior,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        return hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+
+
+GENESIS = "0" * 64
+
+
+def registrar_evento(instanciacion, tipo, agente, detalle=None, exitoso=True):
+    agente_str = getattr(agente, "get_username", lambda: str(agente))()
+    with transaction.atomic():
+        ultimo = None
+        if instanciacion is not None:
+            ultimo = (
+                EventoRiC.objects.select_for_update()
+                .filter(instanciacion=instanciacion)
+                .order_by("-id")
+                .first()
+            )
+        evento = EventoRiC(
+            instanciacion=instanciacion,
+            tipo=tipo,
+            agente=agente_str,
+            detalle=detalle or {},
+            exitoso=exitoso,
+            hash_anterior=ultimo.hash_evento if ultimo else GENESIS,
+        )
+        evento.hash_evento = evento.calcular_hash()
+        evento.save()
+    return evento
+
+
+def verificar_cadena(instanciacion):
+    """Devuelve (True, None) si la bitácora de `instanciacion` está intacta,
+    o (False, evento_roto) si algo se alteró o se borró de la cadena."""
+    anterior = GENESIS
+    for evento in instanciacion.eventos.order_by("id"):
+        if evento.hash_anterior != anterior or evento.calcular_hash() != evento.hash_evento:
+            return False, evento
+        anterior = evento.hash_evento
+    return True, None
