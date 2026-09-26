@@ -37,17 +37,29 @@ class FormatoNoSoportado(Exception):
 
 
 def ocr_imagen(imagen):
-    """Devuelve (texto, lista de confianzas por palabra) de una sola imagen."""
+    """Devuelve (texto, lista de confianzas por palabra, lista de cajas por
+    palabra) de una sola imagen. Cada caja es {"texto", "izquierda", "arriba",
+    "ancho", "alto", "confianza"} en píxeles de `imagen` (F02: coordenadas)."""
     imagen = imagen.convert("L")
     datos = pytesseract.image_to_data(
         imagen, lang=IDIOMA_OCR, output_type=pytesseract.Output.DICT
     )
-    confianzas = [
-        float(c) for c, palabra in zip(datos["conf"], datos["text"])
-        if palabra.strip() and float(c) >= 0
-    ]
+    confianzas, cajas = [], []
+    for i, palabra in enumerate(datos["text"]):
+        if not palabra.strip():
+            continue
+        conf = float(datos["conf"][i])
+        if conf < 0:
+            continue
+        confianzas.append(conf)
+        cajas.append({
+            "texto": palabra,
+            "izquierda": datos["left"][i], "arriba": datos["top"][i],
+            "ancho": datos["width"][i], "alto": datos["height"][i],
+            "confianza": conf,
+        })
     texto = pytesseract.image_to_string(imagen, lang=IDIOMA_OCR)
-    return texto.strip(), confianzas
+    return texto.strip(), confianzas, cajas
 
 
 def leer_texto(ruta):
@@ -64,37 +76,40 @@ def herramienta_ocr():
 
 def paginas_de_imagen(ruta):
     """Una imagen (o un TIFF multipágina) como lista de páginas:
-    [{"texto": str, "confianzas": [float, ...], "ocr": True}, ...]."""
+    [{"texto": str, "confianzas": [float, ...], "ocr": True, "cajas": [...]}, ...]."""
     paginas = []
     with Image.open(ruta) as img:
         for cuadro in ImageSequence.Iterator(img):
-            texto, confianzas = ocr_imagen(cuadro)
-            paginas.append({"texto": texto, "confianzas": confianzas, "ocr": True})
+            texto, confianzas, cajas = ocr_imagen(cuadro)
+            paginas.append({"texto": texto, "confianzas": confianzas, "ocr": True, "cajas": cajas})
     return paginas
 
 
 def paginas_de_pdf(ruta):
     """Un PDF como lista de páginas; cada página usa su capa de texto si la
-    tiene, o OCR sobre sus imágenes si no."""
+    tiene (sin coordenadas: pypdf no las expone), o OCR sobre sus imágenes
+    si no (con coordenadas, en píxeles de cada imagen incrustada)."""
     paginas = []
     reader = PdfReader(ruta)
     for pagina in reader.pages:
         texto = (pagina.extract_text() or "").strip()
-        confianzas, uso_ocr = [], False
+        confianzas, uso_ocr, cajas = [], False, []
         if len(texto) < MIN_CARACTERES_PAGINA and pagina.images:
             uso_ocr = True
             partes = []
-            for imagen in pagina.images:
-                t, c = ocr_imagen(imagen.image)
+            for indice, imagen in enumerate(pagina.images):
+                t, c, cj = ocr_imagen(imagen.image)
                 partes.append(t)
                 confianzas += c
+                for caja in cj:
+                    cajas.append({**caja, "imagen_indice": indice})
             texto = "\n".join(partes)
-        paginas.append({"texto": texto, "confianzas": confianzas, "ocr": uso_ocr})
+        paginas.append({"texto": texto, "confianzas": confianzas, "ocr": uso_ocr, "cajas": cajas})
     return paginas
 
 
 def paginas_de_texto_plano(ruta):
-    return [{"texto": leer_texto(ruta), "confianzas": [], "ocr": False}]
+    return [{"texto": leer_texto(ruta), "confianzas": [], "ocr": False, "cajas": []}]
 
 
 def extraer_paginas(ruta):

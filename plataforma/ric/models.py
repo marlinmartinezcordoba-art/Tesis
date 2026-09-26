@@ -192,6 +192,12 @@ class PaginaTexto(models.Model):
     texto = models.TextField(blank=True)
     uso_ocr = models.BooleanField(default=False)
     confianza_ocr = models.FloatField(null=True, blank=True)
+    cajas_ocr = models.JSONField(
+        null=True, blank=True,
+        help_text="F02: caja delimitadora de cada palabra reconocida por OCR "
+        "(izquierda/arriba/ancho/alto en píxeles, más su confianza). Vacío "
+        "cuando la página no tuvo OCR (texto plano o capa de texto de PDF).",
+    )
 
     class Meta:
         ordering = ["numero"]
@@ -380,7 +386,10 @@ class Evidencia(models.Model):
     pagina = models.PositiveIntegerField(null=True, blank=True)
     fragmento = models.TextField(help_text="Texto literal citado como evidencia.")
     posicion = models.JSONField(
-        null=True, blank=True, help_text="Coordenadas (bbox) cuando el proveedor de IA las entrega."
+        null=True, blank=True,
+        help_text="F02: caja delimitadora (bbox) del fragmento sobre la página OCR, "
+        "calculada automáticamente cuando la página tiene coordenadas de OCR "
+        "(ver ric.evidencia.localizar_posicion); vacía si la página no tuvo OCR.",
     )
     verificada = models.BooleanField(
         null=True, help_text="Si el fragmento se encontró literalmente en el texto extraído de la instanciación."

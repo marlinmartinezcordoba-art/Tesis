@@ -30,6 +30,7 @@ def extraer_texto_de_instanciacion(instanciacion, agente="sistema"):
             instanciacion=instanciacion, numero=i,
             texto=p["texto"], uso_ocr=p["ocr"],
             confianza_ocr=(round(sum(p["confianzas"]) / len(p["confianzas"]), 1) if p["confianzas"] else None),
+            cajas_ocr=(p["cajas"] or None),
         )
         for i, p in enumerate(paginas, start=1)
     ])

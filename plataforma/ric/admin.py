@@ -142,8 +142,15 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
 class PaginaTextoInline(admin.TabularInline):
     model = PaginaTexto
     extra = 0
-    readonly_fields = ("numero", "texto", "uso_ocr", "confianza_ocr")
+    fields = ("numero", "texto", "uso_ocr", "confianza_ocr", "coordenadas")
+    readonly_fields = ("numero", "texto", "uso_ocr", "confianza_ocr", "coordenadas")
     can_delete = False
+
+    @admin.display(description="Coordenadas (F02)")
+    def coordenadas(self, obj):
+        if not obj.cajas_ocr:
+            return "sin coordenadas (sin OCR)"
+        return f"{len(obj.cajas_ocr)} palabra(s) georreferenciada(s)"
 
     def has_add_permission(self, request, obj=None):
         return False
