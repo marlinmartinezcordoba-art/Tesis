@@ -286,11 +286,25 @@ class ProveedorClasificacionClaude(ProveedorIA):
 # (VAL-01). La disposición de documentos históricos de conservación total
 # está, además, fuera de discusión: ya tienen valor permanente.
 
+class EntidadRelacionada(BaseModel):
+    """La persona, institución, lugar o actividad concreta que justifica el
+    indicio (relación trata_sobre, RiC-CM). No es obligatoria: un indicio
+    puede ser válido sin señalar una entidad específica."""
+
+    tipo: Literal["persona", "institucion", "lugar", "actividad"]
+    nombre: str = Field(description="Forma normalizada del nombre de la entidad.")
+
+
 class IndicioPropuesto(BaseModel):
     tipo: Literal["historico", "cultural", "cientifico"]
     evidencia: str = Field(description="Fragmento literal del documento que sustenta el indicio.")
     confianza: Literal["alta", "media", "baja"]
     justificacion: str = Field(description="Por qué el documento tiene ese valor secundario.")
+    entidad_relacionada: EntidadRelacionada | None = Field(
+        default=None,
+        description="La persona, institución, lugar o actividad concreta del documento que "
+                    "justifica este indicio, si el texto permite identificarla con claridad.",
+    )
 
 
 class ValoracionPropuesta(BaseModel):
@@ -320,6 +334,13 @@ puntúes los documentos entre sí, solo describe lo que encuentras en este.
 indicio. Si no hay evidencia clara, no incluyas ese indicio.
 - Si el documento no muestra ningún indicio claro, devuelve una lista vacía; \
 no fuerces una justificación débil.
+- entidad_relacionada: si el valor del documento depende claramente de una \
+persona, institución, lugar o actividad identificable en el texto (por \
+ejemplo, "tiene valor histórico porque documenta la Rebelión de los \
+Comuneros"), nómbrala aquí, con el mismo tipo y nombre normalizado que \
+usarías en la descripción. Si el valor es más general y no depende de una \
+entidad concreta, deja este campo vacío; no inventes una entidad solo para \
+llenarlo.
 - El texto puede contener errores de OCR y la marca [DATO RESERVADO]."""
 
 
@@ -352,6 +373,10 @@ class ProveedorValoracionClaude(ProveedorIA):
             if i.tipo in vistos or not i.evidencia.strip():
                 continue  # a lo sumo un indicio por tipo, y siempre con evidencia
             vistos.add(i.tipo)
+            entidad_tipo, entidad_nombre = "", ""
+            e = i.entidad_relacionada
+            if e and e.nombre.strip() and "trata_sobre" in RELACIONES_VALIDAS_POR_TIPO.get(e.tipo, set()):
+                entidad_tipo, entidad_nombre = e.tipo, e.nombre.strip()
             propuestas.append(Propuesta(
                 proceso="valoracion",
                 campo=f"valor_{i.tipo}",
@@ -360,5 +385,7 @@ class ProveedorValoracionClaude(ProveedorIA):
                 justificacion=i.justificacion,
                 evidencia=i.evidencia,
                 criterios=["VAL-01", "VAL-02"],
+                entidad_tipo=entidad_tipo,
+                entidad_nombre=entidad_nombre,
             ))
         return propuestas

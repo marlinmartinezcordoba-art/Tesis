@@ -21,7 +21,11 @@ from asistencia.proveedor_claude import (
     BorradorDescripcion,
     CampoPropuesto,
     EntidadPropuesta,
+    EntidadRelacionada,
+    IndicioPropuesto,
     ProveedorClaude,
+    ProveedorValoracionClaude,
+    ValoracionPropuesta,
 )
 from asistencia.proveedores import generar_sugerencias
 
@@ -169,3 +173,62 @@ class RicModeloTest(TestCase):
         xml = exportacion.dublin_core_xml(self.doc)
         self.assertNotIn("dc:subject", xml)
         self.assertNotIn("dc:coverage", xml)
+
+    def _mock_cliente_valoracion(self, indicios):
+        respuesta = MagicMock(
+            stop_reason="end_turn", model="claude-opus-5",
+            parsed_output=ValoracionPropuesta(indicios=indicios),
+        )
+        cliente = MagicMock()
+        cliente.beta.messages.parse.return_value = respuesta
+        return cliente
+
+    def test_valoracion_conecta_indicio_con_entidad_del_grafo(self):
+        self._publicable()
+        indicio = IndicioPropuesto(
+            tipo="historico", evidencia="levantamiento popular", confianza="alta",
+            justificacion="Documenta el levantamiento popular de 1810.",
+            entidad_relacionada=EntidadRelacionada(
+                tipo="actividad", nombre="Levantamiento popular de 1810"
+            ),
+        )
+        cliente = self._mock_cliente_valoracion([indicio])
+        [s] = generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente))
+        self.assertEqual(s.entidad_tipo, "actividad")
+        self.assertEqual(s.entidad_nombre, "Levantamiento popular de 1810")
+
+        s.validar(self.archivista, aceptar=True)
+        relacion = RelacionEntidadDocumento.objects.get(documento=self.doc)
+        self.assertEqual(relacion.entidad.nombre, "Levantamiento popular de 1810")
+        self.assertEqual(relacion.tipo_relacion, "trata_sobre")
+
+    def test_valoracion_sin_entidad_relacionada_no_crea_relacion(self):
+        self._publicable()
+        indicio = IndicioPropuesto(
+            tipo="cultural", evidencia="fiesta tradicional", confianza="media",
+            justificacion="Valor cultural general, sin una entidad concreta.",
+            entidad_relacionada=None,
+        )
+        cliente = self._mock_cliente_valoracion([indicio])
+        [s] = generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente))
+        self.assertEqual(s.entidad_tipo, "")
+        s.validar(self.archivista, aceptar=True)
+        self.assertEqual(RelacionEntidadDocumento.objects.count(), 0)
+
+    def test_valoracion_reutiliza_entidad_ya_creada_en_descripcion(self):
+        # La misma actividad identificada en descripción es la que justifica
+        # el valor histórico: no debe crear una entidad duplicada.
+        self._publicable()
+        existente = Entidad.objects.create(tipo="actividad", nombre="Sesión del Cabildo")
+        indicio = IndicioPropuesto(
+            tipo="historico", evidencia="sesión del Cabildo", confianza="alta",
+            justificacion="Documenta la sesión del Cabildo.",
+            entidad_relacionada=EntidadRelacionada(tipo="actividad", nombre="Sesión del Cabildo"),
+        )
+        cliente = self._mock_cliente_valoracion([indicio])
+        [s] = generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente))
+        s.validar(self.archivista, aceptar=True)
+        self.assertEqual(Entidad.objects.filter(tipo="actividad").count(), 1)
+        self.assertEqual(
+            RelacionEntidadDocumento.objects.get().entidad_id, existente.pk
+        )

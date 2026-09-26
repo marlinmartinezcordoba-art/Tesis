@@ -65,6 +65,15 @@ class SugerenciaIA(models.Model):
                    "(productor, mencionado, destinatario, documenta, trata_sobre, "
                    "lugar_produccion), al estilo Records in Context.",
     )
+    entidad_tipo = models.CharField(
+        max_length=12, blank=True,
+        help_text="Solo para valoración: tipo de la entidad del grafo RiC que justifica "
+                   "el indicio (persona, institucion, lugar o actividad), si se identificó una.",
+    )
+    entidad_nombre = models.CharField(
+        max_length=255, blank=True,
+        help_text="Solo para valoración: nombre de esa entidad.",
+    )
     confianza = models.FloatField(help_text="Entre 0 y 1, según el proveedor de IA.")
     modelo = models.CharField(max_length=100)
     version_modelo = models.CharField(max_length=50)
@@ -137,6 +146,33 @@ class SugerenciaIA(models.Model):
                         detalle={
                             "entidad_vinculada": str(entidad),
                             "tipo_relacion": tipo_relacion,
+                        },
+                    )
+                elif self.proceso == "valoracion" and self.entidad_nombre:
+                    # Conecta el indicio de valor con la entidad del grafo
+                    # RiC que lo justifica (persona, institución, lugar o
+                    # actividad), con la misma relación asociativa
+                    # trata_sobre que usa descripción.
+                    permitidas = RELACIONES_VALIDAS_POR_TIPO.get(self.entidad_tipo, set())
+                    if "trata_sobre" not in permitidas:
+                        raise ValueError(
+                            f"Una entidad de tipo «{self.entidad_tipo}» no admite la relación "
+                            "trata_sobre."
+                        )
+                    entidad, _ = Entidad.objects.get_or_create(
+                        tipo=self.entidad_tipo, nombre=self.entidad_nombre
+                    )
+                    RelacionEntidadDocumento.objects.get_or_create(
+                        documento=self.documento, entidad=entidad, tipo_relacion="trata_sobre"
+                    )
+                    registrar_evento(
+                        self.documento,
+                        EventoPreservacion.Tipo.MODIFICACION,
+                        agente=usuario,
+                        detalle={
+                            "indicio_valor": self.campo,
+                            "entidad_vinculada": str(entidad),
+                            "tipo_relacion": "trata_sobre",
                         },
                     )
                 elif self.campo == CAMPO_CLASIFICACION:
