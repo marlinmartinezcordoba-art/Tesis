@@ -187,6 +187,7 @@ class UnidadClasificacionAdmin(admin.ModelAdmin):
     list_filter = ("tipo",)
     search_fields = ("codigo", "nombre", "descripcion", "palabras_clave")
     inlines = [RelacionEntidadUnidadInline]
+    actions = ["sugerir_productor"]
 
     @admin.display(description="Productor")
     def productor(self, obj):
@@ -196,6 +197,31 @@ class UnidadClasificacionAdmin(admin.ModelAdmin):
     @admin.display(description="Documentos")
     def num_documentos(self, obj):
         return obj.documentos.count()
+
+    @admin.action(description="Sugerir productor a partir de los documentos ya clasificados (CLA-02)")
+    def sugerir_productor(self, request, queryset):
+        from . import procedencia
+
+        for unidad in queryset:
+            if unidad.relaciones_entidad.filter(tipo_relacion="productor").exists():
+                self.message_user(request, f"{unidad}: ya tiene un productor declarado.")
+                continue
+            resultado = procedencia.sugerir_productor_unidad(unidad)
+            if resultado is None:
+                self.message_user(
+                    request,
+                    f"{unidad}: aún no hay documentos clasificados con productor identificado; "
+                    "no se puede sugerir nada.",
+                    level="warning",
+                )
+                continue
+            entidad, coincidencias, total = resultado
+            self.message_user(
+                request,
+                f"{unidad}: sugerencia de productor «{entidad}» ({coincidencias} de {total} "
+                "documento(s) clasificados aquí). Confírmelo agregándolo en «Productor "
+                "(procedencia, CLA-02)» más abajo; MAZUCA no lo escribe automáticamente.",
+            )
 
 
 class RelacionInline(admin.TabularInline):

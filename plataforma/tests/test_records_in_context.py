@@ -315,3 +315,97 @@ class Cla02ProcedenciaTest(TestCase):
         self.client.force_login(admin_user)
         r = self.client.get("/admin/acervo/unidadclasificacion/")
         self.assertContains(r, "Cabildo de Santafé")
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class SugerirProductorUnidadTest(TestCase):
+    """La procedencia de una unidad del cuadro (CLA-02) no se escribe a mano
+    sin más: 'la IA propone, la persona decide' también aplica aquí.
+    sugerir_productor_unidad() propone a partir de los documentos ya
+    clasificados; la persona archivista sigue confirmando a mano en el
+    inline del admin."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        from acervo.models import UnidadClasificacion
+
+        self.serie = UnidadClasificacion.objects.create(
+            codigo="F.01.S01", nombre="Actas del Cabildo", tipo="serie"
+        )
+
+    def _documento(self, productor_entidad=None):
+        doc = Documento.objects.create(
+            titulo="Acta", archivo=SimpleUploadedFile("acta.txt", TEXTO.encode()),
+            unidad_clasificacion=self.serie,
+        )
+        if productor_entidad:
+            RelacionEntidadDocumento.objects.create(
+                documento=doc, entidad=productor_entidad, tipo_relacion="productor"
+            )
+        return doc
+
+    def test_sin_documentos_clasificados_no_hay_sugerencia(self):
+        from acervo.procedencia import sugerir_productor_unidad
+
+        self.assertIsNone(sugerir_productor_unidad(self.serie))
+
+    def test_documentos_sin_productor_identificado_no_hay_sugerencia(self):
+        from acervo.procedencia import sugerir_productor_unidad
+
+        self._documento()
+        self.assertIsNone(sugerir_productor_unidad(self.serie))
+
+    def test_productor_consistente_se_sugiere_con_conteo(self):
+        from acervo.procedencia import sugerir_productor_unidad
+
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        self._documento(cabildo)
+        self._documento(cabildo)
+        otro = Entidad.objects.create(tipo="persona", nombre="José Acevedo y Gómez")
+        self._documento(otro)
+
+        entidad, coincidencias, total = sugerir_productor_unidad(self.serie)
+        self.assertEqual(entidad, cabildo)
+        self.assertEqual(coincidencias, 2)
+        self.assertEqual(total, 3)
+
+    def test_accion_de_admin_no_escribe_la_relacion(self):
+        # La acción del admin solo debe proponer (mensaje), nunca crear la
+        # RelacionEntidadUnidad automáticamente.
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        self._documento(cabildo)
+        admin_user = User.objects.create_superuser("admin", password="x")
+        self.client.force_login(admin_user)
+
+        r = self.client.post(
+            "/admin/acervo/unidadclasificacion/",
+            {
+                "action": "sugerir_productor",
+                "_selected_action": [str(self.serie.pk)],
+            },
+            follow=True,
+        )
+        self.assertContains(r, "Cabildo de Santafé")
+        self.assertFalse(
+            RelacionEntidadUnidad.objects.filter(unidad=self.serie).exists()
+        )
+
+    def test_accion_de_admin_avisa_si_ya_tiene_productor(self):
+        cabildo = Entidad.objects.create(tipo="institucion", nombre="Cabildo de Santafé")
+        RelacionEntidadUnidad.objects.create(unidad=self.serie, entidad=cabildo, tipo_relacion="productor")
+        admin_user = User.objects.create_superuser("admin", password="x")
+        self.client.force_login(admin_user)
+
+        r = self.client.post(
+            "/admin/acervo/unidadclasificacion/",
+            {
+                "action": "sugerir_productor",
+                "_selected_action": [str(self.serie.pk)],
+            },
+            follow=True,
+        )
+        self.assertContains(r, "ya tiene un productor declarado")
