@@ -4,12 +4,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block titulo %}MAZUCA{% endblock %}</title>
+<title>{% block titulo %}RICORA{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
 <style>
-  .mazuca-marca { font-weight: 700; font-size: 1.15rem; text-decoration: none; }
-  .mazuca-marca small { display: block; font-weight: 400; font-size: .72rem; color: var(--pico-muted-color); }
-  header.mazuca-nav { padding-block: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+  .ricora-marca { font-weight: 700; font-size: 1.15rem; text-decoration: none; }
+  .ricora-marca small { display: block; font-weight: 400; font-size: .72rem; color: var(--pico-muted-color); }
+  header.ricora-nav { padding-block: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--pico-muted-border-color); }
   .mensaje { padding: .75rem 1rem; border-radius: var(--pico-border-radius); margin-bottom: .75rem; }
   .mensaje.success { background: #e3f9e5; color: #1b4d2e; }
   .mensaje.error { background: #fde8e8; color: #7a1f1f; }
@@ -20,10 +20,10 @@
 {% block scripts_head %}{% endblock %}
 </head>
 <body hx-boost="true">
-<header class="mazuca-nav">
+<header class="ricora-nav">
   <nav class="container">
     <ul>
-      <li><a href="{% url 'ric_inicio' %}" class="mazuca-marca">MAZUCA<small>Automatización archivística asistida por IA</small></a></li>
+      <li><a href="{% url 'ric_inicio' %}" class="ricora-marca">RICORA<small>Automatización archivística asistida por IA</small></a></li>
     </ul>
     <ul>
       <li><a href="{% url 'ric_bandeja' %}">Bandeja de validación</a></li>

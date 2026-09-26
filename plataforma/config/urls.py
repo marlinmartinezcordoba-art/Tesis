@@ -21,8 +21,8 @@ from ric.views import (
     sparql_html,
 )
 
-admin.site.site_header = "MAZUCA · Automatización archivística asistida por IA"
-admin.site.site_title = "MAZUCA"
+admin.site.site_header = "RICORA · Automatización archivística asistida por IA"
+admin.site.site_title = "RICORA"
 admin.site.index_title = "Archivo histórico"
 
 urlpatterns = [
