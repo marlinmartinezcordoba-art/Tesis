@@ -66,6 +66,7 @@
   <a href="{% url 'ric_inicio' %}" class="ricora-brand">RIC<span>ORA</span><small>Automatización archivística asistida por IA</small></a>
   <nav>
     <a href="{% url 'ric_inicio' %}" class="{% if request.resolver_match.url_name == 'ric_inicio' %}activo{% endif %}">🏠 Inicio</a>
+    <a href="{% url 'ric_subir' %}" class="{% if request.resolver_match.url_name == 'ric_subir' %}activo{% endif %}">⬆️ Subir documento</a>
     <a href="{% url 'ric_bandeja' %}" class="{% if request.resolver_match.url_name == 'ric_bandeja' %}activo{% endif %}">📋 Bandeja de validación</a>
     <a href="{% url 'ric_registros' %}" class="{% if request.resolver_match.url_name == 'ric_registros' %}activo{% endif %}">📁 Registros</a>
     <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>

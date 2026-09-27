@@ -47,24 +47,9 @@ class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
 
 
 def _ingerir(instanciacion, agente):
-    """F01/F02/F03/F04: lo que pasa automáticamente al ingerir un archivo
-    nuevo — el hash ya lo calcula Instantiation.save() solo; aquí faltan
-    el OCR, la detección de estructura y la propuesta de segmentación,
-    para que el archivista no tenga que acordarse de pedirlos aparte. Si
-    el formato no tiene OCR soportado, el archivo igual queda preservado
-    (el hash es lo que garantiza F01; lo demás son pasos aparte,
-    best-effort). La segmentación solo PROPONE: nunca separa el archivo
-    sola (ver PropuestaSegmentacion.validar)."""
-    from .estructura import detectar_y_guardar_estructura
-    from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
-    from .segmentacion import detectar_y_proponer_segmentos
+    from .ingesta import ingerir
 
-    try:
-        extraer_texto_de_instanciacion(instanciacion, agente=agente)
-    except FormatoNoSoportado:
-        return
-    detectar_y_guardar_estructura(instanciacion)
-    detectar_y_proponer_segmentos(instanciacion)
+    ingerir(instanciacion, agente)
 
 
 ENTIDADES = [
@@ -205,21 +190,19 @@ class InstantiationAdmin(admin.ModelAdmin):
 
     @admin.action(description="Extraer texto (OCR por página)")
     def extraer_texto(self, request, queryset):
-        from .estructura import detectar_y_guardar_estructura
-        from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
-        from .segmentacion import detectar_y_proponer_segmentos
+        from .ingesta import ingerir
 
         for inst in queryset:
-            try:
-                _, detalle = extraer_texto_de_instanciacion(inst, agente=request.user)
-            except FormatoNoSoportado as e:
-                self.message_user(request, f"{inst}: {e}", level="warning")
+            resultado = ingerir(inst, agente=request.user)
+            if resultado["formato_no_soportado"]:
+                self.message_user(request, f"{inst}: formato no soportado para extraer texto.", level="warning")
                 continue
-            detectar_y_guardar_estructura(inst)
-            detectar_y_proponer_segmentos(inst)
-            confianza = detalle["confianza_ocr"]
-            aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
-            self.message_user(request, f"{inst}: {detalle['paginas']} página(s), {detalle['caracteres']} caracteres{aviso}.")
+            aviso = f" (confianza OCR {resultado['confianza_ocr']}%)" if resultado["confianza_ocr"] is not None else ""
+            self.message_user(
+                request,
+                f"{inst}: {resultado['paginas']} página(s), {resultado['caracteres']} caracteres{aviso}, "
+                f"{resultado['componentes']} componente(s) estructural(es).",
+            )
 
     @admin.action(description="Detectar estructura documental (F03)")
     def detectar_estructura_accion(self, request, queryset):

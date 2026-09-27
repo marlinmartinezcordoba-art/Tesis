@@ -30,7 +30,7 @@
   .ricora-item .titulo { font-size: .88rem; font-weight: 600; margin: .3rem 0 0; }
   .ricora-item .origen { font-size: .78rem; color: #8a94a3; }
 
-  .ricora-atajos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; }
+  .ricora-atajos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1.5rem; }
   @media (max-width: 720px) { .ricora-atajos { grid-template-columns: 1fr; } }
   .ricora-atajo { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; text-decoration: none; color: inherit; display: block; }
   .ricora-atajo h3 { margin: 0 0 .25rem; font-size: .92rem; }
@@ -92,8 +92,9 @@
 </div>
 
 <div class="ricora-atajos">
+  <a class="ricora-atajo" href="{% url 'ric_subir' %}"><h3>⬆️ Subir documento</h3><p>Sube un archivo: hash, OCR y estructura se calculan solos.</p></a>
   <a class="ricora-atajo" href="{% url 'ric_busqueda' %}"><h3>🔎 Búsqueda</h3><p>Texto extraído y nombres de entidades del grafo.</p></a>
   <a class="ricora-atajo" href="{% url 'ric_sparql' %}"><h3>🕸️ SPARQL</h3><p>Consultas avanzadas sobre el grafo ya validado.</p></a>
-  <a class="ricora-atajo" href="/admin/"><h3>⚙️ Panel técnico</h3><p>Cargar documentos nuevos, ejecutar OCR y proponer relaciones de IA.</p></a>
+  <a class="ricora-atajo" href="/admin/"><h3>⚙️ Panel técnico</h3><p>Para tareas avanzadas: proponer relaciones de IA, revisar auditoría.</p></a>
 </div>
 {% endblock %}

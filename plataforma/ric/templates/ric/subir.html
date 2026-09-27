@@ -1,0 +1,79 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Subir documento · RICORA{% endblock %}
+{% block estilos_extra %}
+  .subir-ayuda { color: #6b7280; font-size: .88rem; margin: -.4rem 0 1.2rem; }
+  .subir-opcion { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 720px) { .subir-opcion { grid-template-columns: 1fr; } }
+  .subir-o { display: flex; align-items: center; gap: .5rem; color: #8a94a3; font-size: .8rem; margin: .3rem 0; }
+  .subir-o hr { flex: 1; }
+
+  .resultado { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: .9rem; }
+  .resultado h4 { margin: 0 0 .5rem; font-size: 1rem; }
+  .resultado dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin: 0 0 .7rem; font-size: .88rem; }
+  .resultado dt { color: #6b7280; }
+  .resultado dd { margin: 0; }
+  .resultado .aviso { font-size: .85rem; padding: .5rem .7rem; border-radius: 8px; margin-top: .4rem; }
+  .resultado .aviso.ok { background: #e3f9e5; color: #1b4d2e; }
+  .resultado .aviso.info { background: #eaf1fb; color: #1f3a5f; }
+  .resultado .aviso.warning { background: #fff2df; color: #8a6100; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Subir un documento</h1>
+  <p>Sube uno o varios archivos (PDF, Word, imagen escaneada o texto). RICORA calcula su huella
+  digital, extrae el texto, reconoce su estructura y avisa si parece traer más de un documento
+  junto — todo automático, sin pasos aparte.</p>
+</hgroup>
+
+{% if errores %}
+{% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <label for="id_record_id">¿A qué expediente pertenece?</label>
+  <select name="record_id" id="id_record_id">
+    <option value="">— Elegir uno ya existente —</option>
+    {% for r in registros %}
+    <option value="{{ r.pk }}">{{ r.nombre }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="subir-o"><hr><span>o</span><hr></div>
+
+  <label for="id_nombre_nuevo">Escriba el nombre de un expediente nuevo</label>
+  <input type="text" name="nombre_nuevo" id="id_nombre_nuevo" placeholder="Ej. Acta de reunión — Comité de Archivo, enero 2025">
+
+  <label for="id_archivos" style="margin-top: 1rem; display: block;">Archivo(s)</label>
+  <input type="file" name="archivos" id="id_archivos" multiple required>
+
+  <button type="submit">Subir</button>
+</form>
+
+{% if resultados %}
+<h3 style="margin-top: 2rem;">Resultado</h3>
+{% for fila in resultados %}
+<div class="resultado">
+  <h4>📄 {{ fila.instanciacion.nombre }}</h4>
+  <dl>
+    <dt>Huella digital (hash)</dt><dd>{{ fila.instanciacion.sha256|truncatechars:24 }}</dd>
+    {% if fila.detalle.texto_extraido %}
+    <dt>Texto extraído</dt><dd>{{ fila.detalle.paginas }} página(s), {{ fila.detalle.caracteres }} caracteres</dd>
+    {% if fila.detalle.confianza_ocr %}<dt>Confianza del OCR</dt><dd>{{ fila.detalle.confianza_ocr }}%</dd>{% endif %}
+    <dt>Estructura detectada</dt><dd>{{ fila.detalle.componentes }} elemento(s) (encabezado, fechas, firmas...)</dd>
+    {% endif %}
+  </dl>
+
+  {% if fila.detalle.formato_no_soportado %}
+  <div class="aviso warning">El archivo quedó guardado de forma segura (con su huella digital), pero RICORA no sabe extraer texto de este formato.</div>
+  {% elif fila.detalle.segmentos_propuestos %}
+  <div class="aviso info">Este archivo parece traer más de un documento junto. Revísalo en el panel técnico, en "Propuestas de segmentación (F04)", para decidir si se separan.</div>
+  {% else %}
+  <div class="aviso ok">Subido y procesado correctamente.</div>
+  {% endif %}
+
+  <p style="margin: .7rem 0 0;"><a href="{% url 'ric_grafo' 'record' fila.instanciacion.record_resource_id %}">Ver este documento en el grafo →</a></p>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

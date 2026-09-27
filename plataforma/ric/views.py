@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import auditoria, busqueda, grafo, metricas, reglas, rdf, sparql, tipos
-from .models import PropuestaRiC, Record, RelacionRiC
+from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
 # para las vistas que reciben el tipo de entidad como texto en la URL.
@@ -215,3 +215,42 @@ def registros_html(request):
     """Lista de Record ya cargados, con acceso directo a su grafo y su RDF."""
     registros = Record.objects.select_related("record_set").order_by("nombre")
     return render(request, "ric/registros.html", {"registros": registros})
+
+
+@login_required
+def subir_documento(request):
+    """F01: pantalla simple para subir uno o varios documentos, en lenguaje
+    llano, sin pasar por el panel técnico de Django. El hash (F01), el OCR
+    (F02), la estructura (F03) y la propuesta de segmentación (F04) se
+    calculan solos — ver ric.ingesta.ingerir."""
+    errores = []
+    resultados = []
+    record = None
+
+    if request.method == "POST":
+        from .ingesta import ingerir
+
+        record_id = request.POST.get("record_id", "").strip()
+        nombre_nuevo = request.POST.get("nombre_nuevo", "").strip()
+        archivos = request.FILES.getlist("archivos")
+
+        if not record_id and not nombre_nuevo:
+            errores.append("Indique a qué expediente pertenece el documento, o escriba el nombre de uno nuevo.")
+        if not archivos:
+            errores.append("Seleccione al menos un archivo para subir.")
+
+        if not errores:
+            record = get_object_or_404(Record, pk=record_id) if record_id else Record.objects.create(nombre=nombre_nuevo)
+            for archivo in archivos:
+                instanciacion = Instantiation.objects.create(
+                    nombre=archivo.name, record_resource=record, archivo=archivo,
+                )
+                detalle = ingerir(instanciacion, agente=request.user)
+                resultados.append({"instanciacion": instanciacion, "detalle": detalle})
+
+    return render(request, "ric/subir.html", {
+        "registros": Record.objects.order_by("nombre"),
+        "errores": errores,
+        "resultados": resultados,
+        "record": record,
+    })

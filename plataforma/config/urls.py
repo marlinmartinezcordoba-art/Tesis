@@ -19,6 +19,7 @@ from ric.views import (
     registros_html,
     sparql_endpoint,
     sparql_html,
+    subir_documento,
 )
 
 admin.site.site_header = "RICORA · Automatización archivística asistida por IA"
@@ -32,6 +33,7 @@ urlpatterns = [
     path("documentos/<int:pk>/exportar/dublin-core.xml", exportar_dublin_core, name="exportar_dublin_core"),
     path("documentos/<int:pk>/exportar/premis.xml", exportar_premis, name="exportar_premis"),
     path("ric/", inicio, name="ric_inicio"),
+    path("ric/subir/", subir_documento, name="ric_subir"),
     path("ric/registros/", registros_html, name="ric_registros"),
     path("ric/bandeja/", bandeja_validacion, name="ric_bandeja"),
     path("ric/bandeja/<int:pk>/decidir/", decidir_propuesta, name="ric_decidir_propuesta"),
