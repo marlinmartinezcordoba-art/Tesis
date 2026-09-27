@@ -154,8 +154,8 @@ class Instantiation(Thing):
     caracteristicas_fisicas = models.TextField(blank=True, help_text="RiC-A31 Physical Characteristics Note.")
 
     class Meta:
-        verbose_name = "instanciación (Instantiation)"
-        verbose_name_plural = "instanciaciones (Instantiation)"
+        verbose_name = "ingesta de un documento (F01/F02) — Instantiation"
+        verbose_name_plural = "ingesta de documentos (F01/F02) — Instantiation"
 
     def calcular_y_guardar_hash(self):
         import hashlib

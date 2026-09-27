@@ -108,6 +108,9 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
         messages.info(
             request,
             format_html(
+                'Para ingerir documentos (F01): "Añadir registro (Record)" y suba los archivos '
+                'en "Instanciaciones" dentro del mismo formulario — el hash, el OCR (F02) y la '
+                'estructura (F03) se calculan solos. '
                 'Buscar en el texto extraído y en los nombres de entidades: <a href="{}">búsqueda</a>. '
                 'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>. '
                 'Métricas del sistema: <a href="{}">laboratorio de evaluación</a>. '
@@ -183,6 +186,16 @@ class InstantiationAdmin(admin.ModelAdmin):
     inlines = [PaginaTextoInline, ComponenteEstructuralInline]
 
     actions = ["extraer_texto", "detectar_estructura_accion"]
+
+    def changelist_view(self, request, extra_context=None):
+        messages.info(
+            request,
+            "Para subir (ingerir) un documento nuevo, use \"Añadir\" arriba a la derecha. "
+            "Al guardar, se ejecutan solos: F01 (hash del original), F02 (OCR por página), "
+            "F03 (estructura: encabezado, título, campos, fechas, firmas...) y F04 (si detecta "
+            "más de un documento en el mismo archivo, queda como propuesta de segmentación).",
+        )
+        return super().changelist_view(request, extra_context)
 
     def save_model(self, request, obj, form, change):
         es_nueva = obj.pk is None
