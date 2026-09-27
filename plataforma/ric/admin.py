@@ -6,6 +6,7 @@ from django.utils.html import format_html
 from .auditoria import MuestraRiC
 from .models import (
     Activity,
+    ComponenteEstructural,
     CorporateBody,
     Date,
     Evidencia,
@@ -45,17 +46,20 @@ class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
 
 
 def _ingerir(instanciacion, agente):
-    """F01/F02: lo que pasa automáticamente al ingerir un archivo nuevo —
-    el hash ya lo calcula Instantiation.save() solo; aquí falta el OCR,
-    para que el archivista no tenga que acordarse de pedirlo aparte. Si el
-    formato no tiene OCR soportado, el archivo igual queda preservado (el
-    hash es lo que garantiza F01; el texto es un paso aparte, best-effort)."""
+    """F01/F02/F03: lo que pasa automáticamente al ingerir un archivo nuevo
+    — el hash ya lo calcula Instantiation.save() solo; aquí faltan el OCR
+    y la detección de estructura, para que el archivista no tenga que
+    acordarse de pedirlos aparte. Si el formato no tiene OCR soportado, el
+    archivo igual queda preservado (el hash es lo que garantiza F01; el
+    texto y la estructura son pasos aparte, best-effort)."""
+    from .estructura import detectar_y_guardar_estructura
     from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
 
     try:
         extraer_texto_de_instanciacion(instanciacion, agente=agente)
     except FormatoNoSoportado:
-        pass
+        return
+    detectar_y_guardar_estructura(instanciacion)
 
 
 ENTIDADES = [
@@ -156,13 +160,24 @@ class PaginaTextoInline(admin.TabularInline):
         return False
 
 
+class ComponenteEstructuralInline(admin.TabularInline):
+    model = ComponenteEstructural
+    extra = 0
+    fields = ("pagina", "orden", "tipo", "etiqueta", "texto", "confianza", "regla")
+    readonly_fields = ("pagina", "orden", "tipo", "etiqueta", "texto", "confianza", "regla")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Instantiation)
 class InstantiationAdmin(admin.ModelAdmin):
     list_display = ("nombre", "record_resource", "sha256", "fecha_registro")
     readonly_fields = ("sha256",)
-    inlines = [PaginaTextoInline]
+    inlines = [PaginaTextoInline, ComponenteEstructuralInline]
 
-    actions = ["extraer_texto"]
+    actions = ["extraer_texto", "detectar_estructura_accion"]
 
     def save_model(self, request, obj, form, change):
         es_nueva = obj.pk is None
@@ -172,6 +187,7 @@ class InstantiationAdmin(admin.ModelAdmin):
 
     @admin.action(description="Extraer texto (OCR por página)")
     def extraer_texto(self, request, queryset):
+        from .estructura import detectar_y_guardar_estructura
         from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
 
         for inst in queryset:
@@ -180,9 +196,18 @@ class InstantiationAdmin(admin.ModelAdmin):
             except FormatoNoSoportado as e:
                 self.message_user(request, f"{inst}: {e}", level="warning")
                 continue
+            detectar_y_guardar_estructura(inst)
             confianza = detalle["confianza_ocr"]
             aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
             self.message_user(request, f"{inst}: {detalle['paginas']} página(s), {detalle['caracteres']} caracteres{aviso}.")
+
+    @admin.action(description="Detectar estructura documental (F03)")
+    def detectar_estructura_accion(self, request, queryset):
+        from .estructura import detectar_y_guardar_estructura
+
+        for inst in queryset:
+            componentes = detectar_y_guardar_estructura(inst)
+            self.message_user(request, f"{inst}: {len(componentes)} componente(s) estructural(es) detectado(s).")
 
 
 @admin.register(Evidencia)

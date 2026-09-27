@@ -209,6 +209,48 @@ class PaginaTexto(models.Model):
         return f"{self.instanciacion} · p.{self.numero}"
 
 
+class ComponenteEstructural(models.Model):
+    """F03 (Comprensión documental): un componente de la estructura del
+    documento (encabezado, título, campo tipo PARA/DE/ASUNTO, fecha,
+    sección, artículo, párrafo, firma o tabla) detectado automáticamente
+    sobre el texto ya extraído (F02).
+
+    No es una entidad de RiC-CM: es una señal de comprensión documental que
+    alimenta la segmentación (F04) y las propuestas de entidades/relaciones
+    (F05) — es heurística basada en reglas, no un modelo de IA, por eso
+    cada componente guarda qué regla lo detectó (trazabilidad, sección 7
+    de los lineamientos del sistema)."""
+
+    class Tipo(models.TextChoices):
+        ENCABEZADO = "encabezado", "Encabezado institucional"
+        TITULO = "titulo", "Título / identificador del documento"
+        CAMPO = "campo", "Campo (PARA/DE/ASUNTO/FECHA/LUGAR...)"
+        FECHA = "fecha", "Fecha"
+        SECCION = "seccion", "Encabezado de sección"
+        ARTICULO = "articulo", "Artículo"
+        PARRAFO = "parrafo", "Párrafo"
+        FIRMA = "firma", "Firma"
+        TABLA = "tabla", "Tabla"
+
+    instanciacion = models.ForeignKey(Instantiation, on_delete=models.CASCADE, related_name="componentes")
+    pagina = models.PositiveIntegerField()
+    orden = models.PositiveIntegerField(help_text="Posición del componente dentro de la página, en orden de lectura.")
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    etiqueta = models.CharField(max_length=50, blank=True, help_text="Para tipo=campo: PARA, DE, ASUNTO...; para tipo=articulo: 'ARTÍCULO 1'.")
+    texto = models.TextField(blank=True)
+    datos = models.JSONField(null=True, blank=True, help_text="Para tipo=tabla: filas/columnas; para tipo=fecha: el texto de la fecha reconocida.")
+    confianza = models.FloatField(help_text="Heurística basada en reglas: más alta cuanto más específica la regla, más baja si es por descarte.")
+    regla = models.CharField(max_length=50, help_text="Nombre de la regla que detectó este componente.")
+
+    class Meta:
+        ordering = ["pagina", "orden"]
+        verbose_name = "componente estructural (F03)"
+        verbose_name_plural = "componentes estructurales (F03)"
+
+    def __str__(self):
+        return f"{self.instanciacion} p.{self.pagina} · {self.get_tipo_display()}: {self.texto[:40]}"
+
+
 # ---------------------------------------------------------------------------
 # Agent: RiC-E07, con Person/Group/Family/CorporateBody/Position/Mechanism
 # ---------------------------------------------------------------------------

@@ -10,3 +10,4 @@ dj-database-url>=2.3
 whitenoise>=6.7
 rdflib>=7
 pyoxigraph>=0.4
+python-docx>=1.1

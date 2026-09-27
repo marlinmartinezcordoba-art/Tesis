@@ -44,6 +44,8 @@ class IngestaAutomaticaAdminTest(TestCase):
             "tipo_representacion": "", "caracteristicas_fisicas": "",
             "paginas-TOTAL_FORMS": "0", "paginas-INITIAL_FORMS": "0",
             "paginas-MIN_NUM_FORMS": "0", "paginas-MAX_NUM_FORMS": "1000",
+            "componentes-TOTAL_FORMS": "0", "componentes-INITIAL_FORMS": "0",
+            "componentes-MIN_NUM_FORMS": "0", "componentes-MAX_NUM_FORMS": "1000",
         })
         self.assertEqual(respuesta.status_code, 302, respuesta.context["adminform"].errors if respuesta.status_code != 302 else None)
         inst = Instantiation.objects.get(record_resource=self.record)
@@ -61,6 +63,8 @@ class IngestaAutomaticaAdminTest(TestCase):
             "tipo_representacion": "", "caracteristicas_fisicas": "",
             "paginas-TOTAL_FORMS": "0", "paginas-INITIAL_FORMS": "0",
             "paginas-MIN_NUM_FORMS": "0", "paginas-MAX_NUM_FORMS": "1000",
+            "componentes-TOTAL_FORMS": "0", "componentes-INITIAL_FORMS": "0",
+            "componentes-MIN_NUM_FORMS": "0", "componentes-MAX_NUM_FORMS": "1000",
         })
         self.assertEqual(respuesta.status_code, 302)
         inst = Instantiation.objects.get(record_resource=self.record)

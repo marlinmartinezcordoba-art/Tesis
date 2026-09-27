@@ -20,6 +20,7 @@ fragmento") puede señalar la página exacta, no solo el documento entero.
 
 from pathlib import Path
 
+import docx
 import pytesseract
 from PIL import Image, ImageSequence
 from pypdf import PdfReader
@@ -29,6 +30,7 @@ from .models import EventoPreservacion, registrar_evento
 IDIOMA_OCR = "spa"
 EXT_TEXTO = {".txt", ".csv", ".xml", ".md"}
 EXT_IMAGEN = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
+EXT_DOCX = {".docx"}
 MIN_CARACTERES_PAGINA = 20  # por debajo, la página se considera escaneada
 
 
@@ -112,10 +114,22 @@ def paginas_de_texto_plano(ruta):
     return [{"texto": leer_texto(ruta), "confianzas": [], "ocr": False, "cajas": []}]
 
 
+def paginas_de_docx(ruta):
+    """Un .docx como una sola "página": Word no tiene paginación real sin
+    renderizar el documento (depende del visor), así que se trata todo su
+    texto de párrafos como un único bloque. Sin coordenadas: es un
+    documento ya digital, no pasa por OCR (F03 extrae sus tablas reales
+    por separado, ver `ric.estructura`)."""
+    documento = docx.Document(str(ruta))
+    texto = "\n".join(p.text for p in documento.paragraphs if p.text.strip())
+    return [{"texto": texto, "confianzas": [], "ocr": False, "cajas": []}]
+
+
 def extraer_paginas(ruta):
     """Despacha por extensión y devuelve la lista de páginas (ver
-    `paginas_de_pdf`/`paginas_de_imagen`/`paginas_de_texto_plano`).
-    Lanza `FormatoNoSoportado` si la extensión no se reconoce."""
+    `paginas_de_pdf`/`paginas_de_imagen`/`paginas_de_texto_plano`/
+    `paginas_de_docx`). Lanza `FormatoNoSoportado` si la extensión no se
+    reconoce."""
     ruta = Path(ruta)
     extension = ruta.suffix.lower()
     if extension in EXT_TEXTO:
@@ -124,6 +138,8 @@ def extraer_paginas(ruta):
         return paginas_de_pdf(ruta)
     if extension in EXT_IMAGEN:
         return paginas_de_imagen(ruta)
+    if extension in EXT_DOCX:
+        return paginas_de_docx(ruta)
     raise FormatoNoSoportado(f"No se puede extraer texto de archivos {extension}")
 
 
