@@ -624,6 +624,89 @@ class PropuestaRiC(models.Model):
             )
 
 
+class PropuestaSegmentacion(models.Model):
+    """F04 (Segmentación): propuesta de que `instanciacion` contiene, además
+    de su documento principal, otro documento distinto a partir de cierta
+    página — detectada por repetición de un título (F03) dentro del mismo
+    archivo (por ejemplo, varios oficios escaneados juntos en un solo PDF).
+
+    Es heurística basada en reglas, igual que F03, no un modelo de IA —
+    pero el principio es el mismo que en `PropuestaRiC`: 'la IA propone, la
+    persona decide'. Nunca se separa el archivo solo: `validar()` es el
+    único camino para crear el Record/Instantiation del segmento."""
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente de validación"
+        ACEPTADA = "aceptada", "Aceptada"
+        RECHAZADA = "rechazada", "Rechazada"
+
+    instanciacion = models.ForeignKey(
+        Instantiation, on_delete=models.CASCADE, related_name="propuestas_segmentacion"
+    )
+    pagina_inicio = models.PositiveIntegerField()
+    pagina_fin = models.PositiveIntegerField()
+    titulo_detectado = models.CharField(max_length=500, blank=True)
+    confianza = models.FloatField()
+    regla = models.CharField(max_length=50)
+
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
+    motivo_decision = models.TextField(blank=True)
+    validado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="segmentaciones_validadas"
+    )
+    fecha_validacion = models.DateTimeField(null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    record_creado = models.ForeignKey(
+        "Record", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="El Record creado al aceptar esta propuesta (vacío si está pendiente o fue rechazada).",
+    )
+    instanciacion_creada = models.ForeignKey(
+        Instantiation, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["instanciacion", "pagina_inicio"]
+        verbose_name = "propuesta de segmentación (F04)"
+        verbose_name_plural = "propuestas de segmentación (F04)"
+
+    def __str__(self):
+        return f"{self.instanciacion} p.{self.pagina_inicio}-{self.pagina_fin}: {self.titulo_detectado} ({self.estado})"
+
+    def validar(self, usuario, aceptar, motivo=""):
+        from django.utils import timezone
+
+        if self.estado != self.Estado.PENDIENTE:
+            raise ValueError("Esta propuesta ya fue validada.")
+        if not usuario or not usuario.is_authenticated:
+            raise PermissionError("Solo una persona autenticada puede validar.")
+        if not aceptar and not motivo:
+            raise ValueError("Indique el motivo del rechazo.")
+
+        with transaction.atomic():
+            if aceptar:
+                from .segmentacion import materializar_segmento
+
+                self.record_creado, self.instanciacion_creada = materializar_segmento(self)
+                self.estado = self.Estado.ACEPTADA
+            else:
+                self.estado = self.Estado.RECHAZADA
+
+            self.motivo_decision = motivo
+            self.validado_por = usuario
+            self.fecha_validacion = timezone.now()
+            self.save()
+
+            registrar_evento(
+                self.instanciacion, EventoRiC.Tipo.SEGMENTACION, agente=usuario,
+                detalle={
+                    "propuesta": self.pk, "pagina_inicio": self.pagina_inicio, "pagina_fin": self.pagina_fin,
+                    "titulo": self.titulo_detectado, "aceptada": aceptar, "motivo": motivo,
+                },
+            )
+        return self
+
+
 class EventoRiC(models.Model):
     """Bitácora de preservación del núcleo `ric`, mismo patrón que
     `acervo.EventoPreservacion` (estilo PREMIS: cada evento se encadena con
@@ -643,6 +726,7 @@ class EventoRiC(models.Model):
         EXTRACCION = "extraccion_texto", "Extracción de texto (OCR)"
         PROPUESTA_IA = "propuesta_ia", "Propuesta generada por IA"
         VALIDACION = "validacion_humana", "Validación humana"
+        SEGMENTACION = "segmentacion", "Segmentación en documento nuevo (F04)"
 
     instanciacion = models.ForeignKey(
         Instantiation, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos"

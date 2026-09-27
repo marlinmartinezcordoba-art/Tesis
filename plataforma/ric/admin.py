@@ -22,6 +22,7 @@ from .models import (
     Place,
     Position,
     PropuestaRiC,
+    PropuestaSegmentacion,
     Record,
     RecordPart,
     RecordSet,
@@ -46,20 +47,24 @@ class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
 
 
 def _ingerir(instanciacion, agente):
-    """F01/F02/F03: lo que pasa automáticamente al ingerir un archivo nuevo
-    — el hash ya lo calcula Instantiation.save() solo; aquí faltan el OCR
-    y la detección de estructura, para que el archivista no tenga que
-    acordarse de pedirlos aparte. Si el formato no tiene OCR soportado, el
-    archivo igual queda preservado (el hash es lo que garantiza F01; el
-    texto y la estructura son pasos aparte, best-effort)."""
+    """F01/F02/F03/F04: lo que pasa automáticamente al ingerir un archivo
+    nuevo — el hash ya lo calcula Instantiation.save() solo; aquí faltan
+    el OCR, la detección de estructura y la propuesta de segmentación,
+    para que el archivista no tenga que acordarse de pedirlos aparte. Si
+    el formato no tiene OCR soportado, el archivo igual queda preservado
+    (el hash es lo que garantiza F01; lo demás son pasos aparte,
+    best-effort). La segmentación solo PROPONE: nunca separa el archivo
+    sola (ver PropuestaSegmentacion.validar)."""
     from .estructura import detectar_y_guardar_estructura
     from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
+    from .segmentacion import detectar_y_proponer_segmentos
 
     try:
         extraer_texto_de_instanciacion(instanciacion, agente=agente)
     except FormatoNoSoportado:
         return
     detectar_y_guardar_estructura(instanciacion)
+    detectar_y_proponer_segmentos(instanciacion)
 
 
 ENTIDADES = [
@@ -189,6 +194,7 @@ class InstantiationAdmin(admin.ModelAdmin):
     def extraer_texto(self, request, queryset):
         from .estructura import detectar_y_guardar_estructura
         from .extraccion import FormatoNoSoportado, extraer_texto_de_instanciacion
+        from .segmentacion import detectar_y_proponer_segmentos
 
         for inst in queryset:
             try:
@@ -197,6 +203,7 @@ class InstantiationAdmin(admin.ModelAdmin):
                 self.message_user(request, f"{inst}: {e}", level="warning")
                 continue
             detectar_y_guardar_estructura(inst)
+            detectar_y_proponer_segmentos(inst)
             confianza = detalle["confianza_ocr"]
             aviso = f" (confianza OCR {confianza}%)" if confianza is not None else ""
             self.message_user(request, f"{inst}: {detalle['paginas']} página(s), {detalle['caracteres']} caracteres{aviso}.")
@@ -250,6 +257,41 @@ class PropuestaRiCAdmin(admin.ModelAdmin):
                 fallidas += 1
                 self.message_user(request, f"{p}: {e}", level="warning")
         self.message_user(request, f"{aceptadas} propuesta(s) aceptada(s), registradas en el grafo RiC.")
+
+
+@admin.register(PropuestaSegmentacion)
+class PropuestaSegmentacionAdmin(admin.ModelAdmin):
+    """F04: revisar y validar las propuestas de segmentación — nunca se
+    separa un archivo automáticamente, solo al aceptar aquí."""
+
+    list_display = ("instanciacion", "pagina_inicio", "pagina_fin", "titulo_detectado", "confianza", "estado")
+    list_filter = ("estado",)
+    readonly_fields = [f.name for f in PropuestaSegmentacion._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    actions = ["aceptar", "rechazar"]
+
+    @admin.action(description="Aceptar: crear el documento segmentado")
+    def aceptar(self, request, queryset):
+        aceptadas, fallidas = 0, 0
+        for p in queryset.filter(estado=PropuestaSegmentacion.Estado.PENDIENTE):
+            try:
+                p.validar(request.user, aceptar=True)
+                aceptadas += 1
+            except Exception as e:
+                fallidas += 1
+                self.message_user(request, f"{p}: {e}", level="warning")
+        self.message_user(request, f"{aceptadas} segmentación(es) aceptada(s), documento(s) nuevo(s) creado(s).")
+
+    @admin.action(description="Rechazar: el archivo sigue siendo un solo documento")
+    def rechazar(self, request, queryset):
+        rechazadas = 0
+        for p in queryset.filter(estado=PropuestaSegmentacion.Estado.PENDIENTE):
+            p.validar(request.user, aceptar=False, motivo="Rechazada desde el panel de administración.")
+            rechazadas += 1
+        self.message_user(request, f"{rechazadas} segmentación(es) rechazada(s).")
 
 
 @admin.register(EventoRiC)
