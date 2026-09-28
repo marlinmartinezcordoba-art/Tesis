@@ -5,6 +5,7 @@ mostrar simultáneamente..."). Antes de esto, la única forma de validar una
 PropuestaRiC era el admin de Django, que no reúne las cinco cosas a la vez.
 """
 
+import datetime
 from functools import wraps
 from pathlib import Path
 
@@ -246,17 +247,95 @@ def evaluacion_datos(request):
     return JsonResponse({"metricas": metricas.calcular_metricas()})
 
 
+_COLORES_DISTRIBUCION = ["#c08a3e", "#2f7d4f", "#a9660a", "#7046d9", "#c0392b", "#1f6f8b"]
+
+
+def _distribucion_entidades():
+    """Cuántas entidades de cada gran tipo RiC-CM existen ya guardadas —
+    datos reales, para el donut de "tipos de entidad" del inicio.
+
+    Cuenta cada tabla concreta de más alto nivel (Agent, no sus subtipos
+    por separado): con herencia multitabla, `Group.objects.count()` YA
+    incluye cada `Family`/`CorporateBody` (tienen fila también en la tabla
+    de Group), así que sumar Person+Group+Family+CorporateBody+... contaría
+    cada agente varias veces. `Agent.objects.count()` es exacto: cada
+    agente, sin importar su subtipo, tiene exactamente una fila ahí."""
+    from .models import Activity, Agent, Date, Place
+
+    filas = [
+        {"tipo": "Record", "total": Record.objects.count()},
+        {"tipo": "Agent", "total": Agent.objects.count()},
+        {"tipo": "Activity", "total": Activity.objects.count()},
+        {"tipo": "Instantiation", "total": Instantiation.objects.count()},
+        {"tipo": "Date", "total": Date.objects.count()},
+        {"tipo": "Place", "total": Place.objects.count()},
+    ]
+    for fila, color in zip(filas, _COLORES_DISTRIBUCION):
+        fila["color"] = color
+    return filas
+
+
+def _gradiente_conico(distribucion):
+    """'color1 0% 40%, color2 40% 70%, ...' para dibujar el donut con
+    conic-gradient — vacío (gris parejo) si todavía no hay ninguna entidad."""
+    total = sum(f["total"] for f in distribucion)
+    if not total:
+        return "#e6e3dc 0% 100%"
+    partes = []
+    acumulado = 0
+    for f in distribucion:
+        if not f["total"]:
+            continue
+        inicio = acumulado / total * 100
+        acumulado += f["total"]
+        partes.append(f"{f['color']} {inicio:.2f}% {acumulado / total * 100:.2f}%")
+    return ", ".join(partes)
+
+
+def _actividad_ultimos_dias(dias=14):
+    """Documentos ingeridos por día en los últimos `dias` días — datos
+    reales de Instantiation.fecha_registro, nunca simulados. Devuelve una
+    lista de {"etiqueta", "total", "porcentaje"} lista para dibujar barras."""
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+    from django.utils import timezone
+
+    hoy = timezone.localdate()
+    desde = hoy - datetime.timedelta(days=dias - 1)
+    conteos = dict(
+        Instantiation.objects.filter(fecha_registro__date__gte=desde)
+        .annotate(dia=TruncDate("fecha_registro"))
+        .values("dia")
+        .annotate(total=Count("pk"))
+        .values_list("dia", "total")
+    )
+    serie = []
+    for i in range(dias):
+        dia = desde + datetime.timedelta(days=i)
+        serie.append({"etiqueta": dia.strftime("%d/%m"), "total": conteos.get(dia, 0)})
+    maximo = max((d["total"] for d in serie), default=0) or 1
+    for d in serie:
+        d["porcentaje"] = round(d["total"] / maximo * 100)
+    return serie
+
+
 @login_required
 def inicio(request):
     """Panel de inicio para uso diario: un punto de entrada en español
     sencillo, con las tareas más comunes a la vista — en vez de dejar al
     archivista en el admin de Django, pensado para quien administra el
-    sistema, no para el uso diario."""
+    sistema, no para el uso diario. Todo lo que muestra son datos reales
+    del sistema, nunca simulados ni de ejemplo."""
+    from .models import EventoRiC
+
     propuestas_pendientes = PropuestaRiC.objects.filter(estado=PropuestaRiC.Estado.PENDIENTE)
     muestras_pendientes = auditoria.MuestraRiC.objects.filter(
         resultado=auditoria.MuestraRiC.Resultado.PENDIENTE
     ).count()
-    return render(request, "ric/inicio.html", {
+    documentos_sin_texto = Instantiation.objects.filter(paginas__isnull=True).distinct().count()
+    distribucion = _distribucion_entidades()
+
+    contexto = {
         "pendientes": propuestas_pendientes.count(),
         "total_registros": Record.objects.count(),
         "relaciones_validadas": RelacionRiC.objects.filter(
@@ -264,7 +343,25 @@ def inicio(request):
         ).count(),
         "muestras_pendientes": muestras_pendientes,
         "atencion": [_fila(p) for p in propuestas_pendientes.order_by("-confianza")[:5]],
-    })
+    }
+
+    if request.user.is_staff:
+        contexto.update({
+            "documentos_sin_texto": documentos_sin_texto,
+            "distribucion": distribucion,
+            "gradiente_distribucion": _gradiente_conico(distribucion),
+            "total_entidades": sum(f["total"] for f in distribucion),
+            "actividad_dias": _actividad_ultimos_dias(),
+            "eventos_recientes": (
+                EventoRiC.objects.select_related("instanciacion").order_by("-id")[:8]
+            ),
+            "documentos_recientes": (
+                Instantiation.objects.select_related("record_resource")
+                .order_by("-fecha_registro")[:8]
+            ),
+        })
+
+    return render(request, "ric/inicio.html", contexto)
 
 
 @login_required
