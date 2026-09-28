@@ -8,7 +8,7 @@ PropuestaRiC era el admin de Django, que no reúne las cinco cosas a la vez.
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -254,6 +254,18 @@ def subir_documento(request):
         "resultados": resultados,
         "record": record,
     })
+
+
+@login_required
+def servir_archivo(request, pk):
+    """F16: el original solo se entrega a través de esta vista, que exige
+    sesión iniciada — nunca directo por /media/. En producción (DEBUG=0)
+    Django ni siquiera expone /media/ (es un ayudante de solo-desarrollo),
+    así que antes de esta vista el archivo no tenía ninguna URL real en el
+    servidor desplegado; ahora además queda protegido por contraseña."""
+    instanciacion = get_object_or_404(Instantiation, pk=pk)
+    nombre = instanciacion.archivo.name.rsplit("/", 1)[-1]
+    return FileResponse(instanciacion.archivo.open("rb"), filename=nombre)
 
 
 @login_required

@@ -167,10 +167,18 @@ class ComponenteEstructuralInline(admin.TabularInline):
 @admin.register(Instantiation)
 class InstantiationAdmin(admin.ModelAdmin):
     list_display = ("nombre", "record_resource", "sha256", "fecha_registro")
-    readonly_fields = ("sha256",)
+    readonly_fields = ("sha256", "ver_original")
     inlines = [PaginaTextoInline, ComponenteEstructuralInline]
 
     actions = ["extraer_texto", "detectar_estructura_accion"]
+
+    @admin.display(description="Archivo original")
+    def ver_original(self, obj):
+        # F16: nunca el enlace directo a /media/ — en producción (DEBUG=0)
+        # esa URL no existe; esta pasa siempre por servir_archivo (con sesión).
+        if not obj.pk:
+            return "Guarde primero para poder verlo."
+        return format_html('<a href="{}" target="_blank">abrir ↗</a>', reverse("ric_archivo", args=[obj.pk]))
 
     def changelist_view(self, request, extra_context=None):
         messages.info(
