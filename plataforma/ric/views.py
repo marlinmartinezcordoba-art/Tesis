@@ -325,19 +325,6 @@ def servir_archivo(request, pk):
     return FileResponse(instanciacion.archivo.open("rb"), filename=nombre)
 
 
-@login_required
-def modulos_html(request):
-    """Estado de los 20 módulos de la Matriz Maestra (F01-F20), dentro de
-    la propia plataforma — para no depender de un documento aparte."""
-    from . import estado_modulos
-
-    modulos = [
-        {**m, "etiqueta": estado_modulos.ETIQUETA_ESTADO[m["estado"]]}
-        for m in estado_modulos.MODULOS
-    ]
-    return render(request, "ric/modulos.html", {"modulos": modulos, "resumen": estado_modulos.resumen()})
-
-
 @archivista_requerido
 def duplicados_html(request):
     """F10 (Desambiguación), el lado "sola, sin que nadie proponga nada

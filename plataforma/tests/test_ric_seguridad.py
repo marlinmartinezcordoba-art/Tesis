@@ -63,7 +63,7 @@ class TodasLasVistasRicExigenSesionTest(TestCase):
     def test_urls_get_sin_argumentos_redirigen_a_login(self):
         urls_get = [
             "ric_inicio", "ric_subir", "ric_registros", "ric_bandeja",
-            "ric_sparql", "ric_busqueda", "ric_evaluacion", "ric_modulos",
+            "ric_sparql", "ric_busqueda", "ric_evaluacion",
             "ric_duplicados",
         ]
         for nombre in urls_get:

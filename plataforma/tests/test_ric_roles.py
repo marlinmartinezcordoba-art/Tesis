@@ -87,7 +87,7 @@ class InvitadoDeConsultaTest(TestCase):
 
     def test_invitado_si_puede_buscar_ver_grafo_sparql_y_evaluacion(self):
         self.client.force_login(self.consulta)
-        for nombre in ("ric_inicio", "ric_registros", "ric_busqueda", "ric_sparql", "ric_evaluacion", "ric_modulos"):
+        for nombre in ("ric_inicio", "ric_registros", "ric_busqueda", "ric_sparql", "ric_evaluacion"):
             resp = self.client.get(reverse(nombre))
             self.assertEqual(resp.status_code, 200, nombre)
 
