@@ -25,7 +25,7 @@ class ProveedorFalso(ProveedorIA):
     def __init__(self, candidatos):
         self._candidatos = candidatos
 
-    def proponer(self, record, texto):
+    def proponer(self, record, texto, instanciacion=None):
         return self._candidatos
 
 

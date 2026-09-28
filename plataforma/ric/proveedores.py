@@ -37,7 +37,7 @@ class ProveedorIA:
     def texto_de(self, instanciacion):
         return instanciacion.texto_extraido
 
-    def proponer(self, record, texto):
+    def proponer(self, record, texto, instanciacion=None):
         raise NotImplementedError
 
 
@@ -49,16 +49,22 @@ def generar_propuestas(record, proveedor):
     respeten el dominio/rango verificado de RiC-CM 1.0 — si no lo respetan,
     la propuesta se guarda igual (nunca se descarta en silencio) pero queda
     'rechazada' con el motivo, para que quede auditable.
+
+    Si `record` tiene más de una Instantiation (carga masiva de F01, o un
+    segmento de F04), se usa la que más texto extraído tiene — antes se
+    tomaba "la primera" sin ningún orden definido, así que con varios
+    archivos era arbitrario cuál se le pasaba a la IA.
     """
-    instanciacion = record.instanciaciones.first()
-    if instanciacion is None:
+    instanciaciones = list(record.instanciaciones.all())
+    if not instanciaciones:
         raise ErrorProveedorIA("El Record no tiene ninguna Instantiation con texto extraído.")
+    instanciacion = max(instanciaciones, key=lambda i: len(i.texto_extraido))
     texto = proveedor.texto_de(instanciacion)
     if not texto.strip():
         raise ErrorProveedorIA("La instanciación no tiene texto. Extráigalo primero.")
 
     creadas = []
-    for cand in proveedor.proponer(record, texto):
+    for cand in proveedor.proponer(record, texto, instanciacion=instanciacion):
         motivo_rechazo = ""
         try:
             modelos_dominio, modelos_rango = reglas.entidades_para(cand.relacion_id)

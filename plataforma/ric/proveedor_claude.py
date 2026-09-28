@@ -18,6 +18,8 @@ grafo RiC verificado):
 La clave de API se lee de la variable de entorno ANTHROPIC_API_KEY.
 """
 
+import base64
+from pathlib import Path
 from typing import Literal
 
 import anthropic
@@ -29,6 +31,34 @@ from .proveedores import ErrorProveedorIA as _ErrorBase
 from .proveedores import PropuestaCandidata, ProveedorIA
 
 CONFIANZA = {"alta": 0.9, "media": 0.7, "baja": 0.4}
+
+# F05 (IA multimodal): formatos con representación visual que Claude puede
+# leer directamente, para notar firmas, sellos o tablas que el OCR de F02
+# no captura bien. Solo tipos de imagen documentados como soportados por la
+# API de Claude (jpeg/png) — no se envían tif/bmp, que no lo están, aunque
+# F01 los acepte para preservación.
+_MEDIA_TYPE_IMAGEN = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+
+
+def _contenido_visual(instanciacion):
+    """Bloque de imagen o PDF con el documento real, además de su texto —
+    de ahí que el módulo se llame "multimodal". Lista vacía si no hay
+    instanciación, si su archivo no tiene representación visual (.txt,
+    .docx: ahí el texto YA es el contenido completo, no hace falta verlo)
+    o si el archivo no se puede leer."""
+    if instanciacion is None or not instanciacion.archivo:
+        return []
+    extension = Path(instanciacion.archivo.name).suffix.lower()
+    if extension != ".pdf" and extension not in _MEDIA_TYPE_IMAGEN:
+        return []
+    try:
+        with instanciacion.archivo.open("rb") as f:
+            datos = base64.standard_b64encode(f.read()).decode("ascii")
+    except (FileNotFoundError, ValueError):
+        return []
+    if extension == ".pdf":
+        return [{"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": datos}}]
+    return [{"type": "image", "source": {"type": "base64", "media_type": _MEDIA_TYPE_IMAGEN[extension], "data": datos}}]
 
 
 class ErrorProveedorIA(_ErrorBase):
@@ -104,6 +134,14 @@ lugar o actividad de la que trata.
 - El texto puede tener errores de OCR y la marca [DATO RESERVADO]; no intentes \
 reconstruir los datos reservados."""
 
+INSTRUCCIONES_VISUAL = """
+
+También puedes ver la imagen o el PDF original del documento, no solo su texto \
+extraído por OCR. Úsalo para notar lo que el OCR suele perderse: firmas, sellos, \
+membretes, tablas o zonas mal escaneadas. Si la evidencia de una propuesta viene de \
+algo que solo se ve en la imagen (una firma, por ejemplo) y no aparece igual en el \
+texto, dilo en la justificación — el archivista puede necesitar verificarlo a mano."""
+
 EJEMPLOS = """
 
 Ejemplos de decisiones ya validadas por la persona archivista en documentos parecidos \
@@ -126,22 +164,28 @@ class ProveedorClaude(ProveedorIA):
             self._cliente = anthropic.Anthropic()
         return self._cliente
 
-    def proponer(self, record, texto):
+    def proponer(self, record, texto, instanciacion=None):
         aplicables = _relaciones_aplicables(type(record))
         if not aplicables:
             return []
         instrucciones = INSTRUCCIONES.format(tabla_relaciones=_tabla_relaciones(aplicables))
 
+        contenido_visual = _contenido_visual(instanciacion)
+        if contenido_visual:
+            instrucciones += INSTRUCCIONES_VISUAL
+
         ejemplos = aprendizaje.ejemplos_similares(texto, origen_modelo=type(record))
         if ejemplos:
             instrucciones += EJEMPLOS.format(lista=aprendizaje.formatear_ejemplos(ejemplos))
+
+        contenido = [*contenido_visual, {"type": "text", "text": f"<documento>\n{texto}\n</documento>"}]
 
         try:
             respuesta = self.cliente.beta.messages.parse(
                 model=self.modelo,
                 max_tokens=16000,
                 system=instrucciones,
-                messages=[{"role": "user", "content": f"<documento>\n{texto}\n</documento>"}],
+                messages=[{"role": "user", "content": contenido}],
                 output_format=PropuestasRecordRiC,
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",

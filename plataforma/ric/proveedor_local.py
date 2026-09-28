@@ -49,7 +49,7 @@ class ProveedorLocal(ProveedorIA):
     def __init__(self):
         self.version = MODELO_SPACY
 
-    def proponer(self, record, texto):
+    def proponer(self, record, texto, instanciacion=None):
         nlp = _cargar_modelo()
         self.version = f"{MODELO_SPACY} {nlp.meta.get('version', '')}".strip()
         doc = nlp(texto[:100_000])
