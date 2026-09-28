@@ -254,3 +254,16 @@ def subir_documento(request):
         "resultados": resultados,
         "record": record,
     })
+
+
+@login_required
+def modulos_html(request):
+    """Estado de los 20 módulos de la Matriz Maestra (F01-F20), dentro de
+    la propia plataforma — para no depender de un documento aparte."""
+    from . import estado_modulos
+
+    modulos = [
+        {**m, "etiqueta": estado_modulos.ETIQUETA_ESTADO[m["estado"]]}
+        for m in estado_modulos.MODULOS
+    ]
+    return render(request, "ric/modulos.html", {"modulos": modulos, "resumen": estado_modulos.resumen()})
