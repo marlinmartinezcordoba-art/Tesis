@@ -5,6 +5,8 @@ mostrar simultáneamente..."). Antes de esto, la única forma de validar una
 PropuestaRiC era el admin de Django, que no reúne las cinco cosas a la vez.
 """
 
+from pathlib import Path
+
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -19,6 +21,11 @@ from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 # para las vistas que reciben el tipo de entidad como texto en la URL.
 _MODELOS_POR_SLUG = {nombre.lower(): nombre for nombre in tipos.RIC_ID_A_MODELO_NOMBRE.values()}
 
+# F06: formatos sobre los que tiene sentido dibujar el recuadro de posición
+# (izquierda/arriba/ancho/alto son píxeles de la imagen tal cual se subió).
+# Un PDF necesitaría renderizar la página aparte; eso no está construido.
+_EXT_IMAGEN_CON_RESALTADO = {".jpg", ".jpeg", ".png"}
+
 
 def _entidad_o_404(tipo, pk):
     nombre_modelo = _MODELOS_POR_SLUG.get(tipo)
@@ -30,18 +37,28 @@ def _entidad_o_404(tipo, pk):
 
 def _fila(propuesta):
     """Arma todo lo que la plantilla necesita para una propuesta: la info
-    de la relación verificada en RiC-CM/RiC-O, y las entidades ya existentes
-    del mismo tipo, para poder "vincular" en vez de crear un duplicado."""
+    de la relación verificada en RiC-CM/RiC-O, las entidades ya existentes
+    del mismo tipo (para poder "vincular" en vez de crear un duplicado), y
+    si la evidencia (F06) se puede mostrar resaltada sobre la imagen real
+    del documento — no solo como texto citado."""
     try:
         info = reglas.info_relacion(propuesta.relacion_id)
     except reglas.RelacionInvalida:
         info = None
     modelo = tipos.ric_id_a_modelo(propuesta.entidad_tipo)
+
+    evidencia = propuesta.evidencia
+    resaltado_visual = False
+    if evidencia and evidencia.posicion and evidencia.instanciacion and evidencia.instanciacion.archivo:
+        extension = Path(evidencia.instanciacion.archivo.name).suffix.lower()
+        resaltado_visual = extension in _EXT_IMAGEN_CON_RESALTADO
+
     return {
         "propuesta": propuesta,
         "info_relacion": info,
         "modelo_nombre": modelo.__name__ if modelo else propuesta.entidad_tipo,
         "candidatas": modelo.objects.order_by("nombre") if modelo else [],
+        "resaltado_visual": resaltado_visual,
     }
 
 

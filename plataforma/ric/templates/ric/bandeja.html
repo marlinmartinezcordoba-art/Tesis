@@ -18,6 +18,9 @@
   .decision .botones button[value="aceptar"] { --pico-primary-background: #1b7a3d; --pico-primary-border: #1b7a3d; --pico-primary-hover-background: #15602f; }
   .decision .botones button[value="vincular"] { --pico-primary-background: #1f3a5f; --pico-primary-border: #1f3a5f; --pico-primary-hover-background: #172c47; }
   .decision .botones button[value="rechazar"] { --pico-primary-background: #b3221e; --pico-primary-border: #b3221e; --pico-primary-hover-background: #8f1b17; }
+  .evidencia-visual { position: relative; display: inline-block; max-width: 100%; margin-top: .5rem; }
+  .evidencia-visual img { display: block; max-width: 100%; height: auto; border: 1px solid var(--pico-muted-border-color); }
+  .evidencia-visual .resaltado { position: absolute; border: 3px solid #c08a3e; background: rgba(224,181,102,.3); pointer-events: none; }
 {% endblock %}
 {% block contenido %}
 <hgroup>
@@ -47,7 +50,14 @@
       <span class="badge {% if p.evidencia.verificada %}ok{% else %}no{% endif %}">
         {% if p.evidencia.verificada %}✓ verificada en el texto{% else %}⚠ no encontrada en el texto{% endif %}
       </span>
+      · <a href="{% url 'ric_archivo' p.evidencia.instanciacion.pk %}" target="_blank">ver el documento original ↗</a>
       <blockquote>{{ p.evidencia.fragmento }}</blockquote>
+      {% if fila.resaltado_visual %}
+      <div class="evidencia-visual" data-x="{{ p.evidencia.posicion.izquierda }}" data-y="{{ p.evidencia.posicion.arriba }}" data-w="{{ p.evidencia.posicion.ancho }}" data-h="{{ p.evidencia.posicion.alto }}">
+        <img src="{% url 'ric_archivo' p.evidencia.instanciacion.pk %}" alt="Documento original, con la evidencia resaltada">
+        <div class="resaltado"></div>
+      </div>
+      {% endif %}
     {% else %}
       <span class="sin-datos">Sin evidencia asociada.</span>
     {% endif %}
@@ -81,4 +91,26 @@
 </article>
 {% endwith %}
 {% endfor %}
+
+{% if filas %}
+<script>
+// F06: ubica el recuadro de evidencia sobre la imagen real, a escala
+// (las coordenadas guardadas son píxeles de la imagen original; el
+// navegador la muestra más chica, hay que reescalar).
+document.querySelectorAll(".evidencia-visual").forEach(function (contenedor) {
+  var img = contenedor.querySelector("img");
+  var resaltado = contenedor.querySelector(".resaltado");
+  function posicionar() {
+    var escala = img.clientWidth / img.naturalWidth;
+    resaltado.style.left = (contenedor.dataset.x * escala) + "px";
+    resaltado.style.top = (contenedor.dataset.y * escala) + "px";
+    resaltado.style.width = (contenedor.dataset.w * escala) + "px";
+    resaltado.style.height = (contenedor.dataset.h * escala) + "px";
+  }
+  if (img.complete && img.naturalWidth) posicionar();
+  else img.addEventListener("load", posicionar);
+  window.addEventListener("resize", posicionar);
+});
+</script>
+{% endif %}
 {% endblock %}

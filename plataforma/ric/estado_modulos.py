@@ -40,9 +40,10 @@ MODULOS = [
                 "Falta: probarlo con la API real (aquí solo se pudo probar con el cliente simulado) y el resto de la auditoría.",
      "nota": "De paso se corrigió un bug real: con varios archivos en un mismo expediente, se le pasaba uno arbitrario "
              "a la IA; ahora se usa el que más texto tiene."},
-    {"codigo": "F06", "nombre": "Evidencia de propuesta", "estado": PENDIENTE,
-     "descripcion": "Cada afirmación de la IA debe enlazar al documento, página y fragmento exacto que la respalda.",
-     "detalle": "Existe (ric.evidencia). Pendiente de auditar junto con F05."},
+    {"codigo": "F06", "nombre": "Evidencia de propuesta", "estado": COMPLETO,
+     "descripcion": "Cada afirmación de la IA debe enlazar al documento, página, fragmento y posición exacta que la respalda.",
+     "detalle": "La bandeja de validación ahora enlaza al documento original y, cuando es una imagen escaneada con "
+                "coordenadas de OCR (F02), resalta la evidencia sobre la imagen real — antes solo se citaba el texto."},
     {"codigo": "F07", "nombre": "Motor RiC", "estado": PENDIENTE,
      "descripcion": "Guarda entidades, atributos, relaciones e identificadores siguiendo el modelo oficial RiC-CM 1.0, con validaciones antes de guardar.",
      "detalle": "Existe y es de lo más maduro del sistema.",
