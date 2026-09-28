@@ -106,6 +106,15 @@ def _emitir_relacion(g, relacion, base):
     origen = _emitir_entidad(g, relacion.origen, base)
     destino = _emitir_entidad(g, relacion.destino, base)
     g.add((origen, _uri_rico(info["uri_rico"]), destino))
+    # F09 (motor de reglas: dominio/rango + inversas): la matriz verificada
+    # también trae la propiedad inversa de RiC-O para cada relación (p. ej.
+    # "has creator" / "is creator of") — antes se guardaba pero nunca se
+    # usaba, así que quien consultara el RDF exportado sin razonador OWL
+    # (SPARQL directo, por ejemplo) no encontraba nada preguntando por el
+    # lado inverso. Se materializa explícitamente, con la misma evidencia
+    # ya validada.
+    for inversa in info.get("inversa_rico") or []:
+        g.add((destino, _uri_rico(inversa), origen))
 
 
 def _relaciones_validadas():

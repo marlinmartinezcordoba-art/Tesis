@@ -72,9 +72,18 @@ MODULOS = [
              "aplica a Record Set ni Record Part: otras filas dependen de ellos directamente (jerarquía "
              "documental), no solo por relación RiC, así que fusionarlos se dejó fuera para no arrastrar esa "
              "decisión por accidente."},
-    {"codigo": "F09", "nombre": "Motor de reglas", "estado": PENDIENTE,
+    {"codigo": "F09", "nombre": "Motor de reglas", "estado": COMPLETO,
      "descripcion": "Antes de guardar una relación entre dos entidades, verifica que respete las reglas oficiales de RiC-CM.",
-     "detalle": "Existe y ya se probó bastante en el camino (por ejemplo al construir F04). Pendiente una auditoría formal propia."},
+     "detalle": "Dominio/rango: sólido, verificado contra RiC-CM 1.0/RiC-O 1.1 campo por campo, y ya se probó "
+                "bastante en el camino (por ejemplo al construir F04). Inversas: la matriz ya traía la propiedad "
+                "inversa de RiC-O de cada relación (ej. \"has creator\" / \"is creator of\"), pero nunca se usaba "
+                "— quien consultara el RDF exportado o el SPARQL preguntando por el lado inverso no encontraba "
+                "nada. Ahora se incluye explícitamente en la exportación RDF y por tanto también en SPARQL.",
+     "nota": "Cardinalidad: no se agregó ninguna restricción porque RiC-CM 1.0 no impone límites de cardinalidad "
+             "a las relaciones (a diferencia de los atributos, que sí documentan si son repetibles) — son "
+             "inherentemente muchos-a-muchos, coherente con el modelo de grafo/\"descripción multidimensional\" "
+             "que ya conversamos. Construir una restricción ahí habría sido inventar una regla que la norma no "
+             "pide."},
     {"codigo": "F10", "nombre": "Desambiguación", "estado": NO_CONSTRUIDO,
      "descripcion": "Detectar sola cuando una persona o entidad nueva podría ser un duplicado de una que ya existe, y sugerirlo.",
      "detalle": "Falta construir. Hoy solo se puede vincular a mano cuando tú misma reconoces que ya existe."},

@@ -66,6 +66,63 @@ class GrafoDeEntidadTest(TestCase):
         Graph().parse(data=texto, format="turtle")
 
 
+class InversaDeLaRelacionTest(TestCase):
+    """F09 (motor de reglas: dominio/rango + inversas): la matriz verificada
+    trae la propiedad inversa de RiC-O de cada relación, pero antes de esto
+    nunca se usaba — quien consultara "¿de qué es creador este Cabildo?"
+    (el lado inverso de R027) no encontraba nada en el RDF exportado."""
+
+    def setUp(self):
+        self.record = Record.objects.create(nombre="Acta del Cabildo")
+        self.cabildo = CorporateBody.objects.create(nombre="Cabildo de Santafé")
+
+    def test_incluye_el_triple_inverso_de_una_relacion_aceptada(self):
+        RelacionRiC.objects.create(
+            relacion_id="R027", origen=self.record, destino=self.cabildo,
+            estado=RelacionRiC.Estado.ACEPTADA,
+        )
+        g = rdf.grafo_de_entidad(self.record, BASE)
+        sujeto_record = URIRef(f"{BASE}record/{self.record.pk}")
+        sujeto_cabildo = URIRef(f"{BASE}corporatebody/{self.cabildo.pk}")
+        # R027 "has creator" -> inversa "is creator of"
+        self.assertIn((sujeto_cabildo, rdf.RICO.isCreatorOf, sujeto_record), g)
+
+    def test_no_incluye_la_inversa_de_una_relacion_pendiente(self):
+        RelacionRiC.objects.create(
+            relacion_id="R027", origen=self.record, destino=self.cabildo,
+            estado=RelacionRiC.Estado.PENDIENTE,
+        )
+        g = rdf.grafo_de_entidad(self.record, BASE)
+        sujeto_record = URIRef(f"{BASE}record/{self.record.pk}")
+        sujeto_cabildo = URIRef(f"{BASE}corporatebody/{self.cabildo.pk}")
+        self.assertNotIn((sujeto_cabildo, rdf.RICO.isCreatorOf, sujeto_record), g)
+
+    def test_relacion_sin_inversa_documentada_no_falla(self):
+        # R001 "is related to" es simétrica: la matriz no le documenta una
+        # inversa distinta. No debe reventar, solo no agregar nada extra.
+        from ric.models import Person
+
+        persona = Person.objects.create(nombre="Alguien")
+        RelacionRiC.objects.create(
+            relacion_id="R001", origen=self.record, destino=persona,
+            estado=RelacionRiC.Estado.ACEPTADA,
+        )
+        g = rdf.grafo_de_entidad(self.record, BASE)
+        sujeto_record = URIRef(f"{BASE}record/{self.record.pk}")
+        sujeto_persona = URIRef(f"{BASE}person/{persona.pk}")
+        self.assertIn((sujeto_record, rdf.RICO.isRelatedTo, sujeto_persona), g)
+
+    def test_grafo_completo_tambien_incluye_la_inversa(self):
+        RelacionRiC.objects.create(
+            relacion_id="R027", origen=self.record, destino=self.cabildo,
+            estado=RelacionRiC.Estado.MODIFICADA,
+        )
+        g = rdf.grafo_completo(BASE)
+        sujeto_record = URIRef(f"{BASE}record/{self.record.pk}")
+        sujeto_cabildo = URIRef(f"{BASE}corporatebody/{self.cabildo.pk}")
+        self.assertIn((sujeto_cabildo, rdf.RICO.isCreatorOf, sujeto_record), g)
+
+
 class ExportarRdfViewTest(TestCase):
     def setUp(self):
         self.archivista = User.objects.create_user("archivista", password="x")
