@@ -44,10 +44,16 @@ MODULOS = [
      "descripcion": "Cada afirmación de la IA debe enlazar al documento, página, fragmento y posición exacta que la respalda.",
      "detalle": "La bandeja de validación ahora enlaza al documento original y, cuando es una imagen escaneada con "
                 "coordenadas de OCR (F02), resalta la evidencia sobre la imagen real — antes solo se citaba el texto."},
-    {"codigo": "F07", "nombre": "Motor RiC", "estado": PENDIENTE,
+    {"codigo": "F07", "nombre": "Motor RiC", "estado": COMPLETO,
      "descripcion": "Guarda entidades, atributos, relaciones e identificadores siguiendo el modelo oficial RiC-CM 1.0, con validaciones antes de guardar.",
-     "detalle": "Existe y es de lo más maduro del sistema.",
-     "nota": "El diagrama oficial RiC-CM que compartiste ya coincide con lo implementado."},
+     "detalle": "El diagrama oficial RiC-CM que compartiste ya coincide con lo implementado. Se auditó contra la "
+                "propia Matriz Maestra (que pide \"...IDs, versionado y validaciones\") y faltaba el versionado: "
+                "editar una entidad o relación ya existente sobrescribía sus valores anteriores sin dejar rastro. "
+                "Ahora cada vez que se guarda un cambio sobre algo que ya existía, se conserva una fotografía de "
+                "cómo estaba antes — se ve en Panel técnico → “Versiones (historial RiC)”, de solo lectura.",
+     "nota": "Si guardar la edición falla por una validación (por ejemplo una relación que rompería una regla de "
+             "RiC-CM), no queda ninguna fotografía huérfana: primero se valida, y solo si el cambio de verdad se "
+             "aplica se guarda su historial."},
     {"codigo": "F08", "nombre": "Validación archivista", "estado": PENDIENTE,
      "descripcion": "Aprobar, corregir, rechazar, vincular a algo existente, fusionar o separar — la decisión siempre la toma una persona.",
      "detalle": "Existe (bandeja de validación). Pendiente de auditar."},

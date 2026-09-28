@@ -28,6 +28,7 @@ from .models import (
     RecordSet,
     RelacionRiC,
     Rule,
+    VersionRiC,
 )
 
 class VerGrafoAdminMixin:
@@ -331,6 +332,24 @@ class RelacionRiCAdmin(admin.ModelAdmin):
             r.fecha_validacion = timezone.now()
             r.save()
         self.message_user(request, "Relaciones aceptadas.")
+
+
+@admin.register(VersionRiC)
+class VersionRiCAdmin(admin.ModelAdmin):
+    """F07 (versionado, RF-016): historial de solo lectura, una fila por
+    cada vez que una entidad o relación existente se sobrescribió."""
+
+    list_display = ("fecha", "content_type", "object_id")
+    list_filter = ("content_type",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class RevisionMuestraRiCForm(forms.ModelForm):

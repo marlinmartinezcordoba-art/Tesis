@@ -12,6 +12,7 @@ campo `tipo`: así una FK a `RecordResource` acepta indistintamente un
 Record Set, un Record o un Record Part, igual que en RiC-CM.
 """
 
+import datetime
 import hashlib
 import json
 
@@ -41,6 +42,19 @@ class Thing(models.Model):
 
     def __str__(self):
         return self.nombre or self.identificador or f"{self.__class__.__name__} #{self.pk}"
+
+    def save(self, *args, **kwargs):
+        # F07 (versionado, RF-016): antes de sobrescribir una entidad que
+        # ya existía, guarda cómo estaba — nunca en la creación, ahí no
+        # hay nada previo que versionar. Todo en una transacción: si el
+        # guardado falla después, no debe quedar una versión huérfana de
+        # un cambio que en realidad nunca se aplicó.
+        with transaction.atomic():
+            if self.pk:
+                anterior = type(self).objects.filter(pk=self.pk).first()
+                if anterior is not None:
+                    _registrar_version(anterior)
+            super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +459,55 @@ class Evidencia(models.Model):
         return f"Evidencia p.{self.pagina or '?'}: {self.fragmento[:60]}"
 
 
+class VersionRiC(models.Model):
+    """F07 (versionado, RF-016): fotografía de cómo estaba una entidad o
+    relación justo antes de sobrescribirla. Nunca se crea al crear la
+    entidad — solo cuando una ya existente se guarda con cambios — así que
+    el historial completo de una entidad son sus N versiones más el estado
+    actual del propio registro.
+    """
+
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, related_name="+")
+    object_id = models.PositiveBigIntegerField()
+    objeto = GenericForeignKey("content_type", "object_id")
+
+    datos_anteriores = models.JSONField(help_text="Campos propios (sin relaciones) tal como estaban antes de este cambio.")
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha"]
+        verbose_name = "versión (historial RiC)"
+        verbose_name_plural = "versiones (historial RiC)"
+
+    def __str__(self):
+        return f"{self.content_type.model} #{self.object_id} · {self.fecha:%Y-%m-%d %H:%M}"
+
+
+def _valor_serializable(valor):
+    if isinstance(valor, (datetime.date, datetime.datetime)):
+        return valor.isoformat()
+    if isinstance(valor, (str, int, float, bool, type(None))):
+        return valor
+    return str(valor)
+
+
+def _registrar_version(instancia):
+    """Guarda en `VersionRiC` una fotografía JSON de los campos propios
+    (concretos, sin relaciones) de `instancia` — sirve igual para una
+    entidad `Thing` con herencia multitabla (sus campos heredados están en
+    `_meta.fields`) que para una `RelacionRiC`, que no hereda de `Thing`."""
+    datos = {
+        campo.name: _valor_serializable(getattr(instancia, campo.name))
+        for campo in instancia._meta.fields
+        if not campo.is_relation
+    }
+    VersionRiC.objects.create(
+        content_type=ContentType.objects.get_for_model(type(instancia)),
+        object_id=instancia.pk,
+        datos_anteriores=datos,
+    )
+
+
 class RelacionRiC(models.Model):
     """Una afirmación de relación entre dos entidades del grafo RiC.
 
@@ -509,8 +572,12 @@ class RelacionRiC(models.Model):
             raise ValidationError(str(e)) from e
 
     def save(self, *args, **kwargs):
+        anterior = RelacionRiC.objects.filter(pk=self.pk).first() if self.pk else None
         self.full_clean()
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            if anterior is not None:
+                _registrar_version(anterior)
+            super().save(*args, **kwargs)
 
 
 class PropuestaRiC(models.Model):
