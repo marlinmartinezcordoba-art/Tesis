@@ -36,7 +36,10 @@ MODULOS = [
      "detalle": "Dónde: Panel técnico → “Propuestas de segmentación (F04)”."},
     {"codigo": "F05", "nombre": "IA multimodal", "estado": PENDIENTE,
      "descripcion": "La IA lee un documento (texto e imagen) y propone entidades, atributos y relaciones, citando su evidencia y confianza.",
-     "detalle": "Existe desde antes de este repaso módulo por módulo. Sigue: auditarlo con el mismo rigor que F01-F04."},
+     "detalle": "Ya se le envía la imagen/PDF real a Claude, no solo el texto de OCR (antes no era realmente \"multimodal\"). "
+                "Falta: probarlo con la API real (aquí solo se pudo probar con el cliente simulado) y el resto de la auditoría.",
+     "nota": "De paso se corrigió un bug real: con varios archivos en un mismo expediente, se le pasaba uno arbitrario "
+             "a la IA; ahora se usa el que más texto tiene."},
     {"codigo": "F06", "nombre": "Evidencia de propuesta", "estado": PENDIENTE,
      "descripcion": "Cada afirmación de la IA debe enlazar al documento, página y fragmento exacto que la respalda.",
      "detalle": "Existe (ric.evidencia). Pendiente de auditar junto con F05."},
@@ -70,7 +73,9 @@ MODULOS = [
      "detalle": "Existe (bitácora + muestreo de auditoría). Pendiente de auditar."},
     {"codigo": "F16", "nombre": "Seguridad", "estado": PARCIAL,
      "descripcion": "Roles y permisos distintos según la tarea: quién puede solo consultar, quién puede validar, quién puede administrar.",
-     "detalle": "Hoy solo exige iniciar sesión para entrar. Falta: roles diferenciados."},
+     "detalle": "Toda pantalla exige sesión iniciada, incluido el archivo original de cada documento (antes de "
+                "corregirlo, en el servidor real esa descarga no funcionaba de ningún modo — ni con sesión ni sin "
+                "ella). Falta: roles diferenciados (hoy cualquier sesión puede hacer cualquier cosa)."},
     {"codigo": "F17", "nombre": "Laboratorio de evaluación", "estado": PENDIENTE,
      "descripcion": "Calcula métricas de calidad del sistema (precisión, tiempo, correcciones) con datos reales, nunca inventados.",
      "detalle": "Existe (pantalla de Evaluación, M01-M14). Pendiente de auditar."},
