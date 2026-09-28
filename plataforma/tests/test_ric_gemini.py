@@ -132,6 +132,68 @@ class ProveedorGeminiEnviaLaImagenTest(TestCase):
 
 
 @override_settings(MEDIA_ROOT=MEDIA)
+class ProveedorGeminiInyectaEjemplosTest(TestCase):
+    """F11 (Aprendizaje asistido): igual que ProveedorClaude, Gemini debe
+    recibir en su instrucción de sistema los ejemplos ya validados que se
+    parezcan al documento actual — antes de esta prueba el código ya lo
+    hacía (ambos proveedores comparten ric.ia_prompt), pero nunca se había
+    verificado para Gemini en concreto."""
+
+    def _cliente_falso(self):
+        candidato = MagicMock(finish_reason=genai_types.FinishReason.STOP)
+        respuesta = MagicMock(
+            candidates=[candidato], model_version="gemini-2.5-pro",
+            parsed=MagicMock(relaciones=[]),
+        )
+        cliente = MagicMock()
+        cliente.models.generate_content.return_value = respuesta
+        return cliente
+
+    def test_sin_ejemplos_previos_no_hay_seccion_de_ejemplos(self):
+        record = Record.objects.create(nombre="Acta nueva")
+        cliente = self._cliente_falso()
+        ProveedorGemini(cliente=cliente).proponer(record, "Un texto cualquiera.")
+        system = cliente.models.generate_content.call_args.kwargs["config"].system_instruction
+        self.assertNotIn("Ejemplos de decisiones ya validadas", system)
+
+    def test_con_un_ejemplo_previo_similar_lo_inyecta_en_el_prompt(self):
+        from django.contrib.auth.models import User
+
+        from ric.extraccion import extraer_texto_de_instanciacion
+        from ric.proveedores import PropuestaCandidata, ProveedorIA, generar_propuestas
+
+        class ProveedorFalso(ProveedorIA):
+            nombre, version = "falso", "0"
+
+            def __init__(self, candidatos):
+                self._candidatos = candidatos
+
+            def proponer(self, record, texto, instanciacion=None):
+                return self._candidatos
+
+        archivista = User.objects.create_user("archivista", password="x")
+        anterior = Record.objects.create(nombre="Acta anterior")
+        inst = Instantiation.objects.create(
+            nombre="Copia", record_resource=anterior,
+            archivo=SimpleUploadedFile("a.txt", "Reunión del Cabildo de Santafé el 20 de julio de 1810.".encode()),
+        )
+        extraer_texto_de_instanciacion(inst)
+        [propuesta] = generar_propuestas(anterior, ProveedorFalso([
+            PropuestaCandidata(relacion_id="R027", entidad_tipo="E11", entidad_nombre="Cabildo de Santafé",
+                                evidencia="Cabildo de Santafé", confianza=0.9),
+        ]))
+        propuesta.validar(archivista, aceptar=True)
+
+        nuevo = Record.objects.create(nombre="Acta nueva")
+        cliente = self._cliente_falso()
+        ProveedorGemini(cliente=cliente).proponer(nuevo, "El Cabildo de Santafé se reunió de nuevo.")
+        system = cliente.models.generate_content.call_args.kwargs["config"].system_instruction
+        self.assertIn("Ejemplos de decisiones ya validadas", system)
+        self.assertIn("Cabildo de Santafé", system)
+        self.assertIn("R027", system)
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
 class ProveedorGeminiErroresTest(TestCase):
     """Cada excepción de la SDK de Gemini debe llegar a la persona
     archivista como un ErrorProveedorIA en español, no como una traza

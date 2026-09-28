@@ -96,9 +96,20 @@ MODULOS = [
              "variantes verdaderas de un mismo nombre dieron 0.57-0.77; nombres de entidades distintas que solo "
              "comparten un prefijo institucional (\"Cabildo de Cartagena\" vs. \"Cabildo de Santafé\") se "
              "quedaron en 0.33-0.41 — no se marcan como posible duplicado."},
-    {"codigo": "F11", "nombre": "Aprendizaje asistido", "estado": PENDIENTE,
+    {"codigo": "F11", "nombre": "Aprendizaje asistido", "estado": COMPLETO,
      "descripcion": "Usa decisiones ya validadas por ti como ejemplo para mejorar las próximas propuestas de la IA.",
-     "detalle": "Existe. Pendiente de auditar."},
+     "detalle": "Recupera, por parecido de texto (no coincidencia exacta), tus decisiones ya validadas más "
+                "similares al documento actual y se las muestra a la IA en la instrucción — sin reentrenar "
+                "ningún modelo (RAG, no fine-tuning). Ya funcionaba para Claude; al auditar se encontró que "
+                "faltaba comprobarlo para Gemini (el proveedor activo desde F05) — ambos comparten el mismo "
+                "código (ric.ia_prompt), pero nunca se había probado explícitamente con Gemini.",
+     "nota": "Al auditar esto apareció un hallazgo fuera de este módulo, importante: la instrucción que le "
+             "damos a la IA menciona la marca \"[DATO RESERVADO]\" (protección de datos personales, Ley 1581) "
+             "como si el texto pudiera traerla — pero esa marca solo la aplica el módulo viejo `acceso` "
+             "(acervo/asistencia), nunca el núcleo `ric`. Hoy, si subes un documento con datos personales por "
+             "`ric`, nada lo detecta ni lo protege antes de mandarlo a la IA en la nube. Te lo aviso aparte "
+             "porque es una decisión tuya (¿se corrige el texto engañoso, o se construye la protección real?), "
+             "no algo que deba resolver solo en un paso de auditoría de otro módulo."},
     {"codigo": "F12", "nombre": "RiC-O / RDF", "estado": PENDIENTE,
      "descripcion": "Convierte el grafo ya validado al formato RDF, el estándar semántico oficial de RiC-O 1.1.",
      "detalle": "Existe (exportación en Turtle y RDF-XML). Pendiente de auditar."},
