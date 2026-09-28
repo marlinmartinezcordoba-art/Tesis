@@ -69,3 +69,33 @@ class TodasLasVistasRicExigenSesionTest(TestCase):
             respuesta = self.client.get(reverse(nombre))
             self.assertEqual(respuesta.status_code, 302, f"{nombre} no exige sesión")
             self.assertIn("/admin/login/", respuesta.url, nombre)
+
+
+class BotonSalirTest(TestCase):
+    """El botón "Salir" del menú debe cerrar la sesión de verdad. Antes
+    era un enlace <a href> (petición GET) a /admin/logout/, que desde
+    Django 4.1 solo acepta POST — el enlace daba 405 y la sesión nunca se
+    cerraba, así que "cada ingreso" seguía sin pedir contraseña.
+
+    Usuario de prueba con is_staff=True (como los usuarios reales de
+    RICORA, todos creados con createsuperuser): /admin/logout/ está
+    envuelto por el propio chequeo de permisos del admin de Django —
+    para una persona sin is_staff, esa URL directamente no cierra la
+    sesión, solo rebota a /admin/ sin pasar por la vista de logout."""
+
+    def setUp(self):
+        self.usuario = User.objects.create_user("archivista", password="x", is_staff=True)
+        self.client.force_login(self.usuario)
+
+    def test_la_pagina_ya_no_usa_un_enlace_get_para_salir(self):
+        respuesta = self.client.get(reverse("ric_inicio"))
+        self.assertNotContains(respuesta, '<a href="/admin/logout/">')
+
+    def test_enviar_el_formulario_de_salir_cierra_la_sesion(self):
+        respuesta = self.client.post("/admin/logout/", follow=True)
+        self.assertEqual(respuesta.status_code, 200)
+
+        # ya no hay sesión: cualquier pantalla de /ric/ vuelve a pedir login
+        respuesta = self.client.get(reverse("ric_inicio"))
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn("/admin/login/", respuesta.url)
