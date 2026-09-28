@@ -71,20 +71,24 @@
   <a href="{% url 'ric_inicio' %}" class="ricora-brand">RIC<span>ORA</span><small>Automatización archivística asistida por IA</small></a>
   <nav>
     <a href="{% url 'ric_inicio' %}" class="{% if request.resolver_match.url_name == 'ric_inicio' %}activo{% endif %}">🏠 Inicio</a>
+    {% if request.user.is_staff %}
     <a href="{% url 'ric_subir' %}" class="{% if request.resolver_match.url_name == 'ric_subir' %}activo{% endif %}">⬆️ Subir documento</a>
     <a href="{% url 'ric_bandeja' %}" class="{% if request.resolver_match.url_name == 'ric_bandeja' %}activo{% endif %}">📋 Bandeja de validación</a>
+    {% endif %}
     <a href="{% url 'ric_registros' %}" class="{% if request.resolver_match.url_name == 'ric_registros' %}activo{% endif %}">📁 Registros</a>
     <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>
     <a href="{% url 'ric_sparql' %}" class="{% if request.resolver_match.url_name == 'ric_sparql' %}activo{% endif %}">🕸️ SPARQL</a>
     <a href="{% url 'ric_evaluacion' %}" class="{% if request.resolver_match.url_name == 'ric_evaluacion' %}activo{% endif %}">📊 Evaluación</a>
     <a href="{% url 'ric_modulos' %}" class="{% if request.resolver_match.url_name == 'ric_modulos' %}activo{% endif %}">🧩 Estado de módulos</a>
+    {% if request.user.is_staff %}
     <a href="/admin/" class="separador">⚙️ Panel técnico</a>
+    {% endif %}
   </nav>
 </aside>
 <div class="ricora-shell">
   <div class="ricora-topbar">
     <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong></span>
-    <form method="post" action="/admin/logout/" class="salir-form">
+    <form method="post" action="{% url 'ric_logout' %}" class="salir-form">
       {% csrf_token %}
       <button type="submit" class="salir-boton">Salir</button>
     </form>

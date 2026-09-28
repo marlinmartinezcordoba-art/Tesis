@@ -72,11 +72,14 @@ MODULOS = [
     {"codigo": "F15", "nombre": "Auditoría", "estado": PENDIENTE,
      "descripcion": "Registra quién hizo qué y cuándo, encadenado de forma que alterar o borrar un registro rompe la cadena y se nota.",
      "detalle": "Existe (bitácora + muestreo de auditoría). Pendiente de auditar."},
-    {"codigo": "F16", "nombre": "Seguridad", "estado": PARCIAL,
+    {"codigo": "F16", "nombre": "Seguridad", "estado": COMPLETO,
      "descripcion": "Roles y permisos distintos según la tarea: quién puede solo consultar, quién puede validar, quién puede administrar.",
-     "detalle": "Toda pantalla exige sesión iniciada, incluido el archivo original de cada documento (antes de "
-                "corregirlo, en el servidor real esa descarga no funcionaba de ningún modo — ni con sesión ni sin "
-                "ella). Falta: roles diferenciados (hoy cualquier sesión puede hacer cualquier cosa)."},
+     "detalle": "Dos perfiles: archivista (ingiere, valida, entra también al panel técnico) e invitado de consulta "
+                "(busca, ve el grafo validado, exporta — sin subir ni validar). Pantalla de ingreso propia en "
+                "/ric/entrar/, porque la del admin de Django rechaza a cualquiera sin perfil de personal. Toda "
+                "pantalla exige sesión, incluido el archivo original de cada documento.",
+     "nota": "Se crea un invitado de consulta como cualquier usuario, desde Panel técnico → Usuarios, sin marcar "
+             "la casilla \"Es staff\"."},
     {"codigo": "F17", "nombre": "Laboratorio de evaluación", "estado": PENDIENTE,
      "descripcion": "Calcula métricas de calidad del sistema (precisión, tiempo, correcciones) con datos reales, nunca inventados.",
      "detalle": "Existe (pantalla de Evaluación, M01-M14). Pendiente de auditar."},

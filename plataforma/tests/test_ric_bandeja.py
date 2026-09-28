@@ -52,7 +52,7 @@ class BandejaValidacionTest(TestCase):
         shutil.rmtree(MEDIA, ignore_errors=True)
 
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x")
+        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.record = Record.objects.create(nombre="Acta")
         inst = Instantiation.objects.create(
             nombre="Copia", record_resource=self.record,
@@ -147,7 +147,7 @@ class ResaltadoVisualDeEvidenciaTest(TestCase):
         shutil.rmtree(MEDIA, ignore_errors=True)
 
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x")
+        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
 
     def test_imagen_escaneada_con_posicion_activa_el_resaltado(self):
         record = Record.objects.create(nombre="Acta escaneada")

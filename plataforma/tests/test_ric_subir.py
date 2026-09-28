@@ -25,7 +25,7 @@ class SubirDocumentoTest(TestCase):
         shutil.rmtree(MEDIA, ignore_errors=True)
 
     def setUp(self):
-        self.usuario = User.objects.create_user("archivista", password="x")
+        self.usuario = User.objects.create_user("archivista", password="x", is_staff=True)
         self.client.force_login(self.usuario)
 
     def _archivo(self, nombre="acta.txt", contenido=None):

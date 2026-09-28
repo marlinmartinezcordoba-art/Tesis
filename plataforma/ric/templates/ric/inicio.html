@@ -50,7 +50,7 @@
       <div class="ricora-tile">
         <div class="numero">{{ pendientes }}</div>
         <div class="etiqueta">propuestas de IA pendientes</div>
-        <a href="{% url 'ric_bandeja' %}">Ir a la bandeja →</a>
+        {% if request.user.is_staff %}<a href="{% url 'ric_bandeja' %}">Ir a la bandeja →</a>{% endif %}
       </div>
       <div class="ricora-tile">
         <div class="numero">{{ total_registros }}</div>
@@ -70,6 +70,7 @@
     </div>
   </div>
 
+  {% if request.user.is_staff %}
   <div class="ricora-atencion">
     <header>
       <h2>Requieren atención</h2>
@@ -89,12 +90,17 @@
       <p class="sin-datos">No hay propuestas pendientes ahora mismo.</p>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 
 <div class="ricora-atajos">
+  {% if request.user.is_staff %}
   <a class="ricora-atajo" href="{% url 'ric_subir' %}"><h3>⬆️ Subir documento</h3><p>Sube un archivo: hash, OCR y estructura se calculan solos.</p></a>
+  {% endif %}
   <a class="ricora-atajo" href="{% url 'ric_busqueda' %}"><h3>🔎 Búsqueda</h3><p>Texto extraído y nombres de entidades del grafo.</p></a>
   <a class="ricora-atajo" href="{% url 'ric_sparql' %}"><h3>🕸️ SPARQL</h3><p>Consultas avanzadas sobre el grafo ya validado.</p></a>
+  {% if request.user.is_staff %}
   <a class="ricora-atajo" href="/admin/"><h3>⚙️ Panel técnico</h3><p>Para tareas avanzadas: proponer relaciones de IA, revisar auditoría.</p></a>
+  {% endif %}
 </div>
 {% endblock %}

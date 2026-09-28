@@ -5,6 +5,7 @@ mostrar simultáneamente..."). Antes de esto, la única forma de validar una
 PropuestaRiC era el admin de Django, que no reúne las cinco cosas a la vez.
 """
 
+from functools import wraps
 from pathlib import Path
 
 from django.apps import apps
@@ -20,6 +21,25 @@ from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
 # para las vistas que reciben el tipo de entidad como texto en la URL.
 _MODELOS_POR_SLUG = {nombre.lower(): nombre for nombre in tipos.RIC_ID_A_MODELO_NOMBRE.values()}
+
+
+def archivista_requerido(vista):
+    """F16: dos perfiles — archivista (is_staff, el mismo que ya usa el
+    panel técnico de Django) puede ingerir y validar; cualquier otra
+    sesión iniciada es de "solo consulta": puede buscar, ver el grafo
+    validado y exportarlo, pero no subir documentos ni decidir propuestas.
+    Los usuarios de consulta se crean igual que cualquier otro, desde
+    Panel técnico → Usuarios, sin marcar la casilla "Es staff"."""
+
+    @wraps(vista)
+    @login_required
+    def envoltura(request, *args, **kwargs):
+        if not request.user.is_staff:
+            messages.error(request, "Tu perfil es de solo consulta: no puede ingerir documentos ni validar propuestas.")
+            return redirect("ric_inicio")
+        return vista(request, *args, **kwargs)
+
+    return envoltura
 
 # F06: formatos sobre los que tiene sentido dibujar el recuadro de posición
 # (izquierda/arriba/ancho/alto son píxeles de la imagen tal cual se subió).
@@ -62,7 +82,7 @@ def _fila(propuesta):
     }
 
 
-@login_required
+@archivista_requerido
 def bandeja_validacion(request):
     pendientes = (
         PropuestaRiC.objects.filter(estado=PropuestaRiC.Estado.PENDIENTE)
@@ -75,7 +95,7 @@ def bandeja_validacion(request):
     })
 
 
-@login_required
+@archivista_requerido
 def decidir_propuesta(request, pk):
     if request.method != "POST":
         return redirect("ric_bandeja")
@@ -234,7 +254,7 @@ def registros_html(request):
     return render(request, "ric/registros.html", {"registros": registros})
 
 
-@login_required
+@archivista_requerido
 def subir_documento(request):
     """F01: pantalla simple para subir uno o varios documentos, en lenguaje
     llano, sin pasar por el panel técnico de Django. El hash (F01), el OCR

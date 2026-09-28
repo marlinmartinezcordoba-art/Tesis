@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iniciar sesión · RICORA</title>
+<link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
+<style>
+  :root {
+    --ricora-dark: #16202c;
+    --ricora-dark-2: #202f42;
+    --ricora-accent: #c08a3e;
+    --ricora-accent-2: #e0b566;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--ricora-dark);
+    display: flex; align-items: center; justify-content: center;
+    font-family: system-ui, sans-serif; padding: 1.5rem;
+  }
+  .tarjeta {
+    background: #fff; border-radius: 16px; padding: 2rem 2.2rem;
+    width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .marca { text-align: center; margin-bottom: 1.5rem; }
+  .marca .logo { font-weight: 700; font-size: 1.6rem; color: var(--ricora-dark); }
+  .marca .logo span { color: var(--ricora-accent); }
+  .marca small { display: block; color: #6b7280; font-size: .78rem; margin-top: .2rem; }
+  label { font-size: .85rem; font-weight: 600; }
+  button[type=submit] {
+    width: 100%; background: var(--ricora-accent); border-color: var(--ricora-accent);
+    color: #1a1204; font-weight: 600; margin-top: .5rem;
+  }
+  button[type=submit]:hover { background: var(--ricora-accent-2); border-color: var(--ricora-accent-2); }
+  .errores { background: #fde8e8; color: #7a1f1f; padding: .6rem .8rem; border-radius: 8px; font-size: .85rem; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="tarjeta">
+  <div class="marca">
+    <div class="logo">RIC<span>ORA</span></div>
+    <small>Automatización archivística asistida por IA</small>
+  </div>
+
+  {% if form.errors %}
+  <div class="errores">Usuario o contraseña incorrectos. Inténtelo de nuevo.</div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <label for="id_username">Usuario</label>
+    <input type="text" name="username" id="id_username" autofocus required>
+    <label for="id_password">Contraseña</label>
+    <input type="password" name="password" id="id_password" required>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+</body>
+</html>

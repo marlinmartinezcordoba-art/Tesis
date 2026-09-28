@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
 from acervo.views import exportar_dublin_core, exportar_premis
@@ -35,6 +36,8 @@ urlpatterns = [
     path("documentos/<int:pk>/exportar/dublin-core.xml", exportar_dublin_core, name="exportar_dublin_core"),
     path("documentos/<int:pk>/exportar/premis.xml", exportar_premis, name="exportar_premis"),
     path("ric/", inicio, name="ric_inicio"),
+    path("ric/entrar/", LoginView.as_view(template_name="ric/login.html", redirect_authenticated_user=True), name="ric_login"),
+    path("ric/salir/", LogoutView.as_view(next_page="ric_login"), name="ric_logout"),
     path("ric/subir/", subir_documento, name="ric_subir"),
     path("ric/modulos/", modulos_html, name="ric_modulos"),
     path("ric/archivo/<int:pk>/", servir_archivo, name="ric_archivo"),
