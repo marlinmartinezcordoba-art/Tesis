@@ -1,0 +1,70 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Entidades RiC · RICORA{% endblock %}
+{% block estilos_extra %}
+  .entidades-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-bottom: 1.1rem; }
+  @media (max-width: 720px) { .entidades-stats { grid-template-columns: repeat(2, 1fr); } }
+  .entidades-stats .stat { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; }
+  .entidades-stats .stat strong { display: block; font-size: 1.4rem; color: var(--ricora-dark); }
+  .entidades-stats .stat span { font-size: .75rem; color: #6b7280; }
+
+  .entidades-catalogo { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.1rem; }
+  .entidades-chip { border: 1px solid #e6e3dc; background: #fff; border-radius: 20px; padding: .3rem .8rem; font-size: .78rem; text-decoration: none; color: inherit; }
+  .entidades-chip strong { color: var(--ricora-accent); margin-left: .3rem; }
+  .entidades-chip.activo { background: var(--ricora-dark); color: #fff; border-color: var(--ricora-dark); }
+  .entidades-chip.activo strong { color: var(--ricora-accent-2); }
+
+  .entidades-busqueda { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .entidades-busqueda input[type=search] { flex: 1; min-width: 220px; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Entidades RiC</h1>
+  <p>Todas las entidades ya guardadas, de cualquiera de los tipos de RiC-CM 1.0 — no solo los Record.
+  Sin filtro, muestra las más recientes de cada tipo. Para crear o editar una, usa el
+  <a href="/admin/">panel técnico</a>.</p>
+</hgroup>
+
+<div class="entidades-stats">
+  <div class="stat"><strong>{{ total_entidades }}</strong><span>entidades en total</span></div>
+  <div class="stat"><strong>{{ catalogo|length }}</strong><span>tipos del catálogo RiC-CM</span></div>
+  <div class="stat"><strong>{{ filas|length }}</strong><span>mostradas aquí</span></div>
+  <div class="stat"><strong>{% if filtro %}{{ filtro }}{% else %}Todas{% endif %}</strong><span>filtro activo</span></div>
+</div>
+
+<div class="entidades-catalogo">
+  <a href="{% url 'ric_entidades' %}{% if q %}?q={{ q }}{% endif %}" class="entidades-chip {% if not filtro %}activo{% endif %}">Todas <strong>{{ total_entidades }}</strong></a>
+  {% for c in catalogo %}
+  <a href="?tipo={{ c.slug }}{% if q %}&q={{ q }}{% endif %}" class="entidades-chip {% if filtro == c.slug %}activo{% endif %}" title="{{ c.ric_id }}">{{ c.nombre }} <strong>{{ c.total }}</strong></a>
+  {% endfor %}
+</div>
+
+<form class="entidades-busqueda" method="get">
+  {% if filtro %}<input type="hidden" name="tipo" value="{{ filtro }}">{% endif %}
+  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre...">
+  <button type="submit">Buscar</button>
+</form>
+
+{% if not filas %}
+<p class="sin-datos">
+  {% if q %}Ninguna entidad coincide con "{{ q }}".{% else %}Todavía no hay entidades guardadas{% if filtro %} de este tipo{% endif %}.{% endif %}
+</p>
+{% else %}
+<table>
+  <thead><tr><th>Tipo</th><th>Nombre</th><th>Identificador</th><th>Guardada</th><th></th></tr></thead>
+  <tbody>
+    {% for f in filas %}
+    <tr>
+      <td>{{ f.tipo|capfirst }}</td>
+      <td>{{ f.nombre }}</td>
+      <td>{{ f.identificador|default:"—" }}</td>
+      <td>{{ f.fecha_registro|date:"d/m/Y" }}</td>
+      <td>
+        <a href="{% url 'ric_grafo' f.slug f.pk %}">grafo</a> ·
+        <a href="{% url 'ric_exportar_rdf' f.slug f.pk %}">RDF</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

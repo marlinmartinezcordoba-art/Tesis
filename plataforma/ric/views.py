@@ -24,6 +24,34 @@ from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 # para las vistas que reciben el tipo de entidad como texto en la URL.
 _MODELOS_POR_SLUG = {nombre.lower(): nombre for nombre in tipos.RIC_ID_A_MODELO_NOMBRE.values()}
 
+# F04 (Entidades RiC): IDs de entidad que de verdad se pueden navegar aquí
+# — el mismo inventario que ya registra el admin, uno por uno (se excluye
+# "RecordResource" y "Agent": son las categorías abstractas de RiC-CM, RICORA
+# nunca las instancia solas, solo sus subtipos concretos).
+_TIPOS_NAVEGABLES = [
+    rid for rid in tipos.RIC_ID_A_MODELO_NOMBRE if rid not in ("E02", "E07")
+]
+
+# Con herencia multitabla, un Group que además es Family o CorporateBody
+# tiene fila en las dos tablas — Group.objects.all() ya los incluye. Igual
+# Event/Activity y Rule/Mandate. Sin excluirlos aquí, "Entidades RiC"
+# contaría y listaría cada Family/CorporateBody/Activity/Mandate dos veces
+# (una como ellos mismos, otra disfrazada de su padre).
+_EXCLUYE_HIJOS_MTI = {
+    "Group": ("family", "corporatebody"),
+    "Event": ("activity",),
+    "Rule": ("mandate",),
+}
+
+
+def _instancias_propias(modelo):
+    """`modelo.objects`, pero sin las filas que en realidad son de un
+    subtipo suyo con tabla propia (ver `_EXCLUYE_HIJOS_MTI`)."""
+    qs = modelo.objects.all()
+    for hijo in _EXCLUYE_HIJOS_MTI.get(modelo.__name__, ()):
+        qs = qs.filter(**{f"{hijo}__isnull": True})
+    return qs
+
 
 def archivista_requerido(vista):
     """F16: dos perfiles — archivista (is_staff, el mismo que ya usa el
@@ -369,6 +397,56 @@ def registros_html(request):
     """Lista de Record ya cargados, con acceso directo a su grafo y su RDF."""
     registros = Record.objects.select_related("record_set").order_by("nombre")
     return render(request, "ric/registros.html", {"registros": registros})
+
+
+@login_required
+def entidades_html(request):
+    """Todas las entidades RiC ya guardadas, sin importar su tipo — hasta
+    ahora solo se podían ver una por una en el admin de Django, o los
+    Record en "Registros". Sin filtro, muestra las más recientes de cada
+    tipo (16 consultas pequeñas, acotadas, combinadas en memoria); con
+    filtro de tipo, la lista completa de ese tipo."""
+    filtro = request.GET.get("tipo", "").strip()
+    q = request.GET.get("q", "").strip()
+
+    catalogo = []
+    for rid in _TIPOS_NAVEGABLES:
+        nombre_modelo = tipos.RIC_ID_A_MODELO_NOMBRE[rid]
+        modelo = apps.get_model("ric", nombre_modelo)
+        catalogo.append({
+            "ric_id": rid,
+            "slug": nombre_modelo.lower(),
+            "nombre": modelo._meta.verbose_name.capitalize(),
+            "total": _instancias_propias(modelo).count(),
+        })
+
+    filas = []
+    if filtro and filtro in _MODELOS_POR_SLUG:
+        modelo = apps.get_model("ric", _MODELOS_POR_SLUG[filtro])
+        qs = _instancias_propias(modelo).order_by("nombre")
+        if q:
+            qs = qs.filter(nombre__icontains=q)
+        for e in qs.values("pk", "nombre", "identificador", "fecha_registro")[:200]:
+            filas.append({**e, "tipo": modelo._meta.verbose_name, "slug": filtro})
+    else:
+        for rid in _TIPOS_NAVEGABLES:
+            nombre_modelo = tipos.RIC_ID_A_MODELO_NOMBRE[rid]
+            modelo = apps.get_model("ric", nombre_modelo)
+            qs = _instancias_propias(modelo).order_by("-fecha_registro")
+            if q:
+                qs = qs.filter(nombre__icontains=q)
+            for e in qs.values("pk", "nombre", "identificador", "fecha_registro")[:30]:
+                filas.append({**e, "tipo": modelo._meta.verbose_name, "slug": nombre_modelo.lower()})
+        filas.sort(key=lambda f: f["fecha_registro"], reverse=True)
+        filas = filas[:50]
+
+    return render(request, "ric/entidades.html", {
+        "catalogo": catalogo,
+        "filas": filas,
+        "filtro": filtro,
+        "q": q,
+        "total_entidades": sum(c["total"] for c in catalogo),
+    })
 
 
 @archivista_requerido

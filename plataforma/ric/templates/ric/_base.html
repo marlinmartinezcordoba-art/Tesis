@@ -77,6 +77,7 @@
     <a href="{% url 'ric_duplicados' %}" class="{% if request.resolver_match.url_name == 'ric_duplicados' %}activo{% endif %}">🔎 Posibles duplicados</a>
     {% endif %}
     <a href="{% url 'ric_registros' %}" class="{% if request.resolver_match.url_name == 'ric_registros' %}activo{% endif %}">📁 Registros</a>
+    <a href="{% url 'ric_entidades' %}" class="{% if request.resolver_match.url_name == 'ric_entidades' %}activo{% endif %}">◉ Entidades RiC</a>
     <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>
     <a href="{% url 'ric_sparql' %}" class="{% if request.resolver_match.url_name == 'ric_sparql' %}activo{% endif %}">🕸️ SPARQL</a>
     <a href="{% url 'ric_evaluacion' %}" class="{% if request.resolver_match.url_name == 'ric_evaluacion' %}activo{% endif %}">📊 Evaluación</a>
