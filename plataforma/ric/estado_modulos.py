@@ -84,9 +84,18 @@ MODULOS = [
              "inherentemente muchos-a-muchos, coherente con el modelo de grafo/\"descripción multidimensional\" "
              "que ya conversamos. Construir una restricción ahí habría sido inventar una regla que la norma no "
              "pide."},
-    {"codigo": "F10", "nombre": "Desambiguación", "estado": NO_CONSTRUIDO,
+    {"codigo": "F10", "nombre": "Desambiguación", "estado": COMPLETO,
      "descripcion": "Detectar sola cuando una persona o entidad nueva podría ser un duplicado de una que ya existe, y sugerirlo.",
-     "detalle": "Falta construir. Hoy solo se puede vincular a mano cuando tú misma reconoces que ya existe."},
+     "detalle": "Dos formas, ambas solo sugieren — nunca deciden ni fusionan por su cuenta: (1) en la bandeja de "
+                "validación, si el nombre que propone la IA se parece a una entidad que ya existe (con o sin "
+                "tilde, con o sin un dato agregado), aparece un aviso \"🔎 Posible duplicado\" y esa entidad queda "
+                "marcada con ⚠ en \"vincular a una entidad ya existente\". (2) en \"Posibles duplicados\" del menú, "
+                "una revisión de TODAS las entidades que ya existen (no solo las propuestas nuevas), agrupadas por "
+                "pares que se parecen, con enlace directo para fusionarlas (F08) si de verdad son la misma.",
+     "nota": "El umbral de parecido (0.5 de similitud de trigramas de PostgreSQL) se calibró con pares reales: "
+             "variantes verdaderas de un mismo nombre dieron 0.57-0.77; nombres de entidades distintas que solo "
+             "comparten un prefijo institucional (\"Cabildo de Cartagena\" vs. \"Cabildo de Santafé\") se "
+             "quedaron en 0.33-0.41 — no se marcan como posible duplicado."},
     {"codigo": "F11", "nombre": "Aprendizaje asistido", "estado": PENDIENTE,
      "descripcion": "Usa decisiones ya validadas por ti como ejemplo para mejorar las próximas propuestas de la IA.",
      "detalle": "Existe. Pendiente de auditar."},

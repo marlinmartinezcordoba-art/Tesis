@@ -4,10 +4,10 @@ existente" para EVITAR el duplicado al momento de aceptar una propuesta,
 pero eso no ayuda si el duplicado ya se creó antes (dos propuestas con el
 nombre escrito ligeramente distinto, por ejemplo) — para eso es esto.
 
-No es F10 (Desambiguación, sin construir): ahí la IA detectaría sola que
-dos menciones podrían ser la misma entidad y lo sugeriría; aquí el
-archivista ya sabe que lo son y pide fusionarlas a mano. F10 seguirá
-haciendo falta para que RICORA lo sugiera sola.
+No es F10 (Desambiguación, ver `ric.desambiguacion`): ahí la IA detecta
+sola que dos menciones podrían ser la misma entidad y lo sugiere; aquí el
+archivista ya sabe que lo son y pide fusionarlas a mano — F10 solo
+sugiere, esto es lo que de verdad ejecuta la fusión.
 
 Alcance deliberado: solo entidades sin ninguna referencia directa (no
 genérica) de otro modelo — es decir, ni RecordSet (referenciado por
@@ -20,7 +20,27 @@ en vez de intentar adivinar qué hacer con sus hijos.
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-_MODELOS_NO_FUSIONABLES = {"RecordSet", "RecordPart", "Record", "RecordResource"}
+_MODELOS_NO_FUSIONABLES = {"RecordSet", "RecordPart", "Record", "RecordResource", "Agent", "Instantiation"}
+
+# Nombres de modelo (RIC_ID_A_MODELO_NOMBRE) que sí se pueden fusionar: los
+# tipos "hoja" que de verdad se instancian (nunca la categoría abstracta
+# Agent/Event/Rule sola) más Event y Rule, que sí son tablas propias con
+# fila real (a diferencia de RecordResource/Agent, que nunca se registran
+# solas en el admin). Lista explícita, no derivada por exclusión: así no
+# se cuela por accidente un modelo con referencias directas fuera de
+# RelacionRiC (como Instantiation, referenciada por Evidencia/PaginaTexto).
+NOMBRES_MODELOS_FUSIONABLES = [
+    "Person", "Group", "Family", "CorporateBody", "Position", "Mechanism",
+    "Event", "Activity", "Rule", "Mandate", "Date", "Place",
+]
+
+
+def modelos_fusionables():
+    """`NOMBRES_MODELOS_FUSIONABLES` como clases reales, para que el admin
+    y las vistas no dupliquen el inventario a mano."""
+    from django.apps import apps
+
+    return [apps.get_model("ric", nombre) for nombre in NOMBRES_MODELOS_FUSIONABLES]
 
 
 class ErrorDeFusion(Exception):

@@ -21,6 +21,8 @@
   .evidencia-visual { position: relative; display: inline-block; max-width: 100%; margin-top: .5rem; }
   .evidencia-visual img { display: block; max-width: 100%; height: auto; border: 1px solid var(--pico-muted-border-color); }
   .evidencia-visual .resaltado { position: absolute; border: 3px solid #c08a3e; background: rgba(224,181,102,.3); pointer-events: none; }
+  .aviso-duplicado { background: #fff6e6; border: 1px solid #e0b566; border-radius: 8px; padding: .6rem .9rem; }
+  .aviso-duplicado .etiqueta { color: #8a6100; }
 {% endblock %}
 {% block contenido %}
 <hgroup>
@@ -74,6 +76,16 @@
     {% if p.justificacion %}<br><em>{{ p.justificacion }}</em>{% endif %}
   </div>
 
+  {% if fila.posibles_duplicados %}
+  <div class="seccion aviso-duplicado">
+    <div class="etiqueta">🔎 Posible duplicado (F10)</div>
+    "{{ p.entidad_nombre }}" se parece a {{ fila.posibles_duplicados|length }} entidad{{ fila.posibles_duplicados|length|pluralize }}
+    que ya existe{{ fila.posibles_duplicados|length|pluralize }}:
+    {% for d in fila.posibles_duplicados %}<strong>{{ d.nombre }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+    Revise si es la misma antes de aceptar — están marcadas con ⚠ en "vincular a una entidad ya existente" abajo.
+  </div>
+  {% endif %}
+
   <form class="decision" method="post" action="{% url 'ric_decidir_propuesta' p.pk %}">
     {% csrf_token %}
     <label for="nombre_{{ p.pk }}">Nombre con el que se guarda (corríjalo si hace falta, antes de "Aceptar")</label>
@@ -82,7 +94,9 @@
     {% if fila.candidatas %}
     <select name="entidad_existente">
       <option value="">— vincular a una entidad ya existente —</option>
-      {% for c in fila.candidatas %}<option value="{{ c.pk }}">{{ c.nombre }}</option>{% endfor %}
+      {% for c in fila.candidatas %}
+      <option value="{{ c.pk }}">{% if c.pk in fila.duplicado_pks %}⚠ {% endif %}{{ c.nombre }}</option>
+      {% endfor %}
     </select>
     {% endif %}
     <div class="botones grid">

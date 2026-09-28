@@ -64,6 +64,7 @@ class TodasLasVistasRicExigenSesionTest(TestCase):
         urls_get = [
             "ric_inicio", "ric_subir", "ric_registros", "ric_bandeja",
             "ric_sparql", "ric_busqueda", "ric_evaluacion", "ric_modulos",
+            "ric_duplicados",
         ]
         for nombre in urls_get:
             respuesta = self.client.get(reverse(nombre))

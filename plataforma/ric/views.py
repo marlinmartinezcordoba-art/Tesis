@@ -13,9 +13,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import auditoria, busqueda, grafo, metricas, reglas, rdf, sparql, tipos
+from . import auditoria, busqueda, desambiguacion, grafo, metricas, reglas, rdf, sparql, tipos
 from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 
 # Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
@@ -58,9 +59,11 @@ def _entidad_o_404(tipo, pk):
 def _fila(propuesta):
     """Arma todo lo que la plantilla necesita para una propuesta: la info
     de la relación verificada en RiC-CM/RiC-O, las entidades ya existentes
-    del mismo tipo (para poder "vincular" en vez de crear un duplicado), y
-    si la evidencia (F06) se puede mostrar resaltada sobre la imagen real
-    del documento — no solo como texto citado."""
+    del mismo tipo (para poder "vincular" en vez de crear un duplicado),
+    cuáles de esas se parecen al nombre propuesto (F10: la IA sugiere el
+    posible duplicado, nunca decide sola), y si la evidencia (F06) se
+    puede mostrar resaltada sobre la imagen real del documento — no solo
+    como texto citado."""
     try:
         info = reglas.info_relacion(propuesta.relacion_id)
     except reglas.RelacionInvalida:
@@ -73,11 +76,17 @@ def _fila(propuesta):
         extension = Path(evidencia.instanciacion.archivo.name).suffix.lower()
         resaltado_visual = extension in _EXT_IMAGEN_CON_RESALTADO
 
+    posibles_duplicados = (
+        desambiguacion.candidatos_similares(modelo, propuesta.entidad_nombre) if modelo else []
+    )
+
     return {
         "propuesta": propuesta,
         "info_relacion": info,
         "modelo_nombre": modelo.__name__ if modelo else propuesta.entidad_tipo,
         "candidatas": modelo.objects.order_by("nombre") if modelo else [],
+        "posibles_duplicados": posibles_duplicados,
+        "duplicado_pks": {d.pk for d in posibles_duplicados},
         "resaltado_visual": resaltado_visual,
     }
 
@@ -327,3 +336,26 @@ def modulos_html(request):
         for m in estado_modulos.MODULOS
     ]
     return render(request, "ric/modulos.html", {"modulos": modulos, "resumen": estado_modulos.resumen()})
+
+
+@archivista_requerido
+def duplicados_html(request):
+    """F10 (Desambiguación), el lado "sola, sin que nadie proponga nada
+    nuevo": recorre las entidades que YA existen (no solo las propuestas
+    pendientes, que ya se avisan en la bandeja) y agrupa los pares que se
+    parecen. Aquí solo se sugiere — fusionar de verdad se hace desde el
+    panel técnico (F08, ric.fusion), con el enlace directo a cada tipo."""
+    from . import fusion
+
+    grupos = []
+    for modelo in fusion.modelos_fusionables():
+        pares = desambiguacion.pares_similares(modelo)
+        if pares:
+            grupos.append({
+                "modelo_nombre": modelo.__name__,
+                "nombre_verbose": modelo._meta.verbose_name_plural,
+                "pares": pares,
+                "url_admin": reverse(f"admin:ric_{modelo.__name__.lower()}_changelist"),
+            })
+    total = sum(len(g["pares"]) for g in grupos)
+    return render(request, "ric/duplicados.html", {"grupos": grupos, "total": total})

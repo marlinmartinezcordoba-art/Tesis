@@ -1,0 +1,40 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Posibles duplicados · RICORA{% endblock %}
+{% block estilos_extra %}
+  .grupo-duplicados { margin-bottom: 1.5rem; }
+  .grupo-duplicados h2 { font-size: 1.05rem; margin-bottom: .5rem; }
+  .par-duplicado { display: flex; align-items: center; gap: .6rem; background: #fff6e6;
+    border: 1px solid #e0b566; border-radius: 10px; padding: .6rem .9rem; margin-bottom: .5rem; }
+  .par-duplicado .nombres { flex: 1; }
+  .par-duplicado .nombres strong { display: block; }
+  .par-duplicado .vs { color: #8a6100; font-size: .8rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Posibles duplicados</h1>
+  <p>F10 (Desambiguación): RICORA revisó las entidades que ya existen y encontró {{ total }} par{{ total|pluralize:"es" }}
+  cuyo nombre se parece mucho — podrían ser la misma cosa escrita distinto (con o sin tilde, con o sin un
+  apellido agregado). Esto es solo una sugerencia: revise cada par y, si de verdad son la misma entidad,
+  fusiónelas desde el panel técnico ("Fusionar en otra entidad seleccionada").</p>
+</hgroup>
+
+{% if not grupos %}
+<p class="sin-datos">No se encontró ningún par de nombres parecidos en este momento.</p>
+{% endif %}
+
+{% for grupo in grupos %}
+<div class="grupo-duplicados">
+  <h2>{{ grupo.nombre_verbose|capfirst }} <small>({{ grupo.pares|length }})</small></h2>
+  {% for a, b in grupo.pares %}
+  <div class="par-duplicado">
+    <div class="nombres">
+      <strong>{{ a.nombre }}</strong>
+      <span class="vs">¿es lo mismo que...?</span>
+      <strong>{{ b.nombre }}</strong>
+    </div>
+    <a href="{{ grupo.url_admin }}" class="button">Revisar en {{ grupo.modelo_nombre }} ↗</a>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
