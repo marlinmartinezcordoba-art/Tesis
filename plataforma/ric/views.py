@@ -103,11 +103,22 @@ def decidir_propuesta(request, pk):
     propuesta = get_object_or_404(PropuestaRiC, pk=pk)
     accion = request.POST.get("accion")
     motivo = request.POST.get("motivo", "").strip()
+    nombre_corregido = request.POST.get("entidad_nombre_final", "").strip()
 
     try:
         if accion == "aceptar":
-            propuesta.validar(request.user, aceptar=True, motivo=motivo)
-            messages.success(request, f"'{propuesta.relacion_id}' aceptada y agregada al grafo RiC.")
+            propuesta.validar(
+                request.user, aceptar=True, motivo=motivo,
+                entidad_nombre_final=nombre_corregido or None,
+            )
+            if nombre_corregido and nombre_corregido != propuesta.entidad_nombre:
+                messages.success(
+                    request,
+                    f"'{propuesta.relacion_id}' aceptada y agregada al grafo RiC como \"{nombre_corregido}\" "
+                    f"(corregido de \"{propuesta.entidad_nombre}\").",
+                )
+            else:
+                messages.success(request, f"'{propuesta.relacion_id}' aceptada y agregada al grafo RiC.")
         elif accion == "vincular":
             modelo = tipos.ric_id_a_modelo(propuesta.entidad_tipo)
             entidad_existente = get_object_or_404(modelo, pk=request.POST.get("entidad_existente"))

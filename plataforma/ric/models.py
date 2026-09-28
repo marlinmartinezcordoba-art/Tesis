@@ -794,6 +794,7 @@ class EventoRiC(models.Model):
         PROPUESTA_IA = "propuesta_ia", "Propuesta generada por IA"
         VALIDACION = "validacion_humana", "Validación humana"
         SEGMENTACION = "segmentacion", "Segmentación en documento nuevo (F04)"
+        FUSION = "fusion_entidades", "Fusión de dos entidades duplicadas (F08)"
 
     instanciacion = models.ForeignKey(
         Instantiation, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos"

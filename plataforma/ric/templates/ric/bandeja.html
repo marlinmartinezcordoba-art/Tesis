@@ -27,7 +27,8 @@
   <h1>Bandeja de validación</h1>
   <p>{{ total }} propuesta{{ total|pluralize }} de IA pendiente{{ total|pluralize }}. Para cada una: el
   documento y el fragmento citado como evidencia, la relación RiC-CM/RiC-O propuesta, y tu decisión —
-  aceptar, vincular a una entidad ya existente, o rechazar. La IA propone, tú decides.</p>
+  aceptar (corrigiendo el nombre si hace falta), vincular a una entidad ya existente, o rechazar. La IA
+  propone, tú decides.</p>
 </hgroup>
 
 {% if not filas %}
@@ -75,6 +76,8 @@
 
   <form class="decision" method="post" action="{% url 'ric_decidir_propuesta' p.pk %}">
     {% csrf_token %}
+    <label for="nombre_{{ p.pk }}">Nombre con el que se guarda (corríjalo si hace falta, antes de "Aceptar")</label>
+    <input type="text" id="nombre_{{ p.pk }}" name="entidad_nombre_final" value="{{ p.entidad_nombre }}">
     <textarea name="motivo" rows="2" placeholder="Observación u motivo de rechazo (obligatorio solo para rechazar)"></textarea>
     {% if fila.candidatas %}
     <select name="entidad_existente">

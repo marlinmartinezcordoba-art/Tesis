@@ -1,5 +1,7 @@
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+from django.shortcuts import render
 from django.urls import reverse
 from django.utils.html import format_html
 
@@ -47,19 +49,72 @@ class EntidadRicAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "ver_grafo")
 
 
+class FusionarAdminMixin:
+    """F08: "fusionar" dos entidades que resultaron ser la misma cosa —
+    mueve sus relaciones y borra la duplicada (ver `ric.fusion`). Acción de
+    dos pasos, igual que "delete_selected" de Django: primero muestra una
+    página para elegir cuál de las seleccionadas sobrevive, luego fusiona."""
+
+    actions = ["fusionar_en_otra"]
+
+    @admin.action(description="Fusionar en otra entidad seleccionada (son la misma cosa)")
+    def fusionar_en_otra(self, request, queryset):
+        from .fusion import ErrorDeFusion, fusionar_entidades
+
+        if request.POST.get("confirmar_fusion"):
+            try:
+                superviviente = queryset.get(pk=request.POST.get("superviviente"))
+            except (queryset.model.DoesNotExist, ValueError, TypeError):
+                self.message_user(request, "Elija cuál de las entidades seleccionadas sobrevive.", level="error")
+                return None
+            duplicadas = list(queryset.exclude(pk=superviviente.pk))
+            relaciones = propuestas = 0
+            for duplicada in duplicadas:
+                try:
+                    resultado = fusionar_entidades(duplicada, superviviente, usuario=request.user)
+                except ErrorDeFusion as e:
+                    self.message_user(request, str(e), level="error")
+                    return None
+                relaciones += resultado["relaciones_movidas"]
+                propuestas += resultado["propuestas_movidas"]
+            self.message_user(
+                request,
+                f"Fusionada(s) {len(duplicadas)} entidad(es) en \"{superviviente}\": "
+                f"{relaciones} relación(es) y {propuestas} propuesta(s) movidas.",
+            )
+            return None
+
+        if queryset.count() < 2:
+            self.message_user(request, "Seleccione al menos dos entidades del mismo tipo para fusionar.", level="warning")
+            return None
+
+        return render(request, "admin/ric/fusionar_confirmacion.html", {
+            "entidades": queryset,
+            "opts": self.model._meta,
+            "action_checkbox_name": ACTION_CHECKBOX_NAME,
+        })
+
+
 def _ingerir(instanciacion, agente):
     from .ingesta import ingerir
 
     ingerir(instanciacion, agente)
 
 
-ENTIDADES = [
-    RecordSet, RecordPart,
+# RecordSet y RecordPart quedan fuera de "fusionar": otros modelos los
+# referencian con una FK directa (jerarquía documental), no solo con
+# RelacionRiC — fusionarlos arrastraría esas decisiones (ver ric/fusion.py).
+ENTIDADES_SIN_FUSION = [RecordSet, RecordPart]
+ENTIDADES_FUSIONABLES = [
     Person, Group, Family, CorporateBody, Position, Mechanism,
     Event, Activity, Rule, Mandate, Date, Place,
 ]
-for modelo in ENTIDADES:
+
+for modelo in ENTIDADES_SIN_FUSION:
     admin.site.register(modelo, EntidadRicAdmin)
+
+for modelo in ENTIDADES_FUSIONABLES:
+    admin.site.register(modelo, type(f"{modelo.__name__}Admin", (FusionarAdminMixin, EntidadRicAdmin), {}))
 
 
 class InstantiationInline(admin.TabularInline):

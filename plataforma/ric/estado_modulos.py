@@ -57,9 +57,21 @@ MODULOS = [
      "nota": "Si guardar la edición falla por una validación (por ejemplo una relación que rompería una regla de "
              "RiC-CM), no queda ninguna fotografía huérfana: primero se valida, y solo si el cambio de verdad se "
              "aplica se guarda su historial."},
-    {"codigo": "F08", "nombre": "Validación archivista", "estado": PENDIENTE,
+    {"codigo": "F08", "nombre": "Validación archivista", "estado": PARCIAL,
      "descripcion": "Aprobar, corregir, rechazar, vincular a algo existente, fusionar o separar — la decisión siempre la toma una persona.",
-     "detalle": "Existe (bandeja de validación). Pendiente de auditar."},
+     "detalle": "Se auditó contra su propia descripción, verbo por verbo. \"Vincular a algo existente\" y "
+                "\"rechazar\" ya funcionaban. \"Corregir\" existía en el modelo pero la bandeja no tenía ningún "
+                "campo para escribir el nombre corregido — ahora sí (se edita antes de \"Aceptar\"). "
+                "\"Fusionar\" no existía en absoluto: si dos propuestas creaban la misma entidad con el nombre "
+                "escrito distinto, no había forma de unirlas después. Ahora, desde el panel técnico, seleccione "
+                "dos o más entidades del mismo tipo (persona, lugar, entidad corporativa...) y \"Fusionar en otra "
+                "entidad seleccionada\": elige cuál sobrevive, sus relaciones y propuestas pendientes se mueven a "
+                "ella, y se guarda una fotografía de la fusionada antes de borrarla (ver Versiones, historial RiC).",
+     "nota": "\"Separar\" sigue sin construir a propósito: separar una entidad en qué, con qué criterio, es una "
+             "decisión de diseño tuya, no algo que se pueda deducir de la auditoría. Además, \"fusionar\" no "
+             "aplica a Record Set ni Record Part: otras filas dependen de ellos directamente (jerarquía "
+             "documental), no solo por relación RiC, así que fusionarlos se dejó fuera para no arrastrar esa "
+             "decisión por accidente."},
     {"codigo": "F09", "nombre": "Motor de reglas", "estado": PENDIENTE,
      "descripcion": "Antes de guardar una relación entre dos entidades, verifica que respete las reglas oficiales de RiC-CM.",
      "detalle": "Existe y ya se probó bastante en el camino (por ejemplo al construir F04). Pendiente una auditoría formal propia."},
