@@ -1,0 +1,26 @@
+name: Desplegar en el Droplet
+
+# Se dispara justo cuando llega un cambio a esta rama (no cada 5 minutos
+# como el cron de respaldo en deploy-ricora.sh) — así lo que se trabaja
+# aquí llega al servidor apenas se sube, sin esperar ni adivinar.
+on:
+  push:
+    branches: [claude/plataforma-base]
+  workflow_dispatch: {}
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Actualizar y reconstruir en el Droplet
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/ricora
+            git fetch origin claude/plataforma-base
+            git reset --hard origin/claude/plataforma-base
+            docker compose up --build -d
