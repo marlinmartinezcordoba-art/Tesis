@@ -28,7 +28,7 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 Requiere Docker Desktop (o Docker Engine) abierto. Usa PostgreSQL, igual que en DigitalOcean.
 
 ```bash
-cp .env.example .env      # completa ANTHROPIC_API_KEY si vas a probar la IA en la nube
+cp .env.example .env      # completa GEMINI_API_KEY si vas a probar la IA en la nube
 docker compose up --build
 docker compose exec web python manage.py createsuperuser
 ```
@@ -37,7 +37,7 @@ Entra a http://localhost:8080/admin/. Si ese puerto ya está ocupado en tu máqu
 
 ### Opción B: en tu máquina, sin Docker
 
-RICORA usa **siempre PostgreSQL** (en desarrollo, en Docker y en producción), para probar contra la misma base de datos en todos los entornos. Además de Tesseract con español y el modelo de spaCy en español, necesitas PostgreSQL instalado y corriendo (en Ubuntu/Debian: `sudo apt install postgresql tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de PostgreSQL y el de Tesseract de UB Mannheim). Para el proveedor de IA en la nube hace falta además una clave de Anthropic en la variable de entorno `ANTHROPIC_API_KEY`.
+RICORA usa **siempre PostgreSQL** (en desarrollo, en Docker y en producción), para probar contra la misma base de datos en todos los entornos. Además de Tesseract con español y el modelo de spaCy en español, necesitas PostgreSQL instalado y corriendo (en Ubuntu/Debian: `sudo apt install postgresql tesseract-ocr tesseract-ocr-spa`; en Windows, el instalador de PostgreSQL y el de Tesseract de UB Mannheim). Para el proveedor de IA en la nube (Gemini, el que se usa activamente) hace falta además una clave en la variable de entorno `GEMINI_API_KEY`; Claude sigue disponible como alternativa con `ANTHROPIC_API_KEY`.
 
 Crea el rol y la base de datos una sola vez (los valores por defecto que espera la aplicación son usuario `mazuca`, clave `mazuca`, base `mazuca`; puedes cambiarlos si defines tu propia `DATABASE_URL`):
 

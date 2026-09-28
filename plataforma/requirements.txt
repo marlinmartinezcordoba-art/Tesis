@@ -3,6 +3,7 @@ pytesseract>=0.3
 pypdf>=4
 pillow>=10
 anthropic>=1.8
+google-genai>=1.0
 spacy>=3.7,<4
 gunicorn>=23
 psycopg[binary]>=3.2

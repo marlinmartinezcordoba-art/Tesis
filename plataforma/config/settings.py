@@ -161,6 +161,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Modelo de IA en la nube para la descripción asistida (clave en ANTHROPIC_API_KEY).
 MAZUCA_MODELO_IA = os.environ.get("MAZUCA_MODELO_IA", "claude-opus-5")
 
+# Gemini: el proveedor de IA en la nube que se usa activamente en RICORA
+# (clave en GEMINI_API_KEY). Claude sigue disponible como alternativa desde
+# el panel técnico, pero Gemini es el que se configura y prueba primero.
+MAZUCA_MODELO_IA_GEMINI = os.environ.get("MAZUCA_MODELO_IA_GEMINI", "gemini-2.5-pro")
+
 # F16: un único punto de ingreso para los dos perfiles (archivista y
 # invitado de consulta) — /admin/login/ exige is_staff y rechaza a un
 # invitado de consulta de plano, así que no puede ser el LOGIN_URL general.

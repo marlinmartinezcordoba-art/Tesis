@@ -76,7 +76,7 @@ class InstantiationInline(admin.TabularInline):
 @admin.register(Record)
 class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "record_set", "tipo_forma_documental", "ver_grafo")
-    actions = ["proponer_relaciones_nube", "proponer_relaciones_local"]
+    actions = ["proponer_relaciones_gemini", "proponer_relaciones_claude", "proponer_relaciones_local"]
     inlines = [InstantiationInline]
 
     def save_formset(self, request, form, formset, change):
@@ -124,11 +124,17 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
                 request, f"{record}: {len(propuestas)} propuesta(s) de {etiqueta} pendientes de validación{aviso}."
             )
 
-    @admin.action(description="Proponer relaciones (IA en la nube, Claude)")
-    def proponer_relaciones_nube(self, request, queryset):
+    @admin.action(description="Proponer relaciones (IA en la nube, Gemini)")
+    def proponer_relaciones_gemini(self, request, queryset):
+        from .proveedor_gemini import ErrorProveedorIA, ProveedorGemini
+
+        self._generar(request, queryset, ProveedorGemini, ErrorProveedorIA, "Gemini")
+
+    @admin.action(description="Proponer relaciones (IA en la nube, Claude — alternativa)")
+    def proponer_relaciones_claude(self, request, queryset):
         from .proveedor_claude import ErrorProveedorIA, ProveedorClaude
 
-        self._generar(request, queryset, ProveedorClaude, ErrorProveedorIA, "la IA en la nube")
+        self._generar(request, queryset, ProveedorClaude, ErrorProveedorIA, "Claude")
 
     @admin.action(description="Proponer relaciones (IA local, spaCy)")
     def proponer_relaciones_local(self, request, queryset):

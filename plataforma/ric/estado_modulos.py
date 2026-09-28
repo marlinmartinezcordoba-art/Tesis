@@ -36,8 +36,11 @@ MODULOS = [
      "detalle": "Dónde: Panel técnico → “Propuestas de segmentación (F04)”."},
     {"codigo": "F05", "nombre": "IA multimodal", "estado": PENDIENTE,
      "descripcion": "La IA lee un documento (texto e imagen) y propone entidades, atributos y relaciones, citando su evidencia y confianza.",
-     "detalle": "Ya se le envía la imagen/PDF real a Claude, no solo el texto de OCR (antes no era realmente \"multimodal\"). "
-                "Falta: probarlo con la API real (aquí solo se pudo probar con el cliente simulado) y el resto de la auditoría.",
+     "detalle": "Se le envía la imagen/PDF real a la IA, no solo el texto de OCR (antes no era realmente \"multimodal\"). "
+                "Gemini es ahora el proveedor de IA en la nube que se usa activamente (Panel técnico → “Proponer "
+                "relaciones (IA en la nube, Gemini)”); Claude se dejó como alternativa. Falta: probarlo con la API "
+                "real de Gemini (aquí solo se pudo probar con el cliente simulado, sin clave configurada) y el "
+                "resto de la auditoría.",
      "nota": "De paso se corrigió un bug real: con varios archivos en un mismo expediente, se le pasaba uno arbitrario "
              "a la IA; ahora se usa el que más texto tiene."},
     {"codigo": "F06", "nombre": "Evidencia de propuesta", "estado": COMPLETO,
@@ -97,7 +100,9 @@ MODULOS = [
      "detalle": "Falta: hoy solo se exporta a RDF."},
     {"codigo": "F20", "nombre": "Administración de modelos", "estado": NO_CONSTRUIDO,
      "descripcion": "Una pantalla para elegir o cambiar el proveedor de IA, y ver cuánto cuesta cada uso.",
-     "detalle": "Falta construir. Hoy el modelo de IA se configura solo desde el código."},
+     "detalle": "Falta construir esa pantalla. Hoy elegir Gemini o Claude es una acción distinta en el panel "
+                "técnico (Registros → seleccionar → \"Proponer relaciones...\"), y qué modelo exacto de cada uno "
+                "se configura por variable de entorno — no hay ninguna pantalla para cambiarlo ni para ver costos."},
 ]
 
 
