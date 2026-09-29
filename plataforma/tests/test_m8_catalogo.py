@@ -79,7 +79,7 @@ class CatalogoTest(CasoModulos):
     def test_ficha_de_documento_no_publicado_no_se_abre_a_consulta(self):
         self.client.force_login(self.consulta)
         resp = self.client.get(reverse("catalogo_ficha", args=["record", self.record.pk]), follow=True)
-        self.assertContains(resp, "todavía no está publicado")
+        self.assertContains(resp, "no está disponible para consulta")
 
     def test_instanciacion_reservada_oculta_el_documento_a_consulta(self):
         self._publicar(self.record)

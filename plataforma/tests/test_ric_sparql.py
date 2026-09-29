@@ -48,7 +48,7 @@ class EjecutarSparqlTest(TestCase):
 
 class SparqlEndpointViewTest(TestCase):
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x")
+        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.record = Record.objects.create(nombre="Acta del Cabildo")
         self.cabildo = CorporateBody.objects.create(nombre="Cabildo de Santafé")
         RelacionRiC.objects.create(

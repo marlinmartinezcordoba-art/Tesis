@@ -21,10 +21,14 @@ class VocabulariosTest(CasoModulos):
             self.client.force_login(usuario)
             resp = self.client.get(reverse("vocabularios"))
             self.assertEqual(resp.status_code, 200)
-            self.assertContains(resp, "Cabildo de Santafé")
+            if usuario is self.consulta:
+                # RF-M8-04: una autoridad que no aparece en ningún documento publicado ni en los instrumentos no se muestra a consulta
+                self.assertNotContains(resp, "Cabildo de Santafé")
+            else:
+                self.assertContains(resp, "Cabildo de Santafé")
 
     def test_catalogo_unico_sin_documentos_y_con_formas_documentales(self):
-        self.client.force_login(self.consulta)
+        self.client.force_login(self.archivista)
         resp = self.client.get(reverse("vocabularios"))
         self.assertNotContains(resp, ">Acta<")  # los documentos van al catálogo, no a autoridades
         self.assertContains(resp, "Formas documentales")
@@ -77,7 +81,7 @@ class VocabulariosTest(CasoModulos):
         record, inst = self.documento(nombre="Acta del 20 de julio")
         [p] = self.proponer(record, candidato())
         p.validar(self.archivista, aceptar=True)
-        self.client.force_login(self.consulta)
+        self.client.force_login(self.revisor)
         resp = self.client.get(reverse("vocabulario_ficha", args=["corporatebody", self.cabildo.pk]))
         self.assertContains(resp, "Acta del 20 de julio")
         self.assertContains(resp, "has creator")

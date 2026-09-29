@@ -17,7 +17,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import desambiguacion, flujo, fusion, instrumentos, reglas, roles, tipos
+from . import acceso_documentos, desambiguacion, flujo, fusion, instrumentos, reglas, roles, tipos
 from .models import Activity, FormaDocumental, Mandate, Record, RelacionRiC
 
 _SLUG_FORMA = "formadocumental"
@@ -111,6 +111,12 @@ def vocabularios(request):
             filas.sort(key=lambda f: f["fecha"], reverse=True)
             filas = filas[:60]
 
+    # RF-M8-04: el rol consulta solo ve autoridades presentes en documentos
+    # que puede consultar o en los instrumentos archivísticos (públicos).
+    vis = acceso_documentos.Visibilidad(request.user)
+    if not vis.todo and filtro != _SLUG_FORMA:
+        modelos = {c["slug"]: c["modelo"] for c in catalogo}
+        filas = [f for f in filas if f["slug"] not in modelos or vis.puede(modelos[f["slug"]](pk=f["pk"]))]
     total = sum(c["total"] for c in catalogo)
     return render(request, "ric/vocabularios.html", {
         "catalogo": catalogo, "filas": filas, "filtro": filtro, "q": q,
@@ -247,7 +253,7 @@ def vocabulario_ficha(request, tipo, pk):
             return redirect("vocabulario_ficha", tipo=tipo, pk=pk)
         return render(request, "ric/vocabulario_ficha.html", {
             "es_forma": True, "entidad": forma, "tipo": tipo, "puede_editar": puede_editar,
-            "documentos": forma.records.order_by("nombre"),
+            "documentos": acceso_documentos.documentos_visibles(request.user).filter(forma_documental=forma).order_by("nombre"),
             "series": forma.series(),
             "duplicados": desambiguacion.candidatos_similares(FormaDocumental, forma.nombre, excluir_pk=forma.pk),
             "fusionable": True,
@@ -258,6 +264,10 @@ def vocabulario_ficha(request, tipo, pk):
         messages.error(request, f"Tipo de entidad desconocido: {tipo}.")
         return redirect("vocabularios")
     entidad = get_object_or_404(modelo, pk=pk)
+    vis = acceso_documentos.Visibilidad(request.user)
+    if not vis.puede(entidad):
+        messages.error(request, "Esta ficha no está disponible para consulta.")
+        return redirect("vocabularios")
     es_mandato = isinstance(entidad, Mandate)
     es_actividad = isinstance(entidad, Activity)
 
@@ -285,8 +295,8 @@ def vocabulario_ficha(request, tipo, pk):
     contexto = {
         "es_forma": False, "entidad": entidad, "tipo": tipo, "puede_editar": puede_editar,
         "tipo_nombre": modelo._meta.verbose_name, "ric_id": {v: k for k, v in tipos.RIC_ID_A_MODELO_NOMBRE.items()}[modelo.__name__],
-        "relaciones": _relaciones_de_entidad(entidad),
-        "documentos": _documentos_relacionados(entidad),
+        "relaciones": [r for r in _relaciones_de_entidad(entidad) if vis.puede(r["otro"])],
+        "documentos": [d for d in _documentos_relacionados(entidad) if vis.puede(d)],
         "duplicados": desambiguacion.candidatos_similares(type(entidad), entidad.nombre, excluir_pk=entidad.pk, identificador=entidad.identificador) if fusionable else [],
         "fusionable": fusionable,
         "es_mandato": es_mandato, "es_actividad": es_actividad,
@@ -300,7 +310,7 @@ def vocabulario_ficha(request, tipo, pk):
     return render(request, "ric/vocabulario_ficha.html", contexto)
 
 
-@login_required
+@roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 def vocabularios_duplicados(request):
     grupos = []
     for modelo in _modelos_con_duplicados():

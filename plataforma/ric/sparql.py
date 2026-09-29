@@ -22,8 +22,8 @@ class ErrorSparql(Exception):
     """Error de sintaxis o de ejecución, en lenguaje claro para la persona archivista."""
 
 
-def _store(base):
-    g = rdf.grafo_completo(base)
+def _store(base, visibilidad=None):
+    g = rdf.grafo_completo(base, visibilidad)
     store = ox.Store()
     if len(g):
         store.bulk_load(g.serialize(format="nt").encode("utf-8"), ox.RdfFormat.N_TRIPLES)
@@ -47,12 +47,12 @@ def _termino_a_json(termino):
     return {"type": "literal", "value": str(termino)}
 
 
-def ejecutar(query, base):
+def ejecutar(query, base, visibilidad=None):
     """Ejecuta `query` contra el grafo validado actual. Devuelve un dict en
     el formato estándar de resultados SPARQL 1.1 (JSON): "results" con
     filas para SELECT/CONSTRUCT/DESCRIBE, o "boolean" para ASK. Lanza
     ErrorSparql si la consulta no es válida SPARQL de solo lectura."""
-    store = _store(base)
+    store = _store(base, visibilidad)
     try:
         resultado = store.query(query)
     except Exception as e:

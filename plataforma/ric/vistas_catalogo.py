@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
+from urllib.parse import urlencode
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -51,56 +52,81 @@ def _tarjeta_documento(record):
     return {"tipo": "documento", "record": record, "relacionadas": relacionadas, "estado": estado, "etiqueta_estado": flujo.ETIQUETAS[estado]}
 
 
-def _tarjeta_entidad(entidad):
+def _tarjeta_entidad(entidad, visibilidad):
+    """Tarjeta de una entidad con cuántos documentos (que este usuario
+    puede ver) la mencionan."""
     ct = ContentType.objects.get_for_model(entidad)
-    total_docs = RelacionRiC.objects.filter(
-        destino_content_type=ct, destino_object_id=entidad.pk, estado__in=flujo.ESTADOS_VALIDADOS,
-    ).count()
+    ct_record = ContentType.objects.get_for_model(Record)
+    ids = set(RelacionRiC.objects.filter(
+        Q(origen_content_type=ct, origen_object_id=entidad.pk, destino_content_type=ct_record)
+        | Q(destino_content_type=ct, destino_object_id=entidad.pk, origen_content_type=ct_record),
+        estado__in=flujo.ESTADOS_VALIDADOS,
+    ).values_list("origen_object_id", "destino_object_id"))
+    docs = {o if d == entidad.pk else d for o, d in ids}
+    if not visibilidad.todo:
+        docs &= visibilidad.records
     return {"tipo": "entidad", "entidad": entidad, "slug": type(entidad).__name__.lower(),
             "clase": _CLASE_POR_MODELO.get(type(entidad).__name__, "otra"),
-            "tipo_nombre": entidad._meta.verbose_name, "documentos": total_docs}
+            "tipo_nombre": entidad._meta.verbose_name, "documentos": len(docs)}
+
+
+POR_PAGINA = 24
+
+
+def _entidades_de_clase(clase, visibilidad):
+    nombres = dict((s, n) for s, _x, n in CLASES_CATALOGO).get(clase, [])
+    resultado = []
+    for modelo in _modelos(nombres):
+        resultado.extend(visibilidad.filtrar(tipos.instancias_propias(modelo).order_by("nombre")))
+    return resultado
 
 
 @login_required
 def catalogo(request):
+    """RF-M8-01: texto libre y filtro de clase, combinados; RF-M8-04: cada
+    rol ve solo lo que puede consultar (también en los conteos)."""
+    from django.core.paginator import Paginator
+
     q = request.GET.get("q", "").strip()
     clase = request.GET.get("clase", "").strip()
+    if clase and clase not in {s for s, _n, _m in CLASES_CATALOGO}:
+        clase = ""
+    vis = acceso_documentos.Visibilidad(request.user)
     visibles = documentos_visibles(request.user)
 
     conteos = {"documento": visibles.count()}
-    for slug, _nombre, nombres in CLASES_CATALOGO[1:]:
-        conteos[slug] = sum(tipos.instancias_propias(m).count() for m in _modelos(nombres))
+    for slug, _nombre, _nombres in CLASES_CATALOGO[1:]:
+        conteos[slug] = len(_entidades_de_clase(slug, vis))
 
-    tarjetas = []
+    elementos = []  # (tipo, objeto): se pagina antes de armar las tarjetas
     if q:
         if clase in ("", "documento"):
-            por_nombre = visibles.filter(nombre__icontains=q)
-            por_texto_ids = {p.instanciacion.record_resource_id for p in busqueda.buscar_texto(q, limite=40)}
-            por_texto = visibles.filter(pk__in=por_texto_ids)
+            por_nombre = visibles.filter(busqueda.filtro_nombre(Record, q))
+            por_texto_ids = {p.instanciacion.record_resource_id for p in busqueda.buscar_texto(q, limite=200)}
             vistos = set()
-            for record in list(por_nombre) + list(por_texto):
+            for record in list(por_nombre.order_by("nombre")) + list(visibles.filter(pk__in=por_texto_ids)):
                 if record.pk not in vistos:
                     vistos.add(record.pk)
-                    tarjetas.append(_tarjeta_documento(record))
+                    elementos.append(("documento", record))
         if clase != "documento":
-            modelos = None
             if clase:
                 modelos = _modelos(dict((s, n) for s, _x, n in CLASES_CATALOGO).get(clase, []))
             else:
                 modelos = [m for m in busqueda.tipos_buscables() if m.__name__ not in ("Record", "RecordSet", "RecordPart", "Instantiation")]
-            for entidad in busqueda.buscar_entidades(q, limite=40, modelos=modelos):
-                tarjetas.append(_tarjeta_entidad(entidad))
+            for entidad in busqueda.buscar_entidades(q, limite=200, modelos=modelos, visibilidad=None if vis.todo else vis):
+                elementos.append(("entidad", entidad))
+    elif clase in ("", "documento"):
+        elementos = [("documento", r) for r in visibles.order_by("-fecha_registro")]
     else:
-        if clase in ("", "documento"):
-            for record in visibles.order_by("-fecha_registro")[:20]:
-                tarjetas.append(_tarjeta_documento(record))
-        if clase and clase != "documento":
-            for modelo in _modelos(dict((s, n) for s, _x, n in CLASES_CATALOGO)[clase]):
-                for entidad in tipos.instancias_propias(modelo).order_by("nombre")[:40]:
-                    tarjetas.append(_tarjeta_entidad(entidad))
+        elementos = [("entidad", e) for e in _entidades_de_clase(clase, vis)]
+
+    pagina = Paginator(elementos, POR_PAGINA).get_page(request.GET.get("pagina"))
+    tarjetas = [_tarjeta_documento(o) if t == "documento" else _tarjeta_entidad(o, vis) for t, o in pagina.object_list]
+    parametros = urlencode({k: v for k, v in (("q", q), ("clase", clase)) if v})
 
     return render(request, "ric/catalogo.html", {
-        "q": q, "clase": clase, "tarjetas": tarjetas,
+        "q": q, "clase": clase, "tarjetas": tarjetas, "pagina": pagina, "total": len(elementos),
+        "parametros": parametros,
         "clases": [(slug, nombre, conteos.get(slug, 0)) for slug, nombre, _n in CLASES_CATALOGO],
         "solo_publicados": _solo_publicados(request.user),
     })
@@ -108,12 +134,14 @@ def catalogo(request):
 
 @login_required
 def catalogo_sugerencias(request):
-    """Sugerencias mientras se escribe (paso 2 del flujo de búsqueda)."""
+    """Sugerencias mientras se escribe (paso 2 del flujo de búsqueda): solo
+    nombres que este usuario puede ver (RF-M8-04)."""
     q = request.GET.get("q", "").strip()
     if len(q) < 2:
         return JsonResponse({"sugerencias": []})
-    nombres = list(documentos_visibles(request.user).filter(nombre__icontains=q).values_list("nombre", flat=True)[:5])
-    for entidad in busqueda.buscar_entidades(q, limite=8):
+    vis = acceso_documentos.Visibilidad(request.user)
+    nombres = list(documentos_visibles(request.user).filter(busqueda.filtro_nombre(Record, q)).values_list("nombre", flat=True)[:5])
+    for entidad in busqueda.buscar_entidades(q, limite=8, visibilidad=None if vis.todo else vis):
         if entidad.nombre not in nombres:
             nombres.append(entidad.nombre)
     return JsonResponse({"sugerencias": nombres[:10]})
@@ -126,8 +154,10 @@ def catalogo_ficha(request, tipo, pk):
         raise Http404("Tipo de entidad desconocido")
     entidad = get_object_or_404(modelo, pk=pk)
     es_documento = isinstance(entidad, Record)
-    if es_documento and _solo_publicados(request.user) and not documentos_visibles(request.user).filter(pk=pk).exists():
-        messages.error(request, "Este documento todavía no está publicado en el catálogo.")
+    vis = acceso_documentos.Visibilidad(request.user)
+    if not vis.puede(entidad):
+        # RF-M8-04: el rol consulta no ve lo que solo aparece en documentos sin publicar o reservados.
+        messages.error(request, "Esta ficha no está disponible para consulta.")
         return redirect("catalogo")
 
     if request.method == "POST" and roles.puede(request.user, roles.ARCHIVISTA):
@@ -159,7 +189,7 @@ def catalogo_ficha(request, tipo, pk):
         otro = rel.destino if soy_origen else rel.origen
         if otro is None:
             continue
-        if isinstance(otro, Record) and _solo_publicados(request.user) and not documentos_visibles(request.user).filter(pk=otro.pk).exists():
+        if not vis.puede(otro):
             continue
         relaciones.append({
             "relacion": rel, "nombre": matriz.get(rel.relacion_id, {}).get("nombre", rel.relacion_id),
@@ -191,8 +221,8 @@ def catalogo_ficha(request, tipo, pk):
     if isinstance(entidad, RecordSet):
         contexto.update({
             "es_conjunto": True, "ruta": entidad.ruta(),
-            "subconjuntos": entidad.hijos.order_by("nombre"),
-            "documentos_del_conjunto": Record.objects.filter(record_set=entidad).order_by("nombre"),
+            "subconjuntos": vis.filtrar(entidad.hijos.order_by("nombre")),
+            "documentos_del_conjunto": documentos_visibles(request.user).filter(record_set=entidad).order_by("nombre"),
             "valoracion": valoracion.resumen(entidad) if entidad.es_expediente else None,
             "mandato_conjunto": entidad.mandato(),
         })

@@ -89,7 +89,7 @@ def _nodo(entidad, central=False):
     }
 
 
-def subgrafo_json(entidad):
+def subgrafo_json(entidad, visibilidad=None):
     content_type = ContentType.objects.get_for_model(entidad)
     relaciones = (
         RelacionRiC.objects.filter(
@@ -107,6 +107,8 @@ def subgrafo_json(entidad):
         origen, destino = r.origen, r.destino
         if origen is None or destino is None:
             continue  # la entidad referenciada se borró; no hay nada que dibujar
+        if visibilidad is not None and not visibilidad.relacion(r):
+            continue  # RF-M8-04: nada que el rol consulta no pueda ver
         for e in (origen, destino):
             nodos.setdefault(_id_nodo(e), _nodo(e))
         etiqueta = matriz.get(r.relacion_id, {}).get("nombre", r.relacion_id)

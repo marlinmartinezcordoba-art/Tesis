@@ -67,7 +67,7 @@ class BuscarEntidadesTest(TestCase):
 
 class BusquedaViewTest(TestCase):
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x")
+        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         CorporateBody.objects.create(nombre="Cabildo de Santafé")
 
     def test_requiere_login(self):

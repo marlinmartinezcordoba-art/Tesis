@@ -142,7 +142,7 @@ def _relaciones_validadas():
     ).select_related("origen_content_type", "destino_content_type")
 
 
-def grafo_de_entidad(entidad, base):
+def grafo_de_entidad(entidad, base, visibilidad=None):
     """El vecindario a un salto de `entidad`: sus atributos y toda relación
     RiC ya validada donde participa, como origen o como destino."""
     g = Graph()
@@ -155,11 +155,12 @@ def grafo_de_entidad(entidad, base):
         | Q(destino_content_type=content_type, destino_object_id=entidad.pk)
     )
     for relacion in relaciones:
-        _emitir_relacion(g, relacion, base)
+        if visibilidad is None or visibilidad.relacion(relacion):
+            _emitir_relacion(g, relacion, base)
     return g
 
 
-def grafo_completo(base):
+def grafo_completo(base, visibilidad=None):
     """Todo el grafo RiC: cada entidad ya guardada con sus atributos, más
     cada RelacionRiC aceptada o modificada entre ellas. Es lo que carga el
     endpoint SPARQL.
@@ -177,7 +178,9 @@ def grafo_completo(base):
     for rid in tipos.TIPOS_CONCRETOS:
         modelo = apps.get_model("ric", tipos.RIC_ID_A_MODELO_NOMBRE[rid])
         for entidad in tipos.instancias_propias(modelo):
-            _emitir_entidad(g, entidad, base)
+            if visibilidad is None or visibilidad.puede(entidad):
+                _emitir_entidad(g, entidad, base)
     for relacion in _relaciones_validadas():
-        _emitir_relacion(g, relacion, base)
+        if visibilidad is None or visibilidad.relacion(relacion):
+            _emitir_relacion(g, relacion, base)
     return g

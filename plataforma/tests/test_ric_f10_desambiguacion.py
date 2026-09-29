@@ -130,13 +130,13 @@ class PantallaDeDuplicadosTest(TestCase):
         self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.invitado = User.objects.create_user("consulta", password="x", is_staff=False)
 
-    def test_consulta_puede_verla_pero_sin_fusionar(self):
+    def test_consulta_no_ve_los_posibles_duplicados(self):
+        # RF-M8-04: la pantalla de duplicados es de trabajo interno (archivista/revisor), no de consulta
         CorporateBody.objects.create(nombre="Cabildo de Santafé")
         CorporateBody.objects.create(nombre="Cabildo de Santa Fe")
         self.client.force_login(self.invitado)
         respuesta = self.client.get(reverse("vocabularios_duplicados"))
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "Cabildo de Santa Fe")
+        self.assertEqual(respuesta.status_code, 302)
 
     def test_lista_un_par_encontrado_con_enlace_a_las_fichas(self):
         self.client.force_login(self.archivista)

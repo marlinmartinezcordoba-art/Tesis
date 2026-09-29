@@ -56,7 +56,7 @@ class SubgrafoJsonTest(TestCase):
 
 class GrafoViewsTest(TestCase):
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x")
+        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.record = Record.objects.create(nombre="Acta del Cabildo")
 
     def test_requiere_login(self):

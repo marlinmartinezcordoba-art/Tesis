@@ -11,7 +11,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
-from . import grafo, metricas, rdf, sparql, tipos
+from . import acceso_documentos, grafo, metricas, rdf, sparql, tipos
 from .models import Instantiation
 
 
@@ -20,6 +20,16 @@ def _entidad_o_404(tipo, pk):
     if modelo is None:
         raise Http404(f"Tipo de entidad desconocido: {tipo!r}")
     return get_object_or_404(modelo, pk=pk)
+
+
+def _visible_o_404(request, tipo, pk):
+    """RF-M8-04: lo que el rol consulta no puede ver responde como si no
+    existiera (404), sin confirmar siquiera que existe."""
+    entidad = _entidad_o_404(tipo, pk)
+    vis = acceso_documentos.Visibilidad(request.user)
+    if not vis.puede(entidad):
+        raise Http404("No encontrado")
+    return entidad, vis
 
 
 _FORMATOS_RDF = {
@@ -34,12 +44,12 @@ _FORMATOS_RDF = {
 def exportar_rdf(request, tipo, pk):
     """El vecindario RiC validado de una entidad, serializado con las URIs
     de RiC-O 1.1 verificadas. ?formato=turtle|xml|n3|json-ld."""
-    entidad = _entidad_o_404(tipo, pk)
+    entidad, vis = _visible_o_404(request, tipo, pk)
     formato = request.GET.get("formato", "turtle")
     if formato not in _FORMATOS_RDF:
         formato = "turtle"
     base = request.build_absolute_uri("/ric/entidad/")
-    g = rdf.grafo_de_entidad(entidad, base)
+    g = rdf.grafo_de_entidad(entidad, base, None if vis.todo else vis)
     return HttpResponse(g.serialize(format=formato), content_type=_FORMATOS_RDF[formato])
 
 
@@ -49,20 +59,21 @@ def exportar_rdf_completo(request):
     if formato not in _FORMATOS_RDF:
         formato = "turtle"
     base = request.build_absolute_uri("/ric/entidad/")
-    g = rdf.grafo_completo(base)
+    vis = acceso_documentos.Visibilidad(request.user)
+    g = rdf.grafo_completo(base, None if vis.todo else vis)
     return HttpResponse(g.serialize(format=formato), content_type=_FORMATOS_RDF[formato])
 
 
 @login_required
 def grafo_datos(request, tipo, pk):
-    entidad = _entidad_o_404(tipo, pk)
-    return JsonResponse(grafo.subgrafo_json(entidad))
+    entidad, vis = _visible_o_404(request, tipo, pk)
+    return JsonResponse(grafo.subgrafo_json(entidad, None if vis.todo else vis))
 
 
 @login_required
 def grafo_html(request, tipo, pk):
     """M8, «Ver en grafo»: la entidad y sus conexiones validadas, solo lectura."""
-    entidad = _entidad_o_404(tipo, pk)
+    entidad, _vis = _visible_o_404(request, tipo, pk)
     return render(request, "ric/grafo.html", {"entidad": entidad, "tipo": tipo})
 
 
@@ -81,7 +92,8 @@ def sparql_endpoint(request):
         return JsonResponse({"error": "Falta el parámetro 'query'."}, status=400)
     base = request.build_absolute_uri("/ric/entidad/")
     try:
-        resultado = sparql.ejecutar(query, base)
+        vis = acceso_documentos.Visibilidad(request.user)
+        resultado = sparql.ejecutar(query, base, None if vis.todo else vis)
     except sparql.ErrorSparql as e:
         return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse(resultado)

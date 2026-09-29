@@ -41,13 +41,29 @@ def buscar_texto(q, limite=20):
     )
 
 
-def buscar_entidades(q, limite=20, modelos=None):
-    """Entidades del grafo cuyo nombre coincide con `q`, de cualquier tipo
+def filtro_nombre(modelo, q):
+    """M8 (RF-M8-01): coincidencia sin distinguir tildes ni mayúsculas
+    («Bogota» encuentra «Bogotá») en el nombre, el identificador y, en los
+    agentes, los nombres alternativos con que aparecen en los documentos."""
+    from django.db.models import Q
+
+    filtro = Q(nombre__unaccent__icontains=q) | Q(identificador__unaccent__icontains=q)
+    if any(f.name == "nombres_alternativos" for f in modelo._meta.get_fields()):
+        filtro |= Q(nombres_alternativos__unaccent__icontains=q)
+    return filtro
+
+
+def buscar_entidades(q, limite=20, modelos=None, visibilidad=None):
+    """Entidades del grafo que coinciden con `q`, de cualquier tipo
     concreto (Person, CorporateBody, Record...) o solo de `modelos`, para
-    poder navegar de ahí a sus relaciones ya validadas."""
+    poder navegar de ahí a sus relaciones ya validadas. Con `visibilidad`
+    (rol consulta) solo devuelve lo que ese usuario puede ver (RF-M8-04)."""
     resultados = []
     for modelo in (modelos if modelos is not None else _tipos_buscables()):
-        resultados.extend(modelo.objects.filter(nombre__icontains=q)[:limite])
+        encontrados = tipos.instancias_propias(modelo).filter(filtro_nombre(modelo, q)).order_by("nombre")[: limite * 4]
+        if visibilidad is not None:
+            encontrados = visibilidad.filtrar(encontrados)
+        resultados.extend(list(encontrados)[:limite])
     return resultados[:limite]
 
 
