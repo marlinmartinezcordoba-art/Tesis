@@ -1,6 +1,24 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Captura y clasificación · RICORA{% endblock %}
 {% block estilos_extra %}
+  .cabecera h1 { font-size: 1.5rem; margin: 0 0 .15rem; }
+  .cabecera p { color: var(--ink-suave); margin: 0 0 1rem; }
+  .recorrido { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; margin: 0 0 1.2rem; counter-reset: none; }
+  .recorrido li { display: flex; align-items: center; gap: .45rem; font-size: .82rem; color: var(--ink-tenue); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: .28rem .8rem .28rem .3rem; }
+  .recorrido li span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-alt); color: var(--ink-suave); font-size: .72rem; font-weight: 600; }
+  .recorrido li.actual { color: var(--ink); border-color: var(--ricora-accent); font-weight: 500; }
+  .recorrido li.actual span { background: var(--ricora-accent); color: #fff; }
+  .recorrido li.hecho { color: #1e6b46; border-color: #bfe3cd; background: #f1f9f4; }
+  .recorrido li.hecho span { background: #2f7d4f; color: #fff; }
+  .recorrido small { color: var(--ink-tenue); font-weight: 400; }
+  .captura { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.2rem; align-items: start; }
+  @media (max-width: 1100px) { .captura { grid-template-columns: 1fr; } .como-funciona { order: -1; } }
+  .como-funciona { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; font-size: .82rem; position: sticky; top: 1rem; }
+  .como-funciona h3 { font-size: .9rem; margin: 0 0 .5rem; }
+  .como-funciona ul { margin: 0 0 .7rem; padding: 0; } .como-funciona li { list-style: none; margin: 0 0 .5rem; padding-left: .9rem; position: relative; color: var(--ink-suave); line-height: 1.4; }
+  .como-funciona li::before { content: ""; position: absolute; left: 0; top: .5em; width: 5px; height: 5px; border-radius: 50%; background: var(--ricora-accent); }
+  .como-funciona p { color: var(--ink-tenue); font-size: .76rem; margin: 0; }
+  .series .codigo { font-family: var(--fuente-mono); font-size: .7rem; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; margin-right: .4rem; color: var(--ink-suave); }
   .pasos-captura { display: grid; grid-template-columns: 1fr; gap: 1rem; }
   .paso { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; }
   .paso h3 { font-size: .95rem; margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }
@@ -8,9 +26,9 @@
   .paso h3 .n.ok { background: #2f7d4f; }
   .paso p.ayuda { font-size: .8rem; color: #6b7280; margin: 0 0 .6rem; }
   .buscar { display: flex; gap: .5rem; } .buscar input { margin: 0; } .buscar button { width: auto; margin: 0; }
-  .series { list-style: none; margin: .6rem 0 0; padding: 0; max-height: 260px; overflow: auto; border-top: 1px solid #f0efe9; }
+  .series { list-style: none; margin: .6rem 0 0; padding: 0; max-height: 420px; overflow: auto; border-top: 1px solid #f0efe9; }
   .series li { border-bottom: 1px solid #f0efe9; }
-  .series a { display: block; padding: .4rem .3rem; text-decoration: none; color: inherit; font-size: .86rem; }
+  .series a { display: block; padding: .55rem .5rem; border-radius: 6px; text-decoration: none; color: inherit; font-size: .86rem; }
   .series a:hover { background: #fffaf2; }
   .series small { color: #6b7280; display: block; font-size: .74rem; }
   .elegido { background: #f4f7fb; border-radius: 8px; padding: .6rem .8rem; font-size: .86rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
@@ -51,14 +69,20 @@
   .aviso-reemplazo { background: #fff2df; border: 1px solid #e0b566; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; }
 {% endblock %}
 {% block contenido %}
-<hgroup>
-  <h1>Captura y clasificación</h1>
-  <p>Cada documento entra clasificado desde el primer momento: elija la serie o subserie de la Tabla de
-  Retención Documental, el expediente al que pertenece y los archivos. Cada archivo se sube por separado,
-  con su barra de avance: RICORA verifica que su contenido corresponda a su formato, calcula la huella
-  SHA-256, rechaza duplicados y registra quién lo cargó y cuándo. Cuando no queda ninguna carga en curso,
-  «Enviar a preprocesamiento» extrae el texto (u OCR). El expediente hereda la retención de su serie.</p>
-</hgroup>
+<div class="cabecera">
+  <h1>Cargar documentos</h1>
+  <p>Cada documento entra clasificado: serie de la TRD → expediente → archivos.</p>
+</div>
+
+<ol class="recorrido" aria-label="Pasos de la carga">
+  <li class="{% if actividad %}hecho{% else %}actual{% endif %}"><span>1</span>Serie TRD</li>
+  <li class="{% if actividad %}actual{% endif %}"><span>2</span>Expediente</li>
+  <li class="{% if actividad %}actual{% endif %}"><span>3</span>Archivos</li>
+  <li><span>4</span>Preprocesar <small>(M2)</small></li>
+</ol>
+
+<div class="captura">
+<div class="captura-principal">
 
 {% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
 
@@ -100,7 +124,7 @@
     {% if series %}
     <ul class="series">
       {% for s in series %}
-      <li><a href="?serie={{ s.pk }}">{{ s.nombre }}<small>{{ s.identificador }} · {{ s.mandato.retencion_texto|default:"sin retención registrada" }}</small></a></li>
+      <li><a href="?serie={{ s.pk }}">{{ s.nombre }}<small>{% if s.identificador %}<span class="codigo">{{ s.identificador }}</span>{% endif %}{{ s.mandato.retencion_texto|default:"sin retención registrada" }}</small></a></li>
       {% endfor %}
     </ul>
     {% elif q %}<p class="sin-datos">Ninguna serie coincide con «{{ q }}».</p>{% endif %}
@@ -158,7 +182,7 @@
 {% endif %}
 
 <div id="bloque-archivos" {% if not cargados and not en_cola %}style="display:none"{% endif %}>
-<h3 style="margin-top: 1.6rem;">Archivos cargados</h3>
+<h3 style="margin-top: 1.6rem;">Archivos cargados, listos para preprocesar</h3>
 <form method="post" action="{% url 'preproceso_enviar' %}" id="form-preproceso">
   {% csrf_token %}
   <table class="tabla">
@@ -184,7 +208,7 @@
         <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
         <td><span class="barra ok"><i style="width:100%"></i></span></td>
         <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
-        <td><span class="chip ok">SHA-256 ✓</span> <span class="chip cola">en cola</span></td>
+        <td><span class="chip ok">SHA-256 ✓</span> <span class="chip cola">sin enviar</span></td>
         <td><a href="{% url 'visor_documento' inst.record_resource_id %}?inst={{ inst.pk }}">Ver</a></td>
       </tr>
       {% endfor %}
@@ -195,6 +219,19 @@
     <small id="aviso-envio" style="color:#6b7280"></small>
   </p>
 </form>
+</div>
+</div>
+
+<aside class="como-funciona">
+  <h3>Qué hace RICORA al cargar</h3>
+  <ul>
+    <li><strong>Verifica</strong> que el contenido corresponda al formato (un .pdf debe ser un PDF).</li>
+    <li><strong>Calcula la huella SHA-256</strong> y rechaza el archivo si ya existe.</li>
+    <li><strong>Registra</strong> quién lo cargó y cuándo, en la bitácora encadenada.</li>
+    <li>El expediente <strong>hereda la retención</strong> de su serie.</li>
+  </ul>
+  <p>Máximo {{ tamano_maximo }} MB por archivo.<br>Formatos: {{ formatos }}.</p>
+</aside>
 </div>
 
 <script>

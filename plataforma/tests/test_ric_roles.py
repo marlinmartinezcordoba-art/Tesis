@@ -73,12 +73,14 @@ class RolesTest(CasoModulos):
 
     def test_pestanas_del_proceso(self):
         resp = self._get(self.archivista, "revision_lista")
-        self.assertContains(resp, 'class="activa">Revisión archivística')
+        self.assertContains(resp, 'class="activa"><span class="m">M6</span>Revisión archivística')
+        self.assertContains(resp, "Módulo 6 · Revisión archivística")
         self.assertContains(resp, "Análisis y relaciones")
         self.assertContains(resp, "Trazabilidad y auditoría")
         resp = self._get(self.archivista, "preproceso")
-        self.assertContains(resp, 'class="activa">Preprocesamiento y OCR')
-        self.assertContains(resp, ">Cargar documentos<")
+        self.assertContains(resp, 'class="activa"><span class="m">M2</span>Preprocesamiento y OCR')
+        self.assertContains(resp, "</span>Cargar documentos<")
+        self.assertContains(resp, 'estado-modulo por_validar')
 
     def test_el_archivo_original_respeta_la_visibilidad_del_rol(self):
         # Módulo 1: antes cualquier sesión descargaba cualquier archivo por su id (RF-M8-04 lo prohíbe).

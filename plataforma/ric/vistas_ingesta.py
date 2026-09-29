@@ -177,7 +177,7 @@ def ingesta(request):
                 reemplaza = None
 
     en_cola = (
-        Instantiation.objects.exclude(eventos__tipo=EventoRiC.Tipo.EXTRACCION)
+        Instantiation.objects.filter(estado_proceso=Instantiation.EstadoProceso.SIN_ENVIAR)
         .exclude(pk__in=[i.pk for i in cargados])
         .select_related("record_resource")
         .order_by("-fecha_registro")[:50]

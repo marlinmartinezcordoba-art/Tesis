@@ -1,6 +1,9 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Preprocesamiento y OCR · RICORA{% endblock %}
 {% block estilos_extra %}
+  .cabecera h1 { font-size: 1.5rem; margin: 0 0 .15rem; }
+  .cabecera p { color: var(--ink-suave); margin: 0 0 .8rem; }
+  .leyenda { list-style: none; display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; padding: 0; margin: 0 0 1.1rem; font-size: .78rem; color: var(--ink-suave); }
   table.tabla { width: 100%; border-collapse: collapse; font-size: .84rem; background: #fff; border-radius: 12px; overflow: hidden; }
   table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .55rem .6rem; border-bottom: 1px solid #e6e3dc; }
   table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
@@ -9,7 +12,7 @@
   .chip.cola, .chip.sin_enviar { background: #eaf1fb; color: #1f3a5f; }
   .chip.procesando { background: #fff2df; color: #8a6100; }
   .chip.baja, .chip.error { background: #fde8e8; color: #7a1f1f; }
-  .avance { width: 140px; height: 7px; background: #eceae4; border-radius: 4px; overflow: hidden; }
+  .avance { width: 110px; height: 7px; background: #eceae4; border-radius: 4px; overflow: hidden; }
   .avance i { display: block; height: 100%; background: var(--ricora-accent); transition: width .6s ease; }
   .avance.listo i { background: #2f7d4f; }
   .avance.baja i, .avance.error i { background: var(--ricora-critical); }
@@ -20,16 +23,21 @@
   .paginas-baja a { font-size: .78rem; }
   .aviso-cola { background: #fff7e6; border: 1px solid #f3d9a4; color: #6b4a00; border-radius: 10px; padding: .7rem 1rem; font-size: .85rem; margin-bottom: 1rem; }
   .barra-acciones { display: flex; justify-content: flex-end; margin: .3rem 0 .8rem; }
+  .barra-acciones button#enviar-todos, td .boton-min { width: auto; white-space: nowrap; }
+  table.tabla td:first-child { min-width: 15rem; }
+  td .mensaje { max-width: 22rem; }
 {% endblock %}
 {% block contenido %}
-<hgroup>
+<div class="cabecera">
   <h1>Preprocesamiento y OCR</h1>
-  <p>Cola de procesamiento: cada archivo pasa de <em>en cola</em> a <em>procesando</em> (OCR página por página) y luego a
-  <em>listo</em>. El trabajo corre en segundo plano: puede cerrar esta pantalla o seguir cargando archivos y el avance
-  continúa. Los documentos digitales entregan su texto nativo sin OCR; las imágenes y los PDF escaneados pasan por
-  reconocimiento óptico. Se detecta el idioma y se marcan las páginas con calidad de lectura insuficiente para que usted
-  decida si se reescanean o se aceptan. Al quedar listo, el archivo se envía automáticamente al motor de análisis.</p>
-</hgroup>
+  <p>El texto se extrae en segundo plano: puede seguir trabajando o cerrar esta pantalla; el avance se actualiza solo.</p>
+</div>
+<ol class="leyenda" aria-label="Recorrido de cada archivo">
+  <li><span class="chip sin_enviar">sin enviar</span></li><li>→</li>
+  <li><span class="chip cola">en cola</span></li><li>→</li>
+  <li><span class="chip procesando">procesando</span> OCR página a página, idioma y calidad</li><li>→</li>
+  <li><span class="chip listo">listo</span> pasa al motor de análisis (M3)</li>
+</ol>
 
 <div class="aviso-cola" id="aviso-trabajador" {% if not sin_trabajador %}hidden{% endif %}>
   ⚠ Hay archivos en cola, pero ningún trabajador de procesamiento está respondiendo. Los archivos no se pierden: se
@@ -74,10 +82,10 @@
           {% for n in f.calidad_baja %}<a href="{% url 'preproceso_pagina' f.instanciacion.pk n %}">página {{ n }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
           </span>
         {% elif f.estado == "listo" and f.tiene_propuestas %}
-          <a href="{% url 'analisis' f.record.pk %}">Ver propuesta de entidades →</a>
+          <a href="{% url 'analisis' f.record.pk %}" style="white-space:nowrap">Ver propuesta de entidades →</a>
         {% elif f.estado == "listo" and f.record.pk %}
           <form method="post" action="{% url 'analisis_generar' f.record.pk %}" style="margin:0">{% csrf_token %}
-            <button class="boton-min" type="submit">Enviar al motor de análisis</button>
+            <button class="boton-min" type="submit" title="Enviar al motor de análisis">Enviar al motor</button>
           </form>
         {% endif %}
       </td>
@@ -109,7 +117,7 @@
     if (a.accion.tipo === "decidir") return '<span class="paginas-baja">Decidir: ' + a.accion.paginas.map(function (p) {
       return '<a href="' + p.url + '">página ' + p.numero + '</a>'; }).join(", ") + '</span>';
     if (a.accion.tipo === "propuestas") return '<a href="' + a.accion.url + '">Ver propuesta de entidades →</a>';
-    if (a.accion.tipo === "motor") return formulario(a.accion.url, "Enviar al motor de análisis");
+    if (a.accion.tipo === "motor") return formulario(a.accion.url, "Enviar al motor");
     return "";
   }
   function pintar(a) {

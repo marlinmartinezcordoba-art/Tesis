@@ -12,7 +12,9 @@
   /* Paleta y tipografía del frontend de referencia (misma familia que el
      documento de especificación: fondo cálido tipo papel, barra lateral en
      tinta profunda, un color por módulo). */
-  :root {
+  /* :root[data-theme="light"] iguala la especificidad de las reglas de pico.css,
+     que si no imponen su azul a botones y enlaces */
+  :root, :root[data-theme="light"] {
     --bg: #f6f4ee; --surface: #ffffff; --surface-alt: #efebe0;
     --border: #e2dbc9; --border-fuerte: #cdc2a4;
     --ink: #1d241f; --ink-suave: #5c655d; --ink-tenue: #8a9088;
@@ -53,11 +55,17 @@
     font-size: .8rem; line-height: 1.25; display: flex; align-items: center; gap: .5rem; transition: background .12s, color .12s;
   }
   .ricora-sidebar nav a:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
-  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; }
+  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; box-shadow: inset 3px 0 0 var(--ricora-accent-2); }
+  .ricora-sidebar nav a { flex-direction: column; align-items: flex-start; gap: 0; padding: .45rem .7rem; font-size: .84rem; }
+  .ricora-sidebar nav a .codigos { font-family: var(--fuente-mono); font-size: .66rem; color: #7f998a; letter-spacing: .02em; }
+  .ricora-sidebar nav a.activo .codigos { color: var(--ricora-accent-2); }
 
   .ricora-shell { flex: 1; min-width: 0; }
-  .pestanas { display: flex; gap: .2rem; flex-wrap: wrap; padding: .45rem 1.6rem 0; background: var(--panel, #fff); border-bottom: 1px solid #e6e3dc; }
-  .pestanas a { text-decoration: none; color: var(--ink-suave); font-size: .82rem; padding: .45rem .8rem; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  /* justify-content explícito: pico.css reparte los enlaces de un <nav> a los extremos */
+  nav.pestanas { display: flex; justify-content: flex-start; gap: .3rem; flex-wrap: wrap; padding: 0 1.6rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .pestanas a { text-decoration: none; color: var(--ink-suave); font-size: .86rem; padding: .7rem .9rem .6rem; border-bottom: 3px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: .45rem; }
+  .pestanas a .m { font-family: var(--fuente-mono); font-size: .66rem; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--surface-alt); color: var(--ink-suave); border: 1px solid var(--border); }
+  .pestanas a.activa .m { background: var(--ricora-accent); border-color: var(--ricora-accent); color: #fff; }
   .pestanas a:hover { color: var(--ink); }
   .pestanas a.activa { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
   .ricora-topbar {
@@ -65,7 +73,11 @@
     padding: .8rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface);
   }
   .topbar-modulo { display: flex; align-items: center; gap: .6rem; min-width: 0; }
-  .topbar-modulo .icono { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-family: var(--fuente-mono); font-size: .7rem; font-weight: 600; flex-shrink: 0; }
+  .estado-modulo { font-size: .66rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: .5rem; vertical-align: 2px; border: 1px solid transparent; }
+  .estado-modulo.validado { background: #e6f4ec; color: #1e6b46; border-color: #bfe3cd; }
+  .estado-modulo.por_validar { background: #fef3e2; color: #92620f; border-color: #f3dcae; }
+  .estado-modulo.anterior, .estado-modulo.pendiente { background: var(--surface-alt); color: var(--ink-suave); border-color: var(--border); }
+  .topbar-modulo .icono { min-width: 28px; padding: 0 5px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-family: var(--fuente-mono); font-size: .7rem; font-weight: 600; flex-shrink: 0; }
   .topbar-modulo strong { font-family: var(--fuente-titulo); font-size: .98rem; display: block; line-height: 1.15; }
   .topbar-modulo small { color: var(--ink-suave); font-size: .76rem; }
   .ricora-topbar .usuario { font-size: .82rem; color: var(--ink-suave); white-space: nowrap; }
@@ -110,7 +122,7 @@
   <nav>
     {% for m in modulos %}
       {% if m.ver == "todos" or m.ver == "ingestar" and puede_ingestar or m.ver == "revisar" and puede_revisar or m.ver == "administrar" and puede_administrar %}
-        <a href="{% url m.url %}" class="{% if modulo_numero == m.numero %}activo{% endif %}">{{ m.nombre }}</a>
+        <a href="{% url m.url %}" class="{% if modulo_numero == m.numero %}activo{% endif %}"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</a>
       {% endif %}
     {% endfor %}
   </nav>
@@ -120,8 +132,13 @@
   <div class="ricora-topbar">
     <div class="topbar-modulo">
       {% if modulo_actual %}
-      <span class="icono" style="background:{{ modulo_actual.color }}">{{ modulo_actual.numero|stringformat:"02d" }}</span>
+      {% if modulo_espec %}
+      <span class="icono" style="background:{{ modulo_actual.color }}">{{ modulo_espec.codigo }}</span>
+      <span><strong>Módulo {{ modulo_espec.numero }} · {{ modulo_espec.nombre }}<span class="estado-modulo {{ modulo_espec.estado }}">{{ modulo_espec.estado_texto }}</span></strong><small>{{ modulo_actual.nombre }}</small></span>
+      {% else %}
+      <span class="icono" style="background:{{ modulo_actual.color }}">·</span>
       <span><strong>{{ modulo_actual.nombre }}</strong><small>{{ modulo_actual.descripcion }}</small></span>
+      {% endif %}
       {% else %}
       <span class="icono" style="background:#8a9088">·</span><span><strong>RICORA</strong></span>
       {% endif %}
@@ -132,8 +149,8 @@
   </div>
   {% if modulo_actual and modulo_actual.pestanas|length > 1 %}
   <nav class="pestanas" aria-label="Pantallas de {{ modulo_actual.nombre }}">
-    {% for url, nombre, prefijos in modulo_actual.pestanas %}{% if url != "ingesta" and url != "preproceso" or puede_ingestar %}
-    <a href="{% url url %}" class="{% if pestana_actual == url %}activa{% endif %}">{{ nombre }}</a>
+    {% for p in modulo_actual.pestanas_menu %}{% if p.url != "ingesta" and p.url != "preproceso" or puede_ingestar %}
+    <a href="{% url p.url %}" class="{% if pestana_actual == p.url %}activa{% endif %}">{% if p.espec %}<span class="m">{{ p.espec.codigo }}</span>{% endif %}{{ p.nombre }}</a>
     {% endif %}{% endfor %}
   </nav>
   {% endif %}

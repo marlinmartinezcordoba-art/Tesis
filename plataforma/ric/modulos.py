@@ -10,6 +10,51 @@ pertenece la pantalla actual; `ver` decide qué rol lo encuentra en el menú.
 Los once módulos de la especificación funcional siguen existiendo como
 pantallas: aquí solo se agrupan."""
 
+# Los módulos de la especificación funcional (M0 a M11) y su estado frente a
+# la Definición de Terminado del prompt de desarrollo, para que quien valida
+# sepa en cada pantalla qué módulo está viendo.
+VALIDADO, POR_VALIDAR, ANTERIOR, PENDIENTE = "validado", "por_validar", "anterior", "pendiente"
+ESTADOS_MODULO = {
+    VALIDADO: "Validado",
+    POR_VALIDAR: "Por validar",
+    ANTERIOR: "Construido antes · sin revisar",
+    PENDIENTE: "Pendiente de rehacer",
+}
+MODULOS_ESPEC = {
+    0: ("Autenticación, autorización y auditoría", VALIDADO),
+    1: ("Ingesta y visor documental", VALIDADO),
+    2: ("Preprocesamiento y OCR", POR_VALIDAR),
+    3: ("Motor de análisis RiC", ANTERIOR),
+    4: ("Modelado de relaciones", ANTERIOR),
+    5: ("Vocabularios y autoridades", ANTERIOR),
+    6: ("Revisión archivística", PENDIENTE),
+    7: ("Trazabilidad", PENDIENTE),
+    8: ("Catálogo y consulta", PENDIENTE),
+    9: ("Exportación e interoperabilidad", PENDIENTE),
+    10: ("Panel de indicadores", PENDIENTE),
+    11: ("Administración", PENDIENTE),
+}
+# Pantalla (nombre de URL de la pestaña o del proceso) -> módulo de la especificación.
+MODULO_DE_PANTALLA = {
+    "vocabularios": 5, "vocabularios_duplicados": 5,
+    "ingesta": 1, "preproceso": 2,
+    "analisis_lista": 3, "revision_lista": 6, "historial_lista": 7,
+    "catalogo": 8, "exportar": 9,
+    "panel": 10, "admin_usuarios": 11,
+}
+
+# El módulo 0 no tiene pantalla propia: vive en Administración (pestañas
+# Auditoría y Eliminados, revocación de sesiones) y en el inicio de sesión.
+TAMBIEN_EN = {"admin_usuarios": (0,), "analisis_lista": (4,)}
+
+
+def modulo_espec(numero):
+    if numero is None:
+        return None
+    nombre, estado = MODULOS_ESPEC[numero]
+    return {"numero": numero, "codigo": f"M{numero}", "nombre": nombre, "estado": estado, "estado_texto": ESTADOS_MODULO[estado]}
+
+
 MODULOS = [
     {"numero": 1, "nombre": "Instrumentos archivísticos", "descripcion": "Organigrama, cuadro de clasificación, TRD, vocabularios y autoridades",
      "url": "vocabularios", "color": "#0d9488", "ver": "todos", "prefijos": ("vocabulario",),
@@ -64,9 +109,18 @@ def contexto_modulos(request):
     resolver = getattr(request, "resolver_match", None)
     url_name = resolver.url_name if resolver else None
     actual = modulo_actual(url_name)
+    pestana = pestana_actual(actual, url_name)
+    espec = MODULO_DE_PANTALLA.get(pestana or (actual["url"] if actual else None))
+    menu = []
+    for m in MODULOS:
+        urls = [p[0] for p in m["pestanas"]] or [m["url"]]
+        codigos = sorted({MODULO_DE_PANTALLA[u] for u in urls if u in MODULO_DE_PANTALLA} | set(TAMBIEN_EN.get(m["url"], ())))
+        pestanas = [{"url": u, "nombre": n, "espec": modulo_espec(MODULO_DE_PANTALLA.get(u))} for u, n, _p in m["pestanas"]]
+        menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "pestanas_menu": pestanas})
     return {
-        "modulos": MODULOS,
-        "modulo_actual": actual,
+        "modulos": menu,
+        "modulo_actual": next((m for m in menu if actual and m["numero"] == actual["numero"]), None),
         "modulo_numero": actual["numero"] if actual else None,
-        "pestana_actual": pestana_actual(actual, url_name),
+        "pestana_actual": pestana,
+        "modulo_espec": modulo_espec(espec),
     }

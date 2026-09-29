@@ -62,8 +62,7 @@ def mensaje_motor(analisis):
     if analisis is None:
         return ""
     if analisis.get("sin_proveedor"):
-        return ("Está listo, pero no hay un proveedor de IA activo: configúrelo en Administración → "
-                "Proveedores de IA para que el motor de análisis proponga entidades.")
+        return "Listo, pero no hay un proveedor de IA activo (Administración → Proveedores de IA)."
     if analisis.get("error"):
         return f"El motor de análisis no respondió — {analisis['error']}"
     return f"Enviado al motor de análisis: {analisis.get('propuestas', 0)} propuesta(s) de entidades."
