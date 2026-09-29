@@ -34,7 +34,7 @@ class HistorialTest(CasoModulos):
         self.assertContains(resp, "Validación humana")
         self.assertContains(resp, "archivista")
         self.assertContains(resp, "Cadena de eventos verificada")
-        self.assertContains(resp, "ver la descripción en este momento")
+        self.assertContains(resp, "Ver estado en este punto")
 
     def test_reconstruye_el_estado_anterior_de_la_descripcion(self):
         antes = timezone.now()

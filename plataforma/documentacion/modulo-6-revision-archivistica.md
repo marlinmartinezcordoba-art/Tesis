@@ -141,6 +141,6 @@ Solo lo revisado llega al catálogo y a las exportaciones RiC-O, JSON-LD y CSV (
 En el acta del Cabildo de 1810 hay dos fichas. «Cabildo de Santafé» es CorporateBody E11, con R027 has creator y el rol productor. «José Acevedo y Gómez» es Person E08, con R027 y confianza 0,40, así que aparece primero con la marca de baja confianza. Cada ficha cita el fragmento y la página, y dice qué Mechanism (E13) la propuso. La publicación exige una relación de procedencia confirmada (CC-03).
 
 ## Qué no hace (y qué pasa en cada error)
-- **Separación de funciones:** no la impone. La misma persona que aceptó en el análisis puede revisar, aunque la pantalla muestra quién aceptó y quién revisó. Queda como pregunta abierta.
+- **Separación de funciones:** no la impone, por decisión tomada al validar el módulo (29/09/2026) («puede revisar y validar la misma persona; no debo depender de más para seguir»). La pantalla y el historial siempre muestran quién aceptó en el análisis y quién revisó.
 - **Tipo de relación:** no se corrige desde aquí (eso es M4); al cambiarlo, la ficha vuelve a revisión.
 - **Si falla una acción:** la pantalla dice por qué (sin motivo, entidad compartida, relación de clasificación, pendientes o CC-03) y nada cambia.

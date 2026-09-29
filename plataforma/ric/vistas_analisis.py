@@ -281,10 +281,16 @@ def analisis_forma(request, pk):
     if forma is None:
         messages.error(request, "Elija una forma documental o escriba una nueva.")
         return redirect("analisis", pk=pk)
+    anterior = record.tipo_forma_documental
     record.forma_documental = forma
     record.tipo_forma_documental = forma.nombre
     record.modificado_por = request.user
     record.save()
+    # RF-M7-01: también esta decisión humana queda en la bitácora del documento.
+    registrar_evento(
+        flujo.instanciacion_principal(record), EventoRiC.Tipo.VALIDACION, agente=request.user,
+        detalle={"forma_documental": forma.nombre, "antes": anterior or "sin asignar", "despues": forma.nombre},
+    )
     messages.success(request, f"Forma documental: {forma.nombre}.")
     return redirect("analisis", pk=pk)
 
@@ -563,26 +569,46 @@ def historial_lista(request):
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 def historial(request, pk):
+    """RF-M7-01/02/03: línea de tiempo completa del documento; cada punto se
+    expande con qué cambió (antes → después) y permite ver la descripción
+    completa tal como estaba en ese instante, en solo lectura."""
+    from . import trazabilidad
+
     record = get_object_or_404(Record, pk=pk)
-    eventos = list(
-        EventoRiC.objects.filter(instanciacion__record_resource=record)
-        .select_related("instanciacion").order_by("fecha", "id")
-    )
-    momento, reconstruccion = None, None
+    puntos = trazabilidad.linea_de_tiempo(record)
+    momento, reconstruccion, punto_actual = None, None, request.GET.get("punto", "")
     if request.GET.get("momento"):
         momento = parse_datetime(request.GET["momento"])
         if momento is not None:
             if timezone.is_naive(momento):
                 momento = timezone.make_aware(momento)
-            reconstruccion = flujo.descripcion_en(record, momento)
-    matriz = reglas.cargar_matriz()["relaciones"]
-    if reconstruccion is not None:
-        for fila in reconstruccion:
-            fila["nombre_relacion"] = matriz.get(fila["relacion_id"], {}).get("nombre", fila["relacion_id"])
+            reconstruccion = trazabilidad.descripcion_en(record, momento)
     return render(request, "ric/historial.html", {
         **_contexto_documento(record),
-        "eventos": eventos,
+        "puntos": puntos,
+        "total_ia": sum(1 for p in puntos if p["actor"] == "ia"),
+        "total_humano": sum(1 for p in puntos if p["actor"] == "humano"),
         "momento": momento,
+        "punto_actual": punto_actual,
         "reconstruccion": reconstruccion,
         "cadena_intacta": all(verificar_cadena(i)[0] for i in record.instanciaciones.all()),
     })
+
+
+@roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
+def historial_exportar(request, pk):
+    """«Exportar historial» (historia 7): el registro completo como evidencia
+    fuera del sistema. La propia exportación queda en la auditoría."""
+    from django.http import HttpResponse
+
+    from . import trazabilidad
+    from .auditoria_acciones import registrar_accion
+    from .models import RegistroAuditoria
+
+    record = get_object_or_404(Record, pk=pk)
+    formato = "json" if request.GET.get("formato") == "json" else "csv"
+    contenido, tipo = trazabilidad.exportar(record, formato)
+    registrar_accion(RegistroAuditoria.Accion.CONSULTAR, record, detalle={"exportacion_historial": formato})
+    respuesta = HttpResponse(contenido, content_type=tipo)
+    respuesta["Content-Disposition"] = f'attachment; filename="historial-documento-{record.pk}.{formato}"'
+    return respuesta

@@ -1,75 +1,176 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Historial · {{ record }} · RICORA{% endblock %}
 {% block estilos_extra %}
+  .encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: .8rem; }
   .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
-  .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
-  .grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1.1rem; align-items: start; }
-  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
-  .tl { position: relative; padding-left: 1.4rem; border-left: 2px solid #e6e3dc; }
-  .tl-item { position: relative; padding: .2rem 0 1rem; font-size: .85rem; }
-  .tl-item::before { content: ""; position: absolute; left: -1.85rem; top: .45rem; width: 11px; height: 11px; border-radius: 50%; background: var(--ricora-accent); border: 2px solid #fff; }
-  .tl-item.validacion_humana::before, .tl-item.publicacion::before { background: #2f7d4f; }
-  .tl-item.propuesta_ia::before { background: #7046d9; }
-  .tl-item.ingesta::before, .tl-item.extraccion_texto::before { background: #6b8cae; }
-  .tl-item .fecha { font-size: .74rem; color: #8a94a3; }
-  .tl-item .titulo { font-weight: 600; }
-  .tl-item .detalle { font-size: .78rem; color: #52606d; word-break: break-word; }
-  .tl-item .ver { font-size: .76rem; }
-  .estado-panel { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; position: sticky; top: 1rem; font-size: .85rem; }
-  .estado-panel h3 { font-size: .95rem; margin: 0 0 .4rem; }
-  .estado-panel li { margin: .3rem 0; }
-  .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
-  .badge.aceptada, .badge.modificada { background: #e3f9e5; color: #1b4d2e; }
-  .badge.rechazada { background: #eceae4; color: #52606d; }
-  .badge.pendiente { background: #fff2df; color: #8a6100; }
-  .cadena { font-size: .8rem; padding: .5rem .8rem; border-radius: 8px; margin-bottom: .8rem; }
+  .encabezado p { margin: 0; color: var(--ink-suave); font-size: .88rem; max-width: 60rem; }
+  .exportar { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .exportar a[role=button] { width: auto; margin: 0; padding: .4rem .8rem; font-size: .8rem; background: var(--surface); color: var(--ink); border: 1px solid var(--border-fuerte); }
+  .barra-sup { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: .8rem; }
+  .cadena { font-size: .8rem; padding: .35rem .8rem; border-radius: 999px; }
   .cadena.ok { background: #e3f9e5; color: #1b4d2e; } .cadena.rota { background: #fde8e8; color: #7a1f1f; }
+  .filtros { display: flex; gap: .3rem; flex-wrap: wrap; margin-left: auto; }
+  .filtros button { all: unset; cursor: pointer; font-size: .78rem; padding: .25rem .7rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-suave); }
+  .filtros button[aria-pressed=true] { background: var(--ricora-dark); color: #fff; border-color: var(--ricora-dark); }
+  .filtros button:focus-visible { outline: 2px solid var(--ricora-accent); }
+  .zonas { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1rem; height: calc(100vh - 15rem); min-height: 420px; }
+  .zona { min-height: 0; overflow: auto; }
+  .tl { position: relative; padding: .2rem 0 1rem 1.5rem; }
+  .tl::before { content: ""; position: absolute; left: .45rem; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .punto { position: relative; margin-bottom: .55rem; }
+  .punto::before { content: ""; position: absolute; left: -1.3rem; top: .75rem; width: 12px; height: 12px; border-radius: 50%; background: var(--ricora-accent); border: 2px solid var(--bg); }
+  .punto.ia::before { background: #7046d9; } .punto.humano::before { background: #2f7d4f; }
+  .punto.sistema::before { background: #6b8cae; } .punto.error::before { background: var(--peligro); }
+  .punto details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .punto.seleccionado details { border-color: var(--ricora-accent); box-shadow: 0 0 0 1px var(--ricora-accent) inset; }
+  .punto summary { cursor: pointer; padding: .5rem .8rem; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; }
+  .punto summary::-webkit-details-marker { display: none; }
+  .punto .titulo { font-weight: 600; font-size: .88rem; }
+  .punto .quien { font-size: .76rem; color: var(--ink-suave); }
+  .punto .n-cambios { font-size: .7rem; background: var(--surface-alt); border-radius: 999px; padding: 1px 8px; align-self: start; color: var(--ink-suave); }
+  .punto .cuerpo { padding: .1rem .8rem .7rem; font-size: .82rem; }
+  .punto table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .3rem 0 .5rem; }
+  .punto th { text-align: left; font-size: .68rem; text-transform: uppercase; color: var(--ink-tenue); padding: .25rem .4rem; border-bottom: 1px solid var(--border); }
+  .punto td { padding: .3rem .4rem; border-bottom: 1px solid #f0efe9; vertical-align: top; overflow-wrap: anywhere; }
+  .punto td.antes { color: #93392a; text-decoration: line-through; text-decoration-color: rgba(147,57,42,.4); }
+  .punto td.despues { color: #1e6b46; font-weight: 500; }
+  .punto dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .15rem .7rem; margin: .2rem 0 .5rem; font-size: .78rem; }
+  .punto dt { color: var(--ink-tenue); } .punto dd { margin: 0; overflow-wrap: anywhere; }
+  .punto .ver-estado { font-size: .8rem; font-weight: 600; }
+  .estado { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; font-size: .85rem; }
+  .estado h3 { font-size: .98rem; margin: 0 0 .5rem; }
+  .estado .solo-lectura { font-size: .7rem; font-weight: 700; background: var(--surface-alt); border-radius: 999px; padding: 1px 8px; color: var(--ink-suave); margin-left: .4rem; vertical-align: 2px; }
+  .estado dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .8rem; margin: 0 0 .8rem; }
+  .estado dt { color: var(--ink-tenue); } .estado dd { margin: 0; }
+  .estado li { margin: .35rem 0; list-style: none; }
+  .estado ul { padding: 0; margin: 0; }
+  .badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+  .badge.aceptada, .badge.modificada, .badge.confirmada, .badge.corregida { background: #e3f9e5; color: #1b4d2e; }
+  .badge.rechazada { background: #fde8e8; color: #7a1f1f; }
+  .badge.pendiente { background: #fff2df; color: #8a6100; }
+  .badge.no_aplica { background: var(--surface-alt); color: var(--ink-suave); }
+  .pestanas-hist { display: none; gap: .2rem; border-bottom: 1px solid var(--border); margin-bottom: .6rem; }
+  .pestanas-hist button { all: unset; cursor: pointer; padding: .45rem .8rem; font-size: .84rem; color: var(--ink-suave); border-bottom: 3px solid transparent; }
+  .pestanas-hist button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ricora-accent); font-weight: 600; }
+  @media (max-width: 1100px) {
+    .pestanas-hist { display: flex; }
+    .zonas { grid-template-columns: minmax(0, 1fr); }
+    .zonas .zona[data-zona]:not(.visible) { display: none; }
+  }
 {% endblock %}
 {% block contenido %}
 {% include "ric/_pasos.html" %}
 <div class="encabezado">
-  <h1>Trazabilidad y auditoría — {{ record }}</h1>
-  <p>Línea de tiempo del documento: qué propuso el motor de análisis, qué decidió cada persona y cuándo.
-  Cada evento está encadenado por hash con el anterior (estilo PREMIS), así que alterar o borrar uno rompe la
-  cadena. En cualquier punto, «ver la descripción en este momento» reconstruye exactamente cómo estaba.</p>
-</div>
-
-<div class="cadena {% if cadena_intacta %}ok{% else %}rota{% endif %}">
-  {% if cadena_intacta %}🔒 Cadena de eventos verificada: íntegra.{% else %}⚠ La cadena de eventos de este documento presenta una alteración.{% endif %}
-</div>
-
-<div class="grid">
   <div>
-    {% if not eventos %}<p class="sin-datos">Todavía no hay eventos registrados para este documento.</p>{% endif %}
+    <h1>Historial — {{ record }}</h1>
+    <p>Cada propuesta del motor y cada decisión humana, con fecha y responsable. Abra un punto para ver qué cambió;
+    «Ver estado en este punto» muestra la descripción completa tal como estaba entonces.</p>
+  </div>
+  <div class="exportar">
+    <a role="button" href="{% url 'historial_exportar' record.pk %}?formato=csv">⬇ Exportar historial (CSV)</a>
+    <a role="button" href="{% url 'historial_exportar' record.pk %}?formato=json">⬇ JSON</a>
+  </div>
+</div>
+
+<div class="barra-sup">
+  <span class="cadena {% if cadena_intacta %}ok{% else %}rota{% endif %}">
+    {% if cadena_intacta %}🔒 Cadena de eventos verificada: íntegra{% else %}⚠ La cadena de eventos presenta una alteración{% endif %}
+  </span>
+  <span style="font-size:.8rem; color:var(--ink-suave)">{{ puntos|length }} registro(s)</span>
+  <div class="filtros" role="group" aria-label="Filtrar la línea de tiempo">
+    <button type="button" data-filtro="todo" aria-pressed="true">Todo</button>
+    <button type="button" data-filtro="ia" aria-pressed="false">Propuestas de IA ({{ total_ia }})</button>
+    <button type="button" data-filtro="humano" aria-pressed="false">Decisiones humanas ({{ total_humano }})</button>
+    <button type="button" data-filtro="sistema" aria-pressed="false">Sistema</button>
+  </div>
+</div>
+
+<div class="pestanas-hist" role="tablist">
+  <button type="button" role="tab" data-ver="linea" aria-selected="{% if reconstruccion %}false{% else %}true{% endif %}">Línea de tiempo</button>
+  <button type="button" role="tab" data-ver="estado" aria-selected="{% if reconstruccion %}true{% else %}false{% endif %}">Estado en el punto</button>
+</div>
+
+<div class="zonas">
+  <section class="zona{% if not reconstruccion %} visible{% endif %}" data-zona="linea" aria-label="Línea de tiempo">
+    {% if not puntos %}<p class="sin-datos">Todavía no hay registros para este documento.</p>{% endif %}
     <div class="tl">
-      {% for e in eventos %}
-      <div class="tl-item {{ e.tipo }}">
-        <div class="fecha">{{ e.fecha|date:"d/m/Y H:i:s" }} · {{ e.agente }}</div>
-        <div class="titulo">{{ e.get_tipo_display }}</div>
-        <div class="detalle">{{ e.instanciacion.nombre }}{% if e.detalle %} · {% for k, v in e.detalle.items %}{{ k }}: {{ v|truncatechars:80 }}{% if not forloop.last %} · {% endif %}{% endfor %}{% endif %}</div>
-        <a class="ver" href="?momento={{ e.fecha|date:'c'|urlencode }}">ver la descripción en este momento →</a>
+      {% for p in puntos %}
+      <div class="punto {{ p.actor }}{% if p.id == punto_actual %} seleccionado{% endif %}" data-actor="{{ p.actor }}" id="{{ p.id }}">
+        <details {% if p.id == punto_actual %}open{% endif %}>
+          <summary>
+            <span><span class="titulo">{{ p.titulo }}</span>{% if not p.exitoso %} <span class="badge rechazada">falló</span>{% endif %}<br>
+              <span class="quien">{{ p.fecha|date:"d/m/Y H:i:s" }} · {{ p.usuario }}{% if p.archivo %} · {{ p.archivo }}{% endif %}</span></span>
+            {% if p.cambios %}<span class="n-cambios">{{ p.cambios|length }} cambio(s)</span>{% endif %}
+          </summary>
+          <div class="cuerpo">
+            {% if p.cambios %}
+            <table>
+              <thead><tr><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th></tr></thead>
+              <tbody>{% for c in p.cambios %}<tr><td>{{ c.campo }}</td><td class="antes">{{ c.antes }}</td><td class="despues">{{ c.despues }}</td></tr>{% endfor %}</tbody>
+            </table>
+            {% endif %}
+            {% if p.datos %}<dl>{% for d in p.datos %}<dt>{{ d.campo }}</dt><dd>{{ d.valor }}</dd>{% endfor %}</dl>{% endif %}
+            {% if not p.cambios and not p.datos %}<p style="color:var(--ink-tenue); margin:.2rem 0 .5rem">Sin detalle adicional.</p>{% endif %}
+            <a class="ver-estado" href="?momento={{ p.fecha|date:'c'|urlencode }}&punto={{ p.id }}#{{ p.id }}">Ver estado en este punto →</a>
+          </div>
+        </details>
       </div>
       {% endfor %}
     </div>
-  </div>
-  <aside class="estado-panel">
-    {% if reconstruccion is not None %}
-      <h3>Descripción al {{ momento|date:"d/m/Y H:i:s" }}</h3>
-      {% if reconstruccion %}
+  </section>
+
+  <section class="zona{% if reconstruccion %} visible{% endif %}" data-zona="estado" aria-label="Estado de la descripción">
+    <div class="estado">
+    {% if reconstruccion %}
+      <h3>Descripción al {{ momento|date:"d/m/Y H:i:s" }}<span class="solo-lectura">solo lectura</span></h3>
+      {% if not reconstruccion.existia %}
+      <p class="sin-datos">En ese momento el documento todavía no existía.</p>
+      {% else %}
+      <dl>
+        <dt>Nombre</dt><dd>{{ reconstruccion.nombre }}</dd>
+        <dt>Forma documental</dt><dd>{{ reconstruccion.forma_documental }}</dd>
+        <dt>Idioma</dt><dd>{{ reconstruccion.idioma }}</dd>
+        <dt>En el catálogo</dt><dd>{% if reconstruccion.publicado %}publicado{% else %}no publicado{% endif %}</dd>
+      </dl>
+      <strong style="font-size:.84rem">Relaciones ({{ reconstruccion.relaciones|length }})</strong>
+      {% if reconstruccion.relaciones %}
       <ul>
-        {% for fila in reconstruccion %}
-        <li><span class="badge {{ fila.estado }}">{{ fila.estado }}</span> {{ fila.relacion_id }} {{ fila.nombre_relacion }} → <strong>{{ fila.destino }}</strong>{% if fila.reconstruida %} <small>(reconstruida desde el historial de versiones)</small>{% endif %}</li>
+        {% for fila in reconstruccion.relaciones %}
+        <li><span class="badge {{ fila.estado }}">{{ fila.estado }}</span>{% if fila.estado != "rechazada" %} <span class="badge {{ fila.revision }}">revisión: {{ fila.revision }}</span>{% endif %}<br>
+          {{ fila.relacion_id }} {{ fila.nombre_relacion }} → <strong>{{ fila.entidad }}</strong> <small style="color:var(--ink-tenue)">{{ fila.tipo_entidad }}</small>{% if fila.reconstruida %} <small style="color:var(--ink-tenue)">(reconstruida desde el historial de versiones)</small>{% endif %}</li>
         {% endfor %}
       </ul>
-      {% else %}
-      <p class="sin-datos">En ese momento el documento aún no tenía relaciones.</p>
+      {% else %}<p class="sin-datos">En ese momento el documento aún no tenía relaciones.</p>{% endif %}
       {% endif %}
-      <p><a href="{% url 'historial' record.pk %}">← Volver al estado actual</a></p>
+      <p style="margin-top:.8rem"><a href="{% url 'historial' record.pk %}">← Volver al estado actual</a></p>
     {% else %}
       <h3>Estado actual</h3>
       <p>{{ etiqueta_estado }}.</p>
-      <p style="color:#6b7280">Elija «ver la descripción en este momento» en cualquier evento de la línea de tiempo para reconstruir cómo estaba entonces (RF-M7-03).</p>
+      <p style="color:var(--ink-suave)">Abra un punto de la línea de tiempo y elija «Ver estado en este punto» para ver
+      cómo estaba la descripción completa en ese momento (RF-M7-03).</p>
     {% endif %}
-  </aside>
+    </div>
+  </section>
 </div>
+
+<script>
+(function () {
+  document.querySelectorAll(".filtros button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll(".filtros button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      document.querySelectorAll(".punto").forEach(function (p) {
+        p.hidden = b.dataset.filtro !== "todo" && p.dataset.actor !== b.dataset.filtro;
+      });
+    });
+  });
+  document.querySelectorAll(".pestanas-hist button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll(".pestanas-hist button").forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+      document.querySelectorAll(".zona[data-zona]").forEach(function (z) { z.classList.toggle("visible", z.dataset.zona === b.dataset.ver); });
+    });
+  });
+  var sel = document.querySelector(".punto.seleccionado");
+  if (sel) sel.scrollIntoView({ block: "center" });
+})();
+</script>
 {% endblock %}

@@ -30,6 +30,7 @@
   <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF (Turtle)</a>
   <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}?formato=json-ld">JSON-LD</a>
   {% if es_documento %}<a role="button" class="secundario" href="{% url 'exportar' %}?doc={{ entidad.pk }}">Exportar este documento</a>{% endif %}
+  {% if es_documento and puede_revisar %}<a role="button" class="secundario" href="{% url 'historial' entidad.pk %}">🕒 Ver historial</a>{% endif %}
   {% if not es_documento %}<a role="button" class="secundario" href="{% url 'vocabulario_ficha' tipo entidad.pk %}">Ficha de autoridad</a>{% endif %}
 </div>
 

@@ -83,6 +83,7 @@ urlpatterns = [
     # M7 · Trazabilidad y auditoría
     path("documentos/", vistas_analisis.historial_lista, name="historial_lista"),
     path("documentos/<int:pk>/historial/", vistas_analisis.historial, name="historial"),
+    path("documentos/<int:pk>/historial/exportar/", vistas_analisis.historial_exportar, name="historial_exportar"),
 
     # M8 · Catálogo y consulta y M9 · Exportación e interoperabilidad
     path("catalogo/", vistas_catalogo.catalogo, name="catalogo"),
