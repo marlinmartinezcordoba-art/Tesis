@@ -80,7 +80,7 @@ def vocabularios(request):
         if creada:
             messages.success(request, f"Forma documental «{forma.nombre}» creada.")
         else:
-            messages.info(request, f"«{forma.nombre}» ya existía en el vocabulario (RF-M5-02: no se duplicó).")
+            messages.info(request, f"«{forma.nombre}» ya existía en el vocabulario (no se duplicó).")
         return redirect(f"/vocabularios/?tipo={_SLUG_FORMA}")
 
     filtro = request.GET.get("tipo", "").strip().lower()
@@ -337,7 +337,7 @@ def vocabularios_duplicados(request):
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def vocabulario_fusionar(request, tipo, pk):
-    """Fusionar una entrada duplicada en esta (F08): mueve sus relaciones y
+    """Fusionar una entrada duplicada en esta: mueve sus relaciones y
     la retira, conservando su fotografía en el historial de versiones."""
     if tipo == _SLUG_FORMA:
         superviviente = get_object_or_404(FormaDocumental, pk=pk)

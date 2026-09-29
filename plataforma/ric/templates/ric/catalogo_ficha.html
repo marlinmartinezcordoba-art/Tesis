@@ -47,7 +47,7 @@
     <div class="tarjeta">
       <h3>Descripción</h3>
       <dl>
-        <dt>Nombre (RiC-A28)</dt><dd>{{ entidad.nombre }}</dd>
+        <dt>Nombre</dt><dd>{{ entidad.nombre }}</dd>
         {% if entidad.descripcion_general %}<dt>Descripción</dt><dd>{{ entidad.descripcion_general }}</dd>{% endif %}
         {% if es_documento %}
           <dt>Forma documental</dt><dd>{{ entidad.forma_documental|default:entidad.tipo_forma_documental|default:"—" }}</dd>

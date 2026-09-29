@@ -74,7 +74,7 @@ class GenerarPropuestasTest(TestCase):
         [p] = generar_propuestas(self.record, ProveedorFalso(candidatos))
         self.assertFalse(p.evidencia.verificada)
         self.assertEqual(p.estado, "rechazada")
-        self.assertIn("CC-01", p.motivo_decision)
+        self.assertIn("no aparece en el texto", p.motivo_decision)
 
     def test_relacion_id_inexistente_se_rechaza_automaticamente(self):
         candidatos = [PropuestaCandidata(

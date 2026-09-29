@@ -26,7 +26,7 @@
 {% block contenido %}
 <p><a href="{% url 'vocabularios' %}">← Vocabularios y autoridades</a></p>
 <hgroup>
-  <h1>{{ entidad }} <span class="tag">{% if es_forma %}Forma documental · RiC-A17{% else %}{{ tipo_nombre|capfirst }} · {{ ric_id }}{% endif %}</span></h1>
+  <h1>{{ entidad }} <span class="tag">{% if es_forma %}Forma documental{% else %}{{ tipo_nombre|capfirst }} · {{ ric_id }}{% endif %}</span></h1>
   <p>Registro de autoridad. {% if not es_forma %}Enlaces: <span class="acciones"><a href="{% url 'ric_grafo' tipo entidad.pk %}">ver en grafo</a><a href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF</a><a href="{% url 'catalogo_ficha' tipo entidad.pk %}">ficha de catálogo</a></span>{% endif %}</p>
 </hgroup>
 
@@ -47,10 +47,10 @@
         {% if es_forma %}
         <label>Definición</label><textarea name="definicion" rows="2">{{ entidad.definicion }}</textarea>
         {% else %}
-        <label>Identificador / código (RiC-A22)</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
+        <label>Identificador / código</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
         {% if es_agente %}<label>Nombres alternativos (una variante por línea)</label><textarea name="nombres_alternativos" rows="2" placeholder="Formas con las que aparece en los documentos">{{ entidad.nombres_alternativos }}</textarea>{% endif %}
         {% if es_regla %}<div class="trd"><div><label>Fecha de expedición</label><input type="date" name="fecha_expedicion" value="{{ entidad.fecha_expedicion|date:'Y-m-d' }}"></div><div><label>Enlace al texto completo</label><input type="url" name="enlace_texto_completo" value="{{ entidad.enlace_texto_completo }}" placeholder="https://"></div></div>{% endif %}
-        <label>Descripción general (RiC-A43)</label><textarea name="descripcion_general" rows="2">{{ entidad.descripcion_general }}</textarea>
+        <label>Descripción general</label><textarea name="descripcion_general" rows="2">{{ entidad.descripcion_general }}</textarea>
         {% endif %}
         {% if es_mandato %}
         <div class="trd">
@@ -64,7 +64,7 @@
           <div class="ancho"><label>Procedimiento (qué se hace al vencer la retención)</label><textarea name="procedimiento" rows="3">{{ entidad.procedimiento }}</textarea></div>
         </div>
         {% endif %}
-        <label>Serie / subserie de la TRD vigente (RF-M5-03)</label><input type="text" name="serie_trd" value="{{ entidad.serie_trd }}" placeholder="Ej. 100.02 Actas de comité">
+        <label>Serie / subserie de la TRD vigente</label><input type="text" name="serie_trd" value="{{ entidad.serie_trd }}" placeholder="Ej. 100.02 Actas de comité">
         <button type="submit">Guardar cambios</button>
       </form>
       {% else %}
@@ -81,7 +81,7 @@
     </div>
 
     <div class="tarjeta">
-      <h3>Trazabilidad de la entrada (RF-M5-04)</h3>
+      <h3>Trazabilidad de la entrada</h3>
       <dl>
         <dt>Creada</dt><dd>{{ entidad.fecha_registro|date:"d/m/Y H:i" }} · {{ entidad.creado_por.get_username|default:"sistema" }}</dd>
         <dt>Última modificación</dt><dd>{{ entidad.fecha_actualizacion|date:"d/m/Y H:i" }} · {{ entidad.modificado_por.get_username|default:"—" }}</dd>

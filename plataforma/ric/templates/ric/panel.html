@@ -147,7 +147,7 @@
 
 {% if incompletos %}
 <div class="ricora-panel" style="border-color:#f3dcae; background:#fffaf2;">
-  <header><h2>⚠ Descripción incompleta (CC-02)</h2></header>
+  <header><h2>⚠ Descripción incompleta</h2></header>
   {% for f in incompletos %}
   <div class="ricora-item">
     <span>{{ f.record }} <span class="origen">· falta {{ f.faltan|join:", " }}</span></span>
@@ -224,7 +224,7 @@
     </div>
 
     <div class="ricora-panel">
-      <header><h2>Otras cifras</h2><a href="{% url 'ric_evaluacion' %}">Laboratorio de métricas →</a></header>
+      <header><h2>Otras cifras</h2></header>
       <div class="ricora-item"><span>Propuestas de IA pendientes</span><b>{{ pendientes }}</b></div>
       <div class="ricora-item"><span>Relaciones ya validadas</span><b>{{ relaciones_validadas }}</b></div>
       <div class="ricora-item"><span>Archivos sin texto extraído</span><b>{{ documentos_sin_texto }}</b></div>

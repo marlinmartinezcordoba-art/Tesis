@@ -83,7 +83,7 @@
       <p class="contador"><strong id="n-marcados">{{ seleccionados|length }}</strong> documento(s) seleccionado(s){% if seleccionados %}, {{ seleccionados|length }} precargado(s) desde el catálogo{% endif %}.</p>
       <button type="submit" id="generar" style="margin-top:.6rem" {% if not seleccionados %}disabled{% endif %}>Generar exportación</button>
     </form>
-    <p class="tecnico">Acceso técnico: <a href="{% url 'ric_exportar_rdf_completo' %}">todo el grafo RiC en Turtle</a> · <a href="{% url 'ric_sparql' %}">consola SPARQL</a>.</p>
+    <p class="tecnico">Para sistemas externos: <a href="{% url 'ric_exportar_rdf_completo' %}">descargar toda la descripción en RiC-O</a> · <a href="{% url 'ric_sparql' %}">consultas SPARQL</a>.</p>
   </div>
 
   <div class="tarjeta">

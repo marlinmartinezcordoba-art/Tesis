@@ -1184,12 +1184,12 @@ class EventoRiC(models.Model):
         EXTRACCION = "extraccion_texto", "Extracción de texto (OCR)"
         PROPUESTA_IA = "propuesta_ia", "Propuesta generada por IA"
         VALIDACION = "validacion_humana", "Validación humana"
-        SEGMENTACION = "segmentacion", "Segmentación en documento nuevo (F04)"
-        FUSION = "fusion_entidades", "Fusión de dos entidades duplicadas (F08)"
-        INGESTA = "ingesta", "Carga de un archivo (M1)"
-        RELACION_EDITADA = "relacion_editada", "Relación corregida o retirada (M4)"
-        PUBLICACION = "publicacion", "Aprobación y publicación en el catálogo (M6)"
-        EXPORTACION = "exportacion", "Exportación (M9)"
+        SEGMENTACION = "segmentacion", "Segmentación en documento nuevo"
+        FUSION = "fusion_entidades", "Fusión de dos entidades duplicadas"
+        INGESTA = "ingesta", "Carga de un archivo"
+        RELACION_EDITADA = "relacion_editada", "Relación corregida o retirada"
+        PUBLICACION = "publicacion", "Aprobación y publicación en el catálogo"
+        EXPORTACION = "exportacion", "Exportación"
 
     instanciacion = models.ForeignKey(
         Instantiation, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos"
@@ -1392,7 +1392,7 @@ class RegistroAuditoria(models.Model):
         RESTAURAR = "restaurar", "Restauración"
         SESIONES_CERRADAS = "sesiones_cerradas", "Sesiones revocadas"
         CONSULTAR = "consultar", "Consulta de un documento en el visor"
-        EXPORTAR = "exportar", "Exportación de documentos (M9)"
+        EXPORTAR = "exportar", "Exportación de documentos"
 
     usuario = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="acciones_auditadas")
     usuario_nombre = models.CharField(max_length=150, blank=True)

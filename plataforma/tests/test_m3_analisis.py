@@ -105,17 +105,17 @@ class CriteriosDeCalidadTest(CasoModulos):
     def test_cc01_evidencia_inventada_se_descarta_pero_queda_registrada(self):
         [p] = self.proponer(self.record, candidato(evidencia="esto no está en el texto"))
         self.assertEqual(p.estado, PropuestaRiC.Estado.RECHAZADA)
-        self.assertIn("CC-01", p.motivo_decision)
+        self.assertIn("no aparece en el texto", p.motivo_decision)
         self.assertFalse(p.evidencia.verificada)
 
     def test_cc06_mandato_sin_cita_textual_se_descarta(self):
         [p] = self.proponer(self.record, candidato(relacion_id="R019", entidad_tipo="E17", entidad_nombre="Ley 594", evidencia="Ley 594 de 2000"))
-        self.assertIn("CC-06", p.motivo_decision)
+        self.assertIn("cita textual explícita", p.motivo_decision)
 
     def test_cc03_procedencia_con_rol_mencionado_se_descarta(self):
         [p] = self.proponer(self.record, candidato(datos_extra={"rol_en_el_documento": "mencionado"}))
         self.assertEqual(p.estado, PropuestaRiC.Estado.RECHAZADA)
-        self.assertIn("CC-03", p.motivo_decision)
+        self.assertIn("agente productor o firmante", p.motivo_decision)
         [ok] = self.proponer(self.record, candidato(entidad_nombre="Cabildo", evidencia="Cabildo", datos_extra={"rol_en_el_documento": "firmante"}))
         self.assertEqual(ok.estado, PropuestaRiC.Estado.PENDIENTE)
 
@@ -170,10 +170,10 @@ class CriteriosDeCalidadTest(CasoModulos):
         self.assertEqual(flujo.clases_faltantes(self.record), ["forma documental", "fecha"])
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("analisis", args=[self.record.pk]))
-        self.assertContains(resp, "Descripción incompleta (CC-02)")
+        self.assertContains(resp, "⚠ Descripción incompleta")
         self.assertContains(resp, "forma documental, fecha")
         resp = self.client.get(reverse("panel"))
-        self.assertContains(resp, "Descripción incompleta (CC-02)")
+        self.assertContains(resp, "⚠ Descripción incompleta")
         self.client.post(reverse("analisis_forma", args=[self.record.pk]), {"forma_nombre": "Acta"})
         self.proponer(self.record, candidato(relacion_id="R080", entidad_tipo="E18", entidad_nombre="20 de julio de 1810", evidencia="20 de julio de 1810"))
         self.record.refresh_from_db()
@@ -185,7 +185,7 @@ class CriteriosDeCalidadTest(CasoModulos):
             datos_extra={"fecha_normalizada": "2099-01-01", "tipo_fecha": "creacion"},
         ))
         self.assertIn("posterior a la ingesta", p.datos_extra["conflicto_temporal"])
-        self.assertIn("CC-07", p.justificacion)
+        self.assertIn("Conflicto de fechas", p.justificacion)
         self.assertEqual(p.estado, PropuestaRiC.Estado.PENDIENTE)  # se marca, la persona decide
         [q] = self.proponer(self.record, candidato(
             relacion_id="R080", entidad_tipo="E18", entidad_nombre="fecha rara", evidencia="1810",
@@ -193,7 +193,7 @@ class CriteriosDeCalidadTest(CasoModulos):
         ))
         self.assertIn("no es una fecha ISO 8601", q.datos_extra["conflicto_temporal"])
         self.client.force_login(self.archivista)
-        self.assertContains(self.client.get(reverse("analisis", args=[self.record.pk])), "Conflicto temporal (CC-07)")
+        self.assertContains(self.client.get(reverse("analisis", args=[self.record.pk])), "Conflicto temporal")
 
     def test_lugar_aceptado_guarda_tipo_y_codigo_dane(self):
         [p] = self.proponer(self.record, candidato(

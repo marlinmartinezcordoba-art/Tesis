@@ -144,7 +144,10 @@ def contexto_modulos(request):
             espec = activa["espec"]["numero"] if activa and activa["espec"] else 11
         menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "submenu": submenu})
     activa = next((x for m in menu if actual and m["numero"] == actual["numero"] for x in m["submenu"] if x["activa"]), None)
+    from .ayuda import guia_de
+
     return {
+        "guia": guia_de(url_name or ("inicio" if request.path == "/" else "")),
         "pantalla_nombre": activa["nombre"] if activa else "",
         "modulos": menu,
         "modulo_actual": next((m for m in menu if actual and m["numero"] == actual["numero"]), None),

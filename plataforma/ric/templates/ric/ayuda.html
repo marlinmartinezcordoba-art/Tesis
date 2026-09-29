@@ -1,0 +1,69 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Guía de uso · RICORA{% endblock %}
+{% block estilos_extra %}
+  .guia { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 1.4rem; align-items: start; }
+  @media (max-width: 900px) { .guia { grid-template-columns: minmax(0, 1fr); } .indice { position: static !important; } }
+  .indice { position: sticky; top: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1rem; font-size: .84rem; }
+  .indice h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tenue); margin: .7rem 0 .3rem; }
+  .indice h3:first-child { margin-top: 0; }
+  .indice a { display: block; padding: .2rem 0; text-decoration: none; color: var(--ink-suave); }
+  .indice a:hover { color: var(--ricora-accent); }
+  .ficha-guia { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1.3rem; margin-bottom: 1rem; scroll-margin-top: 1rem; }
+  .ficha-guia small { color: var(--ricora-accent); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
+  .ficha-guia h2 { font-size: 1.2rem; margin: .15rem 0 .5rem; }
+  .ficha-guia p { margin: 0 0 .6rem; line-height: 1.55; }
+  .ficha-guia .cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.2rem; }
+  @media (max-width: 1100px) { .ficha-guia .cols { grid-template-columns: minmax(0, 1fr); } }
+  .ficha-guia h3 { font-size: .86rem; margin: .3rem 0 .4rem; }
+  .ficha-guia ol, .ficha-guia ul { padding-left: 1.2rem; margin: 0; font-size: .86rem; color: var(--ink-suave); }
+  .ficha-guia li { margin-bottom: .4rem; line-height: 1.5; }
+  .ficha-guia .consejos { background: var(--surface-alt); border-radius: 10px; padding: .7rem .9rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Guía de uso</h1>
+  <p>Qué hace cada parte de RICORA y cómo se usa. En cualquier pantalla, el botón «? Ayuda» de la barra superior abre la guía de esa pantalla.</p>
+</hgroup>
+<div class="guia">
+  <div class="indice" role="navigation" aria-label="Índice de la guía">
+    {% for p in procesos %}<h3>{{ p.nombre }}</h3>{% for g in p.guias %}<a href="#{{ g.clave }}">{{ g.titulo }}</a>{% endfor %}{% endfor %}
+  </div>
+  <div class="guia-contenido">
+  <div data-paginas>
+    {% for p in procesos %}
+    <section data-pagina="{{ p.nombre }}">
+      {% for g in p.guias %}
+      <article class="ficha-guia" id="{{ g.clave }}">
+        <small>{{ g.proceso }}</small>
+        <h2>{{ g.titulo }}</h2>
+        <p>{{ g.para_que }}</p>
+        <div class="cols">
+          <div><h3>Cómo se usa</h3><ol>{% for paso in g.pasos %}<li>{{ paso }}</li>{% endfor %}</ol></div>
+          {% if g.consejos %}<div class="consejos"><h3>Tenga en cuenta</h3><ul>{% for c in g.consejos %}<li>{{ c }}</li>{% endfor %}</ul></div>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% endfor %}
+  </div>
+  </div>
+</div>
+<script>
+// Índice: saltar a la página del paginador que contiene la guía elegida.
+(function () {
+  var inicial = location.hash;  // el paginador reescribe el ancla al cargar
+  function ir(clave) {
+    var ficha = document.getElementById(clave); if (!ficha) return;
+    var secciones = Array.prototype.slice.call(document.querySelectorAll("[data-paginas] > [data-pagina]"));
+    var i = secciones.indexOf(ficha.closest("[data-pagina]"));
+    var puntos = document.querySelectorAll(".paginador-barra .puntos button");
+    if (puntos[i]) puntos[i].click();
+    setTimeout(function () { ficha.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50);
+  }
+  document.querySelectorAll(".indice a").forEach(function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); ir(a.getAttribute("href").slice(1)); });
+  });
+  if (inicial && !/^#p\d+$/.test(inicial)) setTimeout(function () { ir(inicial.slice(1)); }, 60);
+})();
+</script>
+{% endblock %}

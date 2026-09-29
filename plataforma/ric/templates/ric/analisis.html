@@ -152,11 +152,11 @@
       <article class="ficha" id="ficha-{{ p.pk }}" data-propuesta="{{ p.pk }}">
         <header>
           <h4>{{ p.entidad_nombre }}</h4>
-          <span class="confianza {% if f.baja_confianza %}baja{% else %}alta{% endif %}" title="confianza del motor (umbral CC-04: {{ umbral_confianza }})">{{ p.confianza|floatformat:2 }}{% if f.baja_confianza %} · baja confianza{% endif %}</span>
+          <span class="confianza {% if f.baja_confianza %}baja{% else %}alta{% endif %}" title="confianza del motor (umbral: {{ umbral_confianza }})">{{ p.confianza|floatformat:2 }}{% if f.baja_confianza %} · baja confianza{% endif %}</span>
         </header>
         <div class="relacion">
           {{ f.modelo_nombre|capfirst }} ({{ p.entidad_tipo }}) · relación <strong>{{ p.relacion_id }}{% if f.info_relacion %} {{ f.info_relacion.nombre }}{% endif %}</strong>
-          · {% if p.mecanismo %}<a href="{% url 'vocabulario_ficha' 'mechanism' p.mecanismo.pk %}" title="Motor de análisis registrado como agente RiC-E13 (mecanismo)">{{ p.proveedor }} {{ p.version_modelo }}</a>{% else %}{{ p.proveedor }} {{ p.version_modelo }}{% endif %}
+          · {% if p.mecanismo %}<a href="{% url 'vocabulario_ficha' 'mechanism' p.mecanismo.pk %}" title="Motor de análisis que hizo la propuesta">{{ p.proveedor }} {{ p.version_modelo }}</a>{% else %}{{ p.proveedor }} {{ p.version_modelo }}{% endif %}
           {% if f.extra_legible %}<br>{{ f.extra_legible }}{% endif %}
         </div>
         {% if p.evidencia %}
@@ -169,7 +169,7 @@
         {% if p.justificacion %}<p style="font-size:.78rem; color:#6b7280; margin:0 0 .5rem;"><em>{{ p.justificacion }}</em></p>{% endif %}
 
         {% if f.extra.conflicto_temporal %}
-        <div class="aviso" style="background:#fde8e8; border-color:#f1b7b0;">⚠ Conflicto temporal (CC-07): {{ f.extra.conflicto_temporal }} Revise la fecha antes de aceptarla.</div>
+        <div class="aviso" style="background:#fde8e8; border-color:#f1b7b0;">⚠ Conflicto temporal: {{ f.extra.conflicto_temporal }} Revise la fecha antes de aceptarla.</div>
         {% endif %}
         {% if f.existente_exacta %}
         <div class="aviso reutilizar">♻ Ya existe en vocabularios y autoridades: <strong>{{ f.existente_exacta }}</strong>. Use «Vincular» para reutilizarla en vez de crear un duplicado.</div>
@@ -210,7 +210,7 @@
 
     <div class="panel-pestana" data-panel="forma" role="tabpanel" hidden>
     <div class="forma-doc">
-      <strong>Forma documental</strong> (RiC-A17): {% if record.forma_documental %}<em>{{ record.forma_documental }}</em>{% elif record.tipo_forma_documental %}<em>{{ record.tipo_forma_documental }}</em> (sin controlar){% else %}<em>sin asignar</em>{% endif %}
+      <strong>Forma documental</strong>: {% if record.forma_documental %}<em>{{ record.forma_documental }}</em>{% elif record.tipo_forma_documental %}<em>{{ record.tipo_forma_documental }}</em> (sin controlar){% else %}<em>sin asignar</em>{% endif %}
       {% if forma_sugerida and not record.forma_documental %}
       <div style="font-size:.8rem; color:#52606d; margin-top:.3rem;">✦ El motor sugiere <strong>{{ forma_sugerida.nombre_tipo }}</strong> (confianza {{ forma_sugerida.confianza|floatformat:2 }}){% if forma_sugerida.fragmento_fuente %} — “{{ forma_sugerida.fragmento_fuente|truncatechars:120 }}”{% endif %}</div>
       {% endif %}
@@ -230,7 +230,7 @@
     <div class="panel-pestana" data-panel="avisos" role="tabpanel" hidden>
     {% if clases_faltantes %}
     <div class="ficha" style="border-color:#f1b7b0; background:#fff7f6;">
-      <strong style="font-size:.85rem">⚠ Descripción incompleta (CC-02)</strong>
+      <strong style="font-size:.85rem">⚠ Descripción incompleta</strong>
       <p style="margin:.3rem 0 0; font-size:.8rem;">Toda descripción necesita al menos una forma documental, un agente y una fecha. Falta: <strong>{{ clases_faltantes|join:", " }}</strong>. El documento no avanza en silencio: queda señalado aquí y en el panel de indicadores.</p>
     </div>
     {% endif %}

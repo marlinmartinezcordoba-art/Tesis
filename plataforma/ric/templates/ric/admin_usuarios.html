@@ -232,10 +232,10 @@
   <h3>Parámetros del sistema</h3>
   <form method="post" action="{% url 'admin_parametros' %}">
     {% csrf_token %}
-    <div class="param"><label>Días límite de revisión<small>RF-M10-04: pasado este tiempo, un documento pendiente genera alerta en el panel.</small></label><input type="number" min="1" name="dias_limite_revision" value="{{ config.dias_limite_revision }}"></div>
-    <div class="param"><label>Umbral de calidad del OCR (0-100)<small>RF-M2-04: por debajo, la página se marca «calidad baja» y espera decisión.</small></label><input type="number" min="0" max="100" step="1" name="umbral_calidad_ocr" value="{{ config.umbral_calidad_ocr|stringformat:'g' }}"></div>
-    <div class="param"><label>Umbral de confianza en revisión (0-1)<small>CC-04: por debajo, la ficha se marca de baja confianza.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_confianza_revision" value="{{ config.umbral_confianza_revision|stringformat:'g' }}"></div>
-    <div class="param"><label>Umbral de similitud con el vocabulario (0-1)<small>CC-05: desde este parecido se propone reutilizar una entrada existente.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_similitud_vocabulario" value="{{ config.umbral_similitud_vocabulario|stringformat:'g' }}"></div>
+    <div class="param"><label>Días límite de revisión<small>Pasado este tiempo, un documento pendiente genera alerta en el panel.</small></label><input type="number" min="1" name="dias_limite_revision" value="{{ config.dias_limite_revision }}"></div>
+    <div class="param"><label>Umbral de calidad del OCR (0-100)<small>Por debajo, la página se marca «calidad baja» y espera decisión.</small></label><input type="number" min="0" max="100" step="1" name="umbral_calidad_ocr" value="{{ config.umbral_calidad_ocr|stringformat:'g' }}"></div>
+    <div class="param"><label>Umbral de confianza en revisión (0-1)<small>Por debajo, la ficha se marca de baja confianza.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_confianza_revision" value="{{ config.umbral_confianza_revision|stringformat:'g' }}"></div>
+    <div class="param"><label>Umbral de similitud con el vocabulario (0-1)<small>Desde este parecido se propone reutilizar una entrada existente.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_similitud_vocabulario" value="{{ config.umbral_similitud_vocabulario|stringformat:'g' }}"></div>
     <button type="submit">Guardar parámetros</button>
     {% if config.actualizado_por %}<p style="font-size:.76rem; color:#8a94a3; margin:.6rem 0 0;">Última modificación: {{ config.actualizado_por.get_username }} · {{ config.fecha_actualizacion|date:"d/m/Y H:i" }}</p>{% endif %}
   </form>

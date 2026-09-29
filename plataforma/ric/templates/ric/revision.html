@@ -54,7 +54,7 @@
 </div>
 
 {% if clases_faltantes and fichas %}
-<p class="mensaje warning">⚠ Descripción incompleta (CC-02): falta {{ clases_faltantes|join:", " }}. No bloquea la publicación, pero queda señalado en el panel de indicadores.</p>
+<p class="mensaje warning">⚠ Descripción incompleta: falta {{ clases_faltantes|join:", " }}. No bloquea la publicación, pero queda señalado en el panel de indicadores.</p>
 {% endif %}
 
 {% if fichas %}
@@ -74,7 +74,7 @@
     {% if f.propuesta %}
       <div class="valor">{{ f.propuesta.entidad_nombre }}</div>
       <small>{{ f.propuesta.relacion_id }} {{ f.nombre_relacion }} · {{ f.propuesta.entidad_tipo }} · {{ f.propuesta.proveedor }} {{ f.propuesta.version_modelo }}</small>
-      <small>Confianza {{ f.propuesta.confianza|floatformat:2 }}{% if f.baja_confianza %} <span class="badge baja">baja confianza · revísela con atención (CC-04)</span>{% endif %}</small>
+      <small>Confianza {{ f.propuesta.confianza|floatformat:2 }}{% if f.baja_confianza %} <span class="badge baja">baja confianza · revísela con atención</span>{% endif %}</small>
       {% if f.propuesta.evidencia %}<div class="cita">“{{ f.propuesta.evidencia.fragmento|truncatechars:220 }}”{% if f.propuesta.evidencia.pagina %} · p.{{ f.propuesta.evidencia.pagina }}{% endif %}</div>{% endif %}
     {% else %}
       <div class="valor" style="color:#8a94a3">— sin propuesta de IA —</div>
@@ -92,7 +92,7 @@
       {% csrf_token %}
       <label for="nombre-{{ rel.pk }}">Nombre de la entidad (corríjalo si hace falta)</label>
       <input type="text" id="nombre-{{ rel.pk }}" name="nombre" value="{{ f.entidad.nombre }}" {% if f.compartida %}readonly title="Entidad compartida con otros documentos"{% endif %}>
-      {% if f.compartida %}<div class="aviso-compartida">🔗 Esta entidad también describe {{ f.compartida }} documento(s) más: su nombre se corrige en Vocabularios (M5) para no cambiarlo en todos sin querer.</div>{% endif %}
+      {% if f.compartida %}<div class="aviso-compartida">🔗 Esta entidad también describe {{ f.compartida }} documento(s) más: su nombre se corrige en Vocabularios para no cambiarlo en todos sin querer.</div>{% endif %}
       <label for="nota-{{ rel.pk }}">Nota de revisión (opcional)</label>
       <input type="text" id="nota-{{ rel.pk }}" name="nota" placeholder="Ej. verificado contra el original, folio 2">
       <div class="botones">
@@ -146,9 +146,9 @@
     {% if pendientes %}
       <span class="bloqueo">⛔ {{ pendientes|length }} elemento(s) sin decidir en el motor de análisis — <a href="{% url 'analisis' record.pk %}">decidirlos</a> antes de publicar.</span>
     {% elif por_revisar %}
-      <span class="bloqueo">⛔ Quedan {{ por_revisar }} ficha(s) por revisar. Acepte o rechace cada una para poder publicar (RF-M6-04).</span>
+      <span class="bloqueo">⛔ Quedan {{ por_revisar }} ficha(s) por revisar. Acepte o rechace cada una para poder publicar.</span>
     {% elif fichas and not tiene_procedencia %}
-      <span class="bloqueo">⛔ Falta una relación de procedencia confirmada (quién produjo o firmó el documento) — CC-03. <a href="{% url 'analisis_grafo' record.pk %}">Revisar relaciones →</a></span>
+      <span class="bloqueo">⛔ Falta una relación de procedencia confirmada (quién produjo o firmó el documento). <a href="{% url 'analisis_grafo' record.pk %}">Revisar relaciones →</a></span>
     {% elif record.publicado %}
       <span class="publicado-ok">✓ Publicado en el catálogo el {{ record.fecha_publicacion|date:"d/m/Y H:i" }}{% if record.publicado_por %} por {{ record.publicado_por.get_username }}{% endif %}.</span>
     {% elif fichas %}
@@ -168,7 +168,7 @@
 <script>
 (function () {
   // Rechazo: se abre el campo de motivo en la misma ficha; «Confirmar
-  // rechazo» se habilita solo cuando el motivo tiene contenido (RF-M6-03).
+  // rechazo» se habilita solo cuando el motivo tiene contenido.
   document.querySelectorAll("[data-abrir-rechazo]").forEach(function (b) {
     b.addEventListener("click", function () {
       var zona = document.getElementById("rechazo-" + b.dataset.abrirRechazo);

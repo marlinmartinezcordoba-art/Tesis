@@ -187,7 +187,7 @@ FILTROS = {
     "publicados": "Documentos publicados en el periodo (base del tiempo de revisión)",
     "pendientes": "Documentos pendientes de revisión",
     "atrasados": "Documentos con la revisión atrasada",
-    "incompletos": "Documentos con descripción incompleta (CC-02)",
+    "incompletos": "Documentos con descripción incompleta",
     "sin_texto": "Documentos sin texto extraído",
 }
 

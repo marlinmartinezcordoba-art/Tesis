@@ -105,7 +105,7 @@ def _ultimo_resumen_analisis(record):
 
 
 def _texto_resaltado(texto, fichas):
-    """RF-M3-02: el fragmento exacto del que salió cada propuesta, marcado
+    """El fragmento exacto del que salió cada propuesta, marcado
     en el texto original (sin solapar dos marcas)."""
     tramos = []
     texto_minusculas = texto.lower()
@@ -204,7 +204,7 @@ def _informar_analisis(request, record, resultado):
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def analisis_generar(request, pk):
-    """El análisis corre en la cola (M2): con la IA local puede tardar minutos
+    """El análisis corre en la cola: con la IA local puede tardar minutos
     y la persona no debe quedarse esperando con la página congelada."""
     from . import cola
 
@@ -254,7 +254,7 @@ def analisis_decidir(request, pk):
             messages.success(request, f'Vinculada a la entrada existente "{entidad_existente}" — sin crear un duplicado.')
         elif accion == "rechazar":
             if not motivo:
-                messages.error(request, "Indique el motivo del rechazo antes de rechazar la propuesta (RF-M6-03).")
+                messages.error(request, "Indique el motivo del rechazo antes de rechazar la propuesta.")
                 return redirect("analisis", pk=record_pk)
             propuesta.validar(request.user, aceptar=False, motivo=motivo)
             messages.info(request, f'"{propuesta.entidad_nombre}" rechazada: {motivo}')
@@ -268,7 +268,7 @@ def analisis_decidir(request, pk):
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def analisis_forma(request, pk):
-    """Forma documental (RiC-A17) del documento, como entrada controlada del
+    """Forma documental del documento, como entrada controlada del
     vocabulario de M5 — se elige una existente o se escribe una nueva."""
     record = get_object_or_404(Record, pk=pk)
     nombre = request.POST.get("forma_nombre", "").strip()
@@ -315,7 +315,7 @@ def analisis_grafo_datos(request, pk):
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def analisis_relacion(request, pk, relacion_pk):
-    """RF-M4-03: corregir el tipo de una relación desde la lista controlada;
+    """Corregir el tipo de una relación desde la lista controlada;
     RF-M4-04: retirar una relación mal propuesta — se marca rechazada (queda
     en el historial, M7) y las entidades que conectaba no se tocan."""
     record = get_object_or_404(Record, pk=pk)
@@ -475,7 +475,7 @@ def revision_confirmar(request, pk, relacion_pk):
             messages.error(
                 request,
                 f"«{entidad.nombre}» también describe {compartida} documento(s) más: corregir su nombre aquí lo cambiaría "
-                "en todos. Corríjalo en Instrumentos archivísticos → Vocabularios (M5), o rechace esta ficha con su motivo.",
+                "en todos. Corríjalo en Instrumentos archivísticos → Vocabularios, o rechace esta ficha con su motivo.",
             )
             return redirect(f"/revision/{pk}/#ficha-{relacion.pk}")
         entidad.nombre = nombre
@@ -503,7 +503,7 @@ def revision_confirmar(request, pk, relacion_pk):
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 @require_POST
 def revision_aprobar(request, pk):
-    """RF-M6-04: nada pasa al catálogo mientras haya elementos por decidir,
+    """Nada pasa al catálogo mientras haya elementos por decidir,
     ni en el motor de análisis ni en la revisión ficha por ficha."""
     record = get_object_or_404(Record, pk=pk)
     pendientes = flujo.pendientes_de(record).count()
@@ -519,7 +519,7 @@ def revision_aprobar(request, pk):
     if not _tiene_procedencia(record):
         messages.error(
             request,
-            "No se puede publicar (CC-03): el documento necesita al menos una relación de procedencia "
+            "No se puede publicar: el documento necesita al menos una relación de procedencia "
             "confirmada — quién lo produjo o firmó (por ejemplo R027 \"has creator\").",
         )
         return redirect("revision", pk=pk)
@@ -549,7 +549,7 @@ def revision_rechazar(request, pk, relacion_pk):
     entidad = flujo.otro_lado(relacion, record)
     motivo = request.POST.get("motivo", "").strip()
     if not motivo:
-        messages.error(request, "Escriba el motivo del rechazo antes de confirmar (RF-M6-03).")
+        messages.error(request, "Escriba el motivo del rechazo antes de confirmar.")
         return redirect(f"/revision/{pk}/#ficha-{relacion.pk}")
     relacion.estado = RelacionRiC.Estado.RECHAZADA
     relacion.motivo_decision = motivo

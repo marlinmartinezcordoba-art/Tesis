@@ -130,6 +130,23 @@
     .ricora-sidebar { width: 100%; height: auto; position: static; }
     .ricora-sidebar .menu { flex-direction: column; }
   }
+  /* Ayuda contextual: botón en la barra superior y panel lateral con la guía de la pantalla. */
+  .boton-ayuda { all: unset; cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--ricora-accent); border: 1px solid #e8c9b2; background: #fff7f1; border-radius: 999px; padding: .3rem .8rem; white-space: nowrap; }
+  .boton-ayuda:hover { background: #fdeee2; } .boton-ayuda:focus-visible { outline: 2px solid var(--ricora-accent); outline-offset: 2px; }
+  .ayuda-fondo { position: fixed; inset: 0; background: rgba(20,30,24,.35); z-index: 40; }
+  .ayuda-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 92vw); background: var(--surface); z-index: 41; box-shadow: -10px 0 30px rgba(20,30,24,.2); padding: 1.2rem 1.4rem 2rem; overflow-y: auto; }
+  .ayuda-panel header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: .7rem; margin-bottom: .8rem; }
+  .ayuda-panel header small { color: var(--ricora-accent); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; }
+  .ayuda-panel h2 { margin: .1rem 0 0; font-size: 1.25rem; }
+  .ayuda-panel header button { all: unset; cursor: pointer; font-size: 1.6rem; line-height: 1; color: var(--ink-suave); padding: 0 .3rem; }
+  .ayuda-panel .para-que { font-size: .92rem; color: var(--ink); line-height: 1.55; }
+  .ayuda-panel h3 { font-size: .9rem; margin: 1rem 0 .4rem; }
+  .ayuda-panel ol, .ayuda-panel ul { padding-left: 1.2rem; margin: 0; font-size: .86rem; color: var(--ink-suave); }
+  .ayuda-panel li { margin-bottom: .45rem; line-height: 1.5; }
+  .ayuda-panel .guia-completa { display: inline-block; margin-top: 1.2rem; font-size: .85rem; font-weight: 600; }
+  .sidebar-ayuda { display: block; margin: 1rem .3rem 0; color: var(--sidebar-ink-suave); font-size: .82rem; text-decoration: none; padding: .35rem .7rem; border-radius: var(--radio-chico); }
+  .sidebar-ayuda:hover { color: var(--sidebar-ink); background: rgba(255,255,255,.05); }
+
   /* Paginador de secciones: una pantalla larga se recorre por páginas «1 de N» con flechas. */
   .paginador-barra { display: flex; align-items: center; justify-content: space-between; gap: .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .45rem .6rem; margin-bottom: 1rem; position: sticky; top: .5rem; z-index: 4; box-shadow: var(--sombra); }
   .paginador-barra .titulo-pag { font-family: var(--fuente-titulo); font-weight: 600; font-size: 1rem; }
@@ -176,6 +193,7 @@
       {% endif %}
     {% endfor %}
   </nav>
+  <a href="{% url 'ayuda' %}" class="sidebar-ayuda">? Guía de uso</a>
   <form method="post" action="{% url 'ric_logout' %}" class="sidebar-salir">{% csrf_token %}<button type="submit">⎋ Cerrar sesión</button></form>
 </aside>
 <div class="ricora-shell">
@@ -185,13 +203,25 @@
       <span class="icono" style="background:{{ modulo_actual.color }}" aria-hidden="true"></span>
       <span><strong>{{ pantalla_nombre|default:modulo_actual.nombre }}</strong><small>{% if pantalla_nombre %}{{ modulo_actual.nombre }}{% else %}{{ modulo_actual.descripcion }}{% endif %}</small></span>
       {% else %}
-      <span class="icono" style="background:#b5602c" aria-hidden="true"></span><span><strong>Inicio</strong><small>Qué es RICORA y qué tiene por hacer hoy</small></span>
+      <span class="icono" style="background:#b5602c" aria-hidden="true"></span><span>{% if request.resolver_match.url_name == "ayuda" %}<strong>Guía de uso</strong><small>Qué hace cada parte de RICORA y cómo se usa</small>{% else %}<strong>Inicio</strong><small>Qué es RICORA y qué tiene por hacer hoy</small>{% endif %}</span>
       {% endif %}
     </div>
+    {% if guia %}<button type="button" class="boton-ayuda" id="abrir-ayuda" aria-haspopup="dialog" aria-controls="ayuda-panel">? Ayuda</button>{% endif %}
     <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong> <span class="rol">{{ rol_etiqueta }}</span>
       <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Cerrar sesión</button></form>
     </span>
   </div>
+  {% if guia %}
+  <div class="ayuda-fondo" id="ayuda-fondo" hidden></div>
+  <aside class="ayuda-panel" id="ayuda-panel" role="dialog" aria-modal="true" aria-labelledby="ayuda-titulo" hidden>
+    <header><div><small>{{ guia.proceso }}</small><h2 id="ayuda-titulo">{{ guia.titulo }}</h2></div><button type="button" id="cerrar-ayuda" aria-label="Cerrar la ayuda">×</button></header>
+    <p class="para-que">{{ guia.para_que }}</p>
+    <h3>Cómo se usa</h3>
+    <ol>{% for p in guia.pasos %}<li>{{ p }}</li>{% endfor %}</ol>
+    {% if guia.consejos %}<h3>Tenga en cuenta</h3><ul>{% for c in guia.consejos %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+    <a href="{% url 'ayuda' %}#{{ guia.clave }}" class="guia-completa">Ver la guía completa de RICORA →</a>
+  </aside>
+  {% endif %}
   <main class="{% block main_class %}ricora-main{% endblock %}">
     {% if messages %}
     {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}
@@ -216,6 +246,21 @@
       try { localStorage.setItem(CLAVE, JSON.stringify(abiertos)); } catch (e) {}
     });
   });
+})();
+</script>
+<script>
+(function () {
+  // Ayuda contextual: abrir, cerrar con ×, con el fondo o con Escape; el foco vuelve al botón.
+  var abrir = document.getElementById("abrir-ayuda"), panel = document.getElementById("ayuda-panel"), fondo = document.getElementById("ayuda-fondo");
+  if (!abrir || !panel) return;
+  function mostrar(v) {
+    panel.hidden = fondo.hidden = !v;
+    if (v) document.getElementById("cerrar-ayuda").focus(); else abrir.focus();
+  }
+  abrir.addEventListener("click", function () { mostrar(true); });
+  document.getElementById("cerrar-ayuda").addEventListener("click", function () { mostrar(false); });
+  fondo.addEventListener("click", function () { mostrar(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !panel.hidden) mostrar(false); });
 })();
 </script>
 <script>

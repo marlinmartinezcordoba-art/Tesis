@@ -17,9 +17,9 @@ from .models import PropuestaRiC
 # (queda guardada como rechazada, con el motivo: CC-02 exige que nada
 # desaparezca en silencio); CC-03 también, cuando la procedencia apunta a
 # quien no produjo ni firmó; CC-04, CC-05 y CC-07 la marcan para la ficha.
-CC_01 = "CC-01: la evidencia citada no aparece en el texto del documento."
-CC_03 = "CC-03: una relación de procedencia solo puede apuntar a un agente productor o firmante."
-CC_06 = "CC-06: un mandato o regla exige una cita textual explícita de la norma."
+CC_01 = "La evidencia citada no aparece en el texto del documento."
+CC_03 = "Una relación de procedencia solo puede apuntar a un agente productor o firmante."
+CC_06 = "Un mandato o regla exige una cita textual explícita de la norma."
 _TIPOS_MANDATO = {"E16", "E17"}
 _ROLES_SIN_PROCEDENCIA = {"destinatario", "mencionado"}
 
@@ -228,7 +228,7 @@ def generar_propuestas(record, proveedor):
         conflicto = _conflicto_temporal(cand, instanciacion) if cand.entidad_tipo == "E18" else None
         if conflicto:
             datos_extra["conflicto_temporal"] = conflicto
-            justificacion = f"⚠ CC-07: {conflicto} {justificacion}".strip()
+            justificacion = f"⚠ Conflicto de fechas: {conflicto} {justificacion}".strip()
         sugerida = _entidad_sugerida(modelo_destino, cand) if not motivo_rechazo else None
         if sugerida is not None:
             datos_extra["entidad_sugerida_id"] = sugerida.pk

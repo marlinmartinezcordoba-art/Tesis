@@ -50,7 +50,7 @@ class RevisionTest(CasoModulos):
         self.relacion.save()
         self.client.force_login(self.revisor)
         resp = self.client.post(reverse("revision_aprobar", args=[self.record.pk]), follow=True)
-        self.assertContains(resp, "CC-03")
+        self.assertContains(resp, "relación de procedencia")
         self.record.refresh_from_db()
         self.assertFalse(self.record.publicado)
 

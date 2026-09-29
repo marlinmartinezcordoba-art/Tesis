@@ -57,7 +57,7 @@
 {% if puede_editar %}
 <details class="crear">
   <summary style="cursor:pointer; font-size:.9rem;"><strong>Precargar instrumentos archivísticos</strong> — TRD, cuadro de clasificación y organigrama (CSV)</summary>
-  <p style="font-size:.8rem; color:#6b7280; margin:.5rem 0;">Insumo obligatorio antes de encender el motor de análisis: sin estos instrumentos el criterio CC-05 no tiene contra qué verificar. Cada fila se busca por código o por nombre y se actualiza, nunca se duplica.
+  <p style="font-size:.8rem; color:#6b7280; margin:.5rem 0;">Insumo obligatorio antes de encender el motor de análisis: sin estos instrumentos el sistema no tiene contra qué verificar. Cada fila se busca por código o por nombre y se actualiza, nunca se duplica.
   Cada serie o subserie de la TRD queda como un <strong>mandato</strong> (con su retención en gestión y en central y su disposición final CT/E/MT/S), una <strong>actividad</strong> (la función, ejecutada por la oficina productora) y sus <strong>formas documentales</strong> (los tipos que produce). Hoy hay <strong>{{ series_trd }}</strong> serie(s) cargadas.</p>
   {% if semilla_mads %}
   <form method="post" action="{% url 'vocabularios_sembrar' %}" style="grid-template-columns: 1fr auto; margin-bottom:.7rem;" onsubmit="return confirm('Se cargarán el organigrama del Ministerio de Ambiente (62 dependencias, 49 funcionarios) y sus 54 TRD oficiales (380 series, 1.321 tipos documentales). Puede tardar medio minuto. ¿Continuar?');">

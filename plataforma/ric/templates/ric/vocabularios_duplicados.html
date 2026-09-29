@@ -12,7 +12,7 @@
 <p><a href="{% url 'vocabularios' %}">← Vocabularios y autoridades</a></p>
 <hgroup>
   <h1>Posibles duplicados</h1>
-  <p>{{ total }} par{{ total|pluralize:"es" }} de entradas que se parecen entre sí (similitud de trigramas en PostgreSQL). El sistema
+  <p>{{ total }} par{{ total|pluralize:"es" }} de entradas que se parecen entre sí (nombres muy parecidos). El sistema
   solo sugiere: abra la entrada que debe sobrevivir y use «Fusionar en esta» para unirlas.</p>
 </hgroup>
 {% if not grupos %}<p class="sin-datos">No se detectan entradas parecidas en el vocabulario.</p>{% endif %}

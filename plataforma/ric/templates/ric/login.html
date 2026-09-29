@@ -1,63 +1,126 @@
 {% load static %}
 <!doctype html>
-<html lang="es" data-theme="light">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Iniciar sesión · RICORA</title>
-<link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
+<title>Ingresar · RICORA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
   :root {
-    --ricora-dark: #16202c;
-    --ricora-dark-2: #202f42;
-    --ricora-accent: #c08a3e;
-    --ricora-accent-2: #e0b566;
+    --tinta: #142520; --tinta-2: #1e3a30; --tinta-3: #2c5a48; --papel: #f6f4ee; --superficie: #ffffff;
+    --borde: #e2dbc9; --texto: #1d241f; --texto-suave: #5c655d; --acento: #b5602c; --acento-2: #d98a52; --peligro: #b3402f;
+    --titulo: "Fraunces", Georgia, serif; --cuerpo: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: var(--ricora-dark);
-    display: flex; align-items: center; justify-content: center;
-    font-family: system-ui, sans-serif; padding: 1.5rem;
-  }
-  .tarjeta {
-    background: #fff; border-radius: 16px; padding: 2rem 2.2rem;
-    width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
-  }
-  .marca { text-align: center; margin-bottom: 1.5rem; }
-  .marca .logo { font-weight: 700; font-size: 1.6rem; color: var(--ricora-dark); }
-  .marca .logo span { color: var(--ricora-accent); }
-  .marca small { display: block; color: #6b7280; font-size: .78rem; margin-top: .2rem; }
-  label { font-size: .85rem; font-weight: 600; }
-  button[type=submit] {
-    width: 100%; background: var(--ricora-accent); border-color: var(--ricora-accent);
-    color: #1a1204; font-weight: 600; margin-top: .5rem;
-  }
-  button[type=submit]:hover { background: var(--ricora-accent-2); border-color: var(--ricora-accent-2); }
-  .errores { background: #fde8e8; color: #7a1f1f; padding: .6rem .8rem; border-radius: 8px; font-size: .85rem; margin-bottom: 1rem; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: var(--cuerpo); color: var(--texto); background: var(--papel); display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  @media (max-width: 900px) { body { grid-template-columns: minmax(0, 1fr); } .presentacion { min-height: auto; padding: 2rem 1.4rem 2.2rem !important; } .grafo-ric, .rasgos { display: none !important; } }
+
+  /* Presentación de la plataforma */
+  .presentacion { position: relative; overflow: hidden; color: #eef1ea; padding: 3rem clamp(1.5rem, 5vw, 4.5rem); display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
+                  background: radial-gradient(110% 90% at 100% 0%, var(--tinta-3) 0%, rgba(44,90,72,0) 60%), linear-gradient(150deg, var(--tinta) 0%, var(--tinta-2) 100%); }
+  .presentacion::after { content: ""; position: absolute; left: -120px; bottom: -140px; width: 380px; height: 380px; border-radius: 50%; border: 50px solid rgba(217,138,82,.10); }
+  .marca { font-family: var(--titulo); font-size: 1.6rem; font-weight: 600; letter-spacing: .01em; }
+  .marca span { color: var(--acento-2); }
+  .presentacion h1 { font-family: var(--titulo); font-weight: 600; font-size: clamp(1.9rem, 3.3vw, 2.9rem); line-height: 1.1; margin: 0 0 1rem; color: #fff; max-width: 34rem; }
+  .presentacion h1 em { font-style: normal; color: var(--acento-2); }
+  .presentacion p.lema { color: #cfdad1; font-size: 1.02rem; line-height: 1.65; max-width: 36rem; margin: 0; }
+  .grafo-ric { width: 100%; max-width: 520px; height: auto; margin: .5rem 0; position: relative; z-index: 1; }
+  .grafo-ric line { stroke: rgba(238,241,234,.35); stroke-width: 1.5; }
+  .grafo-ric circle { stroke: rgba(255,255,255,.55); stroke-width: 1.5; }
+  .grafo-ric text { fill: #eef1ea; font-family: var(--cuerpo); font-size: 12px; }
+  .grafo-ric text.rel { fill: #9db2a4; font-size: 10px; font-style: italic; }
+  .rasgos { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; position: relative; z-index: 1; }
+  .rasgos li { font-size: .82rem; color: #b9c8bd; line-height: 1.45; }
+  .rasgos b { display: block; color: #fff; font-size: .9rem; margin-bottom: .2rem; }
+  .pie { font-size: .74rem; color: #8ea596; position: relative; z-index: 1; }
+
+  /* Formulario */
+  .acceso { display: flex; align-items: center; justify-content: center; padding: 2rem 1.4rem; }
+  .caja { width: 100%; max-width: 380px; }
+  .caja h2 { font-family: var(--titulo); font-size: 1.7rem; margin: 0 0 .3rem; }
+  .caja p.sub { color: var(--texto-suave); margin: 0 0 1.6rem; font-size: .92rem; }
+  label { display: block; font-size: .84rem; font-weight: 600; margin-bottom: .35rem; }
+  .campo { position: relative; margin-bottom: 1.05rem; }
+  input[type=text], input[type=password] { width: 100%; font: inherit; font-size: .98rem; padding: .78rem .9rem; border: 1px solid var(--borde); border-radius: 10px; background: var(--superficie); color: var(--texto); transition: border-color .15s, box-shadow .15s; }
+  input:focus { outline: none; border-color: var(--acento); box-shadow: 0 0 0 3px rgba(181,96,44,.18); }
+  .ver-clave { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; color: var(--texto-suave); font: inherit; font-size: .8rem; padding: .3rem .5rem; border-radius: 6px; }
+  .ver-clave:hover { color: var(--acento); } .ver-clave:focus-visible { outline: 2px solid var(--acento); }
+  button.entrar { width: 100%; font: inherit; font-weight: 600; font-size: 1rem; padding: .85rem; border-radius: 10px; border: 0; cursor: pointer; background: var(--acento); color: #fff; margin-top: .4rem; transition: background .15s, transform .1s; }
+  button.entrar:hover { background: #9c4f22; } button.entrar:active { transform: translateY(1px); }
+  button.entrar:focus-visible { outline: 3px solid rgba(181,96,44,.4); outline-offset: 2px; }
+  .errores { background: #f6e8e6; color: #93392a; border: 1px solid #e7c3bd; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1.1rem; }
+  .nota { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--borde); font-size: .78rem; color: var(--texto-suave); line-height: 1.5; display: flex; gap: .5rem; }
 </style>
 </head>
 <body>
-<div class="tarjeta">
-  <div class="marca">
-    <div class="logo">RIC<span>ORA</span></div>
-    <small>Automatización archivística asistida por IA</small>
+<section class="presentacion" aria-label="Qué es RICORA">
+  <div class="marca">RIC<span>ORA</span></div>
+  <div>
+    <h1>La memoria de la entidad, <em>descrita en contexto</em>.</h1>
+    <p class="lema">Plataforma de gestión y descripción archivística con el modelo internacional Records in Contexts.
+    La inteligencia artificial propone quién produjo cada documento, a quién se refiere, cuándo y dónde, con la cita que lo respalda;
+    el equipo archivístico decide.</p>
+    <svg class="grafo-ric" viewBox="0 0 520 190" role="img" aria-label="Un documento conectado con la institución que lo produjo, una persona, una fecha y un lugar">
+      <line x1="260" y1="95" x2="90" y2="40"/><line x1="260" y1="95" x2="430" y2="40"/>
+      <line x1="260" y1="95" x2="90" y2="155"/><line x1="260" y1="95" x2="430" y2="155"/>
+      <text class="rel" x="140" y="58">produjo</text><text class="rel" x="345" y="58">menciona</text>
+      <text class="rel" x="140" y="143">fecha</text><text class="rel" x="345" y="143">lugar</text>
+      <circle cx="260" cy="95" r="30" fill="#b5602c"/><text x="260" y="99" text-anchor="middle" font-weight="600">Documento</text>
+      <circle cx="90" cy="40" r="20" fill="#0d9488"/><text x="90" y="75" text-anchor="middle">Institución</text>
+      <circle cx="430" cy="40" r="20" fill="#7c3aed"/><text x="430" y="75" text-anchor="middle">Persona</text>
+      <circle cx="90" cy="155" r="16" fill="#2563eb"/><text x="130" y="182" text-anchor="middle">1810-07-20</text>
+      <circle cx="430" cy="155" r="16" fill="#d97706"/><text x="400" y="182" text-anchor="middle">Santafé</text>
+    </svg>
   </div>
+  <ul class="rasgos">
+    <li><b>Clasificado desde el origen</b>Cada documento entra por su serie de la TRD y su expediente.</li>
+    <li><b>IA asistida</b>Propone con evidencia; ninguna decisión archivística es automática.</li>
+    <li><b>Íntegro y trazable</b>Huella digital, bitácora encadenada y nada se borra.</li>
+  </ul>
+  <p class="pie">Basado en RiC-CM 1.0 y RiC-O 1.1 del Consejo Internacional de Archivos.</p>
+</section>
 
-  {% if bloqueado %}
-  <div class="errores">Demasiados intentos fallidos ({{ intentos }}) para este usuario. Por seguridad, espere {{ minutos }} minutos antes de volver a intentarlo. El intento quedó registrado.</div>
-  {% elif form.errors %}
-  <div class="errores">Usuario o contraseña incorrectos. Inténtelo de nuevo.</div>
-  {% endif %}
+<main class="acceso">
+  <div class="caja">
+    <h2>Ingresar</h2>
+    <p class="sub">Use el usuario y la contraseña que le asignó el administrador.</p>
 
-  <form method="post">
-    {% csrf_token %}
-    <label for="id_username">Usuario</label>
-    <input type="text" name="username" id="id_username" autofocus required>
-    <label for="id_password">Contraseña</label>
-    <input type="password" name="password" id="id_password" required>
-    <input type="hidden" name="next" value="{{ next }}">
-    <button type="submit">Entrar</button>
-  </form>
-</div>
+    {% if bloqueado %}
+    <div class="errores" role="alert">Demasiados intentos fallidos ({{ intentos }}) para este usuario. Por seguridad, espere {{ minutos }} minutos antes de volver a intentarlo. El intento quedó registrado.</div>
+    {% elif form.errors %}
+    <div class="errores" role="alert">Usuario o contraseña incorrectos. Inténtelo de nuevo.</div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="campo">
+        <label for="id_username">Usuario</label>
+        <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
+      </div>
+      <div class="campo">
+        <label for="id_password">Contraseña</label>
+        <div style="position:relative">
+          <input type="password" name="password" id="id_password" autocomplete="current-password" required style="padding-right:4.8rem">
+          <button type="button" class="ver-clave" id="ver-clave" aria-controls="id_password" aria-pressed="false">Mostrar</button>
+        </div>
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="entrar">Entrar</button>
+    </form>
+    <p class="nota"><span aria-hidden="true">🔒</span><span>Por seguridad, la sesión se cierra tras 60 minutos sin actividad y el usuario se bloquea 15 minutos después de 5 intentos fallidos.</span></p>
+  </div>
+</main>
+<script>
+(function () {
+  var b = document.getElementById("ver-clave"), c = document.getElementById("id_password");
+  b.addEventListener("click", function () {
+    var ver = c.type === "password"; c.type = ver ? "text" : "password";
+    b.textContent = ver ? "Ocultar" : "Mostrar"; b.setAttribute("aria-pressed", ver ? "true" : "false"); c.focus();
+  });
+})();
+</script>
 </body>
 </html>

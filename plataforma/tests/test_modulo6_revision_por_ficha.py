@@ -97,7 +97,7 @@ class RevisionPorFichaTest(CasoModulos):
         p2.validar(self.archivista, aceptar=True)
         resp = self.client.get(reverse("revision", args=[self.record.pk])).content.decode()
         self.assertLess(resp.index("José Acevedo y Gómez"), resp.index('value="Cabildo de Santafé"'))
-        self.assertIn("baja confianza · revísela con atención (CC-04)", resp)
+        self.assertIn("baja confianza · revísela con atención", resp)
 
     def test_clasificacion_estructural_no_requiere_revision(self):
         from ric.instrumentos import _relacion_manual
