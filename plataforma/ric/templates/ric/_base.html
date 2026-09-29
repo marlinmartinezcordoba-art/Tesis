@@ -56,9 +56,25 @@
   }
   .ricora-sidebar nav a:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
   .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; box-shadow: inset 3px 0 0 var(--ricora-accent-2); }
-  .ricora-sidebar nav a { flex-direction: column; align-items: flex-start; gap: 0; padding: .45rem .7rem; font-size: .84rem; }
-  .ricora-sidebar nav a .codigos { font-family: var(--fuente-mono); font-size: .66rem; color: #7f998a; letter-spacing: .02em; }
-  .ricora-sidebar nav a.activo .codigos { color: var(--ricora-accent-2); }
+  .menu .grupo-texto { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .menu .codigos { font-family: var(--fuente-mono); font-size: .66rem; color: #7f998a; letter-spacing: .02em; font-weight: 400; }
+  .ricora-sidebar .menu button.grupo-titulo {
+    all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .5rem;
+    padding: .5rem .7rem; border-radius: var(--radio-chico); color: var(--sidebar-ink-suave); font-size: .86rem; line-height: 1.25; cursor: pointer;
+  }
+  .ricora-sidebar .menu button.grupo-titulo:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
+  .ricora-sidebar .menu button.grupo-titulo:focus-visible { outline: 2px solid var(--ricora-accent-2); outline-offset: 1px; }
+  .menu .grupo.actual > .grupo-titulo { color: var(--sidebar-ink); font-weight: 500; }
+  .menu .grupo.actual > .grupo-titulo .codigos { color: var(--ricora-accent-2); }
+  .menu .flecha { font-size: 1.05rem; transition: transform .15s; opacity: .7; }
+  .menu .grupo.abierto .flecha { transform: rotate(90deg); }
+  .menu .sub { display: none; flex-direction: column; gap: .1rem; margin: .1rem 0 .4rem .7rem; padding-left: .55rem; border-left: 1px solid rgba(255,255,255,.12); }
+  .menu .grupo.abierto .sub { display: flex; }
+  .ricora-sidebar .menu .sub a { flex-direction: row; align-items: center; gap: .45rem; padding: .36rem .55rem; font-size: .8rem; }
+  .ricora-sidebar .menu .sub a .m { font-family: var(--fuente-mono); font-size: .62rem; font-weight: 600; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-ink-suave); flex-shrink: 0; }
+  .ricora-sidebar .menu .sub a.activo .m { background: var(--ricora-accent); border-color: var(--ricora-accent); color: #fff; }
+  .ricora-sidebar .menu a.enlace-simple { padding: .5rem .7rem; font-size: .86rem; }
+  .ricora-sidebar .menu a.enlace-simple.activo .codigos { color: var(--ricora-accent-2); }
 
   .ricora-shell { flex: 1; min-width: 0; }
   /* justify-content explícito: pico.css reparte los enlaces de un <nav> a los extremos */
@@ -110,7 +126,7 @@
   @media (max-width: 860px) {
     body { flex-direction: column; }
     .ricora-sidebar { width: 100%; height: auto; position: static; }
-    .ricora-sidebar nav { flex-direction: row; flex-wrap: wrap; }
+    .ricora-sidebar .menu { flex-direction: column; }
   }
   {% block estilos_extra %}{% endblock %}
 </style>
@@ -119,10 +135,24 @@
 <body>
 <aside class="ricora-sidebar">
   <a href="{% url 'panel' %}" class="ricora-brand"><strong>RIC<span>ORA</span></strong></a>
-  <nav>
+  <nav class="menu" aria-label="Módulos">
     {% for m in modulos %}
       {% if m.ver == "todos" or m.ver == "ingestar" and puede_ingestar or m.ver == "revisar" and puede_revisar or m.ver == "administrar" and puede_administrar %}
-        <a href="{% url m.url %}" class="{% if modulo_numero == m.numero %}activo{% endif %}"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</a>
+      {% if m.submenu|length > 1 %}
+      <div class="grupo{% if modulo_numero == m.numero %} abierto actual{% endif %}" data-grupo="{{ m.numero }}">
+        <button type="button" class="grupo-titulo" aria-expanded="{% if modulo_numero == m.numero %}true{% else %}false{% endif %}">
+          <span class="grupo-texto"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</span>
+          <span class="flecha" aria-hidden="true">›</span>
+        </button>
+        <div class="sub">
+          {% for p in m.submenu %}{% if m.url != "ingesta" or puede_ingestar %}
+          <a href="{{ p.href }}" class="{% if p.activa %}activo{% endif %}"{% if p.activa %} aria-current="page"{% endif %}>{% if p.espec %}<span class="m">{{ p.espec.codigo }}</span>{% endif %}<span>{{ p.nombre }}</span></a>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <a href="{% url m.url %}" class="enlace-simple{% if modulo_numero == m.numero %} activo{% endif %}"><span class="grupo-texto"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</span></a>
+      {% endif %}
       {% endif %}
     {% endfor %}
   </nav>
@@ -147,13 +177,6 @@
       <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Cerrar sesión</button></form>
     </span>
   </div>
-  {% if modulo_actual and modulo_actual.pestanas|length > 1 %}
-  <nav class="pestanas" aria-label="Pantallas de {{ modulo_actual.nombre }}">
-    {% for p in modulo_actual.pestanas_menu %}{% if p.url != "ingesta" and p.url != "preproceso" or puede_ingestar %}
-    <a href="{% url p.url %}" class="{% if pestana_actual == p.url %}activa{% endif %}">{% if p.espec %}<span class="m">{{ p.espec.codigo }}</span>{% endif %}{{ p.nombre }}</a>
-    {% endif %}{% endfor %}
-  </nav>
-  {% endif %}
   <main class="{% block main_class %}ricora-main{% endblock %}">
     {% if messages %}
     {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}
@@ -161,5 +184,24 @@
     {% block contenido %}{% endblock %}
   </main>
 </div>
+<script>
+(function () {
+  // Menú lateral: cada proceso se despliega o se recoge con un clic; se
+  // recuerda qué grupos dejó abiertos la persona (solo en este navegador).
+  var CLAVE = "ricora_menu_abierto", abiertos = [];
+  try { abiertos = JSON.parse(localStorage.getItem(CLAVE) || "[]"); } catch (e) { abiertos = []; }
+  document.querySelectorAll(".menu .grupo").forEach(function (g) {
+    var boton = g.querySelector(".grupo-titulo");
+    if (abiertos.indexOf(g.dataset.grupo) >= 0) { g.classList.add("abierto"); boton.setAttribute("aria-expanded", "true"); }
+    boton.addEventListener("click", function () {
+      var abierto = g.classList.toggle("abierto");
+      boton.setAttribute("aria-expanded", abierto ? "true" : "false");
+      abiertos = abiertos.filter(function (x) { return x !== g.dataset.grupo; });
+      if (abierto) abiertos.push(g.dataset.grupo);
+      try { localStorage.setItem(CLAVE, JSON.stringify(abiertos)); } catch (e) {}
+    });
+  });
+})();
+</script>
 </body>
 </html>

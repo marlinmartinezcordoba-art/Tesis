@@ -59,8 +59,10 @@ def _resolver_expediente(post, actividad, usuario, ruta=""):
     carpeta = _carpeta(ruta)
     if carpeta:
         return clasificacion.crear_expediente(actividad, carpeta, usuario, fecha_apertura=_fecha(post.get("fecha_apertura")))
-    elegido = _expediente(post.get("expediente_id", ""))
+    elegido = _expediente(post.get("expediente_id", "")) if post.get("modo_expediente") != "nuevo" else None
     if elegido is not None:
+        if not clasificacion.expedientes_de(actividad).filter(pk=elegido.pk).exists():
+            raise carga.ArchivoRechazado("el expediente elegido no pertenece a la serie seleccionada.")
         return elegido, False
     nombre = post.get("expediente_nuevo", "").strip()
     if nombre:

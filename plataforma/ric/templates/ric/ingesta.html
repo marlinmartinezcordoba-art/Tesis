@@ -34,6 +34,17 @@
   .elegido { background: #f4f7fb; border-radius: 8px; padding: .6rem .8rem; font-size: .86rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
   .elegido small { display: block; color: #52606d; }
   .elegido a { font-size: .8rem; white-space: nowrap; }
+  .modos { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .9rem; }
+  @media (max-width: 720px) { .modos { grid-template-columns: 1fr; } }
+  .modo { display: flex; gap: .6rem; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; cursor: pointer; background: var(--surface); margin: 0; }
+  .modo:has(input:checked) { border-color: var(--ricora-accent); background: #fffaf2; box-shadow: 0 0 0 1px var(--ricora-accent) inset; }
+  .modo input[type=radio] { margin: .2rem 0 0; flex-shrink: 0; }
+  .modo strong { display: block; font-size: .88rem; } .modo small { color: var(--ink-suave); font-size: .78rem; }
+  .modo.deshabilitado { opacity: .55; cursor: not-allowed; }
+  .modo-campos label { font-size: .8rem; font-weight: 500; }
+  .modo-campos input, .modo-campos select { margin-bottom: .5rem; }
+  .falta { background: #f6e8e6; color: #93392a; border: 1px solid #e7c3bd; border-radius: 8px; padding: .5rem .8rem; font-size: .84rem; margin: .3rem 0 0; }
+  #paso-expediente.con-error { border-color: #d9a39a; }
   .expediente { display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem; align-items: start; }
   @media (max-width: 720px) { .expediente { grid-template-columns: 1fr; } }
   .expediente .o { text-align: center; color: #8a94a3; font-size: .8rem; padding-top: 2rem; }
@@ -135,29 +146,39 @@
   <form method="post" enctype="multipart/form-data" id="form-ingesta" data-url="{% url 'ingesta_archivo' %}" data-max-mb="{{ tamano_maximo }}" data-extensiones="{{ extensiones }}">
     {% csrf_token %}
     <input type="hidden" name="serie_id" value="{{ actividad.pk }}">
-    <div class="paso" style="margin-bottom:1rem">
+    <div class="paso" id="paso-expediente" style="margin-bottom:1rem">
       <h3><span class="n {% if expediente %}ok{% endif %}">2</span> Expediente al que pertenece</h3>
-      <div class="expediente">
-        <div>
-          <label for="id_expediente_id">Uno ya existente en esta serie ({{ expedientes|length }})</label>
-          <select name="expediente_id" id="id_expediente_id">
-            <option value="">— Elegir —</option>
-            {% for e in expedientes %}
-            <option value="{{ e.pk }}" {% if expediente and expediente.pk == e.pk %}selected{% endif %}>{{ e.nombre }}{% if e.identificador %} ({{ e.identificador }}){% endif %}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="o">o</div>
-        <div>
-          <label for="id_expediente_nuevo">Expediente nuevo</label>
-          <input type="text" name="expediente_nuevo" id="id_expediente_nuevo" placeholder="Ej. Derecho de petición 2026-0412 · Juan Pérez">
-          <div class="dos">
-            <div><label>Código (opcional)</label><input type="text" name="expediente_codigo" placeholder="1000-24-2026-0412"></div>
-            <div><label>Fecha de apertura</label><input type="date" name="fecha_apertura"></div>
-          </div>
+      <div class="modos" role="radiogroup" aria-label="Expediente">
+        <label class="modo">
+          <input type="radio" name="modo_expediente" value="nuevo" {% if not expedientes %}checked{% endif %}>
+          <span><strong>Crear un expediente nuevo</strong><small>Para el primer documento de un trámite o asunto.</small></span>
+        </label>
+        <label class="modo{% if not expedientes %} deshabilitado{% endif %}">
+          <input type="radio" name="modo_expediente" value="existente" {% if expedientes %}checked{% else %}disabled{% endif %}>
+          <span><strong>Agregar a un expediente existente</strong><small>{% if expedientes %}{{ expedientes|length }} expediente(s) en esta serie.{% else %}Esta serie todavía no tiene expedientes.{% endif %}</small></span>
+        </label>
+      </div>
+
+      <div class="modo-campos" data-modo="existente" {% if not expedientes %}hidden{% endif %}>
+        <label for="id_expediente_id">Expediente</label>
+        <select name="expediente_id" id="id_expediente_id">
+          <option value="">— Elija el expediente —</option>
+          {% for e in expedientes %}
+          <option value="{{ e.pk }}" {% if expediente and expediente.pk == e.pk %}selected{% endif %}>{{ e.nombre }}{% if e.identificador %} ({{ e.identificador }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="modo-campos" data-modo="nuevo" {% if expedientes %}hidden{% endif %}>
+        <label for="id_expediente_nuevo">Nombre del expediente</label>
+        <input type="text" name="expediente_nuevo" id="id_expediente_nuevo" placeholder="Ej. Derecho de petición 2026-0412 · Juan Pérez">
+        <div class="dos">
+          <div><label for="id_expediente_codigo">Código (opcional)</label><input type="text" name="expediente_codigo" id="id_expediente_codigo" placeholder="1000-24-2026-0412"></div>
+          <div><label for="id_fecha_apertura">Fecha de apertura</label><input type="date" name="fecha_apertura" id="id_fecha_apertura"></div>
         </div>
       </div>
-      <p class="ayuda" style="margin:0">Si sube una carpeta, el nombre de cada carpeta se toma como expediente y no hace falta escribirlo.</p>
+      <p class="falta" id="falta-expediente" hidden>Indique el expediente antes de cargar: escriba el nombre del nuevo o elija uno existente.</p>
+      <p class="ayuda" style="margin:.4rem 0 0">¿Muchos expedientes a la vez? Suba una carpeta por expediente en el paso 3: el nombre de cada carpeta se usa como nombre del expediente.</p>
     </div>
 
     <div class="paso">
@@ -288,6 +309,26 @@
   zona.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files.length) elegir(e.dataTransfer.files, false); });
   if (unSolo) unSolo.addEventListener("change", function () { nombreDoc.style.display = unSolo.checked ? "block" : "none"; });
 
+  // Paso 2: nuevo o existente. Al cambiar de modo se vacía el otro, para
+  // que el servidor nunca reciba las dos cosas a la vez.
+  var pasoExp = document.getElementById("paso-expediente");
+  var faltaExp = document.getElementById("falta-expediente");
+  function modoExpediente() { var r = form.querySelector("input[name=modo_expediente]:checked"); return r ? r.value : ""; }
+  form.querySelectorAll("input[name=modo_expediente]").forEach(function (r) {
+    r.addEventListener("change", function () {
+      form.querySelectorAll(".modo-campos").forEach(function (c) { c.hidden = c.dataset.modo !== modoExpediente(); });
+      if (modoExpediente() === "nuevo") form.querySelector("[name=expediente_id]").value = "";
+      else { form.querySelector("[name=expediente_nuevo]").value = ""; }
+      faltaExp.hidden = true; pasoExp.classList.remove("con-error");
+    });
+  });
+  function expedienteIndicado() {
+    if (!pasoExp) return true;
+    if (seleccion.length && seleccion.every(function (s) { return s.ruta; })) return true;   // carpeta: una por expediente
+    if (modoExpediente() === "existente") return !!form.querySelector("[name=expediente_id]").value;
+    return !!form.querySelector("[name=expediente_nuevo]").value.trim();
+  }
+
   function fila(nombre, bytes) {
     var tr = document.createElement("tr");
     tr.dataset.estado = "cargando";
@@ -370,6 +411,11 @@
     if (!seleccion.length && input.files.length) elegir(input.files, false);   // selección hecha antes de que cargara el script
     if (!seleccion.length) return;   // sin archivos: que el servidor explique qué falta
     e.preventDefault();
+    if (!expedienteIndicado()) {
+      faltaExp.hidden = false; pasoExp.classList.add("con-error");
+      pasoExp.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     document.getElementById("boton-cargar").disabled = true;
     var tareas = seleccion.map(function (s) { return { archivo: s.archivo, ruta: s.ruta, tr: fila(s.ruta || s.archivo.name, s.archivo.size) }; });
     actualizarBoton();

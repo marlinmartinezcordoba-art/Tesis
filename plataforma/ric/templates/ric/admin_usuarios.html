@@ -44,13 +44,7 @@
   parámetros del sistema.</p>
 </hgroup>
 
-<nav class="pestanas">
-  <a href="?pestana=usuarios" class="{% if pestana == 'usuarios' %}activa{% endif %}">Usuarios</a>
-  <a href="?pestana=proveedores" class="{% if pestana == 'proveedores' %}activa{% endif %}">Proveedores de IA</a>
-  <a href="?pestana=parametros" class="{% if pestana == 'parametros' %}activa{% endif %}">Parámetros</a>
-  <a href="?pestana=auditoria" class="{% if pestana == 'auditoria' %}activa{% endif %}">Auditoría</a>
-  <a href="?pestana=eliminados" class="{% if pestana == 'eliminados' %}activa{% endif %}">Eliminados</a>
-</nav>
+
 
 {% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
 

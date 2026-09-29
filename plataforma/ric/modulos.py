@@ -105,6 +105,28 @@ def pestana_actual(modulo, url_name):
     return None
 
 
+# Administración reparte sus pantallas por el parámetro ?pestana=; el
+# módulo 0 (auditoría y borrado lógico) vive ahí junto al 11.
+PANTALLAS_ADMIN = (
+    ("usuarios", "Usuarios y roles", 11),
+    ("proveedores", "Proveedores de IA", 11),
+    ("parametros", "Parámetros", 11),
+    ("auditoria", "Auditoría", 0),
+    ("eliminados", "Eliminados (restaurar)", 0),
+)
+
+
+def _submenu(m, pestana, request, url_name):
+    from django.urls import reverse
+
+    if m["url"] == "admin_usuarios":
+        actual = request.GET.get("pestana", "usuarios") if (url_name or "").startswith("admin_") else None
+        return [{"href": f"{reverse('admin_usuarios')}?pestana={clave}", "nombre": nombre, "espec": modulo_espec(num),
+                 "activa": actual == clave, "clave": clave} for clave, nombre, num in PANTALLAS_ADMIN]
+    return [{"href": reverse(u), "nombre": n, "espec": modulo_espec(MODULO_DE_PANTALLA.get(u)), "activa": pestana == u, "clave": u}
+            for u, n, _p in m["pestanas"]]
+
+
 def contexto_modulos(request):
     resolver = getattr(request, "resolver_match", None)
     url_name = resolver.url_name if resolver else None
@@ -115,8 +137,11 @@ def contexto_modulos(request):
     for m in MODULOS:
         urls = [p[0] for p in m["pestanas"]] or [m["url"]]
         codigos = sorted({MODULO_DE_PANTALLA[u] for u in urls if u in MODULO_DE_PANTALLA} | set(TAMBIEN_EN.get(m["url"], ())))
-        pestanas = [{"url": u, "nombre": n, "espec": modulo_espec(MODULO_DE_PANTALLA.get(u))} for u, n, _p in m["pestanas"]]
-        menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "pestanas_menu": pestanas})
+        submenu = _submenu(m, pestana, request, url_name)
+        if actual is m and m["url"] == "admin_usuarios":
+            activa = next((x for x in submenu if x["activa"]), None)
+            espec = activa["espec"]["numero"] if activa else 11
+        menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "submenu": submenu})
     return {
         "modulos": menu,
         "modulo_actual": next((m for m in menu if actual and m["numero"] == actual["numero"]), None),

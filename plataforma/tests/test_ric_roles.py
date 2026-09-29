@@ -72,15 +72,26 @@ class RolesTest(CasoModulos):
         self.assertContains(resp, ">Administración<")
 
     def test_pestanas_del_proceso(self):
+        # Submódulos en el menú lateral, desplegados bajo su proceso, con su número de módulo.
         resp = self._get(self.archivista, "revision_lista")
-        self.assertContains(resp, 'class="activa"><span class="m">M6</span>Revisión archivística')
+        self.assertContains(resp, 'class="activo" aria-current="page"><span class="m">M6</span><span>Revisión archivística</span>')
         self.assertContains(resp, "Módulo 6 · Revisión archivística")
-        self.assertContains(resp, "Análisis y relaciones")
-        self.assertContains(resp, "Trazabilidad y auditoría")
+        self.assertContains(resp, 'class="grupo abierto actual" data-grupo="3"')
+        self.assertContains(resp, "<span>Análisis y relaciones</span>")
+        self.assertContains(resp, "<span>Trazabilidad y auditoría</span>")
+        self.assertNotContains(resp, 'class="pestanas"')
         resp = self._get(self.archivista, "preproceso")
-        self.assertContains(resp, 'class="activa"><span class="m">M2</span>Preprocesamiento y OCR')
-        self.assertContains(resp, "</span>Cargar documentos<")
+        self.assertContains(resp, '<span class="m">M2</span><span>Preprocesamiento y OCR</span>')
+        self.assertContains(resp, "<span>Cargar documentos</span>")
         self.assertContains(resp, 'estado-modulo por_validar')
+
+    def test_administracion_en_el_menu_con_modulo_0(self):
+        self.client.force_login(self.superusuario)
+        resp = self.client.get("/admin/usuarios/?pestana=auditoria")
+        self.assertContains(resp, "Módulo 0 · Autenticación, autorización y auditoría")
+        self.assertContains(resp, '?pestana=eliminados')
+        resp = self.client.get("/admin/usuarios/")
+        self.assertContains(resp, "Módulo 11 · Administración")
 
     def test_el_archivo_original_respeta_la_visibilidad_del_rol(self):
         # Módulo 1: antes cualquier sesión descargaba cualquier archivo por su id (RF-M8-04 lo prohíbe).
