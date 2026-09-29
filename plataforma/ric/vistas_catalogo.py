@@ -9,6 +9,7 @@ from django.db.models import Q
 from urllib.parse import urlencode
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from . import acceso_documentos, clasificacion, valoracion, busqueda, exportacion, flujo, grafo, reglas, roles, tipos
@@ -235,6 +236,13 @@ def catalogo_ficha(request, tipo, pk):
 
 @login_required
 def exportar(request):
+    """M9: elegir documentos (precargados desde el catálogo, RF-M9-02) y
+    formato; la exportación se genera en la cola con avance visible y queda
+    registrada con su formato, alcance y quién la pidió (RF-M9-03)."""
+    from . import tasks
+    from .auditoria_acciones import registrar_accion
+    from .models import RegistroAuditoria
+
     visibles = documentos_visibles(request.user)
     seleccion_ids = [v for v in request.GET.getlist("doc") if v.isdigit()]
     if request.method == "POST":
@@ -247,9 +255,15 @@ def exportar(request):
         if formato not in Exportacion.Formato.values:
             messages.error(request, "Elija un formato de exportación.")
             return redirect("exportar")
+        exp = exportacion.solicitar(records.order_by("nombre"), formato, request.user)
+        registrar_accion(RegistroAuditoria.Accion.EXPORTAR, detalle={
+            "exportacion": exp.pk, "formato": formato, "documentos": exp.documentos, "alcance": exp.alcance})
         base = request.build_absolute_uri("/ric/entidad/")
-        exp = exportacion.generar_exportacion(records, formato, request.user, base)
-        messages.success(request, f"Exportación generada: {exp.total_registros} registro(s) en {exp.get_formato_display()}.")
+        try:
+            tasks.generar_exportacion.delay(exp.pk, base)
+        except Exception:
+            # Sin cola disponible, se genera aquí mismo: una exportación no debe perderse por eso.
+            tasks.generar_exportacion(exp.pk, base)
         return redirect(f"/exportar/?listo={exp.pk}")
 
     seleccionados = visibles.filter(pk__in=seleccion_ids) if seleccion_ids else Record.objects.none()
@@ -261,7 +275,7 @@ def exportar(request):
         listo = historial.filter(pk=request.GET["listo"]).first()
     return render(request, "ric/exportar.html", {
         "seleccionados": seleccionados,
-        "disponibles": visibles.order_by("nombre")[:300],
+        "disponibles": visibles.exclude(pk__in=seleccion_ids).order_by("nombre")[:500],
         "formatos": Exportacion.Formato.choices,
         "historial": historial[:50],
         "listo": listo,
@@ -269,9 +283,22 @@ def exportar(request):
 
 
 @login_required
+def exportar_estado(request, pk):
+    """Avance de una exportación, consultado por la pantalla cada segundo."""
+    exp = get_object_or_404(Exportacion, pk=pk)
+    if _solo_publicados(request.user) and exp.usuario_id != request.user.pk:
+        raise Http404
+    return JsonResponse({"estado": exp.estado, "etiqueta": exp.get_estado_display(), "progreso": exp.progreso,
+                         "mensaje": exp.mensaje, "descargar": reverse("exportar_descargar", args=[exp.pk]) if exp.estado == "lista" else ""})
+
+
+@login_required
 def exportar_descargar(request, pk):
     exp = get_object_or_404(Exportacion, pk=pk)
     if _solo_publicados(request.user) and exp.usuario_id != request.user.pk:
         raise Http404
+    if exp.estado != Exportacion.Estado.LISTA or not exp.archivo:
+        messages.info(request, "Esa exportación todavía no está lista.")
+        return redirect(f"/exportar/?listo={exp.pk}")
     nombre = exp.archivo.name.rsplit("/", 1)[-1]
     return FileResponse(exp.archivo.open("rb"), filename=nombre, content_type=exportacion.content_type_de(exp))

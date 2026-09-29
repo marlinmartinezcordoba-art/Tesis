@@ -91,6 +91,7 @@ urlpatterns = [
     path("catalogo/<str:tipo>/<int:pk>/", vistas_catalogo.catalogo_ficha, name="catalogo_ficha"),
     path("exportar/", vistas_catalogo.exportar, name="exportar"),
     path("exportar/<int:pk>/descargar/", vistas_catalogo.exportar_descargar, name="exportar_descargar"),
+    path("exportar/<int:pk>/estado.json", vistas_catalogo.exportar_estado, name="exportar_estado"),
 
     # M10 · Panel de indicadores
     path("panel/", vistas_panel.panel, name="panel"),

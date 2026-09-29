@@ -1262,12 +1262,25 @@ class Exportacion(models.Model):
         JSON_LD = "json-ld", "JSON-LD"
         CSV = "csv", "CSV (tabular)"
 
+    class Estado(models.TextChoices):
+        EN_COLA = "en_cola", "En cola"
+        PROCESANDO = "procesando", "Generando"
+        LISTA = "lista", "Lista"
+        ERROR = "error", "Error"
+
     usuario = models.ForeignKey("auth.User", null=True, on_delete=models.SET_NULL, related_name="exportaciones")
     fecha = models.DateTimeField(auto_now_add=True)
     formato = models.CharField(max_length=10, choices=Formato.choices)
     documentos = models.JSONField(default=list, help_text="IDs de los Record exportados.")
     total_registros = models.PositiveIntegerField(default=0)
-    archivo = models.FileField(upload_to="ric/exportaciones/%Y/%m/")
+    archivo = models.FileField(upload_to="ric/exportaciones/%Y/%m/", blank=True)
+    # M9: la exportación se genera en la cola (avance visible) y queda verificada.
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.LISTA)
+    progreso = models.PositiveSmallIntegerField(default=100)
+    mensaje = models.TextField(blank=True, help_text="Resultado de la validación del archivo o causa del error.")
+    alcance = models.TextField(blank=True, help_text="RF-M9-03: qué documentos incluye, en lenguaje claro.")
+    tamano_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True, help_text="Huella del archivo generado, para verificar la copia entregada.")
 
     class Meta:
         ordering = ["-fecha"]
@@ -1379,6 +1392,7 @@ class RegistroAuditoria(models.Model):
         RESTAURAR = "restaurar", "Restauración"
         SESIONES_CERRADAS = "sesiones_cerradas", "Sesiones revocadas"
         CONSULTAR = "consultar", "Consulta de un documento en el visor"
+        EXPORTAR = "exportar", "Exportación de documentos (M9)"
 
     usuario = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="acciones_auditadas")
     usuario_nombre = models.CharField(max_length=150, blank=True)

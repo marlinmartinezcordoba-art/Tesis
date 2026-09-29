@@ -158,3 +158,27 @@ def analizar_instanciacion(inst_id, usuario_id, intento):
     _poner(inst_id, estado_proceso=Estado.LISTO, progreso=100, etapa="",
            mensaje_proceso=mensaje_motor(analisis) or "Listo.", resultado_proceso=anterior,
            proceso_terminado=timezone.now())
+
+
+@shared_task(name="ric.generar_exportacion")
+def generar_exportacion(exportacion_id, base):
+    """M9: genera el archivo de una exportación con avance visible y lo
+    valida antes de entregarlo; si algo falla, queda en error explicado."""
+    from .exportacion import ExportacionInvalida, generar
+    from .models import Exportacion
+
+    exportacion = Exportacion.objects.filter(pk=exportacion_id).select_related("usuario").first()
+    if exportacion is None or exportacion.estado not in (Exportacion.Estado.EN_COLA, Exportacion.Estado.PROCESANDO):
+        return
+    Exportacion.objects.filter(pk=exportacion_id).update(estado=Exportacion.Estado.PROCESANDO, progreso=2)
+
+    def al_avanzar(hecho, total):
+        Exportacion.objects.filter(pk=exportacion_id).update(progreso=min(95, 2 + int(90 * hecho / max(total, 1))))
+
+    try:
+        generar(exportacion, base, al_avanzar)
+    except (ExportacionInvalida, SoftTimeLimitExceeded, Exception) as e:
+        log.exception("Falló la exportación %s", exportacion_id)
+        motivo = "superó el tiempo máximo" if isinstance(e, SoftTimeLimitExceeded) else str(e)
+        Exportacion.objects.filter(pk=exportacion_id).update(
+            estado=Exportacion.Estado.ERROR, mensaje=f"No se generó la exportación: {motivo}. Puede intentarlo de nuevo.")

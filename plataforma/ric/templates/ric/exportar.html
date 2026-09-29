@@ -1,57 +1,87 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Exportación · RICORA{% endblock %}
 {% block estilos_extra %}
-  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; align-items: start; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
-  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
-  .formatos { display: flex; gap: .5rem; flex-wrap: wrap; margin: .4rem 0 1rem; }
-  .formatos label { border: 1px solid #e6e3dc; border-radius: 10px; padding: .5rem .8rem; cursor: pointer; font-size: .84rem; display: flex; gap: .4rem; align-items: center; }
-  .formatos label:has(input:checked) { border-color: var(--ricora-accent); background: #fffaf2; font-weight: 600; }
-  .formatos input { margin: 0; }
-  .docs { max-height: 300px; overflow: auto; border: 1px solid #f0efe9; border-radius: 8px; padding: .4rem .6rem; font-size: .84rem; }
-  .docs label { display: flex; gap: .4rem; align-items: center; margin: .15rem 0; font-weight: 400; }
-  .docs input { margin: 0; }
-  .listo { background: #e3f9e5; border: 1px solid #cbead0; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-  .listo a[role=button] { width: auto; margin: 0; background: #1b7a3d; border-color: #1b7a3d; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; align-items: start; }
+  @media (min-width: 1600px) { .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); } }
+  .tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; min-width: 0; }
+  .tarjeta h3 { font-size: .98rem; margin: 0 0 .6rem; }
+  .paso-t { font-size: .78rem; font-weight: 600; color: var(--ink-suave); margin: .6rem 0 .35rem; text-transform: uppercase; letter-spacing: .04em; }
+  .formatos { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .5rem; margin: 0 0 .8rem; }
+  @media (max-width: 700px) { .formatos { grid-template-columns: minmax(0, 1fr); } }
+  .formatos label { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .7rem; cursor: pointer; font-size: .84rem; display: flex; gap: .5rem; align-items: flex-start; margin: 0; }
+  .formatos label:has(input:checked) { border-color: var(--ricora-accent); background: #fffaf2; box-shadow: 0 0 0 1px var(--ricora-accent) inset; }
+  .formatos input { margin: .2rem 0 0; flex-shrink: 0; }
+  .formatos strong { display: block; } .formatos small { color: var(--ink-suave); font-size: .74rem; }
+  .filtro-docs { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+  .filtro-docs input { margin: 0; font-size: .84rem; padding: .35rem .6rem; height: auto; }
+  .filtro-docs button { all: unset; cursor: pointer; font-size: .78rem; color: var(--accent); white-space: nowrap; }
+  .docs { max-height: 320px; overflow: auto; border: 1px solid #f0efe9; border-radius: 8px; padding: .4rem .6rem; font-size: .84rem; }
+  .docs label { display: flex; gap: .45rem; align-items: center; margin: .2rem 0; font-weight: 400; }
+  .docs label.precargado { font-weight: 600; }
+  .docs input { margin: 0; flex-shrink: 0; }
+  .contador { font-size: .8rem; color: var(--ink-suave); margin: .4rem 0 0; }
+  .estado-exp { border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; border: 1px solid var(--border); background: var(--surface); }
+  .estado-exp.lista { background: #e6f4ec; border-color: #bfe3cd; }
+  .estado-exp.error { background: #f6e8e6; border-color: #e7c3bd; }
+  .estado-exp .fila { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .estado-exp .barra { height: 9px; background: #eceae4; border-radius: 5px; overflow: hidden; margin: .6rem 0 .3rem; }
+  .estado-exp .barra i { display: block; height: 100%; background: var(--ricora-accent); transition: width .4s; }
+  .estado-exp.lista .barra i { background: #2f7d4f; }
+  .estado-exp a[role=button] { width: auto; margin: 0; background: #1b7a3d; border-color: #1b7a3d; }
+  .estado-exp small { color: var(--ink-suave); }
   table.tabla { width: 100%; border-collapse: collapse; font-size: .82rem; }
   table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .45rem .4rem; border-bottom: 1px solid #e6e3dc; }
-  table.tabla td { padding: .45rem .4rem; border-bottom: 1px solid #f0efe9; }
+  table.tabla td { padding: .45rem .4rem; border-bottom: 1px solid #f0efe9; vertical-align: top; }
+  table.tabla td.alcance { min-width: 16rem; }
+  table.tabla td.nw, table.tabla th { white-space: nowrap; }
+  .chip { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .chip.lista { background: #e3f9e5; color: #1b4d2e; } .chip.error { background: #fde8e8; color: #7a1f1f; }
+  .chip.en_cola, .chip.procesando { background: #fff2df; color: #8a6100; }
   .tecnico { font-size: .8rem; color: #52606d; }
 {% endblock %}
 {% block contenido %}
 <hgroup>
   <h1>Exportación e interoperabilidad</h1>
-  <p>Exporte la descripción de uno o varios documentos en datos enlazados conformes a RiC-O 1.1 (RDF/Turtle),
-  en JSON-LD o en formato tabular (CSV), para el intercambio con el sistema de gestión documental electrónico o el
-  portal de datos. Cada exportación queda registrada con su fecha, formato, alcance y quién la solicitó.</p>
+  <p>Exporte la descripción de uno o varios documentos en RiC-O 1.1 (RDF), JSON-LD o CSV, para el sistema de gestión documental electrónico o un portal de datos.</p>
 </hgroup>
 
 {% if listo %}
-<div class="listo">
-  <span>✓ Exportación lista: <strong>{{ listo.get_formato_display }}</strong> · {{ listo.total_registros }} registro(s) · {{ listo.fecha|date:"d/m/Y H:i" }}</span>
-  <a role="button" href="{% url 'exportar_descargar' listo.pk %}">⬇ Descargar</a>
+<div class="estado-exp {{ listo.estado }}" id="estado-exp" data-url="{% url 'exportar_estado' listo.pk %}" data-estado="{{ listo.estado }}" role="status">
+  <div class="fila">
+    <span><strong id="exp-etiqueta">{% if listo.estado == "lista" %}✓ Exportación lista{% elif listo.estado == "error" %}✗ La exportación falló{% else %}Generando la exportación…{% endif %}</strong>
+      · {{ listo.get_formato_display }} · {{ listo.alcance|default:listo.total_registros }}</span>
+    <a role="button" id="exp-descargar" href="{% url 'exportar_descargar' listo.pk %}" {% if listo.estado != "lista" %}hidden{% endif %}>⬇ Descargar</a>
+  </div>
+  <div class="barra" aria-hidden="true"><i id="exp-barra" style="width: {{ listo.progreso }}%"></i></div>
+  <small id="exp-mensaje">{{ listo.mensaje|default:"Puede seguir trabajando; esta tarjeta se actualiza sola." }}</small>
 </div>
 {% endif %}
 
 <div class="grid">
   <div class="tarjeta">
     <h3>Generar una exportación</h3>
-    <form method="post">
+    <form method="post" id="form-exportar">
       {% csrf_token %}
-      <label style="font-size:.8rem">Formato</label>
+      <div class="paso-t">1 · Formato</div>
       <div class="formatos">
         {% for valor, nombre in formatos %}
-        <label><input type="radio" name="formato" value="{{ valor }}" {% if forloop.first %}checked{% endif %}> {{ nombre }}</label>
+        <label><input type="radio" name="formato" value="{{ valor }}" {% if forloop.first %}checked{% endif %}>
+          <span><strong>{{ nombre }}</strong><small>{% if valor == "rdf" %}Datos enlazados con la ontología RiC-O 1.1{% elif valor == "json-ld" %}Datos enlazados para aplicaciones web{% else %}Tabla para hoja de cálculo (Excel){% endif %}</small></span></label>
         {% endfor %}
       </div>
-      <label style="font-size:.8rem">Documentos ({{ seleccionados|length }} precargado(s) desde el catálogo)</label>
-      <div class="docs">
-        {% for d in seleccionados %}<label><input type="checkbox" name="doc" value="{{ d.pk }}" checked> {{ d }}</label>{% endfor %}
-        {% for d in disponibles %}{% if d not in seleccionados %}<label><input type="checkbox" name="doc" value="{{ d.pk }}"> {{ d }}</label>{% endif %}{% endfor %}
-        {% if not disponibles %}<span class="sin-datos">No hay documentos disponibles para exportar.</span>{% endif %}
+      <div class="paso-t">2 · Documentos</div>
+      <div class="filtro-docs">
+        <input type="search" id="filtrar-docs" placeholder="Filtrar la lista por nombre…" aria-label="Filtrar documentos">
+        <button type="button" id="marcar-todos">Marcar visibles</button>
+        <button type="button" id="desmarcar-todos">Desmarcar</button>
       </div>
-      <button type="submit" style="margin-top:.9rem">Generar exportación</button>
+      <div class="docs" id="lista-docs">
+        {% for d in seleccionados %}<label class="precargado"><input type="checkbox" name="doc" value="{{ d.pk }}" checked> {{ d }} <small>(desde el catálogo)</small></label>{% endfor %}
+        {% for d in disponibles %}<label><input type="checkbox" name="doc" value="{{ d.pk }}"> {{ d }}</label>{% endfor %}
+        {% if not disponibles and not seleccionados %}<span class="sin-datos">No hay documentos disponibles para exportar.</span>{% endif %}
+      </div>
+      <p class="contador"><strong id="n-marcados">{{ seleccionados|length }}</strong> documento(s) seleccionado(s){% if seleccionados %}, {{ seleccionados|length }} precargado(s) desde el catálogo{% endif %}.</p>
+      <button type="submit" id="generar" style="margin-top:.6rem" {% if not seleccionados %}disabled{% endif %}>Generar exportación</button>
     </form>
     <p class="tecnico">Acceso técnico: <a href="{% url 'ric_exportar_rdf_completo' %}">todo el grafo RiC en Turtle</a> · <a href="{% url 'ric_sparql' %}">consola SPARQL</a>.</p>
   </div>
@@ -60,14 +90,65 @@
     <h3>Registro de exportaciones</h3>
     {% if historial %}
     <table class="tabla">
-      <thead><tr><th>Fecha</th><th>Registros</th><th>Formato</th><th>Solicitó</th><th></th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Formato</th><th>Alcance</th><th>Solicitó</th><th>Estado</th><th></th></tr></thead>
       <tbody>
         {% for e in historial %}
-        <tr><td>{{ e.fecha|date:"Y-m-d H:i" }}</td><td>{{ e.total_registros }}</td><td>{{ e.get_formato_display }}</td><td>{{ e.usuario.get_username|default:"—" }}</td><td><a href="{% url 'exportar_descargar' e.pk %}">descargar</a></td></tr>
+        <tr{% if listo and e.pk == listo.pk %} style="background:#fffaf2"{% endif %}>
+          <td class="nw">{{ e.fecha|date:"Y-m-d H:i" }}</td>
+          <td class="nw">{{ e.get_formato_display }}</td>
+          <td class="alcance">{{ e.alcance|default:e.total_registros }}{% if e.sha256 %}<br><small title="{{ e.sha256 }}">SHA-256 {{ e.sha256|truncatechars:14 }}{% if e.tamano_bytes %} · {{ e.tamano_bytes|filesizeformat }}{% endif %}</small>{% endif %}</td>
+          <td class="nw">{{ e.usuario.get_username|default:"—" }}</td>
+          <td class="nw"><span class="chip {{ e.estado }}">{{ e.get_estado_display }}</span></td>
+          <td class="nw">{% if e.estado == "lista" %}<a href="{% url 'exportar_descargar' e.pk %}">⬇ descargar</a>{% endif %}</td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}<p class="sin-datos">Todavía no se ha realizado ninguna exportación.</p>{% endif %}
   </div>
 </div>
+
+<script>
+(function () {
+  var lista = document.getElementById("lista-docs"), boton = document.getElementById("generar"), n = document.getElementById("n-marcados");
+  function contar() {
+    var m = lista.querySelectorAll("input:checked").length;
+    n.textContent = m; boton.disabled = m === 0;
+  }
+  lista.addEventListener("change", contar);
+  document.getElementById("filtrar-docs").addEventListener("input", function () {
+    var t = this.value.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    lista.querySelectorAll("label").forEach(function (l) {
+      var texto = l.textContent.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      l.hidden = t && texto.indexOf(t) < 0;
+    });
+  });
+  document.getElementById("marcar-todos").addEventListener("click", function () {
+    lista.querySelectorAll("label:not([hidden]) input").forEach(function (c) { c.checked = true; }); contar();
+  });
+  document.getElementById("desmarcar-todos").addEventListener("click", function () {
+    lista.querySelectorAll("input").forEach(function (c) { c.checked = false; }); contar();
+  });
+  contar();
+
+  // Avance de la exportación en curso (historia 9: barra de avance y botón Descargar al terminar).
+  var caja = document.getElementById("estado-exp");
+  if (!caja || caja.dataset.estado === "lista" || caja.dataset.estado === "error") return;
+  function consultar() {
+    fetch(caja.dataset.url, {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+      document.getElementById("exp-barra").style.width = d.progreso + "%";
+      if (d.mensaje) document.getElementById("exp-mensaje").textContent = d.mensaje;
+      caja.className = "estado-exp " + d.estado;
+      if (d.estado === "lista") {
+        document.getElementById("exp-etiqueta").textContent = "✓ Exportación lista";
+        document.getElementById("exp-descargar").hidden = false;
+        setTimeout(function () { location.reload(); }, 1500);  // la fila del registro se actualiza
+      } else if (d.estado === "error") {
+        document.getElementById("exp-etiqueta").textContent = "✗ La exportación falló";
+      } else { setTimeout(consultar, 1000); }
+    }).catch(function () { setTimeout(consultar, 2000); });
+  }
+  setTimeout(consultar, 800);
+})();
+</script>
 {% endblock %}

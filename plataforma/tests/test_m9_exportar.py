@@ -51,7 +51,7 @@ class ExportarTest(CasoModulos):
         self.assertIn('"@id"', self._leer(json_ld))
         csv_ = Exportacion.objects.get(formato="csv")
         contenido = self._leer(csv_)
-        self.assertIn("documento_id,documento,forma_documental,expediente,serie_trd,relacion_id", contenido)
+        self.assertIn("documento_id,documento,identificador,forma_documental,idioma,expediente,serie_trd", contenido)
         self.assertIn("R027,has creator,Procedencia,Cabildo de Santafé,CorporateBody", contenido)
 
     def test_descargar_entrega_el_archivo(self):
