@@ -32,6 +32,7 @@ jobs:
           RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
           RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          RICORA_DOMINIO: ${{ secrets.RICORA_DOMINIO || 'tesis-ricora.duckdns.org' }}
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
@@ -39,7 +40,7 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
+          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD,RICORA_DOMINIO
           command_timeout: 25m
           script: |
             set -e
@@ -94,12 +95,57 @@ jobs:
               poner DJANGO_ALLOWED_HOSTS "${DROPLET_HOST},${actual:-localhost,127.0.0.1}"
             fi
 
+            quitar() { grep -v "^$1=" .env > .env.tmp || true; mv .env.tmp .env; }
+
+            # HTTPS con nombre (DuckDNS u otro): solo si el nombre ya apunta a
+            # este servidor; si no, se sigue por la dirección numérica sin tocar nada.
+            https=0
+            if [ -n "$RICORA_DOMINIO" ]; then
+              resuelve=$(getent ahostsv4 "$RICORA_DOMINIO" | awk 'NR==1{print $1}')
+              if [ "$resuelve" = "$DROPLET_HOST" ]; then
+                https=1
+                poner RICORA_DOMINIO "$RICORA_DOMINIO"
+                poner COMPOSE_PROFILES https
+                poner MAZUCA_PUERTO 8081
+                poner RICORA_WEB_BIND 127.0.0.1
+                poner DJANGO_BEHIND_PROXY 1
+                poner DJANGO_CSRF_TRUSTED_ORIGINS "https://$RICORA_DOMINIO"
+                if ! grep "^DJANGO_ALLOWED_HOSTS=" .env | grep -q "$RICORA_DOMINIO"; then
+                  actual=$(grep "^DJANGO_ALLOWED_HOSTS=" .env | cut -d= -f2-)
+                  poner DJANGO_ALLOWED_HOSTS "${RICORA_DOMINIO},${actual}"
+                fi
+                if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; fi
+              else
+                echo "  aviso: $RICORA_DOMINIO apunta a ${resuelve:-ninguna dirección}, no a este servidor; se sigue sin HTTPS."
+              fi
+            fi
+
             # Si cambió el .env, el contenedor debe recrearse para leerlo
             # (y volver a correr configurar_inicial al arrancar).
             if [ "$cambio" = 1 ]; then
               docker compose up --build -d --force-recreate web worker
-            else
-              docker compose up --build -d
+            fi
+            docker compose up --build -d
+
+            if [ "$https" = 1 ]; then
+              echo "== Comprobando HTTPS en https://$RICORA_DOMINIO =="
+              segura=0
+              for i in $(seq 1 24); do
+                c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$RICORA_DOMINIO/ric/entrar/" || true)
+                echo "  intento $i: $c"
+                if [ "$c" = "200" ]; then segura=1; break; fi
+                sleep 5
+              done
+              if [ "$segura" != 1 ]; then
+                echo "  HTTPS no respondió: se vuelve a la dirección numérica sin candado. Registro de Caddy:"
+                docker compose logs --tail 40 caddy || true
+                docker compose stop caddy || true
+                quitar COMPOSE_PROFILES
+                poner MAZUCA_PUERTO 80
+                poner RICORA_WEB_BIND 0.0.0.0
+                poner DJANGO_BEHIND_PROXY 0
+                docker compose up -d --force-recreate web worker
+              fi
             fi
 
             # Diagnóstico y verificación: primero el estado del servidor y el

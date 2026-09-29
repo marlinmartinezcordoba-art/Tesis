@@ -77,8 +77,10 @@ services:
       RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
       # 2 procesos web: deja memoria para el OCR y la IA local en 2 GB de RAM
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    # Con HTTPS (perfil «https») la web solo escucha dentro del servidor y
+    # Caddy la publica en los puertos 80 y 443.
     ports:
-      - "${MAZUCA_PUERTO:-8080}:8000"
+      - "${RICORA_WEB_BIND:-0.0.0.0}:${MAZUCA_PUERTO:-8080}:8000"
     volumes:
       - media:/app/media
     depends_on:
@@ -110,7 +112,28 @@ services:
       web:
         condition: service_started
 
+  # HTTPS con certificado gratuito (Let's Encrypt) para RICORA_DOMINIO. Solo
+  # se levanta con COMPOSE_PROFILES=https (lo fija el despliegue cuando el
+  # nombre ya apunta al servidor); en local no hace falta.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["https"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      RICORA_DOMINIO: ${RICORA_DOMINIO:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
+  caddy_data:
+  caddy_config:
   ollama_data:
   db_data:
   media:
