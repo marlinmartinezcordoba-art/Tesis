@@ -32,7 +32,7 @@ jobs:
           RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
           RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
-          RICORA_DOMINIO: ${{ secrets.RICORA_DOMINIO || 'tesis-ricora.duckdns.org' }}
+          RICORA_DOMINIO: ${{ secrets.RICORA_DOMINIO }}
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
@@ -76,6 +76,7 @@ jobs:
                 echo "  .env: $1 no definido como secreto de GitHub; se deja como está"
               fi
             }
+            quitar() { grep -v "^$1=" .env > .env.tmp || true; mv .env.tmp .env; }
             poner GEMINI_API_KEY "$GEMINI_API_KEY"
             poner RICORA_ADMIN_USER "$RICORA_ADMIN_USER"
             poner RICORA_ADMIN_PASSWORD "$RICORA_ADMIN_PASSWORD"
@@ -95,7 +96,6 @@ jobs:
               poner DJANGO_ALLOWED_HOSTS "${DROPLET_HOST},${actual:-localhost,127.0.0.1}"
             fi
 
-            quitar() { grep -v "^$1=" .env > .env.tmp || true; mv .env.tmp .env; }
 
             # HTTPS con nombre (DuckDNS u otro): solo si el nombre ya apunta a
             # este servidor; si no, se sigue por la dirección numérica sin tocar nada.
@@ -118,6 +118,19 @@ jobs:
               else
                 echo "  aviso: $RICORA_DOMINIO apunta a ${resuelve:-ninguna dirección}, no a este servidor; se sigue sin HTTPS."
               fi
+            fi
+            # Sin nombre (o si el nombre dejó de apuntar aquí): se vuelve a servir
+            # por la dirección numérica, como antes de activar HTTPS.
+            if [ "$https" = 0 ] && grep -q "^COMPOSE_PROFILES=https" .env; then
+              echo "  HTTPS desactivado: RICORA vuelve a la dirección numérica."
+              docker compose --profile https stop caddy || true
+              docker compose --profile https rm -f caddy || true
+              quitar COMPOSE_PROFILES
+              quitar RICORA_DOMINIO
+              poner MAZUCA_PUERTO 80
+              poner RICORA_WEB_BIND 0.0.0.0
+              poner DJANGO_BEHIND_PROXY 0
+              cambio=1
             fi
 
             # Si cambió el .env, el contenedor debe recrearse para leerlo
