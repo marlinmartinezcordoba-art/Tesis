@@ -56,7 +56,7 @@ class RolesTest(CasoModulos):
         self.assertNotContains(resp, "Panel técnico")
         self.assertContains(resp, "Consulta y exportación")
         self.assertContains(resp, "Instrumentos archivísticos")
-        self.assertContains(resp, "Consulta</span>")
+        self.assertContains(resp, "<small>Consulta</small>")  # rol en la ficha de la persona, arriba a la derecha
 
         resp = self._get(self.revisor, "panel")
         self.assertNotContains(resp, "Captura y clasificación")
@@ -72,26 +72,26 @@ class RolesTest(CasoModulos):
         self.assertContains(resp, ">Administración<")
 
     def test_pestanas_del_proceso(self):
-        # Submódulos en el menú lateral, desplegados bajo su proceso, con su número de módulo.
+        # Submódulos en el menú lateral, desplegados bajo su proceso, sin códigos de módulo.
         resp = self._get(self.archivista, "revision_lista")
-        self.assertContains(resp, 'class="activo" aria-current="page"><span class="m">M6</span><span>Revisión archivística</span>')
-        self.assertContains(resp, "<strong>Revisión archivística</strong>")  # encabezado: la pantalla actual
+        self.assertContains(resp, 'class="activo" aria-current="page"><span>Revisión archivística</span>')
         self.assertContains(resp, 'class="menu-grupo abierto actual" data-grupo="3"')
         self.assertContains(resp, "<span>Análisis y relaciones</span>")
         self.assertContains(resp, "<span>Trazabilidad y auditoría</span>")
         self.assertNotContains(resp, 'class="pestanas"')
         resp = self._get(self.archivista, "preproceso")
-        self.assertContains(resp, '<span class="m">M2</span><span>Preprocesamiento y OCR</span>')
+        self.assertContains(resp, '<span>Preprocesamiento y OCR</span>')
+        self.assertNotContains(resp, 'class="m"')
         self.assertContains(resp, "<span>Cargar documentos</span>")
-        self.assertNotContains(resp, 'class="estado-modulo')  # el estado de validación vive en Administración
+        self.assertNotContains(resp, 'class="estado-modulo')
 
     def test_administracion_en_el_menu_con_modulo_0(self):
         self.client.force_login(self.superusuario)
         resp = self.client.get("/admin/usuarios/?pestana=auditoria")
-        self.assertContains(resp, "<strong>Auditoría</strong>")
+        self.assertContains(resp, "<h1>Auditoría</h1>")
         self.assertContains(resp, '?pestana=eliminados')
         resp = self.client.get("/admin/usuarios/")
-        self.assertContains(resp, "<strong>Usuarios y roles</strong>")
+        self.assertContains(resp, "<h1>Usuarios y roles</h1>")
 
     def test_el_archivo_original_respeta_la_visibilidad_del_rol(self):
         # Módulo 1: antes cualquier sesión descargaba cualquier archivo por su id (RF-M8-04 lo prohíbe).

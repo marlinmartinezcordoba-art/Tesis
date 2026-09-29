@@ -9,7 +9,7 @@ from django.views.generic import RedirectView
 
 from acervo.views import exportar_dublin_core, exportar_premis
 from lineamientos.views import informe, informe_auditoria
-from ric import vistas_ayuda, vistas_inicio, vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_visor, vistas_vocabularios
+from ric import vistas_inicio, vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_visor, vistas_vocabularios
 from ric.views import (
     evaluacion_datos,
     evaluacion_html,
@@ -27,7 +27,6 @@ admin.site.index_title = "Archivo histórico"
 
 urlpatterns = [
     path("", vistas_inicio.inicio, name="inicio"),
-    path("ayuda/", vistas_ayuda.guia, name="ayuda"),
 
     # M11 · Administración y seguridad (antes de admin/ para no chocar con el panel técnico)
     path("admin/usuarios/", vistas_admin.admin_usuarios, name="admin_usuarios"),

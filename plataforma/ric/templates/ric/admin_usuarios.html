@@ -38,10 +38,8 @@
 {% endblock %}
 {% block contenido %}
 <hgroup>
-  <h1>Administración y seguridad</h1>
-  <p>Usuarios con su rol — archivista (ingesta y analiza), revisor (revisa y aprueba) y consulta (solo catálogo) —,
-  proveedores de inteligencia artificial que alimentan el motor de análisis, con su clave y estado de conexión, y los
-  parámetros del sistema.</p>
+  <h1>{{ pantalla_nombre|default:"Administración" }}</h1>
+  <p>{% if pestana == "usuarios" %}Cuentas de la plataforma y el rol de cada persona: archivista, revisor o consulta.{% elif pestana == "proveedores" %}Servicios de inteligencia artificial que alimentan el motor de análisis, con su estado de conexión.{% elif pestana == "parametros" %}Valores que rigen el funcionamiento del sistema.{% elif pestana == "auditoria" %}Registro de quién hizo qué y cuándo en la plataforma.{% elif pestana == "eliminados" %}Lo retirado de las pantallas, con su motivo; desde aquí se restaura.{% endif %}</p>
 </hgroup>
 
 
@@ -196,15 +194,6 @@
   {% endif %}
 </div>
 
-{% elif pestana == "modulos" %}
-<div class="tarjeta">
-  <h3>Estado de los módulos</h3>
-  <p style="font-size:.82rem; color:#6b7280; margin:.2rem 0 .8rem">Avance del desarrollo frente a la Definición de Terminado: cada módulo se entrega con su documentación de 23 puntos y se marca como validado cuando usted lo aprueba.</p>
-  <table class="tabla">
-    <thead><tr><th>Módulo</th><th>Nombre</th><th>Estado</th></tr></thead>
-    <tbody>{% for m in estado_modulos %}<tr><td><code>{{ m.codigo }}</code></td><td>{{ m.nombre }}</td><td><span class="estado-modulo {{ m.estado }}">{{ m.estado_texto }}</span></td></tr>{% endfor %}</tbody>
-  </table>
-</div>
 {% elif pestana == "eliminados" %}
 <div class="tarjeta">
   <h3>Eliminados (borrado lógico) · {{ eliminados|length }}</h3>

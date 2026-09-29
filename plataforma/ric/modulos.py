@@ -85,6 +85,19 @@ MODULOS = [
 ]
 
 
+# Íconos del menú lateral (trazos de 24×24, estilo lineal).
+ICONOS = {
+    "inicio": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    "vocabularios": '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+    "ingesta": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    "analisis_lista": '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="m13.3 16.3 1.9 1.9"/>',
+    "valoracion": '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+    "catalogo": '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    "panel": '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    "admin_usuarios": '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>',
+}
+
+
 def modulo_actual(url_name):
     if not url_name:
         return None
@@ -113,7 +126,6 @@ PANTALLAS_ADMIN = (
     ("parametros", "Parámetros", 11),
     ("auditoria", "Auditoría", 0),
     ("eliminados", "Eliminados (restaurar)", 0),
-    ("modulos", "Estado de los módulos", None),
 )
 
 
@@ -142,13 +154,15 @@ def contexto_modulos(request):
         if actual is m and m["url"] == "admin_usuarios":
             activa = next((x for x in submenu if x["activa"]), None)
             espec = activa["espec"]["numero"] if activa and activa["espec"] else 11
-        menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "submenu": submenu})
+        menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "submenu": submenu, "icono": ICONOS.get(m["url"], "")})
     activa = next((x for m in menu if actual and m["numero"] == actual["numero"] for x in m["submenu"] if x["activa"]), None)
     from .ayuda import guia_de
 
     return {
         "guia": guia_de(url_name or ("inicio" if request.path == "/" else "")),
         "pantalla_nombre": activa["nombre"] if activa else "",
+        "icono_inicio": ICONOS["inicio"],
+        "en_inicio": url_name == "inicio",
         "modulos": menu,
         "modulo_actual": next((m for m in menu if actual and m["numero"] == actual["numero"]), None),
         "modulo_numero": actual["numero"] if actual else None,

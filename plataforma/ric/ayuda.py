@@ -1,17 +1,21 @@
 """Ayuda de RICORA: qué hace cada pantalla y cómo se usa, paso a paso, en
 lenguaje de archivo. La misma guía se abre desde el botón «Ayuda» de cada
-pantalla (solo la de esa pantalla) y en /ayuda/ (todas, con índice)."""
+pantalla (solo la de esa pantalla)."""
 
 GUIAS = [
     {
         "clave": "inicio", "proceso": "Inicio", "titulo": "Inicio",
-        "para_que": "Presenta la plataforma, el recorrido de un documento y lo que usted tiene por hacer hoy según su rol.",
+        "para_que": "Su pantalla de trabajo: lo que espera una acción suya, las alertas abiertas y los últimos documentos con su estado.",
         "pasos": [
-            "Lea en «Para hacer hoy» cuántos documentos esperan una acción suya.",
-            "Pulse el botón de la tarea (Preprocesar, Decidir, Revisar) para ir directo a esa lista.",
-            "Use «El recorrido de un documento» para entrar a cualquier etapa del proceso.",
+            "En la barra superior, escriba un nombre, un lugar o una fecha para buscar en el catálogo (atajo: Ctrl K).",
+            "En «Mi trabajo de hoy», cada recuadro dice cuántos documentos esperan una acción suya; al pulsarlo lo lleva a hacerla.",
+            "En «Requieren atención» están las alertas críticas y altas: pulse una para ir a resolverla.",
+            "En «Últimos documentos», el enlace de cada fila lleva al paso que sigue (Preprocesar, Analizar, Decidir, Revisar o Ver ficha).",
         ],
-        "consejos": ["El logo RICORA del menú lateral siempre lo trae de vuelta aquí."],
+        "consejos": [
+            "Las alertas críticas son revisiones atrasadas, errores del OCR y retenciones cumplidas; las altas, lo que vence pronto o el OCR de calidad baja.",
+            "El logo RICORA del menú lateral siempre lo trae de vuelta aquí.",
+        ],
     },
     # --- Instrumentos archivísticos ---
     {
@@ -204,12 +208,3 @@ def guia_de(url_name):
     if url_name.startswith("admin_"):
         return _POR_CLAVE["admin_usuarios"]
     return _POR_CLAVE.get(_EQUIVALENCIAS.get(url_name, url_name))
-
-
-def por_proceso():
-    procesos = []
-    for g in GUIAS:
-        if not procesos or procesos[-1]["nombre"] != g["proceso"]:
-            procesos.append({"nombre": g["proceso"], "guias": []})
-        procesos[-1]["guias"].append(g)
-    return procesos

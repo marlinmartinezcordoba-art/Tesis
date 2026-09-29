@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from . import auditoria_acciones, proveedores, roles
 from .models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria
 
-_PESTANAS = ("usuarios", "proveedores", "parametros", "auditoria", "eliminados", "modulos")
+_PESTANAS = ("usuarios", "proveedores", "parametros", "auditoria", "eliminados")
 
 
 def _volver(pestana="usuarios"):
@@ -100,10 +100,6 @@ def admin_usuarios(request):
         contexto_extra = _contexto_auditoria(request)
     elif pestana == "eliminados":
         contexto_extra = {"eliminados": _eliminados()}
-    elif pestana == "modulos":
-        from .modulos import MODULOS_ESPEC, modulo_espec
-
-        contexto_extra = {"estado_modulos": [modulo_espec(n) for n in sorted(MODULOS_ESPEC)]}
     return render(request, "ric/admin_usuarios.html", {
         **contexto_extra,
         "pestana": pestana,

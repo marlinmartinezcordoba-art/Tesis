@@ -10,35 +10,47 @@ from ._ayudas import CasoModulos, candidato
 
 
 class InicioTest(CasoModulos):
-    def test_inicio_explica_la_plataforma_y_el_recorrido(self):
+    def test_inicio_es_pantalla_de_trabajo_sin_textos_de_presentacion(self):
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("inicio"))
-        self.assertContains(resp, "Records in Contexts (RiC)")
-        for paso in ("Instrumentos", "Captura", "Descripción", "Revisión", "Consulta", "Intercambio"):
-            self.assertContains(resp, f"<strong>{paso}</strong>")
-        self.assertContains(resp, "La IA propone, la persona decide")
+        self.assertContains(resp, 'role="search"')
+        self.assertContains(resp, reverse("catalogo"))
+        self.assertContains(resp, "Mi trabajo de hoy")
+        self.assertContains(resp, "Requieren atención")
+        self.assertNotContains(resp, "Records in Contexts (RiC)")
+        self.assertNotContains(resp, "El recorrido de un documento")
 
-    def test_tareas_del_dia_con_cifras_y_enlaces(self):
+    def test_pendientes_con_cifras_y_enlaces(self):
         record, inst = self.documento()
         self.proponer(record, candidato())
         Instantiation.objects.filter(pk=inst.pk).update(estado_proceso=Instantiation.EstadoProceso.SIN_ENVIAR)
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("inicio"))
-        self.assertContains(resp, "archivo(s) cargados sin enviar al OCR")
+        self.assertContains(resp, "archivos sin enviar al OCR")
         self.assertContains(resp, reverse("analisis_lista"))
         self.assertContains(resp, reverse("revision_lista") + "?filtro=pendientes")
 
-    def test_consulta_ve_el_contexto_sin_tareas_internas(self):
+    def test_ultimos_documentos_con_estado_y_paso_siguiente(self):
+        record, _ = self.documento(nombre="Acta del cabildo")
+        self.proponer(record, candidato())
+        self.client.force_login(self.archivista)
+        resp = self.client.get(reverse("inicio"))
+        self.assertContains(resp, "Acta del cabildo")
+        self.assertContains(resp, '<span class="estado en_analisis">En análisis</span>')
+        self.assertContains(resp, f'href="{reverse("analisis", args=[record.pk])}">Decidir →')
+
+    def test_consulta_solo_ve_lo_publicado_sin_tareas_internas(self):
+        self.documento(nombre="Borrador interno")
         self.client.force_login(self.consulta)
         resp = self.client.get(reverse("inicio"))
-        self.assertContains(resp, "Buscar en el catálogo")
+        self.assertContains(resp, "Últimos documentos publicados")
+        self.assertNotContains(resp, "Borrador interno")
         self.assertNotContains(resp, "sin enviar al OCR")
-        self.assertNotContains(resp, "relaciones RiC validadas")
 
-    def test_encabezado_sin_codigos_ni_estado_de_validacion(self):
+    def test_sin_titulo_repetido_en_la_barra_superior(self):
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("ingesta"))
-        self.assertContains(resp, "<strong>Cargar documentos</strong>")
+        self.assertNotContains(resp, 'class="topbar-modulo"')
         self.assertNotContains(resp, "Pendiente de rehacer")
         self.assertNotContains(resp, 'class="estado-modulo')
 
@@ -66,9 +78,8 @@ class NavegacionTest(CasoModulos):
         for titulo in ("Resumen del periodo", "Trabajo en curso", "Actividad y contenido del grafo"):
             self.assertContains(resp, f'data-pagina="{titulo}"')
 
-    def test_estado_de_los_modulos_en_administracion(self):
+    def test_sin_estado_de_los_modulos_en_el_sistema(self):
         self.client.force_login(self.superusuario)
-        resp = self.client.get(reverse("admin_usuarios"), {"pestana": "modulos"})
-        self.assertContains(resp, "Estado de los módulos")
-        self.assertContains(resp, "<code>M11</code>")
-        self.assertContains(resp, "Validado")
+        for resp in (self.client.get(reverse("admin_usuarios")), self.client.get(reverse("admin_usuarios"), {"pestana": "modulos"})):
+            self.assertNotContains(resp, "Estado de los módulos")
+            self.assertNotContains(resp, "<code>M11</code>")

@@ -1,4 +1,4 @@
-"""Ayuda por pantalla, guía de uso completa, pantalla de ingreso y retiro
+"""Ayuda en cada pantalla (ícono de ambulancia), pantalla de ingreso y retiro
 (reversible) de los datos de prueba que dejó el desarrollo."""
 
 import importlib
@@ -20,17 +20,14 @@ class AyudaTest(CasoModulos):
             self.assertContains(resp, 'id="abrir-ayuda"', msg_prefix=nombre)
             self.assertContains(resp, f'<h2 id="ayuda-titulo">{ayuda.guia_de(nombre)["titulo"]}</h2>', msg_prefix=nombre)
 
-    def test_guia_completa_agrupada_por_proceso(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.get(reverse("ayuda"))
-        self.assertEqual(resp.status_code, 200)
-        for g in ayuda.GUIAS:
-            self.assertContains(resp, g["titulo"])
-        self.assertContains(resp, "data-paginas")
-
-    def test_guia_exige_sesion(self):
-        resp = self.client.get(reverse("ayuda"))
-        self.assertEqual(resp.status_code, 302)
+    def test_ayuda_con_ambulancia_y_sin_guia_aparte(self):
+        self.client.force_login(self.archivista)
+        resp = self.client.get(reverse("revision_lista"))
+        self.assertContains(resp, 'aria-label="Ayuda: cómo se usa esta pantalla"')
+        self.assertContains(resp, "<svg")
+        self.assertNotContains(resp, "Guía de uso")
+        self.assertNotContains(resp, "guía completa")
+        self.assertEqual(self.client.get("/ayuda/").status_code, 404)
 
     def test_guias_bien_formadas(self):
         claves = [g["clave"] for g in ayuda.GUIAS]
