@@ -72,7 +72,7 @@ jobs:
             # Si cambió el .env, el contenedor debe recrearse para leerlo
             # (y volver a correr configurar_inicial al arrancar).
             if [ "$cambio" = 1 ]; then
-              docker compose up --build -d --force-recreate web
+              docker compose up --build -d --force-recreate web worker
             else
               docker compose up --build -d
             fi

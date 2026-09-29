@@ -76,23 +76,32 @@ def herramienta_ocr():
     return f"Tesseract {pytesseract.get_tesseract_version()} ({IDIOMA_OCR})"
 
 
-def paginas_de_imagen(ruta):
+def _avisar(al_avanzar, hecho, total):
+    if al_avanzar is not None:
+        al_avanzar(hecho, total)
+
+
+def paginas_de_imagen(ruta, al_avanzar=None):
     """Una imagen (o un TIFF multipágina) como lista de páginas:
-    [{"texto": str, "confianzas": [float, ...], "ocr": True, "cajas": [...]}, ...]."""
+    [{"texto": str, "confianzas": [float, ...], "ocr": True, "cajas": [...]}, ...].
+    `al_avanzar(hecho, total)` se llama después de cada página (cola de OCR)."""
     paginas = []
     with Image.open(ruta) as img:
+        total = getattr(img, "n_frames", 1)
         for cuadro in ImageSequence.Iterator(img):
             texto, confianzas, cajas = ocr_imagen(cuadro)
             paginas.append({"texto": texto, "confianzas": confianzas, "ocr": True, "cajas": cajas})
+            _avisar(al_avanzar, len(paginas), total)
     return paginas
 
 
-def paginas_de_pdf(ruta):
+def paginas_de_pdf(ruta, al_avanzar=None):
     """Un PDF como lista de páginas; cada página usa su capa de texto si la
     tiene (sin coordenadas: pypdf no las expone), o OCR sobre sus imágenes
     si no (con coordenadas, en píxeles de cada imagen incrustada)."""
     paginas = []
     reader = PdfReader(ruta)
+    total = len(reader.pages)
     for pagina in reader.pages:
         texto = (pagina.extract_text() or "").strip()
         confianzas, uso_ocr, cajas = [], False, []
@@ -107,6 +116,7 @@ def paginas_de_pdf(ruta):
                     cajas.append({**caja, "imagen_indice": indice})
             texto = "\n".join(partes)
         paginas.append({"texto": texto, "confianzas": confianzas, "ocr": uso_ocr, "cajas": cajas})
+        _avisar(al_avanzar, len(paginas), total)
     return paginas
 
 
@@ -125,7 +135,7 @@ def paginas_de_docx(ruta):
     return [{"texto": texto, "confianzas": [], "ocr": False, "cajas": []}]
 
 
-def extraer_paginas(ruta):
+def extraer_paginas(ruta, al_avanzar=None):
     """Despacha por extensión y devuelve la lista de páginas (ver
     `paginas_de_pdf`/`paginas_de_imagen`/`paginas_de_texto_plano`/
     `paginas_de_docx`). Lanza `FormatoNoSoportado` si la extensión no se
@@ -135,9 +145,9 @@ def extraer_paginas(ruta):
     if extension in EXT_TEXTO:
         return paginas_de_texto_plano(ruta)
     if extension == ".pdf":
-        return paginas_de_pdf(ruta)
+        return paginas_de_pdf(ruta, al_avanzar)
     if extension in EXT_IMAGEN:
-        return paginas_de_imagen(ruta)
+        return paginas_de_imagen(ruta, al_avanzar)
     if extension in EXT_DOCX:
         return paginas_de_docx(ruta)
     raise FormatoNoSoportado(f"No se puede extraer texto de archivos {extension}")

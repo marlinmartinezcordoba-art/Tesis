@@ -214,3 +214,23 @@ RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "200"))
 # temporal en disco en vez de tenerla en memoria; la huella se calcula por
 # bloques. Solo el cuerpo que NO es archivo tiene el límite de memoria.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
+
+# M2: cola de preprocesamiento (OCR, idioma, calidad, motor) en segundo
+# plano con Celery y Redis — la persona no espera con la página abierta y
+# un archivo de 300 páginas no bloquea el servidor web. Sin REDIS_URL
+# (pruebas y desarrollo local) las tareas corren en el mismo proceso.
+REDIS_URL = os.environ.get("REDIS_URL", "")
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+CELERY_TASK_EAGER_PROPAGATES = False
+CELERY_TASK_IGNORE_RESULT = True  # el estado vive en Instantiation, no en Redis
+CELERY_TASK_ACKS_LATE = True  # si el trabajador muere a mitad, la tarea vuelve a la cola
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # OCR es pesado: una tarea a la vez por proceso
+CELERY_TASK_SOFT_TIME_LIMIT = int(os.environ.get("RICORA_LIMITE_TAREA_S", "1700"))
+CELERY_TASK_TIME_LIMIT = CELERY_TASK_SOFT_TIME_LIMIT + 100
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_TRANSPORT_OPTIONS = {"visibility_timeout": CELERY_TASK_TIME_LIMIT + 600}
+# Minutos sin avance tras los cuales un trabajo "procesando" se da por
+# perdido y se puede reintentar desde la pantalla.
+RICORA_MINUTOS_TRABAJO_PERDIDO = int(os.environ.get("RICORA_MINUTOS_TRABAJO_PERDIDO", "35"))

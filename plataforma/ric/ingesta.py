@@ -10,7 +10,7 @@ comportamiento sin importar por dónde se suba el archivo.
 """
 
 
-def ingerir(instanciacion, agente):
+def ingerir(instanciacion, agente, al_avanzar=None):
     """Si el formato no tiene OCR soportado, el archivo igual queda
     preservado (el hash es lo que garantiza F01; lo demás son pasos
     aparte, best-effort). La segmentación solo PROPONE: nunca separa el
@@ -25,7 +25,7 @@ def ingerir(instanciacion, agente):
         "componentes": 0, "segmentos_propuestos": 0, "formato_no_soportado": False,
     }
     try:
-        _, detalle = extraer_texto_de_instanciacion(instanciacion, agente=agente)
+        _, detalle = extraer_texto_de_instanciacion(instanciacion, agente=agente, al_avanzar=al_avanzar)
     except FormatoNoSoportado:
         resultado["formato_no_soportado"] = True
         return resultado
@@ -41,7 +41,7 @@ def ingerir(instanciacion, agente):
     return resultado
 
 
-def preprocesar(instanciacion, agente):
+def preprocesar(instanciacion, agente, al_avanzar=None, al_cambiar_etapa=None):
     """M2 completo sobre un archivo ya cargado (M1): OCR/texto nativo,
     idioma (RF-M2-03), marca de páginas de calidad baja (RF-M2-04) y,
     si no queda ninguna página por decidir, entrega automática al motor
@@ -49,8 +49,10 @@ def preprocesar(instanciacion, agente):
     from .idioma import detectar_idioma, nombre_idioma
     from .motor import enviar_al_motor
 
-    resultado = ingerir(instanciacion, agente)
+    resultado = ingerir(instanciacion, agente, al_avanzar=al_avanzar)
     resultado.update(idioma="", calidad_baja=0, analisis=None)
+    etapa = al_cambiar_etapa or (lambda nombre: None)
+    etapa("idioma")
     if not resultado["texto_extraido"]:
         return resultado
 
@@ -72,5 +74,6 @@ def preprocesar(instanciacion, agente):
     documento = Record.objects.filter(pk=record.pk).first()  # la FK apunta a RecordResource
     if documento is None:
         return resultado  # un RecordSet/RecordPart: el motor solo analiza Records
+    etapa("motor")
     resultado["analisis"] = enviar_al_motor(documento, agente)
     return resultado

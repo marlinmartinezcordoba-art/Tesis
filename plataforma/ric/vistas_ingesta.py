@@ -12,20 +12,23 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 
-from . import carga, clasificacion, flujo, roles
+from . import carga, clasificacion, cola, flujo, roles
 from .idioma import nombre_idioma
-from .models import Activity, ConfiguracionSistema, EventoRiC, Instantiation, Record, RecordSet, registrar_evento
+from .models import Activity, ConfiguracionSistema, EventoRiC, Instantiation, PropuestaRiC, Record, RecordSet, registrar_evento
 
 FORMATOS_SOPORTADOS = carga.FORMATOS_SOPORTADOS
 _EXT_IMAGEN_VISOR = {".jpg", ".jpeg", ".png"}
 
 
 def _estado_preproceso(instanciacion):
-    if not instanciacion.eventos.filter(tipo=EventoRiC.Tipo.EXTRACCION).exists():
-        return "en_cola"
-    if instanciacion.paginas_calidad_baja().exists():
-        return "calidad_baja"
-    return "listo"
+    """El estado lo escribe el trabajador; entre «listo» y «calidad baja»
+    manda la situación actual de las páginas, porque el umbral de calidad
+    es configurable (M11) y las decisiones página a página la cambian."""
+    estado = instanciacion.estado_proceso
+    if estado in (Instantiation.EstadoProceso.LISTO, Instantiation.EstadoProceso.CALIDAD_BAJA):
+        baja = instanciacion.paginas_calidad_baja().exists()
+        return Instantiation.EstadoProceso.CALIDAD_BAJA if baja else Instantiation.EstadoProceso.LISTO
+    return estado
 
 
 def _fecha(valor):
@@ -211,67 +214,101 @@ def _filas_preproceso(instanciaciones):
         filas.append({
             "instanciacion": inst,
             "estado": _estado_preproceso(inst),
+            "perdido": cola.perdido(inst),
             "paginas": inst.paginas.count(),
             "calidad_baja": list(inst.paginas_calidad_baja().values_list("numero", flat=True)),
             "idioma": nombre_idioma(inst.idioma_detectado),
-            "tiene_propuestas": bool(estado_doc and estado_doc != flujo.SIN_TEXTO and estado_doc != flujo.SIN_ANALIZAR),
+            # Propuestas reales del motor (M3): las relaciones estructurales que
+            # deja la clasificación en el expediente no cuentan como análisis.
+            "tiene_propuestas": bool(estado_doc) and PropuestaRiC.objects.filter(
+                origen_content_type=_ct_record(), origen_object_id=record.pk).exists(),
             "record": record,
         })
     return filas
 
 
+def _ct_record():
+    from django.contrib.contenttypes.models import ContentType
+
+    return ContentType.objects.get_for_model(Record)
+
+
+def _estado_json(fila):
+    inst, record = fila["instanciacion"], fila["record"]
+    accion = None
+    if fila["estado"] == Instantiation.EstadoProceso.CALIDAD_BAJA:
+        accion = {"tipo": "decidir", "paginas": [
+            {"numero": n, "url": reverse("preproceso_pagina", args=[inst.pk, n])} for n in fila["calidad_baja"]]}
+    elif fila["estado"] == Instantiation.EstadoProceso.LISTO and isinstance(record, Record):
+        accion = {"tipo": "propuestas", "url": reverse("analisis", args=[record.pk])} if fila["tiene_propuestas"] else \
+            {"tipo": "motor", "url": reverse("analisis_generar", args=[record.pk])}
+    return {
+        "id": inst.pk, "estado": fila["estado"], "etiqueta": inst.get_estado_proceso_display(),
+        "progreso": inst.progreso, "etapa": inst.etapa, "mensaje": inst.mensaje_proceso,
+        "paginas": fila["paginas"], "idioma": fila["idioma"], "perdido": fila["perdido"],
+        "reintentar": fila["estado"] in (Instantiation.EstadoProceso.ERROR, Instantiation.EstadoProceso.SIN_ENVIAR) or fila["perdido"],
+        "accion": accion,
+    }
+
+
+def _instanciaciones_preproceso():
+    return Instantiation.objects.select_related("record_resource").order_by("-fecha_registro")[:100]
+
+
 @roles.requiere_rol(roles.ARCHIVISTA)
 def preproceso(request):
-    instanciaciones = Instantiation.objects.select_related("record_resource").order_by("-fecha_registro")[:100]
-    return render(request, "ric/preproceso.html", {"filas": _filas_preproceso(instanciaciones)})
+    filas = _filas_preproceso(_instanciaciones_preproceso())
+    activos = any(f["estado"] in cola.ACTIVOS for f in filas)
+    return render(request, "ric/preproceso.html", {
+        "filas": filas,
+        "sin_trabajador": activos and not cola.trabajadores_activos(),
+    })
 
 
-def _informar_resultado(request, instanciacion, resultado):
-    nombre = instanciacion.nombre
-    if resultado["formato_no_soportado"]:
-        messages.warning(request, f"«{nombre}»: no fue posible extraer texto de este formato.")
-        return
-    partes = [f"{resultado['paginas']} página(s)"]
-    if resultado["confianza_ocr"] is not None:
-        partes.append(f"confianza OCR {resultado['confianza_ocr']}%")
-    if resultado["idioma"]:
-        partes.append(f"idioma {nombre_idioma(resultado['idioma']).lower()}")
-    messages.success(request, f"«{nombre}» preprocesado: {', '.join(partes)}.")
-    if resultado["calidad_baja"]:
-        messages.warning(
-            request,
-            f"«{nombre}»: {resultado['calidad_baja']} página(s) con calidad de lectura baja. "
-            "Decida si se reescanean o se aceptan antes de enviar al motor de análisis.",
-        )
-        return
-    analisis = resultado.get("analisis") or {}
-    if analisis.get("sin_proveedor"):
-        messages.info(
-            request,
-            f"«{nombre}» está listo, pero no hay un proveedor de IA activo: configúrelo en "
-            "Administración → Proveedores de IA para que el motor de análisis proponga entidades.",
-        )
-    elif analisis.get("error"):
-        messages.error(request, f"«{nombre}»: el motor de análisis no respondió — {analisis['error']}")
-    else:
-        messages.success(request, f"«{nombre}» enviado al motor de análisis: {analisis.get('propuestas', 0)} propuesta(s) de entidades.")
+@roles.requiere_rol_api(roles.ARCHIVISTA)
+def preproceso_estado(request):
+    """Consulta de la pantalla cada 2 s mientras haya archivos en cola o
+    procesando (RF-M2-01: avance visible por archivo)."""
+    ids = [v for v in request.GET.get("ids", "").split(",") if v.isdigit()][:100]
+    consulta = Instantiation.objects.select_related("record_resource")
+    consulta = consulta.filter(pk__in=ids) if ids else _instanciaciones_preproceso()
+    filas = [_estado_json(f) for f in _filas_preproceso(consulta)]
+    activos = any(f["estado"] in cola.ACTIVOS for f in filas)
+    return JsonResponse({"archivos": filas, "trabajadores": cola.trabajadores_activos(),
+                         "sin_trabajador": activos and not cola.trabajadores_activos()})
+
+
+def _encolar_varios(request, instanciaciones, tarea=cola.PREPROCESAR):
+    enviados, ya_en_cola = 0, 0
+    for inst in instanciaciones:
+        try:
+            if cola.encolar(inst, request.user, tarea=tarea):
+                enviados += 1
+            else:
+                ya_en_cola += 1
+        except cola.ColaNoDisponible:
+            messages.error(request, "La cola de procesamiento no está disponible en este momento. Intente de nuevo en unos "
+                           "minutos; si persiste, avise al administrador.")
+            return
+    if enviados:
+        messages.success(request, f"{enviados} archivo(s) enviados a preprocesamiento. Puede seguir trabajando: "
+                         "el avance se actualiza solo en esta pantalla.")
+    if ya_en_cola:
+        messages.info(request, f"{ya_en_cola} archivo(s) ya estaban en la cola; no se enviaron de nuevo.")
 
 
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def preproceso_enviar(request):
-    """Paso 5 del flujo: "Enviar a preprocesamiento" — OCR, idioma, calidad
-    y entrega al motor de análisis, para uno o varios archivos."""
-    from .ingesta import preprocesar
-
-    ids = request.POST.getlist("instanciacion")
-    instanciaciones = Instantiation.objects.filter(pk__in=ids).select_related("record_resource")
+    """Paso 5 del flujo: "Enviar a preprocesamiento". Pone los archivos en
+    la cola y vuelve de inmediato; el trabajador hace OCR, idioma, calidad
+    y la entrega al motor de análisis (M3) en segundo plano."""
+    ids = [v for v in request.POST.getlist("instanciacion") if str(v).isdigit()]
+    instanciaciones = list(Instantiation.objects.filter(pk__in=ids))
     if not instanciaciones:
         messages.error(request, "No se indicó ningún archivo para preprocesar.")
         return redirect("ingesta")
-    for instanciacion in instanciaciones:
-        resultado = preprocesar(instanciacion, agente=request.user)
-        _informar_resultado(request, instanciacion, resultado)
+    _encolar_varios(request, instanciaciones)
     return redirect("preproceso")
 
 
@@ -292,8 +329,6 @@ def preproceso_pagina(request, pk, numero):
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def preproceso_pagina_decidir(request, pk, numero):
-    from .motor import enviar_al_motor
-
     instanciacion = get_object_or_404(Instantiation.objects.select_related("record_resource"), pk=pk)
     pagina = get_object_or_404(instanciacion.paginas, numero=numero)
     decision = request.POST.get("decision")
@@ -308,13 +343,10 @@ def preproceso_pagina_decidir(request, pk, numero):
         if not instanciacion.paginas_calidad_baja().exists():
             record = _record_de(instanciacion)
             if record is not None and flujo.estado_documento(record) == flujo.SIN_ANALIZAR:
-                analisis = enviar_al_motor(record, request.user)
-                if analisis.get("sin_proveedor"):
-                    messages.info(request, "Listo para el motor de análisis, pero no hay proveedor de IA activo (Administración → Proveedores de IA).")
-                elif analisis.get("error"):
-                    messages.error(request, f"El motor de análisis no respondió: {analisis['error']}")
-                else:
-                    messages.success(request, f"Enviado al motor de análisis: {analisis['propuestas']} propuesta(s).")
+                _encolar_varios(request, [instanciacion], tarea=cola.ANALIZAR)
+            else:
+                Instantiation.objects.filter(pk=instanciacion.pk).update(
+                    estado_proceso=Instantiation.EstadoProceso.LISTO, mensaje_proceso="Páginas de calidad baja aceptadas.")
         return redirect("preproceso")
     if decision == "reescanear":
         pagina.calidad_aceptada = False
@@ -323,6 +355,10 @@ def preproceso_pagina_decidir(request, pk, numero):
             instanciacion, EventoRiC.Tipo.EXTRACCION, agente=request.user,
             detalle={"pagina": numero, "decision": "reescanear", "confianza_ocr": pagina.confianza_ocr},
         )
+        if not instanciacion.paginas_calidad_baja().exists():
+            Instantiation.objects.filter(pk=instanciacion.pk).update(
+                estado_proceso=Instantiation.EstadoProceso.LISTO,
+                mensaje_proceso="Página(s) marcadas para reescanear: cargue el nuevo escaneo en el mismo expediente.")
         messages.info(
             request,
             f"Página {numero} devuelta a ingesta: cargue el nuevo escaneo de «{instanciacion.nombre}» en el mismo expediente. "

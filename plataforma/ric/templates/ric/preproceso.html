@@ -6,56 +6,76 @@
   table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
   .chip { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
   .chip.listo { background: #e3f9e5; color: #1b4d2e; }
-  .chip.cola { background: #eaf1fb; color: #1f3a5f; }
-  .chip.baja { background: #fde8e8; color: #7a1f1f; }
+  .chip.cola, .chip.sin_enviar { background: #eaf1fb; color: #1f3a5f; }
+  .chip.procesando { background: #fff2df; color: #8a6100; }
+  .chip.baja, .chip.error { background: #fde8e8; color: #7a1f1f; }
   .avance { width: 140px; height: 7px; background: #eceae4; border-radius: 4px; overflow: hidden; }
-  .avance i { display: block; height: 100%; background: var(--ricora-accent); }
-  .avance.listo i { width: 100%; background: #2f7d4f; }
-  .avance.cola i { width: 8%; }
-  .avance.baja i { width: 70%; background: var(--ricora-critical); }
+  .avance i { display: block; height: 100%; background: var(--ricora-accent); transition: width .6s ease; }
+  .avance.listo i { background: #2f7d4f; }
+  .avance.baja i, .avance.error i { background: var(--ricora-critical); }
+  .etapa { font-size: .72rem; color: #6b7280; margin-top: .2rem; }
+  .mensaje { font-size: .74rem; color: #4b5563; margin-top: .25rem; max-width: 34rem; }
+  .mensaje.error { color: #7a1f1f; }
   .boton-min { padding: .35rem .7rem; font-size: .78rem; margin: 0; width: auto; }
   .paginas-baja a { font-size: .78rem; }
+  .aviso-cola { background: #fff7e6; border: 1px solid #f3d9a4; color: #6b4a00; border-radius: 10px; padding: .7rem 1rem; font-size: .85rem; margin-bottom: 1rem; }
+  .barra-acciones { display: flex; justify-content: flex-end; margin: .3rem 0 .8rem; }
 {% endblock %}
 {% block contenido %}
 <hgroup>
   <h1>Preprocesamiento y OCR</h1>
-  <p>Cola de procesamiento: cada archivo pasa de <em>en cola</em> a <em>OCR</em> y luego a <em>listo</em>.
-  Los documentos digitales entregan su texto nativo sin OCR; las imágenes y los PDF escaneados pasan por
-  reconocimiento óptico. Se detecta el idioma y se marcan las páginas con calidad de lectura
-  insuficiente para que usted decida si se reescanean o se aceptan. Al quedar listo, el archivo se
-  envía automáticamente al motor de análisis.</p>
+  <p>Cola de procesamiento: cada archivo pasa de <em>en cola</em> a <em>procesando</em> (OCR página por página) y luego a
+  <em>listo</em>. El trabajo corre en segundo plano: puede cerrar esta pantalla o seguir cargando archivos y el avance
+  continúa. Los documentos digitales entregan su texto nativo sin OCR; las imágenes y los PDF escaneados pasan por
+  reconocimiento óptico. Se detecta el idioma y se marcan las páginas con calidad de lectura insuficiente para que usted
+  decida si se reescanean o se aceptan. Al quedar listo, el archivo se envía automáticamente al motor de análisis.</p>
 </hgroup>
+
+<div class="aviso-cola" id="aviso-trabajador" {% if not sin_trabajador %}hidden{% endif %}>
+  ⚠ Hay archivos en cola, pero ningún trabajador de procesamiento está respondiendo. Los archivos no se pierden: se
+  procesarán cuando el trabajador vuelva a estar disponible. Si el aviso persiste, informe al administrador.
+</div>
 
 {% if not filas %}
 <p class="sin-datos">Todavía no hay archivos cargados. <a href="{% url 'ingesta' %}">Cargar el primero →</a></p>
 {% else %}
-<table class="tabla">
+<form method="post" action="{% url 'preproceso_enviar' %}" class="barra-acciones" id="form-todos">{% csrf_token %}
+  {% for f in filas %}{% if f.estado == "sin_enviar" %}<input type="hidden" name="instanciacion" value="{{ f.instanciacion.pk }}">{% endif %}{% endfor %}
+  <button class="boton-min" type="submit" id="enviar-todos">Enviar a preprocesamiento todos los que no se han enviado</button>
+</form>
+<table class="tabla" id="tabla-preproceso" data-estado-url="{% url 'preproceso_estado' %}">
   <thead><tr><th>Archivo</th><th>Expediente</th><th>Avance</th><th>Estado</th><th>Idioma</th><th>Páginas</th><th></th></tr></thead>
   <tbody>
     {% for f in filas %}
-    <tr>
-      <td>📄 <a href="{% url 'visor_documento' f.instanciacion.record_resource_id %}?inst={{ f.instanciacion.pk }}">{{ f.instanciacion.nombre }}</a></td>
+    <tr data-id="{{ f.instanciacion.pk }}" data-estado="{{ f.estado }}">
+      <td>📄 <a href="{% url 'visor_documento' f.instanciacion.record_resource_id %}?inst={{ f.instanciacion.pk }}">{{ f.instanciacion.nombre }}</a>
+        <div class="mensaje {% if f.estado == 'error' %}error{% endif %}" data-campo="mensaje">{{ f.instanciacion.mensaje_proceso }}</div></td>
       <td>{{ f.record }}</td>
-      <td><div class="avance {% if f.estado == 'listo' %}listo{% elif f.estado == 'calidad_baja' %}baja{% else %}cola{% endif %}"><i></i></div></td>
-      <td>
+      <td><div class="avance {% if f.estado == 'listo' %}listo{% elif f.estado == 'calidad_baja' %}baja{% elif f.estado == 'error' %}error{% endif %}" data-campo="avance"
+               role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ f.instanciacion.progreso }}"><i style="width: {{ f.instanciacion.progreso }}%"></i></div>
+          <div class="etapa" data-campo="etapa">{{ f.instanciacion.etapa }}</div></td>
+      <td data-campo="chip">
         {% if f.estado == "listo" %}<span class="chip listo">listo</span>
         {% elif f.estado == "calidad_baja" %}<span class="chip baja">⚠ calidad baja</span>
-        {% else %}<span class="chip cola">en cola</span>{% endif %}
+        {% elif f.estado == "error" %}<span class="chip error">error</span>
+        {% elif f.estado == "procesando" %}<span class="chip procesando">procesando</span>
+        {% elif f.estado == "en_cola" %}<span class="chip cola">en cola</span>
+        {% else %}<span class="chip sin_enviar">sin enviar</span>{% endif %}
       </td>
-      <td>{{ f.idioma|default:"—" }}</td>
-      <td>{{ f.paginas }}</td>
-      <td>
-        {% if f.estado == "en_cola" %}
+      <td data-campo="idioma">{{ f.idioma|default:"—" }}</td>
+      <td data-campo="paginas">{{ f.paginas }}</td>
+      <td data-campo="accion">
+        {% if f.estado == "sin_enviar" or f.estado == "error" or f.perdido %}
           <form method="post" action="{% url 'preproceso_enviar' %}" style="margin:0">{% csrf_token %}
-            <button class="boton-min" type="submit" name="instanciacion" value="{{ f.instanciacion.pk }}">Procesar (OCR)</button>
+            <button class="boton-min" type="submit" name="instanciacion" value="{{ f.instanciacion.pk }}">{% if f.estado == "sin_enviar" %}Procesar (OCR){% else %}Reintentar{% endif %}</button>
           </form>
         {% elif f.estado == "calidad_baja" %}
           <span class="paginas-baja">Decidir:
           {% for n in f.calidad_baja %}<a href="{% url 'preproceso_pagina' f.instanciacion.pk n %}">página {{ n }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
           </span>
-        {% elif f.tiene_propuestas %}
+        {% elif f.estado == "listo" and f.tiene_propuestas %}
           <a href="{% url 'analisis' f.record.pk %}">Ver propuesta de entidades →</a>
-        {% else %}
+        {% elif f.estado == "listo" and f.record.pk %}
           <form method="post" action="{% url 'analisis_generar' f.record.pk %}" style="margin:0">{% csrf_token %}
             <button class="boton-min" type="submit">Enviar al motor de análisis</button>
           </form>
@@ -66,4 +86,68 @@
   </tbody>
 </table>
 {% endif %}
+<script>
+(function () {
+  var tabla = document.getElementById("tabla-preproceso");
+  if (!tabla) return;
+  var todos = document.getElementById("form-todos");
+  if (todos && !todos.querySelector("input[name=instanciacion]")) todos.hidden = true;
+  var csrf = (document.querySelector("input[name=csrfmiddlewaretoken]") || {}).value || "";
+  var enviarUrl = "{% url 'preproceso_enviar' %}";
+  var ACTIVOS = {en_cola: 1, procesando: 1};
+  var CHIPS = {listo: ["listo", "listo"], calidad_baja: ["baja", "⚠ calidad baja"], error: ["error", "error"],
+               procesando: ["procesando", "procesando"], en_cola: ["cola", "en cola"], sin_enviar: ["sin_enviar", "sin enviar"]};
+
+  function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
+  function formulario(url, texto, nombre, valor) {
+    return '<form method="post" action="' + url + '" style="margin:0"><input type="hidden" name="csrfmiddlewaretoken" value="' + esc(csrf) + '">' +
+      '<button class="boton-min" type="submit"' + (nombre ? ' name="' + nombre + '" value="' + valor + '"' : '') + '>' + esc(texto) + '</button></form>';
+  }
+  function accionHtml(a) {
+    if (a.reintentar) return formulario(enviarUrl, a.estado === "sin_enviar" ? "Procesar (OCR)" : "Reintentar", "instanciacion", a.id);
+    if (!a.accion) return "";
+    if (a.accion.tipo === "decidir") return '<span class="paginas-baja">Decidir: ' + a.accion.paginas.map(function (p) {
+      return '<a href="' + p.url + '">página ' + p.numero + '</a>'; }).join(", ") + '</span>';
+    if (a.accion.tipo === "propuestas") return '<a href="' + a.accion.url + '">Ver propuesta de entidades →</a>';
+    if (a.accion.tipo === "motor") return formulario(a.accion.url, "Enviar al motor de análisis");
+    return "";
+  }
+  function pintar(a) {
+    var fila = tabla.querySelector('tr[data-id="' + a.id + '"]');
+    if (!fila) return;
+    var campo = function (n) { return fila.querySelector('[data-campo="' + n + '"]'); };
+    var chip = CHIPS[a.estado] || CHIPS.sin_enviar;
+    var avance = campo("avance");
+    avance.className = "avance " + (a.estado === "listo" ? "listo" : a.estado === "calidad_baja" ? "baja" : a.estado === "error" ? "error" : "");
+    avance.setAttribute("aria-valuenow", a.progreso);
+    avance.firstElementChild.style.width = a.progreso + "%";
+    campo("etapa").textContent = a.etapa || "";
+    campo("chip").innerHTML = '<span class="chip ' + chip[0] + '">' + chip[1] + '</span>';
+    campo("idioma").textContent = a.idioma || "—";
+    campo("paginas").textContent = a.paginas;
+    var m = campo("mensaje");
+    m.textContent = a.mensaje || "";
+    m.className = "mensaje" + (a.estado === "error" ? " error" : "");
+    if (fila.dataset.estado !== a.estado || a.perdido) campo("accion").innerHTML = accionHtml(a);
+    fila.dataset.estado = a.estado;
+  }
+  function activos() {
+    return Array.prototype.map.call(tabla.querySelectorAll("tbody tr"), function (f) { return f; })
+      .filter(function (f) { return ACTIVOS[f.dataset.estado]; }).map(function (f) { return f.dataset.id; });
+  }
+  function consultar() {
+    var ids = activos();
+    if (!ids.length) return;
+    fetch(tabla.dataset.estadoUrl + "?ids=" + ids.join(","), {credentials: "same-origin", headers: {"Accept": "application/json"}})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (datos) {
+        datos.archivos.forEach(pintar);
+        document.getElementById("aviso-trabajador").hidden = !datos.sin_trabajador;
+      })
+      .catch(function () { /* sin red: se reintenta en la próxima vuelta */ })
+      .then(function () { if (activos().length) setTimeout(consultar, 2000); });
+  }
+  if (activos().length) setTimeout(consultar, 1000);
+})();
+</script>
 {% endblock %}

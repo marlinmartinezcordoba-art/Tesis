@@ -373,6 +373,26 @@ class Instantiation(Thing):
     tamano_bytes = models.BigIntegerField(null=True, blank=True, help_text="RF-M1-03: tamaño del archivo al cargar.")
     idioma_detectado = models.CharField(max_length=8, blank=True, help_text="RF-M2-03: código del idioma detectado en el texto extraído.")
 
+    class EstadoProceso(models.TextChoices):
+        SIN_ENVIAR = "sin_enviar", "Sin enviar"
+        EN_COLA = "en_cola", "En cola"
+        PROCESANDO = "procesando", "Procesando"
+        LISTO = "listo", "Listo"
+        CALIDAD_BAJA = "calidad_baja", "Calidad baja"
+        ERROR = "error", "Error"
+
+    # M2: estado del trabajo en segundo plano (cola Celery). Lo escribe
+    # solo el trabajador; la pantalla lo consulta cada pocos segundos.
+    estado_proceso = models.CharField(max_length=14, choices=EstadoProceso.choices, default=EstadoProceso.SIN_ENVIAR, db_index=True, editable=False)
+    progreso = models.PositiveSmallIntegerField(default=0, help_text="0 a 100.", editable=False)
+    etapa = models.CharField(max_length=40, blank=True, help_text="Etapa en curso: OCR página n de m, idioma, motor de análisis.", editable=False)
+    mensaje_proceso = models.TextField(blank=True, help_text="Resultado o error explicado en lenguaje claro.", editable=False)
+    proceso_encolado = models.DateTimeField(null=True, blank=True, editable=False)
+    proceso_iniciado = models.DateTimeField(null=True, blank=True, editable=False)
+    proceso_terminado = models.DateTimeField(null=True, blank=True, editable=False)
+    resultado_proceso = models.JSONField(default=dict, blank=True, editable=False)
+    intentos = models.PositiveSmallIntegerField(default=0, editable=False)
+
     class Meta:
         verbose_name = "ingesta de un documento (M1/M2) — Instantiation"
         verbose_name_plural = "ingesta de documentos (M1/M2) — Instantiation"

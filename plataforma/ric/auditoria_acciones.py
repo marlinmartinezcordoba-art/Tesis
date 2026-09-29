@@ -14,6 +14,7 @@ petición actual en un hilo local; `registrar_accion` la lee si no se le pasa
 el usuario de forma explícita (comandos de consola, siembras).
 """
 
+import contextlib
 import threading
 
 from django.contrib.auth import get_user_model
@@ -27,7 +28,7 @@ from django.utils.functional import SimpleLazyObject, empty
 _estado = threading.local()
 
 # Campos que cambian solos o que nunca deben quedar en claro en la auditoría.
-_CAMPOS_IGNORADOS = {"fecha_actualizacion", "fecha_registro", "last_login", "ultima_prueba", "date_joined"}
+_CAMPOS_IGNORADOS = {"progreso", "etapa", "proceso_iniciado", "proceso_terminado", "resultado_proceso", "fecha_actualizacion", "fecha_registro", "last_login", "ultima_prueba", "date_joined"}
 _CAMPOS_SECRETOS = {"password", "clave_api"}
 INTENTOS_MAXIMOS = 5
 MINUTOS_BLOQUEO = 15
@@ -53,8 +54,20 @@ def peticion_actual():
 
 def usuario_actual():
     request = peticion_actual()
-    usuario = getattr(request, "user", None) if request is not None else None
+    usuario = getattr(request, "user", None) if request is not None else getattr(_estado, "usuario", None)
     return usuario if usuario is not None and getattr(usuario, "is_authenticated", False) else None
+
+
+@contextlib.contextmanager
+def actuando_como(usuario):
+    """Fuera de una petición (el trabajador de la cola, M2) los cambios se
+    auditan a nombre de quien envió el trabajo, no como anónimos."""
+    anterior = getattr(_estado, "usuario", None)
+    _estado.usuario = usuario
+    try:
+        yield
+    finally:
+        _estado.usuario = anterior
 
 
 def _ip(request):

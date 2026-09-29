@@ -28,6 +28,20 @@ services:
       timeout: 5s
       retries: 10
 
+  # M2: cola del preprocesamiento (OCR, idioma, motor). Con AOF el trabajo
+  # pendiente sobrevive a un reinicio del servidor.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   web:
     build: .
     restart: unless-stopped
@@ -36,6 +50,7 @@ services:
     environment:
       DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "${MAZUCA_PUERTO:-8080}:8000"
     volumes:
@@ -43,7 +58,31 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # M2: el trabajador que procesa la cola. Misma imagen y mismo volumen de
+  # archivos que web (lee los originales); no publica ningún puerto.
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["worker"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
 
 volumes:
   db_data:
   media:
+  redis_data:

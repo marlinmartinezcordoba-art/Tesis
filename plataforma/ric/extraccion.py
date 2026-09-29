@@ -12,7 +12,7 @@ from acervo.extraccion import FormatoNoSoportado, extraer_paginas
 __all__ = ["FormatoNoSoportado", "extraer_texto_de_instanciacion"]
 
 
-def extraer_texto_de_instanciacion(instanciacion, agente="sistema"):
+def extraer_texto_de_instanciacion(instanciacion, agente="sistema", al_avanzar=None):
     """Extrae el texto de `instanciacion.archivo`, reemplaza sus PaginaTexto
     existentes (si la reextracción es porque el archivo cambió), registra el
     evento en la bitácora y devuelve (texto_completo, detalle), con el mismo
@@ -21,7 +21,7 @@ def extraer_texto_de_instanciacion(instanciacion, agente="sistema"):
 
     from .models import EventoRiC, PaginaTexto, registrar_evento
 
-    paginas = extraer_paginas(instanciacion.archivo.path)
+    paginas = extraer_paginas(instanciacion.archivo.path, al_avanzar=al_avanzar)
     texto, detalle = resumir_paginas(paginas)
 
     instanciacion.paginas.all().delete()

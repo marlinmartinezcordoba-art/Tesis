@@ -5,6 +5,16 @@
 # DigitalOcean (App Platform o un Droplet).
 set -e
 
+# M2: el mismo contenedor sirve de trabajador de la cola de preprocesamiento
+# (servicio "worker" de docker-compose). Las migraciones las aplica "web".
+if [ "$1" = "worker" ]; then
+    echo "Iniciando el trabajador de preprocesamiento (Celery)..."
+    exec celery -A config worker \
+        --loglevel INFO \
+        --concurrency "${RICORA_TRABAJADORES_OCR:-1}" \
+        --max-tasks-per-child 50
+fi
+
 echo "Aplicando migraciones..."
 python manage.py migrate --noinput
 

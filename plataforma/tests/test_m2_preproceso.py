@@ -28,12 +28,13 @@ class PreprocesoTest(CasoModulos):
         self.client.force_login(self.revisor)
         self.assertContains(self.client.get(reverse("preproceso"), follow=True), "requiere el rol archivista")
 
-    def test_archivo_recien_cargado_aparece_en_cola(self):
+    def test_archivo_recien_cargado_aparece_sin_enviar(self):
         inst = self._cargado()
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("preproceso"))
         self.assertContains(resp, inst.nombre)
-        self.assertContains(resp, "en cola")
+        self.assertContains(resp, "sin enviar")
+        self.assertContains(resp, "Procesar (OCR)")
 
     def test_enviar_extrae_texto_detecta_idioma_y_avisa_que_falta_proveedor(self):
         inst = self._cargado()
@@ -54,13 +55,14 @@ class PreprocesoTest(CasoModulos):
         with patch("ric.proveedores.proveedor_activo", return_value=ProveedorFalso([candidato()])):
             resp = self.client.post(reverse("preproceso_enviar"), {"instanciacion": [inst.pk]}, follow=True)
         self.assertEqual(PropuestaRiC.objects.filter(origen_object_id=inst.record_resource_id).count(), 1)
-        self.assertContains(resp, "enviado al motor de análisis: 1 propuesta")
+        self.assertContains(resp, "Enviado al motor de análisis: 1 propuesta")
         self.assertContains(resp, "Ver propuesta de entidades")
         self.assertContains(resp, reverse("analisis", args=[inst.record_resource_id]))
 
     def test_pagina_de_calidad_baja_queda_marcada_y_no_pasa_al_motor(self):
         record, inst = self.documento()
         PaginaTexto.objects.filter(instanciacion=inst).update(uso_ocr=True, confianza_ocr=25.0)
+        Instantiation.objects.filter(pk=inst.pk).update(estado_proceso=Instantiation.EstadoProceso.LISTO)
         self.assertEqual(inst.paginas_calidad_baja().count(), 1)  # RF-M2-04
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("preproceso"))

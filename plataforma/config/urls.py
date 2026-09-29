@@ -45,6 +45,7 @@ urlpatterns = [
     path("ingesta/archivo/", vistas_ingesta.ingesta_archivo, name="ingesta_archivo"),
     path("ingesta/preproceso/", vistas_ingesta.preproceso, name="preproceso"),
     path("ingesta/preproceso/enviar/", vistas_ingesta.preproceso_enviar, name="preproceso_enviar"),
+    path("ingesta/preproceso/estado.json", vistas_ingesta.preproceso_estado, name="preproceso_estado"),
     path("ingesta/preproceso/<int:pk>/pagina/<int:numero>/", vistas_ingesta.preproceso_pagina, name="preproceso_pagina"),
     path("ingesta/preproceso/<int:pk>/pagina/<int:numero>/decidir/", vistas_ingesta.preproceso_pagina_decidir, name="preproceso_pagina_decidir"),
 
