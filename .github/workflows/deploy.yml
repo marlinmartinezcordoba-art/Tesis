@@ -21,6 +21,13 @@ jobs:
     steps:
       - name: Actualizar y reconstruir en el Droplet
         uses: appleboy/ssh-action@v1
+        # `envs` solo reenvía variables que existan en el runner: hay que
+        # cargarlas desde los secretos aquí, o llegan vacías al servidor.
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
+          RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
@@ -33,12 +40,20 @@ jobs:
             git reset --hard origin/claude/plataforma-base
 
             # Escribe en .env (sin mostrar valores) solo los secretos definidos.
+            cambio=0
             poner() {  # poner CLAVE VALOR -> reemplaza o agrega la línea CLAVE=VALOR
               if [ -n "$2" ]; then
+                if grep -qxF "$1=$2" .env; then
+                  echo "  .env: $1 sin cambios"
+                  return
+                fi
                 grep -v "^$1=" .env > .env.tmp || true
                 mv .env.tmp .env
                 echo "$1=$2" >> .env
                 echo "  .env: $1 actualizado"
+                cambio=1
+              else
+                echo "  .env: $1 no definido como secreto de GitHub; se deja como está"
               fi
             }
             poner GEMINI_API_KEY "$GEMINI_API_KEY"
@@ -54,4 +69,10 @@ jobs:
               poner DJANGO_ALLOWED_HOSTS "${DROPLET_HOST},${actual:-localhost,127.0.0.1}"
             fi
 
-            docker compose up --build -d
+            # Si cambió el .env, el contenedor debe recrearse para leerlo
+            # (y volver a correr configurar_inicial al arrancar).
+            if [ "$cambio" = 1 ]; then
+              docker compose up --build -d --force-recreate web
+            else
+              docker compose up --build -d
+            fi
