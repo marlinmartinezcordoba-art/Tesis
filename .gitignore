@@ -5,3 +5,4 @@ db.sqlite3
 plataforma/media/
 .env
 plataforma/staticfiles/
+*.log
