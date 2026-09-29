@@ -12,21 +12,25 @@
   /* :root[data-theme="light"] iguala la especificidad de las reglas de pico.css,
      que si no imponen su azul a botones y enlaces */
   :root, :root[data-theme="light"] {
-    --bg: #f4f6f5; --surface: #ffffff; --surface-alt: #eef1ef;
-    --border: #e2e7e4; --border-fuerte: #c9d1cc;
-    --ink: #16211c; --ink-suave: #5b6660; --ink-tenue: #8c9690;
-    --sidebar-bg: #142520; --sidebar-ink: #f1f4f2; --sidebar-ink-suave: #a9bab0; --sidebar-activo: #22403a;
-    --accent: #b5602c; --accent-ink: #ffffff; --ok: #2f7a56; --alerta: #c2891b; --peligro: #b3402f;
+    /* Paleta clara: azul (principal), naranja (destacado) y morado (IA). */
+    --azul: #2563eb; --azul-oscuro: #1d4ed8; --azul-claro: #eaf1ff;
+    --naranja: #f97316; --naranja-texto: #c2410c; --naranja-claro: #fff3e8;
+    --morado: #7c3aed; --morado-claro: #f3eeff;
+    --bg: #f6f8fc; --surface: #ffffff; --surface-alt: #f0f3f9;
+    --border: #e3e8f1; --border-fuerte: #cbd4e3;
+    --ink: #111827; --ink-suave: #5b6475; --ink-tenue: #8b93a5;
+    --sidebar-bg: #ffffff; --sidebar-ink: #1f2a44; --sidebar-ink-suave: #5b6475; --sidebar-activo: #eaf1ff;
+    --accent: #2563eb; --accent-ink: #ffffff; --ok: #15803d; --alerta: #c2410c; --peligro: #dc2626;
     --fuente-titulo: "Inter", "Segoe UI", system-ui, sans-serif;
     --fuente-cuerpo: "Inter", "Segoe UI", system-ui, sans-serif;
     --fuente-mono: "IBM Plex Mono", ui-monospace, monospace;
     --radio: 12px; --radio-chico: 8px;
-    --sombra: 0 1px 2px rgba(20,30,24,.05), 0 6px 18px rgba(20,30,24,.06);
-    --ricora-dark: #142520; --ricora-dark-2: #1e3a30; --ricora-accent: #b5602c; --ricora-accent-2: #d98a52;
-    --ricora-bg: #f4f6f5; --ricora-critical: #b3402f;
-    --pico-primary: #b5602c; --pico-primary-background: #b5602c; --pico-primary-border: #b5602c;
-    --pico-primary-hover: #9c4f22; --pico-primary-hover-background: #9c4f22; --pico-primary-hover-border: #9c4f22;
-    --pico-primary-focus: rgba(181,96,44,.25); --pico-primary-inverse: #fff;
+    --sombra: 0 1px 2px rgba(17,24,39,.05), 0 6px 18px rgba(17,24,39,.06);
+    --ricora-dark: #2563eb; --ricora-dark-2: #1d4ed8; --ricora-accent: #2563eb; --ricora-accent-2: #f97316;
+    --ricora-bg: #f6f8fc; --ricora-critical: #dc2626;
+    --pico-primary: #2563eb; --pico-primary-background: #2563eb; --pico-primary-border: #2563eb;
+    --pico-primary-hover: #1d4ed8; --pico-primary-hover-background: #1d4ed8; --pico-primary-hover-border: #1d4ed8;
+    --pico-primary-focus: rgba(37,99,235,.25); --pico-primary-inverse: #fff;
     --pico-font-family: var(--fuente-cuerpo); --pico-border-radius: 8px;
     color-scheme: light;
   }
@@ -42,27 +46,27 @@
   /* Menú lateral */
   .ricora-sidebar {
     width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--sidebar-ink);
-    padding: 1.1rem .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column;
+    padding: 1.1rem .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; border-right: 1px solid var(--border);
   }
   .ricora-brand { display: block; color: var(--sidebar-ink); text-decoration: none; margin: 0 .55rem 1.3rem; }
-  .ricora-brand strong { font-size: 1.3rem; font-weight: 700; letter-spacing: .02em; display: block; line-height: 1.1; }
-  .ricora-brand strong span { color: #d98a52; }
+  .ricora-brand strong { font-size: 1.35rem; font-weight: 800; letter-spacing: .02em; display: block; line-height: 1.1; color: var(--azul); }
+  .ricora-brand strong span { color: var(--naranja); }
   .ricora-brand small { display: block; font-size: .72rem; color: var(--sidebar-ink-suave); margin-top: .15rem; }
   .ricora-sidebar nav { display: flex; flex-direction: column; gap: .15rem; }
   .ricora-sidebar nav a {
     color: var(--sidebar-ink-suave); text-decoration: none; padding: .45rem .7rem; border-radius: var(--radio-chico);
     font-size: .86rem; line-height: 1.25; display: flex; align-items: center; gap: .7rem; transition: background .12s, color .12s; position: relative;
   }
-  .ricora-sidebar nav a:hover { background: rgba(255,255,255,.06); color: var(--sidebar-ink); }
-  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: #fff; font-weight: 600; }
-  .ricora-sidebar nav a.activo::before { content: ""; position: absolute; left: -.75rem; top: 20%; bottom: 20%; width: 3px; border-radius: 0 3px 3px 0; background: var(--ricora-accent-2); }
+  .ricora-sidebar nav a:hover { background: var(--surface-alt); color: var(--sidebar-ink); }
+  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--azul-oscuro); font-weight: 600; }
+  .ricora-sidebar nav a.activo::before { content: ""; position: absolute; left: -.75rem; top: 20%; bottom: 20%; width: 3px; border-radius: 0 3px 3px 0; background: var(--naranja); }
   .menu svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .menu .menu-texto { flex: 1; min-width: 0; text-align: left; }
   .ricora-sidebar .menu button.menu-titulo {
     all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .7rem;
     padding: .45rem .7rem; border-radius: var(--radio-chico); color: var(--sidebar-ink-suave); font-size: .86rem; line-height: 1.25; cursor: pointer;
   }
-  .ricora-sidebar .menu button.menu-titulo:hover { background: rgba(255,255,255,.06); color: var(--sidebar-ink); }
+  .ricora-sidebar .menu button.menu-titulo:hover { background: var(--surface-alt); color: var(--sidebar-ink); }
   .ricora-sidebar .menu button.menu-titulo:focus-visible { outline: 2px solid var(--ricora-accent-2); outline-offset: 1px; }
   .menu .menu-grupo.actual > .menu-titulo { color: var(--sidebar-ink); font-weight: 600; }
   .menu .menu-flecha { font-size: 1rem; transition: transform .15s; opacity: .6; }
@@ -71,7 +75,7 @@
   .menu .menu-grupo.abierto .menu-sub { display: flex; }
   .ricora-sidebar .menu .menu-sub a { padding: .38rem .7rem; font-size: .82rem; }
   .ricora-sidebar .menu .menu-sub a.activo::before { left: -2.3rem; }
-  .menu-separador { height: 1px; background: rgba(255,255,255,.08); margin: .5rem .4rem; }
+  .menu-separador { height: 1px; background: var(--border); margin: .5rem .4rem; }
 
   /* Barra superior: buscador, fecha y persona */
   .ricora-shell { flex: 1; min-width: 0; overflow-x: hidden; }
@@ -89,7 +93,7 @@
   .usuario-menu summary::-webkit-details-marker { display: none; }
   .usuario-menu summary::after { display: none !important; }
   .usuario-menu summary:hover { background: var(--bg); }
-  .avatar { width: 34px; height: 34px; border-radius: 50%; background: #e8efe9; color: #1e3a30; display: grid; place-items: center; font-size: .78rem; font-weight: 700; flex-shrink: 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--azul-claro); color: var(--azul-oscuro); display: grid; place-items: center; font-size: .78rem; font-weight: 700; flex-shrink: 0; }
   .usuario-menu .quien { display: flex; flex-direction: column; line-height: 1.15; }
   .usuario-menu .quien strong { font-size: .84rem; color: var(--ink); }
   .usuario-menu .quien small { font-size: .72rem; color: var(--ink-suave); }

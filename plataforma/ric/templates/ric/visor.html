@@ -134,7 +134,7 @@
     areaTexto.textContent = p && p.texto ? p.texto : "Todavía no hay texto extraído para esta página.";
     var ev = evidencias.filter(function (e) { return e.pagina === pagina; });
     document.getElementById("evidencias-pagina").innerHTML = ev.length
-      ? "<div class='cat' style='color:#b5602c'>Evidencia en esta página</div>" + ev.map(function (e) {
+      ? "<div class='cat' style='color:#2563eb'>Evidencia en esta página</div>" + ev.map(function (e) {
           return "<div class='evid'><b>" + esc(e.relacion) + "</b> → " + esc(e.entidad) + "<br>«" + esc(e.fragmento) + "»</div>";
         }).join("")
       : "";
