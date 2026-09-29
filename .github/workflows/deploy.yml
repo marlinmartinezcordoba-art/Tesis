@@ -197,3 +197,7 @@ jobs:
             # RICORA_ADMIN_PASSWORD. Es la vía para recuperar el acceso si esa
             # cuenta perdió el rol o la contraseña.
             docker compose exec -T -e RICORA_ADMIN_USER -e RICORA_ADMIN_PASSWORD web python manage.py configurar_inicial || echo "  aviso: la configuración inicial falló"
+
+            # Conformidad del grafo real con la ontología RiC-O 1.1 (informativa).
+            echo "== Conformidad con RiC-O 1.1 =="
+            docker compose exec -T web python manage.py verificar_rico || echo "  aviso: el grafo tiene hallazgos de conformidad (ver arriba)"

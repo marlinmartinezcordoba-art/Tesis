@@ -19,7 +19,7 @@ from django.utils import timezone
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS, XSD
 
-from . import flujo, grafo, rdf, reglas
+from . import conformidad, flujo, grafo, rdf, reglas
 from .models import EventoRiC, Exportacion, Record, registrar_evento
 
 _CONTENT_TYPES = {
@@ -122,7 +122,15 @@ def validar(contenido, formato, total_documentos):
         if documentos < total_documentos:
             raise ExportacionInvalida(f"el grafo describe {documentos} documento(s) y se pidieron {total_documentos}")
         nombre = "RDF/Turtle" if formato == Exportacion.Formato.RDF else "JSON-LD"
-        return f"Archivo verificado: {nombre} válido con {len(g)} tripleta(s) RiC-O 1.1 que describen {total_documentos} documento(s)."
+        # Conformidad con la ontología oficial RiC-O 1.1: clases y propiedades
+        # existentes, objeto/dato, dominio y rango (ric/conformidad.py).
+        hallazgos = conformidad.validar(g)
+        if hallazgos:
+            ejemplos = " · ".join(hallazgos[:3])
+            return (f"Archivo verificado: {nombre} con {len(g)} tripleta(s) que describen {total_documentos} documento(s). "
+                    f"⚠ {len(hallazgos)} observación(es) de conformidad con RiC-O 1.1: {ejemplos}")
+        return (f"Archivo verificado: {nombre} con {len(g)} tripleta(s) que describen {total_documentos} documento(s). "
+                "✓ Conforme con la ontología RiC-O 1.1 (clases, propiedades, dominio y rango).")
     except ExportacionInvalida:
         raise
     except Exception as e:

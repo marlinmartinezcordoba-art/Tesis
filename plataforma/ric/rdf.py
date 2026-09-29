@@ -6,6 +6,14 @@ verificaron contra la fuente primaria (`RiC-O_1-1.rdf`) en
 Solo se serializan relaciones con estado ACEPTADA o MODIFICADA: "la IA
 propone, la persona decide" también aplica a lo que sale como RDF.
 
+Atributos de «tipo» (A02 tipo de actividad, A17 forma documental, A25
+idioma, A36 tipo de agrupación, A44 tipo de mandato…): en RiC-O son
+propiedades de objeto cuyo rango es una clase (rico:ActivityType,
+rico:DocumentaryFormType, rico:Language…). Se emiten como individuos de esa
+clase, con su nombre, y nunca como un texto suelto. Qué atributo es de
+objeto y cuál de dato lo dice la ontología oficial (`ric/conformidad.py`),
+no una lista hecha a mano.
+
 No se reifican las relaciones (RiC-RA01 certeza, RA03 descripción, RA05
 fuente quedan fuera): RiC-O sí define una clase `rico:Relation` para
 reificar relaciones con esos atributos, pero su patrón exacto de modelado
@@ -15,12 +23,14 @@ que es exactamente cómo RiC-O define esas propiedades "atajo".
 """
 
 from django.apps import apps
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rdflib import Graph, Literal, Namespace, URIRef
+from django.utils.text import slugify
 from rdflib.namespace import RDF
 
-from . import reglas, tipos
+from . import conformidad, reglas, tipos
 from .models import RelacionRiC
 
 RICO = Namespace("https://www.ica.org/standards/RiC/ontology#")
@@ -81,20 +91,52 @@ def _tipo_rdf(modelo):
     return _uri_rico(reglas.cargar_matriz()["entidades"][e_id]["uri_rico"])
 
 
+def mas_especifica(entidad):
+    """La misma entidad en su clase más concreta: una relación puede guardar
+    su origen como RecordResource o Agent (clase general, herencia
+    multitabla) cuando en realidad es un Record o una Person. En RiC-O cada
+    entidad tiene una sola URI y se declara con su clase precisa."""
+    for campo in type(entidad)._meta.related_objects:
+        if campo.one_to_one and campo.parent_link:
+            try:
+                return mas_especifica(getattr(entidad, campo.get_accessor_name()))
+            except ObjectDoesNotExist:
+                continue
+    return entidad
+
+
 def _uri_entidad(entidad, base):
+    entidad = mas_especifica(entidad)
     return URIRef(f"{base}{type(entidad).__name__.lower()}/{entidad.pk}")
+
+
+def _uri_tipo(base, clase, valor):
+    """Un individuo de una clase de tipo de RiC-O (p. ej. rico:ActivityType),
+    identificado por su valor: el mismo valor da el mismo individuo."""
+    return URIRef(f"{base}tipo/{str(clase).split('#')[-1]}/{slugify(valor)[:80] or 'sin-nombre'}")
 
 
 def _emitir_entidad(g, entidad, base):
     """Agrega el rdf:type y los atributos con valor de `entidad` a `g`."""
+    entidad = mas_especifica(entidad)
     sujeto = _uri_entidad(entidad, base)
     g.add((sujeto, RDF.type, _tipo_rdf(type(entidad))))
     for campo, a_code in _campos_ric(type(entidad)).items():
         valor = getattr(entidad, campo, "")
         if valor in ("", None):
             continue
+        if a_code == "A17" and getattr(entidad, "forma_documental", None) is not None:
+            continue  # la forma documental controlada (M5) se emite abajo como individuo propio
         predicado = _uri_rico(reglas.cargar_matriz()["atributos"][a_code]["uri_rico"])
-        g.add((sujeto, predicado, Literal(str(valor))))
+        propiedad = conformidad.ontologia().propiedades.get(predicado)
+        if propiedad is not None and propiedad.de_objeto and propiedad.rango:
+            clase = sorted(propiedad.rango)[0]
+            uri_tipo = _uri_tipo(base, clase, str(valor))
+            g.add((uri_tipo, RDF.type, clase))
+            g.add((uri_tipo, RICO.name, Literal(str(valor))))
+            g.add((sujeto, predicado, uri_tipo))
+        else:
+            g.add((sujeto, predicado, Literal(str(valor))))
     # M5: la forma documental controlada se emite como individuo de
     # rico:DocumentaryFormType (clase verificada en RiC-O_1-1.rdf, subclase
     # de rico:Type) enlazado con rico:hasDocumentaryFormType (RiC-A17).
@@ -183,4 +225,42 @@ def grafo_completo(base, visibilidad=None):
     for relacion in _relaciones_validadas():
         if visibilidad is None or visibilidad.relacion(relacion):
             _emitir_relacion(g, relacion, base)
+    return g
+
+
+def grafo_de_tipo(clase_local, valor_slug, base, visibilidad=None):
+    """El individuo de tipo `…/tipo/<Clase>/<valor>` (p. ej. un rico:ActivityType)
+    con su nombre y las entidades que lo tienen. None si no existe."""
+    g = Graph()
+    g.bind("rico", RICO)
+    for nombre_modelo, campos in [("Thing", _ATRIBUTOS_THING), *_ATRIBUTOS_POR_MODELO.items()]:
+        for campo, a_code in campos.items():
+            predicado = _uri_rico(reglas.cargar_matriz()["atributos"][a_code]["uri_rico"])
+            propiedad = conformidad.ontologia().propiedades.get(predicado)
+            if not (propiedad and propiedad.de_objeto and propiedad.rango):
+                continue
+            if str(sorted(propiedad.rango)[0]).split("#")[-1] != clase_local or nombre_modelo == "Thing":
+                continue
+            modelo = apps.get_model("ric", nombre_modelo)
+            valores = {v for v in modelo.objects.exclude(**{campo: ""}).values_list(campo, flat=True).distinct()
+                       if v and (slugify(v)[:80] or "sin-nombre") == valor_slug}
+            for entidad in modelo.objects.filter(**{f"{campo}__in": valores}):
+                if visibilidad is None or visibilidad.puede(entidad):
+                    _emitir_entidad(g, entidad, base)
+    return g if len(g) else None
+
+
+def grafo_de_forma_documental(forma, base, visibilidad=None):
+    """La forma documental controlada (rico:DocumentaryFormType) y los
+    documentos que la tienen."""
+    from .models import Record
+
+    g = Graph()
+    g.bind("rico", RICO)
+    uri_forma = URIRef(f"{base}formadocumental/{forma.pk}")
+    g.add((uri_forma, RDF.type, RICO.DocumentaryFormType))
+    g.add((uri_forma, RICO.name, Literal(forma.nombre)))
+    for record in Record.objects.filter(forma_documental=forma):
+        if visibilidad is None or visibilidad.puede(record):
+            _emitir_entidad(g, record, base)
     return g

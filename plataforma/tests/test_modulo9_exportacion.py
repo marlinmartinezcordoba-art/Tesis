@@ -41,7 +41,7 @@ class ExportacionTest(CasoModulos):
         exp, resp = self._exportar("rdf", self.record, self.otro)
         self.assertRedirects(resp, f"/exportar/?listo={exp.pk}", fetch_redirect_response=False)
         self.assertEqual(exp.estado, Exportacion.Estado.LISTA)
-        self.assertIn("Archivo verificado: RDF/Turtle válido", exp.mensaje)
+        self.assertIn("Conforme con la ontología RiC-O 1.1", exp.mensaje)
         g = Graph().parse(data=exp.archivo.open("rb").read().decode(), format="turtle")
         self.assertGreaterEqual(len(set(g.subjects(RDF.type, rdf.RICO.Record))), 2)
         self.assertTrue(list(g.triples((None, rdf.RICO.hasCreator, None))))

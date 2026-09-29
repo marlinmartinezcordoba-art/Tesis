@@ -53,6 +53,76 @@ def exportar_rdf(request, tipo, pk):
     return HttpResponse(g.serialize(format=formato), content_type=_FORMATOS_RDF[formato])
 
 
+# --- URI de las entidades (datos enlazados) ---------------------------------
+# Cada entidad exportada en RiC-O tiene una dirección …/ric/entidad/<tipo>/<id>.
+# Abrirla lleva a su ficha (persona en un navegador) o entrega su RDF
+# (programa que pide text/turtle, application/rdf+xml o application/ld+json).
+
+_ACEPTA = (("text/turtle", "turtle"), ("application/rdf+xml", "xml"), ("application/ld+json", "json-ld"),
+           ("text/n3", "n3"), ("application/n-triples", "nt"))
+
+
+def _formato_pedido(request):
+    formato = request.GET.get("formato")
+    if formato in _FORMATOS_RDF:
+        return formato
+    acepta = request.headers.get("Accept", "")
+    for tipo_mime, formato in _ACEPTA:
+        if tipo_mime in acepta:
+            return "turtle" if formato == "nt" else formato
+    return None  # un navegador: se muestra la ficha
+
+
+def _rdf(g, formato):
+    return HttpResponse(g.serialize(format=formato), content_type=_FORMATOS_RDF[formato])
+
+
+@login_required
+def entidad_uri(request, tipo, pk):
+    from django.shortcuts import redirect
+
+    from .models import FormaDocumental
+
+    formato = _formato_pedido(request)
+    base = request.build_absolute_uri("/ric/entidad/")
+    vis = acceso_documentos.Visibilidad(request.user)
+    if tipo == "formadocumental":
+        forma = get_object_or_404(FormaDocumental, pk=pk)
+        if formato is None:
+            return redirect("vocabulario_ficha", "formadocumental", pk)
+        return _rdf(rdf.grafo_de_forma_documental(forma, base, None if vis.todo else vis), formato)
+    entidad, vis = _visible_o_404(request, tipo, pk)
+    entidad = rdf.mas_especifica(entidad)
+    if formato is None:
+        return redirect("catalogo_ficha", type(entidad).__name__.lower(), entidad.pk)
+    return _rdf(rdf.grafo_de_entidad(entidad, base, None if vis.todo else vis), formato)
+
+
+@login_required
+def entidad_nombre_uri(request, tipo, pk, numero):
+    """Un nombre alternativo (rico:Name) se resuelve en la entidad que lo tiene."""
+    from django.shortcuts import redirect
+
+    return redirect("entidad_uri", tipo, pk)
+
+
+@login_required
+def tipo_uri(request, clase, valor):
+    """Un individuo de tipo de RiC-O (rico:ActivityType, rico:Language…)."""
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    vis = acceso_documentos.Visibilidad(request.user)
+    g = rdf.grafo_de_tipo(clase, valor, request.build_absolute_uri("/ric/entidad/"), None if vis.todo else vis)
+    if g is None:
+        raise Http404("No encontrado")
+    formato = _formato_pedido(request)
+    if formato is None:
+        nombre = next((str(o) for s, o in g.subject_objects(rdf.RICO.name) if str(s).endswith(f"/tipo/{clase}/{valor}")), valor)
+        return redirect(f"{reverse('catalogo')}?q={nombre}")
+    return _rdf(g, formato)
+
+
 @login_required
 def exportar_rdf_completo(request):
     formato = request.GET.get("formato", "turtle")

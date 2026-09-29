@@ -270,11 +270,11 @@ hijos.push(
   p("Una vez aceptadas y revisadas, las relaciones se exportan en RiC-O. Este es el resultado real, generado por la plataforma, para el «Acta del Cabildo de Santafé, 20 de julio de 1810»:"),
   ...codigo(turtle),
   espacio(),
-  p("Se observa que el documento es un **rico:Record** con su forma documental, que **José Acevedo y Gómez** es un **rico:Person** unido con **rico:hasAuthor** (y su inversa **rico:isAuthorOf**), y que la actividad «Formación de la Junta Suprema de Gobierno» es un **rico:Activity** unida como tema con **rico:hasOrHadSubject**. Cualquier sistema que entienda RiC-O puede leer estos datos sin conocer RICORA."),
+  p("Se observa que el documento es un **rico:Record** cuya forma documental es un individuo de la clase **rico:DocumentaryFormType** (no un texto suelto, como exige RiC-O), que **José Acevedo y Gómez** es un **rico:Person** unido con **rico:hasAuthor** (y su inversa **rico:isAuthorOf**), y que la actividad «Formación de la Junta Suprema de Gobierno» es un **rico:Activity** unida como tema con **rico:hasOrHadSubject**. Cualquier sistema que entienda RiC-O puede leer estos datos sin conocer RICORA."),
   h2("3.4 Lo que todavía no aplica (límites declarados)"),
   ...vinetas([
     "**Relaciones reificadas:** la exportación RiC-O emite cada relación como un enlace directo; la certeza, la descripción y la fuente de la relación (RA01, RA03, RA05) se guardan en la plataforma pero todavía no se exportan como **rico:Relation**.",
-    "**Validación formal de la exportación:** hoy se verifica que el archivo RiC-O se pueda volver a leer y que contenga todos los documentos pedidos; no hay validación SHACL contra la ontología.",
+    "**Datos enlazados abiertos:** cada entidad tiene una URI que se abre (ficha para las personas, RiC-O para los programas), pero exige sesión; abrirla al público es una decisión institucional.",
     "**Extensiones locales:** los campos de la TRD (retención en gestión y central, disposición final) y la evidencia textual con su posición en la página no son conceptos de RiC-CM; son extensiones de la normativa colombiana y del método de trabajo, documentadas como tales.",
   ]),
 );
@@ -309,7 +309,7 @@ hijos.push(
   h2("4.5 Grafo navegable"),
   p("Cada documento y cada entidad se pueden ver como grafo. Las relaciones se agrupan por su sentido archivístico en siete categorías de color —procedencia, gestión y custodia, temporal, inclusión, espacial, identidad y asociación— y, al pulsar una línea, el sistema ofrece solo las relaciones RiC válidas entre esas dos entidades."),
   h2("4.6 Interoperabilidad RiC-O y SPARQL"),
-  p("Toda la descripción validada se exporta en RiC-O 1.1 (Turtle, RDF/XML, N3, JSON-LD) y en CSV. Cada exportación se verifica (se vuelve a leer), recibe su huella SHA-256 y queda registrada. Sobre el mismo grafo se pueden hacer **consultas SPARQL** de solo lectura desde la plataforma, respetando lo que cada rol puede ver."),
+  p("Toda la descripción validada se exporta en RiC-O 1.1 (Turtle, RDF/XML, N3, JSON-LD) y en CSV. Cada exportación se vuelve a leer y se **verifica contra la ontología oficial RiC-O 1.1** (que cada clase y propiedad exista, que las propiedades de objeto apunten a entidades y las de dato a textos, y que se respeten dominio y rango), recibe su huella SHA-256 y queda registrada. Los atributos de tipo (forma documental, tipo de actividad, idioma…) se exportan como individuos de su clase RiC-O, y cada entidad tiene una **URI que se abre**: lleva a su ficha o entrega su RDF. Sobre el mismo grafo se pueden hacer **consultas SPARQL** de solo lectura, respetando lo que cada rol puede ver."),
   h2("4.7 Trazabilidad encadenada"),
   p("Cada paso de la descripción (extracción, propuesta de la IA, validación humana, publicación, exportación) es un evento con su agente, encadenado con el anterior mediante hash SHA-256. La línea de tiempo del documento indica si la cadena está íntegra y permite ver cómo estaba la descripción en cualquier momento pasado."),
   h2("4.8 Métricas de evaluación"),
@@ -324,7 +324,7 @@ hijos.push(
     "Revisión formal, con la misma metodología, de los módulos construidos antes (M3 motor de análisis, M4 modelado de relaciones y M5 vocabularios).",
     "Dominio propio con HTTPS y copias de seguridad programadas de la base de datos y los archivos.",
     "Conjunto de evaluación con descripción de referencia para medir precisión y exhaustividad del motor (M01, M02).",
-    "Exportación de las relaciones reificadas (rico:Relation con certeza, descripción y fuente) y validación SHACL.",
+    "Exportación de las relaciones reificadas (rico:Relation con fechas de vigencia, certeza, descripción y fuente).",
     "Correo institucional en el servidor para que las invitaciones y los restablecimientos lleguen solos.",
   ]),
 );

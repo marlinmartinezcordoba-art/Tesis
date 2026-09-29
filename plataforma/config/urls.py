@@ -9,7 +9,7 @@ from django.views.generic import RedirectView
 
 from acervo.views import exportar_dublin_core, exportar_premis
 from lineamientos.views import informe, informe_auditoria
-from ric import vistas_inicio, vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_visor, vistas_vocabularios
+from ric import views as ric_views, vistas_inicio, vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_visor, vistas_vocabularios
 from ric.views import (
     evaluacion_datos,
     evaluacion_html,
@@ -108,6 +108,9 @@ urlpatterns = [
     path("documentos/<int:pk>/visor/", vistas_visor.visor_documento, name="visor_documento"),
     path("ric/rdf/", exportar_rdf_completo, name="ric_exportar_rdf_completo"),
     path("ric/rdf/<str:tipo>/<int:pk>/", exportar_rdf, name="ric_exportar_rdf"),
+    path("ric/entidad/tipo/<str:clase>/<str:valor>", ric_views.tipo_uri, name="tipo_uri"),
+    path("ric/entidad/<str:tipo>/<int:pk>", ric_views.entidad_uri, name="entidad_uri"),
+    path("ric/entidad/<str:tipo>/<int:pk>/nombre/<int:numero>", ric_views.entidad_nombre_uri, name="entidad_nombre_uri"),
     path("ric/grafo/<str:tipo>/<int:pk>/", grafo_html, name="ric_grafo"),
     path("ric/grafo/<str:tipo>/<int:pk>/datos.json", grafo_datos, name="ric_grafo_datos"),
     path("ric/sparql/", sparql_html, name="ric_sparql"),
