@@ -192,6 +192,7 @@ GUIAS = [
             "Nada se borra: una cuenta desactivada no puede entrar, pero conserva todo su historial.",
             "Siempre debe quedar al menos un administrador activo; el sistema no deja quitarle el rol al último.",
             "Use el buscador, el filtro de rol y «Solo activos» para encontrar una cuenta rápido.",
+            "Quien olvida su contraseña la pide desde el ingreso («¿Olvidó su contraseña?»). Sin correo en el servidor, la solicitud aparece aquí arriba: pulse «Generar enlace» y hágaselo llegar.",
         ],
     },
     {

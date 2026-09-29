@@ -49,9 +49,62 @@ def invitacion(request, uidb64, token):
             usuario.set_password(clave)
             usuario.save(update_fields=["password"])
             cerrar_sesiones_de(usuario, motivo="contraseña creada con invitación")
+            from .models import SolicitudRestablecimiento
+
+            SolicitudRestablecimiento.atender(usuario, SolicitudRestablecimiento.Via.CONTRASENA_CREADA)
             registrar_accion("modificar", usuario=usuario, objeto=usuario, detalle={"invitacion": "contraseña creada por la persona"})
             messages.success(request, "Su contraseña quedó creada. Ya puede ingresar.")
             return redirect("ric_login")
     return render(request, "ric/invitacion.html", {
         "usuario": usuario, "errores": errores, "ayudas": password_validators_help_texts(),
     })
+
+
+SOLICITUDES_POR_HORA = 5  # por dirección IP: frena el abuso sin estorbar a quien de verdad lo necesita
+
+
+def olvido_contrasena(request):
+    """M11: «¿Olvidó su contraseña?» desde el ingreso. La respuesta es la
+    misma exista o no la cuenta, para no revelar qué usuarios hay. Con correo
+    en el servidor el enlace llega solo; sin correo, la solicitud queda
+    pendiente para el administrador."""
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.contrib.auth.models import User
+    from django.db.models import Q
+    from django.shortcuts import render
+    from django.utils import timezone
+
+    from . import invitaciones
+    from .auditoria_acciones import _ip
+    from .models import SolicitudRestablecimiento
+
+    contexto = {"correo_configurado": bool(settings.EMAIL_HOST), "dias": invitaciones.dias_vigencia()}
+    if request.method != "POST":
+        return render(request, "ric/olvido.html", contexto)
+
+    identidad = request.POST.get("identidad", "").strip()[:254]
+    ip = _ip(request)
+    recientes = SolicitudRestablecimiento.objects.filter(ip=ip, fecha__gte=timezone.now() - timedelta(hours=1)).count() if ip else 0
+    usuario = None
+    if identidad and recientes < SOLICITUDES_POR_HORA:
+        usuario = User.objects.filter(Q(username__iexact=identidad) | Q(email__iexact=identidad), is_active=True).order_by("pk").first()
+    if usuario is not None:
+        pendiente = SolicitudRestablecimiento.objects.filter(usuario=usuario, atendida=False).exists()
+        if settings.EMAIL_HOST:
+            enviada, mensaje, _url = invitaciones.enviar(request, usuario, motivo="restablecer")
+            SolicitudRestablecimiento.objects.create(usuario=usuario, ip=ip)
+            if enviada:
+                SolicitudRestablecimiento.atender(usuario, SolicitudRestablecimiento.Via.CORREO)
+        elif not pendiente:
+            SolicitudRestablecimiento.objects.create(usuario=usuario, ip=ip)
+            mensaje = "pendiente del administrador (sin correo en el servidor)"
+        else:
+            mensaje = "ya había una solicitud pendiente"
+        registrar_accion("solicitar_restablecimiento", usuario=usuario, objeto=usuario, detalle={"resultado": mensaje})
+    else:
+        # sin cuenta, o con demasiadas solicitudes desde esta dirección: se registra, la respuesta no cambia
+        registrar_accion("solicitar_restablecimiento", exitoso=False,
+                         detalle={"identidad": identidad, "motivo": "límite por hora" if recientes >= SOLICITUDES_POR_HORA else "sin cuenta activa"})
+    return render(request, "ric/olvido.html", {**contexto, "enviada": True})

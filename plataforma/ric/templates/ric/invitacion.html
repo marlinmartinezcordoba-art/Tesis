@@ -1,40 +1,13 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Crear contraseña · RICORA</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-<style>
-  :root { --fondo: #e6eaf0; --superficie: #f7f8fa; --borde: #d5dbe5; --texto: #1c2433; --texto-suave: #515b6d; --acento: #2f5fd0; }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; font-family: "Inter", "Segoe UI", system-ui, sans-serif; color: var(--texto);
-         background: radial-gradient(80% 60% at 100% 0%, rgba(234,122,46,.18) 0%, rgba(234,122,46,0) 60%), linear-gradient(150deg, #28479f 0%, #3a3f9e 55%, #533aa6 100%); }
-  .caja { width: 100%; max-width: 420px; background: var(--superficie); border-radius: 18px; padding: 2rem 1.8rem; box-shadow: 0 20px 50px rgba(15,20,45,.35); }
-  .marca { font-weight: 800; font-size: 1.3rem; color: var(--acento); margin-bottom: 1.2rem; }
-  .marca span { color: #ea7a2e; }
-  h1 { font-size: 1.45rem; margin: 0 0 .3rem; }
-  p.sub { color: var(--texto-suave); margin: 0 0 1.4rem; font-size: .92rem; line-height: 1.5; }
-  label { display: block; font-size: .84rem; font-weight: 600; margin-bottom: .35rem; }
-  input { width: 100%; font: inherit; font-size: .98rem; padding: .75rem .9rem; border: 1px solid var(--borde); border-radius: 10px; background: #fff; margin-bottom: 1rem; }
-  input:focus { outline: none; border-color: var(--acento); box-shadow: 0 0 0 3px rgba(47,95,208,.18); }
-  button, a.boton { display: block; width: 100%; text-align: center; font: inherit; font-weight: 600; padding: .85rem; border-radius: 10px; border: 0; cursor: pointer; background: var(--acento); color: #fff; text-decoration: none; }
-  button:hover, a.boton:hover { background: #274fb0; }
-  .errores { background: #f6e3e1; color: #8f2d25; border: 1px solid #e7c3bd; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1rem; }
-  .errores p { margin: .15rem 0; }
-  ul.reglas { font-size: .78rem; color: var(--texto-suave); padding-left: 1.1rem; margin: 1rem 0 0; line-height: 1.5; }
-</style>
-</head>
-<body>
-<main class="caja">
-  <div class="marca">RIC<span>ORA</span></div>
+{% extends "ric/_acceso_base.html" %}
+{% block titulo %}Crear contraseña · RICORA{% endblock %}
+{% block contenido %}
   {% if invalido %}
     <h1>Este enlace ya no sirve</h1>
-    <p class="sub">El enlace de invitación ya se usó, venció o está incompleto. Pida al administrador de la plataforma que le envíe uno nuevo.</p>
-    <a class="boton" href="{% url 'ric_login' %}">Ir al ingreso</a>
+    <p class="sub">El enlace ya se usó, venció o está incompleto. Puede pedir uno nuevo.</p>
+    <a class="boton" href="{% url 'olvido_contrasena' %}">Pedir un enlace nuevo</a>
+    <a class="volver" href="{% url 'ric_login' %}">Volver al ingreso</a>
   {% else %}
-    <h1>Cree su contraseña</h1>
+    <h1>{% if usuario.last_login %}Cree su nueva contraseña{% else %}Cree su contraseña{% endif %}</h1>
     <p class="sub">Hola{% if usuario.first_name %} {{ usuario.first_name }}{% endif %}. Su usuario es <strong>{{ usuario.username }}</strong>. Elija una contraseña que solo usted conozca.</p>
     {% if errores %}<div class="errores" role="alert">{% for e in errores %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
     <form method="post">
@@ -47,6 +20,4 @@
     </form>
     {% if ayudas %}<ul class="reglas">{% for a in ayudas %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
   {% endif %}
-</main>
-</body>
-</html>
+{% endblock %}

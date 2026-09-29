@@ -46,23 +46,28 @@ def pendiente(usuario):
     return not usuario.has_usable_password()
 
 
-def enviar(request, usuario):
-    """Envía (o entrega) la invitación. Devuelve (enviada_por_correo, mensaje, url)."""
+def enviar(request, usuario, motivo="invitacion"):
+    """Envía (o entrega) el enlace. `motivo`: "invitacion" (cuenta nueva) o
+    "restablecer" (olvidó la contraseña). Devuelve (enviado_por_correo, mensaje, url)."""
     url = enlace(request, usuario)
     dias = dias_vigencia()
     if not usuario.email:
-        return False, "La cuenta no tiene correo: copie el enlace de invitación y envíeselo a la persona.", url
+        return False, "La cuenta no tiene correo: copie el enlace y envíeselo a la persona.", url
     if not settings.EMAIL_HOST:
         return False, (f"El servidor no tiene correo configurado: copie el enlace de invitación y envíelo a {usuario.email}. "
                        f"Sirve una sola vez y vence en {dias} día(s)."), url
+    nombre = usuario.first_name or usuario.username
+    if motivo == "restablecer":
+        asunto = "Restablecer su contraseña de RICORA"
+        cuerpo = (f"Hola {nombre}.\n\nSe pidió restablecer la contraseña de su cuenta «{usuario.username}» en RICORA.\n"
+                  f"Para crear una nueva, abra este enlace (sirve una sola vez y vence en {dias} día(s)):\n\n{url}\n\n"
+                  "Si usted no lo pidió, ignore este mensaje: su contraseña actual sigue funcionando.\n")
+    else:
+        asunto = "Invitación a RICORA"
+        cuerpo = (f"Hola {nombre}.\n\nSe creó tu cuenta en RICORA con el usuario «{usuario.username}».\n"
+                  f"Para entrar, crea tu contraseña en este enlace (sirve una sola vez y vence en {dias} día(s)):\n\n{url}\n")
     try:
-        send_mail(
-            "Invitación a RICORA",
-            f"Hola {usuario.first_name or usuario.username}.\n\n"
-            f"Se creó tu cuenta en RICORA con el usuario «{usuario.username}».\n"
-            f"Para entrar, crea tu contraseña en este enlace (sirve una sola vez y vence en {dias} día(s)):\n\n{url}\n",
-            settings.DEFAULT_FROM_EMAIL, [usuario.email], fail_silently=False,
-        )
+        send_mail(asunto, cuerpo, settings.DEFAULT_FROM_EMAIL, [usuario.email], fail_silently=False)
     except Exception as e:  # el error real se muestra, no se oculta
-        return False, f"No fue posible enviar el correo ({e}). Copie el enlace de invitación y envíelo a {usuario.email}.", url
-    return True, f"Invitación enviada a {usuario.email}.", url
+        return False, f"No fue posible enviar el correo ({e}). Copie el enlace y envíelo a {usuario.email}.", url
+    return True, f"Enlace enviado a {usuario.email}." if motivo == "restablecer" else f"Invitación enviada a {usuario.email}.", url

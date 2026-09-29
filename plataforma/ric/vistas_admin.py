@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from . import auditoria_acciones, invitaciones, proveedores, roles
-from .models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria
+from .models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria, SolicitudRestablecimiento
 
 _PESTANAS = ("usuarios", "proveedores", "parametros", "auditoria", "eliminados")
 
@@ -97,6 +97,7 @@ def _crear_usuario(request):
 
 
 def _filas_usuarios():
+    pidieron = set(SolicitudRestablecimiento.objects.filter(atendida=False).values_list("usuario_id", flat=True))
     filas = []
     for u in User.objects.order_by("-is_active", "first_name", "username"):
         rol = roles.rol_de(u)
@@ -106,6 +107,7 @@ def _filas_usuarios():
             "iniciales": "".join(p[0] for p in nombre.split()[:2]).upper() or u.username[:2].upper(),
             "pendiente": invitaciones.pendiente(u),
             "ultimo_admin": roles.es_ultimo_administrador(u),
+            "pidio_restablecer": u.pk in pidieron,
         })
     return filas
 
@@ -134,6 +136,7 @@ def admin_usuarios(request):
         "datos": datos,
         "usuarios": filas,
         "total_activos": sum(1 for f in filas if f["usuario"].is_active),
+        "solicitudes": SolicitudRestablecimiento.objects.filter(atendida=False, usuario__is_active=True).select_related("usuario"),
         "invitacion": request.session.pop("ricora_invitacion", None),
         "dias_invitacion": invitaciones.dias_vigencia(),
         "roles": [(r, roles.ETIQUETAS[r], roles.DESCRIPCIONES[r]) for r in roles.ROLES_ASIGNABLES],
@@ -195,6 +198,7 @@ def admin_usuario_editar(request, pk):
             prefijo = (f"Invitación de «{usuario.username}» renovada." if pendiente else
                        f"Acceso de «{usuario.username}» restablecido: su contraseña anterior dejó de servir ({cerradas} sesión(es) cerrada(s)).")
             _entregar_invitacion(request, usuario, prefijo)
+            SolicitudRestablecimiento.atender(usuario, SolicitudRestablecimiento.Via.ADMINISTRADOR, por=request.user)
         elif accion == "cerrar_sesiones":
             cerradas = auditoria_acciones.cerrar_sesiones_de(usuario, motivo="revocación manual del administrador")
             messages.info(request, f"{cerradas} sesión(es) de «{usuario.username}» cerrada(s).")

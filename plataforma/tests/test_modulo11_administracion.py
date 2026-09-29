@@ -16,7 +16,7 @@ from django.test import RequestFactory, override_settings
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 
 from ric import invitaciones, roles
-from ric.models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria
+from ric.models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria, SolicitudRestablecimiento
 
 from ._ayudas import CasoModulos
 
@@ -175,6 +175,73 @@ class UsuariosTest(CasoModulos):
             self.assertContains(resp, f"<b>{rol}</b>")
 
 
+class OlvidoContrasenaTest(CasoModulos):
+    def setUp(self):
+        super().setUp()
+        self.revisor.email = "revisor@entidad.gov.co"
+        self.revisor.first_name = "Rosa Revisora"
+        self.revisor.save()
+
+    def test_el_ingreso_ofrece_restablecer(self):
+        resp = self.client.get(reverse("ric_login"))
+        self.assertContains(resp, "¿Olvidó su contraseña?")
+        self.assertContains(resp, reverse("olvido_contrasena"))
+
+    def test_misma_respuesta_exista_o_no_la_cuenta(self):
+        existe = self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"})
+        no_existe = self.client.post(reverse("olvido_contrasena"), {"identidad": "nadie"})
+        self.assertContains(existe, "Solicitud recibida")
+        limpiar = lambda r: re.sub(r'name="csrfmiddlewaretoken" value="[^"]+"', "", r.content.decode())
+        self.assertEqual(limpiar(existe), limpiar(no_existe))
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="solicitar_restablecimiento", exitoso=False, detalle__identidad="nadie").exists())
+
+    @override_settings(EMAIL_HOST="")
+    def test_sin_correo_la_solicitud_llega_al_administrador(self):
+        self.client.post(reverse("olvido_contrasena"), {"identidad": "REVISOR@entidad.gov.co"})
+        self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"})  # no duplica
+        self.assertEqual(SolicitudRestablecimiento.objects.filter(usuario=self.revisor, atendida=False).count(), 1)
+        self.assertIsNotNone(authenticate(username="revisor", password="x"))  # su contraseña sigue sirviendo
+        self.client.force_login(self.superusuario)
+        self.assertContains(self.client.get(reverse("inicio")), "Pidió restablecer su contraseña")
+        resp = self.client.get(reverse("admin_usuarios"))
+        self.assertContains(resp, "1 persona(s) pidieron restablecer su contraseña")
+        self.assertContains(resp, "Pidió restablecer")
+        resp = self.client.post(reverse("admin_usuario_editar", args=[self.revisor.pk]), {"accion": "restablecer"}, follow=True)
+        self.assertContains(resp, 'id="enlace-invitacion"')
+        solicitud = SolicitudRestablecimiento.objects.get(usuario=self.revisor)
+        self.assertTrue(solicitud.atendida)
+        self.assertEqual((solicitud.via, solicitud.atendida_por), ("administrador", self.superusuario))
+        self.assertNotContains(self.client.get(reverse("admin_usuarios")), "pidieron restablecer")
+
+    @override_settings(EMAIL_HOST="smtp.entidad.gov.co", EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_con_correo_llega_el_enlace_y_crea_la_nueva_contrasena(self):
+        resp = self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"})
+        self.assertContains(resp, "le llegará un correo")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, "Restablecer su contraseña de RICORA")
+        url = re.search(r"http://\S+/ric/invitacion/\S+/", mail.outbox[0].body).group(0)
+        self.assertTrue(SolicitudRestablecimiento.objects.get(usuario=self.revisor).atendida)
+        self.assertIsNotNone(authenticate(username="revisor", password="x"))  # hasta que cree la nueva
+        self.client.post(url, {"password": CORRECTA, "password_confirmar": CORRECTA})
+        self.assertIsNone(authenticate(username="revisor", password="x"))
+        self.assertIsNotNone(authenticate(username="revisor", password=CORRECTA))
+        self.assertContains(self.client.get(url), "Este enlace ya no sirve", status_code=400)
+
+    @override_settings(EMAIL_HOST="")
+    def test_cuenta_inactiva_no_genera_solicitud(self):
+        self.revisor.is_active = False
+        self.revisor.save()
+        self.assertContains(self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"}), "Solicitud recibida")
+        self.assertFalse(SolicitudRestablecimiento.objects.exists())
+
+    @override_settings(EMAIL_HOST="smtp.entidad.gov.co", EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_limite_de_solicitudes_por_hora(self):
+        for _ in range(8):
+            self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"}, REMOTE_ADDR="10.0.0.9")
+        self.assertEqual(len(mail.outbox), 5)
+        self.assertTrue(RegistroAuditoria.objects.filter(detalle__motivo="límite por hora").exists())
+
+
 class ProveedoresIATest(CasoModulos):
     DATOS = {"proveedor": "gemini", "modelo": "gemini-3.5-flash", "clave_api": "AIza-secreta-1234"}
 
@@ -274,10 +341,10 @@ class ParametrosTest(CasoModulos):
 
 # --- RF-M11-03: toda acción restringida según el rol ------------------------
 
-# Rutas públicas a propósito: el ingreso y la invitación (el enlace es la
-# credencial), la salida, el administrador técnico de Django (tiene su propio
+# Rutas públicas a propósito: el ingreso, «¿Olvidó su contraseña?», la
+# invitación (el enlace es la credencial), la salida, el administrador técnico de Django (tiene su propio
 # ingreso) y los archivos de desarrollo (solo existen con DEBUG, nunca en el servidor).
-PUBLICAS = {"ric_login", "invitacion", "ric_logout"}
+PUBLICAS = {"ric_login", "invitacion", "ric_logout", "olvido_contrasena"}
 
 
 def _rutas(patrones=None, prefijo=""):

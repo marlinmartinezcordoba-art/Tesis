@@ -53,6 +53,9 @@
   button.entrar:focus-visible { outline: 3px solid rgba(37,99,235,.4); outline-offset: 2px; }
   .errores { background: #f6e8e6; color: #93392a; border: 1px solid #e7c3bd; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1.1rem; }
   .exito { background: #e3f1e8; color: #1f5c38; border: 1px solid #bfdcc9; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1.1rem; }
+  .olvido { margin: -.4rem 0 .6rem; text-align: right; font-size: .84rem; }
+  .olvido a { color: var(--acento); text-decoration: none; font-weight: 500; }
+  .olvido a:hover { text-decoration: underline; }
   .nota { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--borde); font-size: .78rem; color: var(--texto-suave); line-height: 1.5; display: flex; gap: .5rem; }
 </style>
 </head>
@@ -109,6 +112,7 @@
           <button type="button" class="ver-clave" id="ver-clave" aria-controls="id_password" aria-pressed="false">Mostrar</button>
         </div>
       </div>
+      <p class="olvido"><a href="{% url 'olvido_contrasena' %}">¿Olvidó su contraseña?</a></p>
       <input type="hidden" name="next" value="{{ next }}">
       <button type="submit" class="entrar">Entrar</button>
     </form>

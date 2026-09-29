@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import acceso_documentos, flujo, indicadores, roles, valoracion
-from .models import Agent, ConfiguracionSistema, Instantiation, PropuestaRiC
+from .models import Agent, ConfiguracionSistema, Instantiation, PropuestaRiC, SolicitudRestablecimiento
 
 RECIENTES = 8
 
@@ -34,7 +34,7 @@ def _saludo():
     return "Buenos días" if hora < 12 else "Buenas tardes" if hora < 19 else "Buenas noches"
 
 
-def _atencion(atrasados, listas):
+def _atencion(atrasados, listas, administra=False):
     """Alertas abiertas, las críticas primero: revisiones atrasadas, errores
     del OCR y expedientes con la retención cumplida."""
     alertas = []
@@ -51,6 +51,9 @@ def _atencion(atrasados, listas):
         alertas.append({"nivel": "alta",
                         "titulo": "Transferencia primaria vencida" if r["fase"] == valoracion.CENTRAL else f"Transferencia primaria en {r['dias']} días",
                         "sujeto": r["expediente"].nombre, "url": reverse("valoracion_transferencias")})
+    for s in SolicitudRestablecimiento.objects.filter(atendida=False, usuario__is_active=True).select_related("usuario")[:5] if administra else ():
+        alertas.append({"nivel": "alta", "titulo": "Pidió restablecer su contraseña",
+                        "sujeto": s.usuario.get_full_name() or s.usuario.username, "url": reverse("admin_usuarios")})
     for inst in Instantiation.objects.filter(estado_proceso=Instantiation.EstadoProceso.CALIDAD_BAJA).order_by("-pk")[:5]:
         alertas.append({"nivel": "alta", "titulo": "Texto del OCR de calidad baja", "sujeto": inst.nombre, "url": reverse("preproceso")})
     return alertas
@@ -82,7 +85,7 @@ def inicio(request):
         tareas.append({"n": len(listas["primaria"]) + len(listas["disposicion"]), "texto": "expedientes con retención vencida o por vencer",
                        "detalle": f"{len(listas['primaria'])} a transferir · {len(listas['disposicion'])} a disposición final",
                        "url": reverse("valoracion_transferencias"), "icono": "retencion", "alerta": True})
-        alertas = _atencion(atrasados, listas)
+        alertas = _atencion(atrasados, listas, administra=usuario.is_superuser)
 
     estados = {e: 0 for e in _ESTADO_CORTO}
     if trabaja:

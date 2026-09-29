@@ -31,6 +31,7 @@ Sin este módulo, el alta de personas pasaba por la consola del servidor y la co
 ## 5. Casos de uso
 - Crear una cuenta con nombre, correo, nombre de usuario y uno de los cuatro roles.
 - Recibir la invitación y crear la propia contraseña.
+- **Pedir el restablecimiento de la contraseña olvidada** desde el ingreso («¿Olvidó su contraseña?»).
 - Editar el nombre, el correo y el rol.
 - Desactivar y reactivar una cuenta.
 - Restablecer el acceso o reenviar la invitación.
@@ -53,6 +54,11 @@ Ninguna relación nueva. El módulo decide qué Mecanismo propone relaciones (pr
 - **Protección del último administrador.** No se le puede quitar el rol ni desactivar mientras sea el único administrador activo.
 - **Nadie se desactiva a sí mismo ni restablece su propio acceso.**
 - **Restablecer acceso.** La contraseña actual deja de servir, se cierran las sesiones abiertas y la persona recibe un enlace nuevo.
+- **«¿Olvidó su contraseña?» en el ingreso.** La persona escribe su usuario o su correo, y la respuesta es la misma exista o no la cuenta, para no revelar qué usuarios hay.
+  - Con correo en el servidor, el enlace le llega sola; su contraseña actual sigue sirviendo hasta que cree la nueva.
+  - Sin correo, la solicitud queda pendiente y el administrador la ve en Inicio («Requieren atención») y en Usuarios y roles, con el botón «Generar enlace».
+  - Hay una solicitud pendiente por cuenta y un máximo de 5 solicitudes por hora desde una misma dirección IP.
+  - Las cuentas inactivas no generan solicitud.
 - **Proveedores de IA.** La prueba de conexión se hace **antes** de guardar. Si sale bien, el servidor entrega un comprobante firmado con la huella de proveedor, modelo y clave, válido 15 minutos. «Guardar» exige ese comprobante: si los datos cambiaron o el comprobante venció, se niega. La clave solo se muestra enmascarada (sus últimos 4 caracteres).
 - **Pantalla por pestañas** (desde el menú lateral): Usuarios y roles · Proveedores de IA · Parámetros · Auditoría · Eliminados.
 - **Ayuda de la ambulancia** propia de cada pestaña.
@@ -75,6 +81,7 @@ Si se cambia un dato después de probar, el punto vuelve a gris y «Guardar» se
 
 ## 10. Pantallas
 - `/admin/usuarios/?pestana=usuarios|proveedores|parametros|auditoria|eliminados`.
+- `/ric/olvide-mi-contrasena/`: pedir el restablecimiento (pública).
 - `/ric/invitacion/<uid>/<token>/`: crear contraseña. Tiene el estilo del ingreso y es pública, porque el enlace es la credencial.
 
 ## 11. UX/UI
@@ -86,7 +93,7 @@ Referencia: TribuIA.
 - **Estado de la prueba de conexión:** indicador de estado (gris, naranja mientras prueba, verde o rojo) con el mensaje real del proveedor.
 
 ## 12. Modelo de datos
-Sin tablas nuevas:
+Una tabla nueva, `SolicitudRestablecimiento` (usuario, fecha, IP, atendida, atendida por, vía: correo / administrador / la persona creó su contraseña), con la migración 0027, que también agrega la acción de auditoría «Solicitud de restablecimiento de contraseña». Además:
 - Se usan `auth.User` (con `set_unusable_password` para la cuenta invitada), el grupo «revisor» y `ProveedorIAConfig` (`prueba_exitosa`, `mensaje_prueba` y `ultima_prueba` quedan fijados al guardar).
 - El comprobante de la prueba no se guarda: es un valor firmado con `SECRET_KEY` que viaja en el formulario.
 
@@ -114,6 +121,7 @@ El módulo no usa IA: la configura. La prueba de conexión hace una llamada mín
 - **Cada prueba de conexión,** exitosa o fallida, con el mensaje del proveedor.
 - **Accesos denegados por rol,** con la ruta y el rol.
 - **Sesiones revocadas.**
+- **Cada solicitud de restablecimiento:** con su resultado, o sin cuenta o por límite por hora, en cuyo caso queda marcada como fallida.
 
 ## 17. Interoperabilidad
 El Mecanismo (RiC-E13) que nace del proveedor activo se exporta en RiC-O con el resto del grafo (M9). Así, quien reciba los datos sabe qué modelo propuso cada relación.
@@ -147,7 +155,7 @@ El Mecanismo (RiC-E13) que nace del proveedor activo se exporta en RiC-O con el 
 - `.github/workflows/deploy.yml`: verificación de que RICORA responde tras cada despliegue.
 
 ## 21. Pruebas
-`tests/test_modulo11_administracion.py` (26 pruebas):
+`tests/test_modulo11_administracion.py` (32 pruebas):
 - **Usuarios** (12):
   - solo el administrador administra;
   - alta con cada uno de los cuatro roles y marcas coherentes;
@@ -172,9 +180,16 @@ El Mecanismo (RiC-E13) que nace del proveedor activo se exporta en RiC-O con el 
   - un solo proveedor activo;
   - el proveedor activo alimenta el motor;
   - retirar es borrado lógico.
+- **«¿Olvidó su contraseña?»** (6):
+  - el ingreso lo ofrece;
+  - la respuesta es idéntica exista o no la cuenta;
+  - sin correo, la solicitud llega al administrador, sin duplicados y sin tocar la contraseña actual, y se atiende con «Generar enlace»;
+  - con correo, llega el enlace, se crea la nueva contraseña, la anterior deja de servir y el enlace se vuelve inútil;
+  - una cuenta inactiva no genera solicitud;
+  - límite de solicitudes por hora.
 - **Parámetros** (1): guardar con validación de rangos.
 - **RF-M11-03** (3):
-  - **se recorren todas las rutas del sistema** (más de 60, por GET y por POST): ninguna responde sin sesión, salvo las públicas a propósito (ingreso, invitación y salida);
+  - **se recorren todas las rutas del sistema** (más de 60, por GET y por POST): ninguna responde sin sesión, salvo las públicas a propósito (ingreso, «¿Olvidó su contraseña?», invitación y salida);
   - todas las rutas de Administración niegan el acceso a archivista, revisor y consulta, y queda registrado;
   - matriz rol × pantalla.
 
@@ -191,7 +206,7 @@ Al activar, por ejemplo, Gemini con el modelo `gemini-3.5-flash`, el primer aná
 ## Qué no hace (y qué pasa en cada error)
 - **Borrar cuentas:** no se puede, a propósito. Se desactivan y conservan su historial.
 - **Sin correo en el servidor:** lo dice y entrega el enlace; nunca simula el envío. Si el envío falla, muestra el error real y también entrega el enlace.
-- **Enlace vencido, usado o alterado:** pantalla «Este enlace ya no sirve», que indica pedir uno nuevo.
+- **Enlace vencido, usado o alterado:** pantalla «Este enlace ya no sirve», con el botón «Pedir un enlace nuevo».
 - **Proveedor que no responde en la prueba:** muestra el mensaje en lenguaje claro (clave inválida, modelo no disponible, límite de uso, sin conexión) y no habilita «Guardar».
 - **Rol del único administrador:** no se puede cambiar; lo explica en la ventana de edición.
 - **Autenticación de dos factores e inicio de sesión institucional (LDAP o Microsoft 365):** no están. Son extensiones posibles.

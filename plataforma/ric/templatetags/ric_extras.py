@@ -14,6 +14,11 @@ def dict_valor(diccionario, clave):
 @register.filter
 def hace(fecha):
     """«hace 3 horas»: solo la unidad mayor, más fácil de leer que «3 horas, 47 minutos»."""
+    from django.utils import timezone
     from django.utils.timesince import timesince
 
-    return f"hace {timesince(fecha, depth=1)}" if fecha else ""
+    if not fecha:
+        return ""
+    if (timezone.now() - fecha).total_seconds() < 60:
+        return "hace un momento"
+    return f"hace {timesince(fecha, depth=1)}"

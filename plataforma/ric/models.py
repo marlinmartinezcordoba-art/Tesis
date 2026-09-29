@@ -1393,6 +1393,7 @@ class RegistroAuditoria(models.Model):
         SESIONES_CERRADAS = "sesiones_cerradas", "Sesiones revocadas"
         CONSULTAR = "consultar", "Consulta de un documento en el visor"
         EXPORTAR = "exportar", "Exportación de documentos"
+        SOLICITAR_RESTABLECIMIENTO = "solicitar_restablecimiento", "Solicitud de restablecimiento de contraseña"
 
     usuario = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="acciones_auditadas")
     usuario_nombre = models.CharField(max_length=150, blank=True)
@@ -1416,3 +1417,38 @@ class RegistroAuditoria(models.Model):
 
     def __str__(self):
         return f"{self.fecha:%Y-%m-%d %H:%M} · {self.usuario_nombre} · {self.get_accion_display()} · {self.objeto_texto}"
+
+
+class SolicitudRestablecimiento(models.Model):
+    """M11: una persona que olvidó su contraseña la pide desde el ingreso.
+    Si el servidor tiene correo, el enlace le llega solo y la solicitud nace
+    atendida; si no, queda pendiente para que el administrador genere el
+    enlace desde Usuarios y roles."""
+
+    class Via(models.TextChoices):
+        CORREO = "correo", "Enlace enviado por correo"
+        ADMINISTRADOR = "administrador", "Enlace generado por el administrador"
+        CONTRASENA_CREADA = "contrasena", "La persona creó su contraseña"
+
+    usuario = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="solicitudes_restablecimiento")
+    fecha = models.DateTimeField(auto_now_add=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    atendida = models.BooleanField(default=False)
+    atendida_en = models.DateTimeField(null=True, blank=True)
+    atendida_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    via = models.CharField(max_length=20, choices=Via.choices, blank=True)
+
+    class Meta:
+        ordering = ["-fecha"]
+        verbose_name = "solicitud de restablecimiento de contraseña"
+        verbose_name_plural = "solicitudes de restablecimiento de contraseña"
+
+    def __str__(self):
+        return f"{self.usuario.get_username()} · {self.fecha:%Y-%m-%d %H:%M}{'' if self.atendida else ' · pendiente'}"
+
+    @classmethod
+    def atender(cls, usuario, via, por=None):
+        from django.utils import timezone
+
+        return cls.objects.filter(usuario=usuario, atendida=False).update(atendida=True, atendida_en=timezone.now(), atendida_por=por, via=via)
+

@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth.views import LogoutView
 
-from ric.vistas_acceso import IngresoView, invitacion
+from ric.vistas_acceso import IngresoView, invitacion, olvido_contrasena
 from django.urls import path
 from django.views.generic import RedirectView
 
@@ -100,6 +100,7 @@ urlpatterns = [
     # Acceso y utilidades compartidas
     path("ric/entrar/", IngresoView.as_view(), name="ric_login"),
     path("ric/invitacion/<uidb64>/<token>/", invitacion, name="invitacion"),
+    path("ric/olvide-mi-contrasena/", olvido_contrasena, name="olvido_contrasena"),
     path("ric/salir/", LogoutView.as_view(next_page="ric_login"), name="ric_logout"),
     path("ric/archivo/<int:pk>/", vistas_visor.archivo_original, name="ric_archivo"),
     path("ric/archivo/<int:pk>/pagina/<int:numero>.png", vistas_visor.archivo_pagina_png, name="ric_archivo_pagina"),
