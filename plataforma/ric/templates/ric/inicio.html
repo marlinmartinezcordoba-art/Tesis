@@ -1,0 +1,115 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Inicio · RICORA{% endblock %}
+{% block estilos_extra %}
+  .hero { position: relative; overflow: hidden; border-radius: 18px; padding: 2rem 2.2rem; color: #eef1ea;
+          background: radial-gradient(120% 140% at 100% 0%, #2c5a48 0%, rgba(44,90,72,0) 55%), linear-gradient(135deg, #142520 0%, #1e3a30 100%); margin-bottom: 1.3rem; }
+  .hero::after { content: ""; position: absolute; right: -60px; bottom: -80px; width: 280px; height: 280px; border-radius: 50%;
+                 border: 38px solid rgba(217,138,82,.18); }
+  .hero .saludo { font-size: .82rem; letter-spacing: .06em; text-transform: uppercase; color: #9db2a4; margin: 0 0 .4rem; }
+  .hero h1 { color: #fff; font-size: clamp(1.6rem, 2.6vw, 2.25rem); line-height: 1.12; margin: 0 0 .7rem; max-width: 46rem; }
+  .hero h1 span { color: #e7a06b; }
+  .hero p.intro { max-width: 52rem; color: #d7e0d8; font-size: .98rem; margin: 0 0 1.1rem; line-height: 1.6; position: relative; z-index: 1; }
+  .hero .cifras { display: flex; gap: 1.8rem; flex-wrap: wrap; position: relative; z-index: 1; }
+  .hero .cifras div { display: flex; flex-direction: column; }
+  .hero .cifras strong { font-family: var(--fuente-titulo); font-size: 1.7rem; color: #fff; line-height: 1; }
+  .hero .cifras span { font-size: .74rem; color: #9db2a4; margin-top: .25rem; }
+
+  .bloque-titulo { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 .7rem; gap: 1rem; flex-wrap: wrap; }
+  .bloque-titulo h2 { font-size: 1.15rem; margin: 0; }
+  .bloque-titulo small { color: var(--ink-suave); }
+
+  .recorrido { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1.4rem; counter-reset: paso; }
+  @media (max-width: 1250px) { .recorrido { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 700px) { .recorrido { grid-template-columns: minmax(0, 1fr); } }
+  .recorrido a { position: relative; display: flex; flex-direction: column; gap: .35rem; text-decoration: none; color: var(--ink);
+                 background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: .95rem .95rem 1rem; transition: transform .12s, box-shadow .12s, border-color .12s; }
+  .recorrido a:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(20,30,24,.09); border-color: var(--ricora-accent); }
+  .recorrido a:focus-visible { outline: 2px solid var(--ricora-accent); outline-offset: 2px; }
+  .recorrido .num { counter-increment: paso; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .85rem; color: #fff; }
+  .recorrido .num::before { content: counter(paso); }
+  .recorrido strong { font-family: var(--fuente-titulo); font-size: .98rem; }
+  .recorrido span.que { font-size: .8rem; color: var(--ink-suave); line-height: 1.45; }
+  .recorrido .ir { font-size: .76rem; color: var(--ricora-accent); margin-top: auto; }
+  .recorrido a.bloqueado { opacity: .5; pointer-events: none; }
+
+  .dos-col { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.1rem; }
+  @media (max-width: 1000px) { .dos-col { grid-template-columns: minmax(0, 1fr); } }
+  .caja { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1.2rem; }
+  .tarea { display: flex; align-items: center; gap: .9rem; padding: .6rem 0; border-bottom: 1px solid #f0efe9; }
+  .tarea:last-child { border-bottom: 0; }
+  .tarea .n { font-family: var(--fuente-titulo); font-size: 1.45rem; min-width: 2.4rem; text-align: right; color: var(--ink); }
+  .tarea.alerta .n { color: var(--ricora-critical); }
+  .tarea.cero .n { color: var(--ink-tenue); }
+  .tarea .t { flex: 1; font-size: .88rem; }
+  .tarea a[role=button] { width: auto; margin: 0; padding: .35rem .8rem; font-size: .8rem; }
+  .al-dia { display: flex; gap: .7rem; align-items: center; color: #1e6b46; background: #e6f4ec; border-radius: 10px; padding: .8rem 1rem; font-size: .9rem; }
+  .principios { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
+  .principios li { display: flex; gap: .7rem; align-items: flex-start; font-size: .86rem; color: var(--ink-suave); line-height: 1.45; }
+  .principios li b { color: var(--ink); display: block; font-size: .9rem; }
+  .principios .ic { width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; display: grid; place-items: center; background: var(--surface-alt); font-size: 1rem; }
+{% endblock %}
+{% block contenido %}
+<section class="hero">
+  <p class="saludo">Hola, {{ request.user.first_name|default:request.user.get_username }} · {{ rol }}</p>
+  <h1>RICORA: la memoria de la entidad, <span>descrita en contexto</span>.</h1>
+  <p class="intro">RICORA es una plataforma de gestión y descripción archivística basada en el modelo internacional
+  <strong>Records in Contexts (RiC)</strong> del Consejo Internacional de Archivos. Cada documento entra clasificado por la
+  Tabla de Retención Documental; la inteligencia artificial propone quién lo produjo, a quién se refiere, cuándo, dónde y por
+  qué función, siempre con la cita del texto que lo respalda; y el equipo archivístico decide. El resultado es un catálogo
+  en red —documentos, personas, instituciones, fechas y lugares conectados— que se consulta, se audita y se comparte en datos enlazados.</p>
+  <div class="cifras">
+    <div><strong>{{ cifras.documentos }}</strong><span>documentos{% if not trabaja %} disponibles{% endif %}</span></div>
+    <div><strong>{{ cifras.publicados }}</strong><span>publicados en el catálogo</span></div>
+    {% if cifras.agentes is not None %}<div><strong>{{ cifras.agentes }}</strong><span>personas e instituciones</span></div>{% endif %}
+    {% if cifras.relaciones is not None %}<div><strong>{{ cifras.relaciones }}</strong><span>relaciones RiC validadas</span></div>{% endif %}
+  </div>
+</section>
+
+<div class="bloque-titulo"><h2>El recorrido de un documento</h2><small>Haga clic en un paso para ir a esa parte de la plataforma</small></div>
+<nav class="recorrido" aria-label="Proceso archivístico">
+  <a href="{% url 'vocabularios' %}"><span class="num" style="background:#0d9488"></span><strong>Instrumentos</strong>
+    <span class="que">TRD, cuadro de clasificación, organigrama y vocabularios de autoridad.</span><span class="ir">Instrumentos archivísticos →</span></a>
+  <a href="{% url 'ingesta' %}" class="{% if not ingesta %}bloqueado{% endif %}"><span class="num" style="background:#d97706"></span><strong>Captura</strong>
+    <span class="que">Carga por serie y expediente, huella digital SHA-256, texto y OCR.</span><span class="ir">Captura y clasificación →</span></a>
+  <a href="{% url 'analisis_lista' %}" class="{% if not trabaja %}bloqueado{% endif %}"><span class="num" style="background:#7c3aed"></span><strong>Descripción</strong>
+    <span class="que">La IA propone entidades y relaciones con evidencia; la persona decide.</span><span class="ir">Análisis y relaciones →</span></a>
+  <a href="{% url 'revision_lista' %}" class="{% if not trabaja %}bloqueado{% endif %}"><span class="num" style="background:#b5602c"></span><strong>Revisión</strong>
+    <span class="que">Segunda mirada ficha por ficha; nada se publica sin revisar.</span><span class="ir">Revisión archivística →</span></a>
+  <a href="{% url 'catalogo' %}"><span class="num" style="background:#0891b2"></span><strong>Consulta</strong>
+    <span class="que">Catálogo por personas, instituciones, fechas y lugares, según su rol.</span><span class="ir">Catálogo →</span></a>
+  <a href="{% url 'exportar' %}"><span class="num" style="background:#2563eb"></span><strong>Intercambio</strong>
+    <span class="que">Exportación en RiC-O, JSON-LD y CSV, verificada y registrada.</span><span class="ir">Exportación →</span></a>
+</nav>
+
+<div class="dos-col">
+  <section class="caja" aria-labelledby="t-hoy">
+    <div class="bloque-titulo"><h2 id="t-hoy">Para hacer hoy</h2>{% if trabaja %}<a href="{% url 'panel' %}" style="font-size:.8rem">Ver indicadores →</a>{% endif %}</div>
+    {% if trabaja %}
+      {% if pendientes_total %}
+        {% for t in tareas %}
+        <div class="tarea {% if t.n == 0 %}cero{% elif t.alerta %}alerta{% endif %}">
+          <span class="n">{{ t.n }}</span><span class="t">{{ t.texto }}</span>
+          {% if t.n %}<a role="button" href="{% url t.url %}{% if t.filtro %}?filtro={{ t.filtro }}{% endif %}">{{ t.accion }} →</a>{% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="al-dia">✓ Todo al día: no hay documentos esperando por usted.</div>
+      {% endif %}
+    {% else %}
+      <p style="margin:0 0 .8rem">Con su cuenta de consulta puede buscar en el catálogo los documentos publicados y de acceso abierto,
+      navegar por las personas, instituciones, fechas y lugares relacionados, y exportar lo que necesite.</p>
+      <a role="button" href="{% url 'catalogo' %}" style="width:auto">Buscar en el catálogo →</a>
+    {% endif %}
+  </section>
+
+  <section class="caja" aria-labelledby="t-principios">
+    <div class="bloque-titulo"><h2 id="t-principios">Cómo trabaja RICORA</h2></div>
+    <ul class="principios">
+      <li><span class="ic">✦</span><span><b>La IA propone, la persona decide</b>Toda propuesta trae la cita del documento y queda pendiente hasta que alguien la acepta, corrige o rechaza.</span></li>
+      <li><span class="ic">🔒</span><span><b>Integridad verificable</b>Cada archivo tiene su huella SHA-256 y cada acción queda en una bitácora encadenada que delata cualquier alteración.</span></li>
+      <li><span class="ic">↺</span><span><b>Nada se borra de forma irreversible</b>Lo eliminado se conserva con su motivo y puede restaurarse; cada cambio guarda su versión anterior.</span></li>
+      <li><span class="ic">⚖</span><span><b>Acceso según la ley</b>Lo reservado o sin publicar no se muestra a consulta (Ley 1712 de 2014 y Ley 1581 de 2012).</span></li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

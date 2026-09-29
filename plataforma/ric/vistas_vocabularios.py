@@ -93,12 +93,12 @@ def vocabularios(request):
         qs = FormaDocumental.objects.all()
         if q:
             qs = qs.filter(nombre__icontains=q)
-        for f in qs[:300]:
+        for f in qs[:2000]:
             filas.append({"pk": f.pk, "nombre": f.nombre, "tipo": "Forma documental", "slug": _SLUG_FORMA,
                           "serie_trd": f.serie_trd, "fecha": f.fecha_registro, "creado_por": f.creado_por})
     else:
         seleccion = [por_slug[filtro]] if filtro in por_slug else [c for c in catalogo if c["slug"] != _SLUG_FORMA]
-        limite = 300 if filtro else 30
+        limite = 2000 if filtro else 60
         for c in seleccion:
             qs = tipos.instancias_propias(c["modelo"]).select_related("creado_por").order_by("nombre" if filtro else "-fecha_registro")
             if q:
@@ -109,7 +109,7 @@ def vocabularios(request):
                               "identificador": e.identificador})
         if not filtro:
             filas.sort(key=lambda f: f["fecha"], reverse=True)
-            filas = filas[:60]
+            filas = filas[:120]
 
     # RF-M8-04: el rol consulta solo ve autoridades presentes en documentos
     # que puede consultar o en los instrumentos archivísticos (públicos).
@@ -118,8 +118,15 @@ def vocabularios(request):
         modelos = {c["slug"]: c["modelo"] for c in catalogo}
         filas = [f for f in filas if f["slug"] not in modelos or vis.puede(modelos[f["slug"]](pk=f["pk"]))]
     total = sum(c["total"] for c in catalogo)
+    from urllib.parse import urlencode
+
+    from django.core.paginator import Paginator
+
+    pagina = Paginator(filas, 15).get_page(request.GET.get("pagina"))
     return render(request, "ric/vocabularios.html", {
-        "catalogo": catalogo, "filas": filas, "filtro": filtro, "q": q,
+        "catalogo": catalogo, "filas": pagina.object_list, "total_filas": len(filas), "pagina": pagina,
+        "parametros": urlencode({k: v for k, v in (("tipo", filtro), ("q", q)) if v}),
+        "filtro": filtro, "q": q,
         "total": total,
         "es_forma": filtro == _SLUG_FORMA,
         "puede_editar": roles.puede(request.user, roles.ARCHIVISTA),
@@ -312,13 +319,17 @@ def vocabulario_ficha(request, tipo, pk):
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 def vocabularios_duplicados(request):
-    grupos = []
+    from django.core.paginator import Paginator
+
+    grupos, filas = [], []
     for modelo in _modelos_con_duplicados():
         pares = desambiguacion.pares_similares(modelo)
         if pares:
             grupos.append({"nombre_verbose": modelo._meta.verbose_name_plural, "slug": modelo.__name__.lower(), "pares": pares})
+            filas.extend({"clase": modelo._meta.verbose_name_plural, "slug": modelo.__name__.lower(), "a": a, "b": b} for a, b in pares)
+    pagina = Paginator(filas, 15).get_page(request.GET.get("pagina"))
     return render(request, "ric/vocabularios_duplicados.html", {
-        "grupos": grupos, "total": sum(len(g["pares"]) for g in grupos),
+        "grupos": grupos, "total": len(filas), "pagina": pagina, "parametros": "",
         "puede_editar": roles.puede(request.user, roles.ARCHIVISTA),
     })
 

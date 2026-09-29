@@ -196,6 +196,15 @@
   {% endif %}
 </div>
 
+{% elif pestana == "modulos" %}
+<div class="tarjeta">
+  <h3>Estado de los módulos</h3>
+  <p style="font-size:.82rem; color:#6b7280; margin:.2rem 0 .8rem">Avance del desarrollo frente a la Definición de Terminado: cada módulo se entrega con su documentación de 23 puntos y se marca como validado cuando usted lo aprueba.</p>
+  <table class="tabla">
+    <thead><tr><th>Módulo</th><th>Nombre</th><th>Estado</th></tr></thead>
+    <tbody>{% for m in estado_modulos %}<tr><td><code>{{ m.codigo }}</code></td><td>{{ m.nombre }}</td><td><span class="estado-modulo {{ m.estado }}">{{ m.estado_texto }}</span></td></tr>{% endfor %}</tbody>
+  </table>
+</div>
 {% elif pestana == "eliminados" %}
 <div class="tarjeta">
   <h3>Eliminados (borrado lógico) · {{ eliminados|length }}</h3>

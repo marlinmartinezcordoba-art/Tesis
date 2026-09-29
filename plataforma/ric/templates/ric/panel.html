@@ -77,6 +77,8 @@
   </nav>
 </div>
 
+<div data-paginas>
+<section data-pagina="Resumen del periodo">
 {% if alertas %}
 <a class="alerta-atraso" href="{% if puede_revisar %}{% url 'revision_lista' %}?filtro=atrasados{% else %}#{% endif %}">
   <strong>⚠ {{ alertas|length }} documento(s) llevan más de {{ limite_dias }} días esperando revisión.</strong>
@@ -123,7 +125,10 @@
   <div class="ricora-barras-etiquetas"><span>{{ grafica.serie.0.etiqueta }}</span>{% with ultima=grafica.serie|last %}<span>{{ ultima.etiqueta }}</span>{% endwith %}</div>
 </div>
 
+</section>
+
 {% if puede_revisar %}
+<section data-pagina="Trabajo en curso">
 <div class="ricora-panel">
   <header><h2>Propuestas del motor por estado</h2><span style="font-size:.78rem;color:#8a94a3">{{ distribucion_estado.total }} en total</span></header>
   {% if distribucion_estado.total %}
@@ -154,8 +159,6 @@
 
 
 
-<div class="ricora-dashboard">
-  <div>
     <div class="ricora-panel">
       <header><h2>Documentos en curso</h2><a href="{% url 'analisis_lista' %}">Ver todos</a></header>
       <div class="estados" style="margin-bottom:.8rem">{% for etiqueta, total in conteo_estados %}<span>{{ etiqueta }} <b>{{ total }}</b></span>{% endfor %}</div>
@@ -178,6 +181,11 @@
       {% if not en_analisis and not en_revision %}<p class="sin-datos">No hay documentos esperando decisión ahora mismo.</p>{% endif %}
     </div>
 
+</section>
+
+<section data-pagina="Actividad y contenido del grafo">
+<div class="ricora-dashboard">
+  <div>
     <div class="ricora-panel">
       <header><h2>Ingesta por día, últimos 14 días</h2></header>
       <div class="ricora-barras">
@@ -202,7 +210,6 @@
       {% endif %}
     </div>
   </div>
-
   <div>
     <div class="ricora-panel">
       <header><h2>Tipos de entidad en el grafo</h2></header>
@@ -242,10 +249,14 @@
     </div>
   </div>
 </div>
+</section>
 {% else %}
+<section data-pagina="Consulta">
 <div class="ricora-panel">
   <header><h2>Relaciones validadas en el grafo</h2><a href="{% url 'catalogo' %}">Consultar el catálogo →</a></header>
   <p style="margin:0">{{ relaciones_validadas }} relación(es) RiC ya validadas por el equipo archivístico.</p>
 </div>
+</section>
 {% endif %}
+</div>
 {% endblock %}

@@ -12,12 +12,11 @@ from ._ayudas import CasoModulos, candidato
 
 
 class PanelTest(CasoModulos):
-    def test_es_la_pagina_de_inicio_y_exige_sesion(self):
-        resp = self.client.get("/")
-        self.assertRedirects(resp, reverse("panel"), fetch_redirect_response=False)
+    def test_el_panel_exige_sesion_y_el_inicio_es_la_portada(self):
+        self.assertEqual(self.client.get("/").status_code, 302)  # sin sesión, a la pantalla de ingreso
         self.assertEqual(self.client.get(reverse("panel")).status_code, 302)
         resp = self.client.post(reverse("ric_login"), {"username": "archivista", "password": "x"})
-        self.assertRedirects(resp, reverse("panel"))
+        self.assertRedirects(resp, reverse("inicio"))
 
     def test_sin_datos_dice_sin_datos(self):
         self.client.force_login(self.archivista)

@@ -135,13 +135,13 @@ class PantallaDeIngresoTest(TestCase):
     def test_un_archivista_si_puede_entrar_aqui(self):
         User.objects.create_user("archivista", password="x", is_staff=True)
         respuesta = self.client.post(reverse("ric_login"), {"username": "archivista", "password": "x"})
-        self.assertRedirects(respuesta, reverse("panel"))
+        self.assertRedirects(respuesta, reverse("inicio"))
 
     def test_un_invitado_de_consulta_tambien_puede_entrar_aqui(self):
         # esto es justo lo que /admin/login/ no permitía
         User.objects.create_user("consulta", password="x", is_staff=False)
         respuesta = self.client.post(reverse("ric_login"), {"username": "consulta", "password": "x"})
-        self.assertRedirects(respuesta, reverse("panel"))
+        self.assertRedirects(respuesta, reverse("inicio"))
 
     def test_credenciales_incorrectas_no_entran(self):
         User.objects.create_user("consulta", password="x", is_staff=False)

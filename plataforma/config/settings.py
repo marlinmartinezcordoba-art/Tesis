@@ -198,7 +198,7 @@ MAZUCA_MODELO_IA_GEMINI = os.environ.get("MAZUCA_MODELO_IA_GEMINI", "gemini-3.5-
 # invitado de consulta) — /admin/login/ exige is_staff y rechaza a un
 # invitado de consulta de plano, así que no puede ser el LOGIN_URL general.
 LOGIN_URL = "ric_login"
-LOGIN_REDIRECT_URL = "panel"
+LOGIN_REDIRECT_URL = "inicio"
 
 # M11: invitación por correo al crear una cuenta. Sin EMAIL_HOST configurado
 # el sistema lo dice claramente en vez de fingir que envió algo.

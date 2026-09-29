@@ -1,6 +1,9 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Vocabularios y autoridades · RICORA{% endblock %}
 {% block estilos_extra %}
+  table.tabla td.nw { white-space: nowrap; }
+  table.tabla td.nombre { max-width: 0; width: 55%; }
+  table.tabla td.nombre a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-bottom: 1rem; }
   @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
   .stats .stat { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; }
@@ -28,16 +31,13 @@
 {% block contenido %}
 <hgroup>
   <h1>Vocabularios y autoridades</h1>
-  <p>Catálogo único de registros de autoridad ya validados — agentes, lugares, actividades y funciones,
-  mandatos, fechas y formas documentales. El motor de análisis los consulta antes de proponer una entidad
-  nueva, para reutilizar la entrada existente en vez de crear un duplicado. Cada entrada registra quién la
-  creó o modificó y cuándo, y se vincula con la serie de la TRD vigente.</p>
+  <p>Registros de autoridad validados: personas, instituciones, cargos, funciones, mandatos, fechas, lugares y formas documentales. El motor los consulta antes de proponer una entidad nueva.</p>
 </hgroup>
 
 <div class="stats">
   <div class="stat"><strong>{{ total }}</strong><span>entradas de autoridad</span></div>
   <div class="stat"><strong>{{ catalogo|length }}</strong><span>clases del vocabulario</span></div>
-  <div class="stat"><strong>{{ filas|length }}</strong><span>mostradas aquí</span></div>
+  <div class="stat"><strong>{{ total_filas }}</strong><span>en esta vista</span></div>
   <div class="stat"><strong>{{ duplicados }}</strong><span>posibles duplicados</span> <a href="{% url 'vocabularios_duplicados' %}">revisar →</a></div>
 </div>
 
@@ -107,15 +107,16 @@
   <tbody>
     {% for f in filas %}
     <tr>
-      <td><span class="tag">{{ f.tipo|capfirst }}</span></td>
-      <td><a href="{% url 'vocabulario_ficha' f.slug f.pk %}">{{ f.nombre }}</a>{% if f.identificador %} <small style="color:#8a94a3">{{ f.identificador }}</small>{% endif %}</td>
+      <td class="nw"><span class="tag">{{ f.tipo|capfirst }}</span></td>
+      <td class="nombre"><a href="{% url 'vocabulario_ficha' f.slug f.pk %}"{% if f.identificador %} title="{{ f.identificador }}"{% endif %}>{{ f.nombre }}</a></td>
       <td>{{ f.serie_trd|default:"—" }}</td>
-      <td>{{ f.creado_por.get_username|default:"sistema" }}</td>
-      <td>{{ f.fecha|date:"d/m/Y" }}</td>
-      <td>{% if not es_forma %}<a href="{% url 'ric_grafo' f.slug f.pk %}">grafo</a> · <a href="{% url 'ric_exportar_rdf' f.slug f.pk %}">RDF</a>{% endif %}</td>
+      <td class="nw">{{ f.creado_por.get_username|default:"sistema" }}</td>
+      <td class="nw">{{ f.fecha|date:"d/m/Y" }}</td>
+      <td class="nw">{% if not es_forma %}<a href="{% url 'ric_grafo' f.slug f.pk %}">grafo</a> · <a href="{% url 'ric_exportar_rdf' f.slug f.pk %}">RDF</a>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% include "ric/_paginacion.html" %}
 {% endif %}
 {% endblock %}

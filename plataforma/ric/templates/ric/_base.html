@@ -56,25 +56,25 @@
   }
   .ricora-sidebar nav a:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
   .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; box-shadow: inset 3px 0 0 var(--ricora-accent-2); }
-  .menu .grupo-texto { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
-  .menu .codigos { font-family: var(--fuente-mono); font-size: .66rem; color: #7f998a; letter-spacing: .02em; font-weight: 400; }
-  .ricora-sidebar .menu button.grupo-titulo {
+  .menu .menu-texto { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .menu .menu-codigos { font-family: var(--fuente-mono); font-size: .66rem; color: #7f998a; letter-spacing: .02em; font-weight: 400; }
+  .ricora-sidebar .menu button.menu-titulo {
     all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .5rem;
     padding: .5rem .7rem; border-radius: var(--radio-chico); color: var(--sidebar-ink-suave); font-size: .86rem; line-height: 1.25; cursor: pointer;
   }
-  .ricora-sidebar .menu button.grupo-titulo:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
-  .ricora-sidebar .menu button.grupo-titulo:focus-visible { outline: 2px solid var(--ricora-accent-2); outline-offset: 1px; }
-  .menu .grupo.actual > .grupo-titulo { color: var(--sidebar-ink); font-weight: 500; }
-  .menu .grupo.actual > .grupo-titulo .codigos { color: var(--ricora-accent-2); }
-  .menu .flecha { font-size: 1.05rem; transition: transform .15s; opacity: .7; }
-  .menu .grupo.abierto .flecha { transform: rotate(90deg); }
-  .menu .sub { display: none; flex-direction: column; gap: .1rem; margin: .1rem 0 .4rem .7rem; padding-left: .55rem; border-left: 1px solid rgba(255,255,255,.12); }
-  .menu .grupo.abierto .sub { display: flex; }
-  .ricora-sidebar .menu .sub a { flex-direction: row; align-items: center; gap: .45rem; padding: .36rem .55rem; font-size: .8rem; }
-  .ricora-sidebar .menu .sub a .m { font-family: var(--fuente-mono); font-size: .62rem; font-weight: 600; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-ink-suave); flex-shrink: 0; }
-  .ricora-sidebar .menu .sub a.activo .m { background: var(--ricora-accent); border-color: var(--ricora-accent); color: #fff; }
+  .ricora-sidebar .menu button.menu-titulo:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
+  .ricora-sidebar .menu button.menu-titulo:focus-visible { outline: 2px solid var(--ricora-accent-2); outline-offset: 1px; }
+  .menu .menu-grupo.actual > .menu-titulo { color: var(--sidebar-ink); font-weight: 500; }
+  .menu .menu-grupo.actual > .menu-titulo .menu-codigos { color: var(--ricora-accent-2); }
+  .menu .menu-flecha { font-size: 1.05rem; transition: transform .15s; opacity: .7; }
+  .menu .menu-grupo.abierto .menu-flecha { transform: rotate(90deg); }
+  .menu .menu-sub { display: none; flex-direction: column; gap: .1rem; margin: .1rem 0 .4rem .7rem; padding-left: .55rem; border-left: 1px solid rgba(255,255,255,.12); }
+  .menu .menu-grupo.abierto .menu-sub { display: flex; }
+  .ricora-sidebar .menu .menu-sub a { flex-direction: row; align-items: center; gap: .45rem; padding: .36rem .55rem; font-size: .8rem; }
+  .ricora-sidebar .menu .menu-sub a .m { font-family: var(--fuente-mono); font-size: .62rem; font-weight: 600; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-ink-suave); flex-shrink: 0; }
+  .ricora-sidebar .menu .menu-sub a.activo .m { background: var(--ricora-accent); border-color: var(--ricora-accent); color: #fff; }
   .ricora-sidebar .menu a.enlace-simple { padding: .5rem .7rem; font-size: .86rem; }
-  .ricora-sidebar .menu a.enlace-simple.activo .codigos { color: var(--ricora-accent-2); }
+  .ricora-sidebar .menu a.enlace-simple.activo .menu-codigos { color: var(--ricora-accent-2); }
 
   .ricora-shell { flex: 1; min-width: 0; }
   /* justify-content explícito: pico.css reparte los enlaces de un <nav> a los extremos */
@@ -93,7 +93,7 @@
   .estado-modulo.validado { background: #e6f4ec; color: #1e6b46; border-color: #bfe3cd; }
   .estado-modulo.por_validar { background: #fef3e2; color: #92620f; border-color: #f3dcae; }
   .estado-modulo.anterior, .estado-modulo.pendiente { background: var(--surface-alt); color: var(--ink-suave); border-color: var(--border); }
-  .topbar-modulo .icono { min-width: 28px; padding: 0 5px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-family: var(--fuente-mono); font-size: .7rem; font-weight: 600; flex-shrink: 0; }
+  .topbar-modulo .icono { width: 10px; min-width: 10px; padding: 0; height: 30px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-family: var(--fuente-mono); font-size: .7rem; font-weight: 600; flex-shrink: 0; }
   .topbar-modulo strong { font-family: var(--fuente-titulo); font-size: .98rem; display: block; line-height: 1.15; }
   .topbar-modulo small { color: var(--ink-suave); font-size: .76rem; }
   .ricora-topbar .usuario { font-size: .82rem; color: var(--ink-suave); white-space: nowrap; }
@@ -130,30 +130,48 @@
     .ricora-sidebar { width: 100%; height: auto; position: static; }
     .ricora-sidebar .menu { flex-direction: column; }
   }
+  /* Paginador de secciones: una pantalla larga se recorre por páginas «1 de N» con flechas. */
+  .paginador-barra { display: flex; align-items: center; justify-content: space-between; gap: .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .45rem .6rem; margin-bottom: 1rem; position: sticky; top: .5rem; z-index: 4; box-shadow: var(--sombra); }
+  .paginador-barra .titulo-pag { font-family: var(--fuente-titulo); font-weight: 600; font-size: 1rem; }
+  .paginador-barra .titulo-pag small { font-family: var(--fuente-cuerpo); font-weight: 500; color: var(--ink-suave); font-size: .78rem; margin-right: .5rem; background: var(--surface-alt); border-radius: 999px; padding: 2px 9px; }
+  .paginador-barra .controles { display: flex; align-items: center; gap: .35rem; }
+  .paginador-barra button { all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border-fuerte); font-size: 1.1rem; color: var(--ink); background: var(--surface); }
+  .paginador-barra button:hover:not([disabled]) { border-color: var(--ricora-accent); color: var(--ricora-accent); }
+  .paginador-barra button:focus-visible { outline: 2px solid var(--ricora-accent); outline-offset: 2px; }
+  .paginador-barra button[disabled] { opacity: .35; cursor: default; }
+  .paginador-barra .puntos { display: flex; gap: .3rem; margin: 0 .3rem; }
+  .paginador-barra .puntos button { width: 9px; height: 9px; border: 0; background: var(--border-fuerte); padding: 0; }
+  .paginador-barra .puntos button[aria-current="true"] { background: var(--ricora-accent); width: 22px; border-radius: 5px; }
+  [data-paginas].con-paginador > [data-pagina]:not(.visible) { display: none; }
+  /* Paginación de listas largas del servidor (‹ 1 de N ›) */
+  .pag-lista { display: flex; align-items: center; justify-content: center; gap: .6rem; margin: 1rem 0 .3rem; font-size: .86rem; }
+  .pag-lista a, .pag-lista span.inactivo { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border-fuerte); text-decoration: none; color: var(--ink); background: var(--surface); }
+  .pag-lista span.inactivo { opacity: .35; }
+  .pag-lista a:hover { border-color: var(--ricora-accent); color: var(--ricora-accent); }
   {% block estilos_extra %}{% endblock %}
 </style>
 {% block scripts_head %}{% endblock %}
 </head>
 <body>
 <aside class="ricora-sidebar">
-  <a href="{% url 'panel' %}" class="ricora-brand"><strong>RIC<span>ORA</span></strong></a>
+  <a href="{% url 'inicio' %}" class="ricora-brand" title="Inicio"><strong>RIC<span>ORA</span></strong></a>
   <nav class="menu" aria-label="Módulos">
     {% for m in modulos %}
       {% if m.ver == "todos" or m.ver == "ingestar" and puede_ingestar or m.ver == "revisar" and puede_revisar or m.ver == "administrar" and puede_administrar %}
       {% if m.submenu|length > 1 %}
-      <div class="grupo{% if modulo_numero == m.numero %} abierto actual{% endif %}" data-grupo="{{ m.numero }}">
-        <button type="button" class="grupo-titulo" aria-expanded="{% if modulo_numero == m.numero %}true{% else %}false{% endif %}">
-          <span class="grupo-texto"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</span>
-          <span class="flecha" aria-hidden="true">›</span>
+      <div class="menu-grupo{% if modulo_numero == m.numero %} abierto actual{% endif %}" data-grupo="{{ m.numero }}">
+        <button type="button" class="menu-titulo" aria-expanded="{% if modulo_numero == m.numero %}true{% else %}false{% endif %}">
+          <span class="menu-texto">{{ m.nombre }}</span>
+          <span class="menu-flecha" aria-hidden="true">›</span>
         </button>
-        <div class="sub">
+        <div class="menu-sub">
           {% for p in m.submenu %}{% if m.url != "ingesta" or puede_ingestar %}
           <a href="{{ p.href }}" class="{% if p.activa %}activo{% endif %}"{% if p.activa %} aria-current="page"{% endif %}>{% if p.espec %}<span class="m">{{ p.espec.codigo }}</span>{% endif %}<span>{{ p.nombre }}</span></a>
           {% endif %}{% endfor %}
         </div>
       </div>
       {% else %}
-      <a href="{% url m.url %}" class="enlace-simple{% if modulo_numero == m.numero %} activo{% endif %}"><span class="grupo-texto"><span>{{ m.nombre }}</span>{% if m.codigos %}<span class="codigos">{{ m.codigos }}</span>{% endif %}</span></a>
+      <a href="{% url m.url %}" class="enlace-simple{% if modulo_numero == m.numero %} activo{% endif %}"><span class="menu-texto">{{ m.nombre }}</span></a>
       {% endif %}
       {% endif %}
     {% endfor %}
@@ -164,15 +182,10 @@
   <div class="ricora-topbar">
     <div class="topbar-modulo">
       {% if modulo_actual %}
-      {% if modulo_espec %}
-      <span class="icono" style="background:{{ modulo_actual.color }}">{{ modulo_espec.codigo }}</span>
-      <span><strong>Módulo {{ modulo_espec.numero }} · {{ modulo_espec.nombre }}<span class="estado-modulo {{ modulo_espec.estado }}">{{ modulo_espec.estado_texto }}</span></strong><small>{{ modulo_actual.nombre }}</small></span>
+      <span class="icono" style="background:{{ modulo_actual.color }}" aria-hidden="true"></span>
+      <span><strong>{{ pantalla_nombre|default:modulo_actual.nombre }}</strong><small>{% if pantalla_nombre %}{{ modulo_actual.nombre }}{% else %}{{ modulo_actual.descripcion }}{% endif %}</small></span>
       {% else %}
-      <span class="icono" style="background:{{ modulo_actual.color }}">·</span>
-      <span><strong>{{ modulo_actual.nombre }}</strong><small>{{ modulo_actual.descripcion }}</small></span>
-      {% endif %}
-      {% else %}
-      <span class="icono" style="background:#8a9088">·</span><span><strong>RICORA</strong></span>
+      <span class="icono" style="background:#b5602c" aria-hidden="true"></span><span><strong>Inicio</strong><small>Qué es RICORA y qué tiene por hacer hoy</small></span>
       {% endif %}
     </div>
     <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong> <span class="rol">{{ rol_etiqueta }}</span>
@@ -192,8 +205,8 @@
   // recuerda qué grupos dejó abiertos la persona (solo en este navegador).
   var CLAVE = "ricora_menu_abierto", abiertos = [];
   try { abiertos = JSON.parse(localStorage.getItem(CLAVE) || "[]"); } catch (e) { abiertos = []; }
-  document.querySelectorAll(".menu .grupo").forEach(function (g) {
-    var boton = g.querySelector(".grupo-titulo");
+  document.querySelectorAll(".menu .menu-grupo").forEach(function (g) {
+    var boton = g.querySelector(".menu-titulo");
     if (abiertos.indexOf(g.dataset.grupo) >= 0) { g.classList.add("abierto"); boton.setAttribute("aria-expanded", "true"); }
     boton.addEventListener("click", function () {
       var abierto = g.classList.toggle("abierto");
@@ -202,6 +215,42 @@
       if (abierto) abiertos.push(g.dataset.grupo);
       try { localStorage.setItem(CLAVE, JSON.stringify(abiertos)); } catch (e) {}
     });
+  });
+})();
+</script>
+<script>
+(function () {
+  // Paginador de secciones: [data-paginas] con hijos [data-pagina="Título"].
+  document.querySelectorAll("[data-paginas]").forEach(function (cont, n) {
+    var paginas = Array.prototype.filter.call(cont.children, function (h) { return h.hasAttribute("data-pagina"); });
+    if (paginas.length < 2) { paginas.forEach(function (p) { p.classList.add("visible"); }); return; }
+    cont.classList.add("con-paginador");
+    var barra = document.createElement("div");
+    barra.className = "paginador-barra"; barra.setAttribute("role", "navigation"); barra.setAttribute("aria-label", "Páginas de esta pantalla");
+    barra.innerHTML = '<span class="titulo-pag" aria-live="polite"></span><span class="controles"><button type="button" class="ant" aria-label="Página anterior">‹</button><span class="puntos"></span><button type="button" class="sig" aria-label="Página siguiente">›</button></span>';
+    cont.parentNode.insertBefore(barra, cont);
+    var puntos = barra.querySelector(".puntos"), titulo = barra.querySelector(".titulo-pag"), actual = 0;
+    paginas.forEach(function (p, i) {
+      var b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-label", "Ir a " + p.dataset.pagina);
+      b.addEventListener("click", function () { ir(i); }); puntos.appendChild(b);
+    });
+    function ir(i) {
+      actual = Math.max(0, Math.min(paginas.length - 1, i));
+      paginas.forEach(function (p, j) { p.classList.toggle("visible", j === actual); });
+      puntos.querySelectorAll("button").forEach(function (b, j) { b.setAttribute("aria-current", j === actual ? "true" : "false"); });
+      titulo.innerHTML = "<small>" + (actual + 1) + " de " + paginas.length + "</small>" + paginas[actual].dataset.pagina.replace(/</g, "&lt;");
+      barra.querySelector(".ant").disabled = actual === 0;
+      barra.querySelector(".sig").disabled = actual === paginas.length - 1;
+      try { history.replaceState(null, "", "#p" + (actual + 1)); } catch (e) {}
+    }
+    barra.querySelector(".ant").addEventListener("click", function () { ir(actual - 1); window.scrollTo({ top: 0, behavior: "smooth" }); });
+    barra.querySelector(".sig").addEventListener("click", function () { ir(actual + 1); window.scrollTo({ top: 0, behavior: "smooth" }); });
+    if (n === 0) document.addEventListener("keydown", function (e) {
+      if (/input|textarea|select/i.test((e.target.tagName || ""))) return;
+      if (e.key === "ArrowRight") ir(actual + 1); else if (e.key === "ArrowLeft") ir(actual - 1);
+    });
+    var m = /^#p(\d+)$/.exec(location.hash);
+    ir(m ? parseInt(m[1], 10) - 1 : 0);
   });
 })();
 </script>

@@ -22,7 +22,7 @@ class AutenticacionTest(CasoModulos):
         self.assertContains(resp, "Usuario o contraseña incorrectos")
         self.assertTrue(RegistroAuditoria.objects.filter(accion="login_fallido", detalle__usuario="archivista", exitoso=False).exists())
         resp = self.client.post(reverse("ric_login"), {"username": "archivista", "password": "x"})
-        self.assertRedirects(resp, reverse("panel"))
+        self.assertRedirects(resp, reverse("inicio"))
         registro = RegistroAuditoria.objects.get(accion="iniciar_sesion")
         self.assertEqual(registro.usuario, self.archivista)
         self.assertEqual(registro.object_id, self.archivista.pk)
@@ -39,7 +39,7 @@ class AutenticacionTest(CasoModulos):
         self.assertFalse(RegistroAuditoria.objects.filter(accion="iniciar_sesion").exists())
         # otro usuario no queda bloqueado por los intentos de aquel
         resp = self.client.post(reverse("ric_login"), {"username": "revisor", "password": "x"})
-        self.assertRedirects(resp, reverse("panel"))
+        self.assertRedirects(resp, reverse("inicio"))
 
     def test_sesion_expira_por_inactividad_y_se_renueva_con_uso(self):
         from django.conf import settings

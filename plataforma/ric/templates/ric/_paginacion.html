@@ -1,0 +1,8 @@
+{% comment %}Paginación de listas largas: ‹ 1 de N ›. Necesita `pagina` (Page de Django) y `parametros` (querystring sin «pagina»).{% endcomment %}
+{% if pagina.paginator.num_pages > 1 %}
+<nav class="pag-lista" aria-label="Páginas de la lista">
+  {% if pagina.has_previous %}<a href="?{% if parametros %}{{ parametros }}&{% endif %}pagina={{ pagina.previous_page_number }}" aria-label="Página anterior">‹</a>{% else %}<span class="inactivo" aria-hidden="true">‹</span>{% endif %}
+  <span><strong>{{ pagina.number }}</strong> de {{ pagina.paginator.num_pages }} <small style="color:var(--ink-tenue)">· {{ pagina.start_index }}–{{ pagina.end_index }} de {{ pagina.paginator.count }}</small></span>
+  {% if pagina.has_next %}<a href="?{% if parametros %}{{ parametros }}&{% endif %}pagina={{ pagina.next_page_number }}" aria-label="Página siguiente">›</a>{% else %}<span class="inactivo" aria-hidden="true">›</span>{% endif %}
+</nav>
+{% endif %}

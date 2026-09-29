@@ -113,6 +113,7 @@ PANTALLAS_ADMIN = (
     ("parametros", "Parámetros", 11),
     ("auditoria", "Auditoría", 0),
     ("eliminados", "Eliminados (restaurar)", 0),
+    ("modulos", "Estado de los módulos", None),
 )
 
 
@@ -140,9 +141,11 @@ def contexto_modulos(request):
         submenu = _submenu(m, pestana, request, url_name)
         if actual is m and m["url"] == "admin_usuarios":
             activa = next((x for x in submenu if x["activa"]), None)
-            espec = activa["espec"]["numero"] if activa else 11
+            espec = activa["espec"]["numero"] if activa and activa["espec"] else 11
         menu.append({**m, "codigos": ", ".join(f"M{c}" for c in codigos), "submenu": submenu})
+    activa = next((x for m in menu if actual and m["numero"] == actual["numero"] for x in m["submenu"] if x["activa"]), None)
     return {
+        "pantalla_nombre": activa["nombre"] if activa else "",
         "modulos": menu,
         "modulo_actual": next((m for m in menu if actual and m["numero"] == actual["numero"]), None),
         "modulo_numero": actual["numero"] if actual else None,

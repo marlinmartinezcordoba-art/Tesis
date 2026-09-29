@@ -1,8 +1,9 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Posibles duplicados · Vocabularios · RICORA{% endblock %}
 {% block estilos_extra %}
-  .grupo { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: .9rem; }
-  .grupo h3 { font-size: .95rem; margin: 0 0 .5rem; }
+  .lista-pares { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: .9rem; }
+  .lista-pares h3 { font-size: .95rem; margin: .9rem 0 .4rem; }
+  .lista-pares h3:first-child { margin-top: 0; }
   .par { display: flex; gap: .6rem; align-items: center; font-size: .86rem; padding: .35rem 0; border-bottom: 1px solid #f0efe9; flex-wrap: wrap; }
   .par:last-child { border-bottom: none; }
   .par .sim { font-size: .72rem; color: #8a6100; background: #fff2df; border-radius: 10px; padding: 1px 7px; }
@@ -15,16 +16,16 @@
   solo sugiere: abra la entrada que debe sobrevivir y use «Fusionar en esta» para unirlas.</p>
 </hgroup>
 {% if not grupos %}<p class="sin-datos">No se detectan entradas parecidas en el vocabulario.</p>{% endif %}
-{% for g in grupos %}
-<div class="grupo">
-  <h3>{{ g.nombre_verbose|capfirst }}</h3>
-  {% for a, b in g.pares %}
+{% if pagina.object_list %}
+<div class="lista-pares">
+  {% for f in pagina.object_list %}{% ifchanged f.clase %}<h3>{{ f.clase|capfirst }}</h3>{% endifchanged %}
   <div class="par">
-    <a href="{% url 'vocabulario_ficha' g.slug a.pk %}">{{ a.nombre }}</a> ≈
-    <a href="{% url 'vocabulario_ficha' g.slug b.pk %}">{{ b.nombre }}</a>
+    <a href="{% url 'vocabulario_ficha' f.slug f.a.pk %}">{{ f.a.nombre }}</a> ≈
+    <a href="{% url 'vocabulario_ficha' f.slug f.b.pk %}">{{ f.b.nombre }}</a>
     <span class="sim">¿es lo mismo escrito distinto?</span>
   </div>
   {% endfor %}
 </div>
-{% endfor %}
+{% include "ric/_paginacion.html" %}
+{% endif %}
 {% endblock %}
