@@ -42,6 +42,28 @@ services:
       timeout: 3s
       retries: 10
 
+  # IA local: modelo de lenguaje en el propio servidor (respaldo del motor
+  # de análisis cuando la IA en la nube no responde). Descarga el modelo la
+  # primera vez; libera la memoria tras 10 minutos sin uso. Sin puertos
+  # publicados: solo lo ven web y worker por la red interna.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        ollama pull "$${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}" || echo "No se pudo descargar el modelo; se reintenta al reiniciar."
+        wait
+    environment:
+      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: "10m"
+    volumes:
+      - ollama_data:/root/.ollama
+
   web:
     build: .
     restart: unless-stopped
@@ -51,6 +73,10 @@ services:
       DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       REDIS_URL: redis://redis:6379/0
+      OLLAMA_URL: http://ollama:11434
+      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
+      # 2 procesos web: deja memoria para el OCR y la IA local en 2 GB de RAM
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
     ports:
       - "${MAZUCA_PUERTO:-8080}:8000"
     volumes:
@@ -72,6 +98,8 @@ services:
     environment:
       DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
       REDIS_URL: redis://redis:6379/0
+      OLLAMA_URL: http://ollama:11434
+      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
     volumes:
       - media:/app/media
     depends_on:
@@ -83,6 +111,7 @@ services:
         condition: service_started
 
 volumes:
+  ollama_data:
   db_data:
   media:
   redis_data:

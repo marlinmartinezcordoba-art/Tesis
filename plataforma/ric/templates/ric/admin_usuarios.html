@@ -136,7 +136,7 @@
       <tbody>
         {% for p in proveedores %}
         <tr>
-          <td><strong>{{ p.get_proveedor_display }}</strong>{% if p.activo %} <span class="activo-tag">activo · fuente del motor</span>{% endif %}<br><small>{{ p.modelo|default:"modelo por defecto" }}</small></td>
+          <td><strong>{{ p.get_proveedor_display }}</strong>{% if p.activo %} <span class="activo-tag">activo · fuente del motor</span>{% endif %}{% if p.es_respaldo %} <span class="activo-tag" style="background:#eaf1fb;color:#1f3a5f">respaldo automático</span>{% endif %}<br><small>{{ p.modelo|default:"modelo por defecto" }}</small></td>
           <td><code style="font-size:.74rem">{{ p.clave_enmascarada }}</code></td>
           <td><span class="estado-con"><i class="punto {% if p.prueba_exitosa %}ok{% elif p.prueba_exitosa is False %}fallo{% endif %}"></i>
             {% if p.prueba_exitosa is None %}sin probar{% elif p.prueba_exitosa %}correcta{% else %}falló{% endif %}</span>
@@ -149,6 +149,11 @@
             {% else %}
             <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<button type="submit" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Guardar y activar</button></form>
             {% endif %}
+            {% if not p.activo %}{% if p.es_respaldo %}
+            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="quitar_respaldo"><button type="submit" class="secondary">Quitar como respaldo</button></form>
+            {% else %}
+            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="respaldo"><button type="submit" class="secondary" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Usar como respaldo</button></form>
+            {% endif %}{% endif %}
             <form method="post" action="{% url 'admin_proveedor_eliminar' p.pk %}" onsubmit="return confirm('¿Eliminar este proveedor?');">{% csrf_token %}<button type="submit" class="secondary">Eliminar</button></form>
           </td>
         </tr>

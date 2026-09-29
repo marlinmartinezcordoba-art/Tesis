@@ -288,9 +288,27 @@ def instanciar(config):
 
         cliente = anthropic.Anthropic(api_key=config.clave_api) if config.clave_api else None
         return ProveedorClaude(cliente=cliente, modelo=modelo)
+    if config.proveedor == ProveedorIAConfig.Proveedor.OLLAMA:
+        from .proveedor_ollama import ProveedorOllama
+
+        return ProveedorOllama(modelo=modelo)
     from .proveedor_local import ProveedorLocal
 
     return ProveedorLocal()
+
+
+def proveedor_respaldo(excepto=None):
+    """El proveedor marcado como respaldo (M11), distinto del principal, o
+    None. Se usa solo cuando el principal falla."""
+    from .models import ProveedorIAConfig
+
+    config = ProveedorIAConfig.objects.filter(es_respaldo=True).exclude(activo=True).first()
+    if config is None:
+        return None
+    respaldo = instanciar(config)
+    if excepto is not None and respaldo.nombre == excepto.nombre and respaldo.version == excepto.version:
+        return None
+    return respaldo
 
 
 def proveedor_activo():
@@ -344,6 +362,13 @@ def probar_conexion(config):
             except anthropic.APIStatusError as e:
                 return False, f"Claude respondió con un error ({e.status_code})."
             return True, f"Conexión correcta con Claude · modelo {proveedor.modelo}."
+        if config.proveedor == ProveedorIAConfig.Proveedor.OLLAMA:
+            disponibles = proveedor.modelos_disponibles()
+            if not any(m == proveedor.modelo or m.split(":")[0] == proveedor.modelo for m in disponibles):
+                return False, (f"Ollama responde, pero el modelo «{proveedor.modelo}» todavía no está descargado"
+                               f"{' (hay: ' + ', '.join(disponibles) + ')' if disponibles else ''}. "
+                               "La primera descarga tarda unos minutos después del despliegue.")
+            return True, f"Conexión correcta con la IA local (Ollama) · modelo {proveedor.modelo}."
         from .proveedor_local import _cargar_modelo
 
         nlp = _cargar_modelo()

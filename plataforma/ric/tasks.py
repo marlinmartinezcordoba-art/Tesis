@@ -65,7 +65,10 @@ def mensaje_motor(analisis):
         return "Listo, pero no hay un proveedor de IA activo (Administración → Proveedores de IA)."
     if analisis.get("error"):
         return f"El motor de análisis no respondió — {analisis['error']}"
-    return f"Enviado al motor de análisis: {analisis.get('propuestas', 0)} propuesta(s) de entidades."
+    texto = f"Enviado al motor de análisis: {analisis.get('propuestas', 0)} propuesta(s) de entidades."
+    if analisis.get("aviso_respaldo"):
+        texto += f" {analisis['aviso_respaldo']}"
+    return texto
 
 
 def _fallo(inst_id, usuario, mensaje, detalle):

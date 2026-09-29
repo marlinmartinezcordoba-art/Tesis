@@ -165,6 +165,7 @@ def analisis(request, pk):
     return render(request, "ric/analisis.html", {
         **_contexto_documento(record, 3),
         "instanciacion": instanciacion,
+        "analizando": bool(instanciacion and instanciacion.estado_proceso in ("en_cola", "procesando")),
         "texto_html": _texto_resaltado(texto, fichas),
         "grupos": grupos,
         "pendientes_total": sum(len(g["fichas"]) for g in grupos),
@@ -196,13 +197,34 @@ def _informar_analisis(request, record, resultado):
         if resultado.get("rechazadas_por_reglas"):
             aviso = f" ({resultado['rechazadas_por_reglas']} descartada(s) por el motor de reglas RiC-CM, quedan en el historial)"
         messages.success(request, f"{resultado['propuestas']} propuesta(s) nueva(s) de entidades para «{record}»{aviso}.")
+    if resultado.get("aviso_respaldo"):
+        messages.warning(request, resultado["aviso_respaldo"])
 
 
 @roles.requiere_rol(roles.ARCHIVISTA)
 @require_POST
 def analisis_generar(request, pk):
+    """El análisis corre en la cola (M2): con la IA local puede tardar minutos
+    y la persona no debe quedarse esperando con la página congelada."""
+    from . import cola
+
     record = get_object_or_404(Record, pk=pk)
-    _informar_analisis(request, record, enviar_al_motor(record, request.user))
+    instanciacion = flujo.instanciacion_principal(record)
+    if instanciacion is None:
+        _informar_analisis(request, record, enviar_al_motor(record, request.user))
+        return redirect("analisis", pk=pk)
+    try:
+        enviado = cola.encolar(instanciacion, request.user, tarea=cola.ANALIZAR)
+    except cola.ColaNoDisponible:
+        messages.error(request, "La cola de procesamiento no está disponible en este momento. Intente de nuevo en unos minutos.")
+        return redirect("analisis", pk=pk)
+    instanciacion.refresh_from_db()
+    if not enviado:
+        messages.info(request, "Este documento ya se está analizando; la página se actualiza sola al terminar.")
+    elif instanciacion.estado_proceso in cola.ACTIVOS:
+        messages.info(request, "El motor de análisis está trabajando en segundo plano; la página se actualiza sola al terminar.")
+    else:
+        _informar_analisis(request, record, (instanciacion.resultado_proceso or {}).get("analisis") or {"propuestas": 0})
     return redirect("analisis", pk=pk)
 
 

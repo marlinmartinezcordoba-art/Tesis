@@ -28,6 +28,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opciones):
         self._superusuario()
         self._gemini()
+        self._ollama()
 
     def _superusuario(self):
         usuario = os.environ.get("RICORA_ADMIN_USER", "").strip()
@@ -62,3 +63,24 @@ class Command(BaseCommand):
         config.activo = exitosa
         config.save()
         self.stdout.write(f"Gemini ({modelo}): {mensaje} {'→ activado como fuente del motor.' if exitosa else '→ NO activado.'}")
+
+    def _ollama(self):
+        """IA local: si el servidor tiene Ollama (OLLAMA_URL), queda registrada
+        como respaldo automático del motor — y como fuente, si no hay otra —
+        salvo que alguien ya haya elegido otro respaldo desde Administración."""
+        if not settings.OLLAMA_URL:
+            self.stdout.write("Ollama: sin OLLAMA_URL en el entorno; no se toca.")
+            return
+        config = ProveedorIAConfig.objects.filter(proveedor=ProveedorIAConfig.Proveedor.OLLAMA).first()
+        if config is None:
+            config = ProveedorIAConfig.objects.create(
+                proveedor=ProveedorIAConfig.Proveedor.OLLAMA, modelo=settings.RICORA_MODELO_OLLAMA,
+                es_respaldo=not ProveedorIAConfig.objects.filter(es_respaldo=True).exists(),
+            )
+            self.stdout.write(f"Ollama ({config.modelo}): registrado{' como respaldo automático' if config.es_respaldo else ''}.")
+        exitosa, mensaje = proveedores.probar_conexion(config)
+        config.prueba_exitosa = exitosa
+        config.mensaje_prueba = mensaje
+        config.ultima_prueba = timezone.now()
+        config.save()
+        self.stdout.write(f"Ollama ({config.modelo}): {mensaje}")

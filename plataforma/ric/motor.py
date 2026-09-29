@@ -12,12 +12,29 @@ def enviar_al_motor(record, usuario, proveedor=None):
     {"propuestas": n, "rechazadas_por_reglas": n} si se analizó,
     {"sin_proveedor": True} si no hay proveedor de IA activo (M11), o
     {"error": mensaje} si el servicio falló."""
+    elegido = proveedor is not None
     proveedor = proveedor or proveedores.proveedor_activo()
     if proveedor is None:
-        return {"propuestas": 0, "sin_proveedor": True}
+        proveedor = proveedores.proveedor_respaldo()
+        if proveedor is None:
+            return {"propuestas": 0, "sin_proveedor": True}
+    aviso = ""
     try:
         creadas = proveedores.generar_propuestas(record, proveedor)
     except proveedores.ErrorProveedorIA as e:
-        return {"propuestas": 0, "error": str(e)}
+        # Si el principal falla (saturado, sin conexión, límite de uso) y hay
+        # un respaldo configurado (p. ej. la IA local), se usa ese — y se dice.
+        respaldo = None if elegido else proveedores.proveedor_respaldo(excepto=proveedor)
+        if respaldo is None:
+            return {"propuestas": 0, "error": str(e)}
+        aviso = f"{proveedor.nombre} no respondió ({e}); se usó el respaldo {respaldo.nombre} {respaldo.version}."
+        proveedor = respaldo
+        try:
+            creadas = proveedores.generar_propuestas(record, proveedor)
+        except proveedores.ErrorProveedorIA as e2:
+            return {"propuestas": 0, "error": f"{aviso.split(';')[0]}; el respaldo tampoco: {e2}"}
     rechazadas = sum(1 for p in creadas if p.estado == p.Estado.RECHAZADA)
-    return {"propuestas": len(creadas) - rechazadas, "rechazadas_por_reglas": rechazadas, "proveedor": proveedor.nombre}
+    resultado = {"propuestas": len(creadas) - rechazadas, "rechazadas_por_reglas": rechazadas, "proveedor": proveedor.nombre}
+    if aviso:
+        resultado["aviso_respaldo"] = aviso
+    return resultado

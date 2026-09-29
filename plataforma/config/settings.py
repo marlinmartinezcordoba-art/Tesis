@@ -215,6 +215,11 @@ RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "200"))
 # bloques. Solo el cuerpo que NO es archivo tiene el límite de memoria.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 
+# IA local con Ollama (servicio "ollama" de docker-compose). Vacío = no hay
+# IA local en este servidor. El modelo por defecto cabe en 2 GB de RAM.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "")
+RICORA_MODELO_OLLAMA = os.environ.get("RICORA_MODELO_OLLAMA", "qwen2.5:1.5b")
+
 # M2: cola de preprocesamiento (OCR, idioma, calidad, motor) en segundo
 # plano con Celery y Redis — la persona no espera con la página abierta y
 # un archivo de 300 páginas no bloquea el servidor web. Sin REDIS_URL

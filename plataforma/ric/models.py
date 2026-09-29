@@ -1271,11 +1271,16 @@ class ProveedorIAConfig(BorradoLogico):
         GEMINI = "gemini", "Gemini (Google, en la nube)"
         CLAUDE = "claude", "Claude (Anthropic, en la nube)"
         LOCAL = "local-spacy", "IA local (spaCy, sin salir del servidor)"
+        OLLAMA = "ollama", "IA local con Ollama (modelo de lenguaje en el propio servidor)"
 
     proveedor = models.CharField(max_length=20, choices=Proveedor.choices)
     modelo = models.CharField(max_length=100, blank=True, help_text="Vacío = el modelo por defecto del proveedor.")
     clave_api = models.CharField(max_length=500, blank=True, help_text="Vacío = usar la variable de entorno del servidor.")
     activo = models.BooleanField(default=False)
+    es_respaldo = models.BooleanField(
+        default=False,
+        help_text="Si el proveedor principal falla (saturado, sin conexión, límite de uso), el motor usa este automáticamente.",
+    )
     ultima_prueba = models.DateTimeField(null=True, blank=True)
     prueba_exitosa = models.BooleanField(null=True, blank=True)
     mensaje_prueba = models.TextField(blank=True)

@@ -114,6 +114,7 @@ def admin_usuarios(request):
             ProveedorIAConfig.Proveedor.GEMINI: settings.MAZUCA_MODELO_IA_GEMINI,
             ProveedorIAConfig.Proveedor.CLAUDE: settings.MAZUCA_MODELO_IA,
             ProveedorIAConfig.Proveedor.LOCAL: "es_core_news_md",
+            ProveedorIAConfig.Proveedor.OLLAMA: settings.RICORA_MODELO_OLLAMA,
         },
     })
 
@@ -203,6 +204,19 @@ def admin_proveedor_probar(request, pk):
 @require_POST
 def admin_proveedor_activar(request, pk):
     config = get_object_or_404(ProveedorIAConfig, pk=pk)
+    if request.POST.get("accion") in ("respaldo", "quitar_respaldo"):
+        # Respaldo automático: si el principal falla, el motor usa este.
+        poner = request.POST["accion"] == "respaldo"
+        if poner and not config.prueba_exitosa:
+            messages.error(request, "Pruebe la conexión con éxito antes de usar este proveedor como respaldo.")
+            return _volver("proveedores")
+        if poner:
+            ProveedorIAConfig.objects.exclude(pk=pk).update(es_respaldo=False)
+        config.es_respaldo = poner
+        config.actualizado_por = request.user
+        config.save()
+        messages.success(request, f"{config} {'queda como respaldo automático del motor de análisis' if poner else 'ya no es respaldo'}.")
+        return _volver("proveedores")
     if request.POST.get("accion") == "desactivar":
         config.activo = False
         config.save(update_fields=["activo"])

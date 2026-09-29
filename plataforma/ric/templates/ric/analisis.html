@@ -69,6 +69,7 @@
   .estado-p.rechazada { background: #eceae4; color: #52606d; }
   .siguiente { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
   .siguiente a[role=button], .siguiente button { width: auto; margin: 0; }
+  .analizando { background: #eaf1fb; border: 1px solid #cddcf0; color: #1f3a5f; border-radius: 10px; padding: .6rem 1rem; margin-bottom: .8rem; font-size: .88rem; }
   .rechazo-banner { background: #fde8e8; border: 1px solid #f1b7b0; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
   .rechazo-banner form { margin: 0; } .rechazo-banner button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
   .forma-doc { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; font-size: .84rem; }
@@ -87,12 +88,18 @@
   {% if puede_decidir %}
   <form method="post" action="{% url 'analisis_generar' record.pk %}" style="margin:0">
     {% csrf_token %}
-    <button type="submit" style="width:auto; margin:0; padding:.45rem .9rem; font-size:.82rem;">
+    <button type="submit" style="width:auto; margin:0; padding:.45rem .9rem; font-size:.82rem;" {% if analizando %}disabled{% endif %}>
       {% if total_propuestas %}✦ Pedir nueva propuesta{% else %}✦ Generar propuesta de entidades{% endif %}
     </button>
   </form>
   {% endif %}
 </div>
+
+{% if analizando %}
+<div class="analizando" role="status">⏳ El motor de análisis está trabajando en este documento en segundo plano
+({{ instanciacion.etapa|default:"en cola" }}). Esta página se actualiza sola al terminar; puede seguir con otros documentos.</div>
+<script>setTimeout(function () { location.reload(); }, 6000);</script>
+{% endif %}
 
 {% if rechazada %}
 <div class="rechazo-banner">
