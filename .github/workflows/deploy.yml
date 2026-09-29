@@ -33,6 +33,7 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST
+          command_timeout: 25m
           script: |
             set -e
             cd /root/ricora
@@ -88,19 +89,31 @@ jobs:
               docker compose up --build -d
             fi
 
-            # Verificación: el despliegue solo es exitoso si la plataforma
-            # responde. Si no, muestra el estado y el registro de la web.
-            echo "Esperando a que RICORA responda..."
+            # Diagnóstico y verificación: primero el estado del servidor y el
+            # registro de la web; luego el despliegue solo es exitoso si
+            # RICORA responde.
+            echo "== Estado de los contenedores =="
+            docker compose ps
+            echo "== Memoria =="
+            free -m || true
+            docker stats --no-stream --format "{{.Name}}: CPU {{.CPUPerc}} · memoria {{.MemUsage}}" || true
+            echo "== Registro reciente de la web =="
+            docker compose logs --tail 80 web || true
+            echo "== Esperando a que RICORA responda =="
             ok=0
-            for i in $(seq 1 60); do
-              codigo=$(docker compose exec -T web python -c "import urllib.request as u
+            for i in $(seq 1 24); do
+              codigo=$(timeout 15 docker compose exec -T web python -c "import urllib.request as u, urllib.error as e
             r=u.Request('http://127.0.0.1:8000/ric/entrar/', headers={'Host': '$DROPLET_HOST'})
-            print(u.urlopen(r, timeout=10).status)" 2>/dev/null || true)
-              if [ "$codigo" = "200" ]; then ok=1; echo "  RICORA responde (intento $i)"; break; fi
+            try:
+                print(u.urlopen(r, timeout=10).status)
+            except e.HTTPError as x:
+                print(x.code)
+            except Exception as x:
+                print(type(x).__name__)" 2>&1 | tail -1 || true)
+              echo "  intento $i: $codigo"
+              if [ "$codigo" = "200" ] || [ "$codigo" = "302" ]; then ok=1; break; fi
               sleep 5
             done
-            docker compose ps
-            free -m || true
             if [ "$ok" != 1 ]; then
               echo "RICORA no responde. Registro de la web:"
               docker compose logs --tail 150 web
