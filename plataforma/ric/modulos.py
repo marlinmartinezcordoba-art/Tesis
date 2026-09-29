@@ -29,13 +29,8 @@ MODULOS = [
      "url": "admin_usuarios", "color": "#475569", "capa": "transversal", "prefijos": ("admin_",)},
 ]
 
-CAPAS = [
-    ("entrada", "Capa de entrada"),
-    ("procesamiento", "Procesamiento inteligente"),
-    ("validacion", "Validación humana"),
-    ("consulta", "Consulta y salida"),
-    ("transversal", "Capa transversal"),
-]
+# `capa` de cada módulo solo decide qué rol lo ve en el menú (ver _base.html);
+# el menú es una lista plana de los 11 módulos, sin encabezados por capa.
 
 
 def modulo_actual(url_name):
@@ -53,7 +48,6 @@ def contexto_modulos(request):
     actual = modulo_actual(resolver.url_name if resolver else None)
     return {
         "modulos": MODULOS,
-        "capas": CAPAS,
         "modulo_actual": actual,
         "modulo_numero": actual["numero"] if actual else None,
     }

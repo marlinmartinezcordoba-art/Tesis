@@ -62,7 +62,7 @@ class RolesTest(CasoModulos):
 
         resp = self._get(self.archivista, "panel")
         self.assertContains(resp, "Ingesta de documentos")
-        self.assertContains(resp, "Panel técnico")
+        self.assertNotContains(resp, "Panel técnico")  # el menú ya no enlaza al admin de Django
         self.assertNotContains(resp, "Administración y seguridad")
 
         resp = self._get(self.superusuario, "panel")
