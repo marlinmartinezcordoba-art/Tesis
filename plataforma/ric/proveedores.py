@@ -40,6 +40,27 @@ class PropuestaCandidata:
     datos_extra: dict = field(default_factory=dict)  # rol del agente, fecha normalizada, DANE...
 
 
+def mecanismo_del_motor(proveedor):
+    """RiC-E13 Mechanism (especificación v5): el motor de análisis, con su
+    proveedor y la versión exacta del modelo, como agente propio del grafo.
+    Uno por versión, así se puede trazar qué propuso cada una."""
+    from .models import Mechanism
+
+    identificador = f"motor:{proveedor.nombre}:{proveedor.version}"[:255]
+    mecanismo = Mechanism.objects.filter(identificador=identificador).first()
+    if mecanismo is None:
+        mecanismo = Mechanism.objects.create(
+            nombre=f"Motor de análisis RICORA · {proveedor.nombre} {proveedor.version}",
+            identificador=identificador,
+            caracteristicas_tecnicas=(
+                f"Proveedor de IA «{proveedor.nombre}», modelo «{proveedor.version}». Motor de análisis del "
+                "proceso de descripción: propone entidades y relaciones RiC-CM con evidencia textual; nunca "
+                "decide, toda propuesta pasa por revisión humana (RiC-A41 Technical Characteristics)."
+            ),
+        )
+    return mecanismo
+
+
 class ProveedorIA:
     nombre = "base"
     version = "0"
@@ -139,12 +160,15 @@ def generar_propuestas(record, proveedor):
 
     creadas = []
     candidatos = proveedor.proponer(record, texto, instanciacion=instanciacion)
+    # Después de proponer: el proveedor ya conoce la versión exacta del modelo que respondió.
+    mecanismo = mecanismo_del_motor(proveedor)
     advertencias = list(getattr(proveedor, "advertencias", None) or [])
     forma_documental = getattr(proveedor, "forma_documental", None)
     if advertencias or forma_documental:
         registrar_evento(
             instanciacion, EventoRiC.Tipo.PROPUESTA_IA, agente=f"{proveedor.nombre} {proveedor.version}",
-            detalle={"resumen_analisis": True, "advertencias": advertencias, "forma_documental": forma_documental},
+            detalle={"resumen_analisis": True, "advertencias": advertencias, "forma_documental": forma_documental,
+                     "mecanismo_id": mecanismo.pk},
         )
 
     for cand in candidatos:
@@ -219,6 +243,7 @@ def generar_propuestas(record, proveedor):
             entidad_nombre=cand.entidad_nombre,
             proveedor=proveedor.nombre,
             version_modelo=proveedor.version,
+            mecanismo=mecanismo,
             confianza=cand.confianza,
             justificacion=justificacion,
             evidencia=evidencia,
@@ -230,7 +255,7 @@ def generar_propuestas(record, proveedor):
             instanciacion, EventoRiC.Tipo.PROPUESTA_IA,
             agente=f"{proveedor.nombre} {proveedor.version}",
             detalle={
-                "propuesta": propuesta.pk, "relacion_id": cand.relacion_id,
+                "propuesta": propuesta.pk, "relacion_id": cand.relacion_id, "mecanismo_id": mecanismo.pk,
                 "confianza": cand.confianza, "evidencia_verificada": evidencia.verificada,
                 "rechazada_automaticamente": bool(motivo_rechazo),
             },

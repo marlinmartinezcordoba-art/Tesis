@@ -443,6 +443,11 @@ class Agent(Thing):
     historia = models.TextField(blank=True, help_text="RiC-A21 History.")
     idioma = models.CharField(max_length=255, blank=True, help_text="RiC-A25 Language.")
     estatus_legal = models.CharField(max_length=255, blank=True, help_text="RiC-A26 Legal Status.")
+    nombres_alternativos = models.TextField(
+        blank=True,
+        help_text="Variantes con las que el agente aparece en distintos documentos, una por línea "
+                  "(especificación v5; en RiC-O serían otros rico:Name del mismo agente).",
+    )
 
     class Meta:
         verbose_name = "agente"
@@ -490,7 +495,11 @@ class CorporateBody(Group):
 
 
 class Position(Agent):
-    """RiC-E12 Position: el rol funcional de una Person dentro de un Group."""
+    """RiC-E12 Position: el rol funcional de una Person dentro de un Group
+    (un cargo: "Secretario General"), distinto de quien lo ocupe en cada
+    momento. Persona → R054 "occupies or occupied" → cargo; cargo → R056
+    "exists or existed in" → oficina. No agrega atributos propios sobre
+    Agent en RiC-CM 1.0 (verificado)."""
 
     class Meta:
         verbose_name = "posición (cargo)"
@@ -551,6 +560,8 @@ class Rule(Thing):
 
     tipo_regla = models.CharField(max_length=255, blank=True, help_text="RiC-A45 Rule Type.")
     historia = models.TextField(blank=True, help_text="RiC-A21 History.")
+    fecha_expedicion = models.DateField(null=True, blank=True, help_text="Fecha de expedición de la norma (especificación v5).")
+    enlace_texto_completo = models.URLField(max_length=500, blank=True, help_text="Referencia o enlace al texto normativo completo.")
 
     class Meta:
         verbose_name = "regla"
@@ -838,6 +849,11 @@ class PropuestaRiC(models.Model):
 
     proveedor = models.CharField(max_length=50, help_text="Nombre del ProveedorIA que la generó.")
     version_modelo = models.CharField(max_length=100, blank=True)
+    mecanismo = models.ForeignKey(
+        "Mechanism", null=True, blank=True, on_delete=models.SET_NULL, related_name="propuestas",
+        help_text="RiC-E13: el motor de análisis (proveedor y versión del modelo) como agente propio del "
+                  "grafo, para trazar qué propuso cada versión (especificación v5).",
+    )
     confianza = models.FloatField(help_text="Entre 0 y 1.")
     justificacion = models.TextField(blank=True)
     evidencia = models.ForeignKey(Evidencia, null=True, blank=True, on_delete=models.SET_NULL, related_name="propuestas")
@@ -889,6 +905,19 @@ class PropuestaRiC(models.Model):
             entidad.tipo_regla = extra["tipo_norma"]
         if "tipo_actividad" in nombres and extra.get("tipo_funcion"):  # Activity (E15)
             entidad.tipo_actividad = extra["tipo_funcion"].replace("_", " ")
+        if "nombres_alternativos" in nombres and extra.get("nombres_alternativos"):  # Agent (E07)
+            previos = [n for n in entidad.nombres_alternativos.splitlines() if n.strip()]
+            for variante in extra["nombres_alternativos"]:
+                if variante and variante != entidad.nombre and variante not in previos:
+                    previos.append(variante)
+            entidad.nombres_alternativos = "\n".join(previos)
+        if "fecha_expedicion" in nombres and extra.get("fecha_expedicion"):  # Rule / Mandate
+            import datetime as _dt
+
+            try:
+                entidad.fecha_expedicion = _dt.date.fromisoformat(extra["fecha_expedicion"][:10])
+            except ValueError:
+                pass
 
     def validar(self, usuario, aceptar, entidad_nombre_final=None, entidad_existente=None, motivo=""):
         """`entidad_existente`: una instancia ya guardada del modelo que

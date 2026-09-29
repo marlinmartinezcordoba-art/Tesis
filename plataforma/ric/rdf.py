@@ -98,6 +98,15 @@ def _emitir_entidad(g, entidad, base):
     # M5: la forma documental controlada se emite como individuo de
     # rico:DocumentaryFormType (clase verificada en RiC-O_1-1.rdf, subclase
     # de rico:Type) enlazado con rico:hasDocumentaryFormType (RiC-A17).
+    # Especificación v5: los nombres alternativos de un agente se emiten como
+    # individuos rico:Name (clase verificada en RiC-O_1-1.rdf) enlazados con
+    # rico:hasOrHadName y con su rico:textualValue, sin confundirlos con el
+    # nombre autorizado (rico:name, RiC-A28).
+    for i, variante in enumerate(l for l in (getattr(entidad, "nombres_alternativos", "") or "").splitlines() if l.strip()):
+        uri_nombre = URIRef(f"{sujeto}/nombre/{i + 1}")
+        g.add((uri_nombre, RDF.type, RICO.Name))
+        g.add((uri_nombre, RICO.textualValue, Literal(variante.strip())))
+        g.add((sujeto, RICO.hasOrHadName, uri_nombre))
     forma = getattr(entidad, "forma_documental", None)
     if forma is not None:
         uri_forma = URIRef(f"{base}formadocumental/{forma.pk}")

@@ -49,6 +49,8 @@ class RelacionPropuestaRiC(BaseModel):
     tipo_norma: Optional[Literal["externa", "interna"]] = Field(default=None, description="Solo para mandatos o reglas.")
     tipo_funcion: Optional[Literal["sustantiva", "de_apoyo"]] = Field(default=None, description="Solo para actividades.")
     tipo_lugar: Optional[Literal["pais", "departamento", "municipio", "direccion"]] = None
+    nombres_alternativos: Optional[list[str]] = Field(default=None, description="Solo para agentes: otras formas con las que aparece en el documento.")
+    fecha_expedicion: Optional[str] = Field(default=None, description="Solo para mandatos o reglas: fecha de expedición de la norma en ISO 8601, si el texto la da.")
     codigo_dane: Optional[str] = Field(default=None, description="Solo para lugares colombianos identificables; null si no está seguro.")
 
 
@@ -173,7 +175,11 @@ Indicaciones por clase
 - Agentes (E08 persona, E11 entidad corporativa, E10 familia, E09 grupo, E12 cargo): solo \
 quienes cumplen un papel real en la producción, el trámite o el destino del documento, no un \
 nombre mencionado de paso. Indica rol_en_el_documento: productor, firmante, destinatario o \
-mencionado. Solo un agente productor o firmante puede sustentar una relación de procedencia \
+mencionado. Usa E12 cargo solo cuando el documento se refiere a un rol funcional sin nombrar a \
+la persona que lo ejerce (un oficio firmado "El Secretario General" sin nombre legible); si el \
+documento sí nombra a la persona, el agente es E08 persona y el cargo va en nombres_alternativos \
+o en la justificación. Nunca propongas E13 mecanismo: eso lo registra el propio sistema. En \
+nombres_alternativos pon las otras formas con las que el mismo agente aparece en el texto. Solo un agente productor o firmante puede sustentar una relación de procedencia \
 (por ejemplo R027 "has creator", R026 "has or had provenance"); quien es únicamente el tema o \
 asunto del documento nunca es productor — úsalo con R019 "has or had subject".
 - Actividad o función (E15): el trámite, proceso o función que dio origen al documento \
@@ -275,6 +281,8 @@ def candidatos_desde_respuesta(parsed):
                 "tipo_funcion": r.tipo_funcion,
                 "tipo_lugar": r.tipo_lugar,
                 "codigo_dane": r.codigo_dane,
+                "nombres_alternativos": [n for n in (r.nombres_alternativos or []) if n] or None,
+                "fecha_expedicion": r.fecha_expedicion,
             }.items() if v not in (None, "")
         }
         candidatos.append(PropuestaCandidata(

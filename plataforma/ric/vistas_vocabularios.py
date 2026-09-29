@@ -206,6 +206,15 @@ def _entero_o_none(valor):
         return None
 
 
+def _fecha_o_none(valor):
+    import datetime
+
+    try:
+        return datetime.date.fromisoformat((valor or "").strip()) if (valor or "").strip() else None
+    except ValueError:
+        return None
+
+
 def _guardar_mandato(mandato, post, usuario):
     """Los campos de la TRD que la especificación v3 pone sobre el Mandato."""
     mandato.codigo_serie = post.get("codigo_serie", "").strip()
@@ -260,6 +269,11 @@ def vocabulario_ficha(request, tipo, pk):
         entidad.identificador = request.POST.get("identificador", "").strip()
         entidad.descripcion_general = request.POST.get("descripcion_general", "").strip()
         entidad.serie_trd = request.POST.get("serie_trd", "").strip()
+        if hasattr(entidad, "nombres_alternativos"):  # Agent (especificación v5)
+            entidad.nombres_alternativos = "\n".join(l.strip() for l in request.POST.get("nombres_alternativos", "").splitlines() if l.strip())
+        if hasattr(entidad, "fecha_expedicion"):  # Rule / Mandate
+            entidad.fecha_expedicion = _fecha_o_none(request.POST.get("fecha_expedicion"))
+            entidad.enlace_texto_completo = request.POST.get("enlace_texto_completo", "").strip()
         if es_mandato:
             _guardar_mandato(entidad, request.POST, request.user)
         entidad.modificado_por = request.user
@@ -276,6 +290,7 @@ def vocabulario_ficha(request, tipo, pk):
         "duplicados": desambiguacion.candidatos_similares(type(entidad), entidad.nombre, excluir_pk=entidad.pk, identificador=entidad.identificador) if fusionable else [],
         "fusionable": fusionable,
         "es_mandato": es_mandato, "es_actividad": es_actividad,
+        "es_agente": hasattr(entidad, "nombres_alternativos"), "es_regla": hasattr(entidad, "fecha_expedicion"),
     }
     if es_mandato:
         contexto["disposiciones"] = [(codigo, nombre, getattr(entidad, campo)) for campo, codigo, nombre in Mandate.DISPOSICIONES]

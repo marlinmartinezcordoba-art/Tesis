@@ -80,7 +80,7 @@
   <ul style="font-size:.76rem; color:#6b7280; margin:.6rem 0 0;">
     {% for clave, columnas in columnas_instrumentos.items %}<li><code>{{ clave }}</code>: {{ columnas|join:", " }}</li>{% endfor %}
     <li>En la TRD, <code>tipos_documentales</code> se separan con <code>|</code> (o una fila por tipo con <code>forma_documental</code>); <code>disposicion_final</code> admite CT, E, MT, S combinados (ej. <code>CT, S</code>).</li>
-    <li>Relaciones que se crean (todas verificadas en RiC-CM 1.0): mandato de la serie → <code>R063 regulates or regulated</code> → actividad; actividad → <code>R060 is or was performed by</code> → oficina productora; dependencia superior → <code>R045 has or had subordinate</code> → dependencia; oficina → <code>R055 has or had member</code> → funcionario.</li>
+    <li>Relaciones que se crean (todas verificadas en RiC-CM 1.0): mandato de la serie → <code>R063 regulates or regulated</code> → actividad; actividad → <code>R060 is or was performed by</code> → oficina productora; dependencia superior → <code>R045 has or had subordinate</code> → dependencia; funcionario → <code>R054 occupies or occupied</code> → cargo (E12) → <code>R056 exists or existed in</code> → oficina.</li>
   </ul>
 </details>
 {% endif %}

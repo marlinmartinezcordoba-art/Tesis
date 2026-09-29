@@ -21,6 +21,13 @@ autenticidad, la integridad y la accesibilidad del patrimonio documental.
 - `asistencia`: sugerencias de IA con validación humana; dos proveedores intercambiables (nube con Claude, local sin conexión) para descripción asistida (ISAD(G), con relaciones tipadas RiC), clasificación asistida y valoración asistida (la plataforma nunca ofrece eliminar documentos). Incluye auditoría periódica por muestreo (`manage.py auditoria_muestra`) de la exactitud y el sesgo de las sugerencias de IA ya aceptadas.
 - Exportación de metadatos a **Dublin Core** y **PREMIS** desde la lista de documentos (`acervo/exportacion.py`).
 
+## Decisiones de arquitectura (especificación funcional v5)
+
+- **Grafo RiC sobre PostgreSQL relacional.** Las entidades RiC-CM son tablas con herencia multitabla y las relaciones (`RelacionRiC`) llevan el código oficial RiC-Rxxx verificado contra `ric/fixtures/ric_matrix.json`; el lienzo del módulo de relaciones y el RDF/JSON-LD se construyen desde ahí. La especificación recomienda Apache AGE (extensión de grafo sobre el mismo PostgreSQL) para consultas tipo Cypher cuando hagan falta: los recorridos actuales son de un salto y no lo necesitan todavía, así que AGE queda como ruta de crecimiento, no como dependencia.
+- **Búsqueda de texto completo nativa de PostgreSQL** (diccionario `spanish`, `pg_trgm` para similitud de nombres en la detección de duplicados), sin Elasticsearch ni Meilisearch: cero infraestructura nueva para el volumen esperado, con ruta de migración si crece.
+- **Instrumentos primero.** Organigrama (entidades corporativas con jerarquía R045, cargos como RiC-E12 con R054/R056), TRD (cada serie como Mandato con retención y disposición, Actividad y formas documentales) y cuadro de clasificación se cargan antes de encender el motor (criterio CC-05).
+- **El motor de análisis es un agente del grafo** (RiC-E13 Mechanism, con proveedor y versión del modelo): cada propuesta queda ligada al mecanismo que la generó.
+
 ## Cómo ejecutarla
 
 ### Opción A: con Docker (recomendada para probar como en producción)

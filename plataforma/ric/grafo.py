@@ -18,17 +18,25 @@ from .models import PropuestaRiC, RelacionRiC
 # propiedad de RiC-CM (que no clasifica así sus relaciones).
 CATEGORIAS = {
     "procedencia": ("Procedencia", "#c08a3e"),
+    "custodia": ("Gestión y custodia", "#8a6d3b"),
     "temporal": ("Temporal", "#7046d9"),
     "inclusion": ("Inclusión", "#1f6f8b"),
+    "espacial": ("Espacial", "#2f7a56"),
+    "identidad": ("Identidad", "#7a1f5f"),
     "asociacion": ("Asociación", "#6b8cae"),
 }
 # Procedencia = quién produjo, creó, acumuló o firmó el documento (CC-03).
 # "addressee" (destinatario) y "subject" son asociación: recibir o ser tema
 # de un documento no es producirlo.
+# Especificación v5: procedencia, gestión o custodia, temporal, inclusión,
+# espacial, identidad y, por descarte, asociación.
 _PALABRAS_CATEGORIA = (
     ("procedencia", ("provenance", "creator", "accumulat", "author", "sender", "collector", "publisher")),
+    ("custodia", ("authority over", "owner", "manager", "holder", "controller")),
     ("temporal", ("date", "precede", "follow", "existence", "beginning", "end")),
     ("inclusion", ("include", "constituent", "part", "member", "subdivision", "subordinate", "contain", "component")),
+    ("espacial", ("place", "location", "jurisdiction")),
+    ("identidad", ("equivalent",)),
 )
 
 

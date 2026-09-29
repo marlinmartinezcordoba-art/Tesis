@@ -146,7 +146,7 @@
         </header>
         <div class="relacion">
           {{ f.modelo_nombre|capfirst }} ({{ p.entidad_tipo }}) · relación <strong>{{ p.relacion_id }}{% if f.info_relacion %} {{ f.info_relacion.nombre }}{% endif %}</strong>
-          · {{ p.proveedor }} {{ p.version_modelo }}
+          · {% if p.mecanismo %}<a href="{% url 'vocabulario_ficha' 'mechanism' p.mecanismo.pk %}" title="Motor de análisis registrado como agente RiC-E13 (mecanismo)">{{ p.proveedor }} {{ p.version_modelo }}</a>{% else %}{{ p.proveedor }} {{ p.version_modelo }}{% endif %}
           {% if f.extra_legible %}<br>{{ f.extra_legible }}{% endif %}
         </div>
         {% if p.evidencia %}

@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.urls import reverse
 
 from ric import desambiguacion, fusion, instrumentos
-from ric.models import Activity, CorporateBody, EventoRiC, FormaDocumental, Instantiation, Mandate, Person, RelacionRiC, VersionRiC
+from ric.models import Activity, CorporateBody, EventoRiC, FormaDocumental, Instantiation, Mandate, Person, Position, RelacionRiC, VersionRiC
 
 from ._ayudas import CasoModulos
 
@@ -131,18 +131,26 @@ class ImportarCcdYOrganigramaTest(CasoModulos):
         self.assertEqual(rel.estado, RelacionRiC.Estado.ACEPTADA)
         self.assertEqual(rel.origen_decision, "correccion_manual")
 
-    def test_organigrama_crea_jerarquia_r045_y_funcionarios_r055(self):
+    def test_organigrama_crea_jerarquia_r045_y_cargos_e12_con_r054_y_r056(self):
         resultado = instrumentos.importar_organigrama(ORGANIGRAMA, self.archivista)
         self.assertEqual(resultado["creadas"], 3)
         self.assertEqual(resultado["funcionarios"], 1)
-        self.assertEqual(resultado["relaciones"], 3)
+        self.assertEqual(resultado["cargos"], 1)
+        self.assertEqual(resultado["relaciones"], 4)
         alcaldia = CorporateBody.objects.get(nombre="Alcaldía Mayor")
         self.assertEqual(alcaldia.identificador, "AM")
         secretaria = CorporateBody.objects.get(identificador="SG")
         self.assertTrue(RelacionRiC.objects.filter(relacion_id="R045", origen_object_id=alcaldia.pk, destino_object_id=secretaria.pk).exists())
         persona = Person.objects.get(nombre="Carla Mosquera")
         self.assertEqual(persona.tipo_ocupacion, "Secretaria General")
-        self.assertTrue(RelacionRiC.objects.filter(relacion_id="R055", origen_object_id=secretaria.pk, destino_object_id=persona.pk).exists())
+        # RiC-E12 Position: el cargo es una entidad propia; persona -> R054 -> cargo -> R056 -> oficina
+        cargo = Position.objects.get(nombre="Secretaria General")
+        self.assertTrue(RelacionRiC.objects.filter(relacion_id="R054", origen_object_id=persona.pk, destino_object_id=cargo.pk).exists())
+        self.assertTrue(RelacionRiC.objects.filter(relacion_id="R056", origen_object_id=cargo.pk, destino_object_id=secretaria.pk).exists())
+        # otra persona en el mismo cargo (organigrama histórico) reutiliza el cargo
+        instrumentos.importar_organigrama(ORGANIGRAMA.replace("Carla Mosquera", "Ana Ruiz"), self.archivista)
+        self.assertEqual(Position.objects.count(), 1)
+        self.assertEqual(RelacionRiC.objects.filter(relacion_id="R054", destino_object_id=cargo.pk).count(), 2)
 
     def test_importar_desde_la_pantalla_solo_archivista(self):
         self.client.force_login(self.consulta)
@@ -240,7 +248,9 @@ class SemillaMadsTest(CasoModulos):
         self.assertEqual(Activity.objects.filter(mandato__isnull=False).count(), 380)
         self.assertEqual(FormaDocumental.objects.count(), 1321)
         self.assertEqual(RelacionRiC.objects.filter(relacion_id="R045").count(), 61)
-        self.assertEqual(RelacionRiC.objects.filter(relacion_id="R055").count(), 49)
+        self.assertEqual(Position.objects.count(), 49)
+        self.assertEqual(RelacionRiC.objects.filter(relacion_id="R054").count(), 49)
+        self.assertEqual(RelacionRiC.objects.filter(relacion_id="R056").count(), 49)
         self.assertEqual(RelacionRiC.objects.filter(relacion_id="R063").count(), 380)
         self.assertEqual(RelacionRiC.objects.filter(relacion_id="R060").count(), 380)
 

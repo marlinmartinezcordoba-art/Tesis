@@ -35,13 +35,14 @@ from pathlib import Path
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Activity, CorporateBody, EventoRiC, FormaDocumental, Mandate, Person, RelacionRiC, registrar_evento
+from .models import Activity, CorporateBody, EventoRiC, FormaDocumental, Mandate, Person, Position, RelacionRiC, registrar_evento
 
 # Relaciones RiC-CM verificadas (ric_matrix.json) que materializan cada instrumento.
 R_ACTIVIDAD_EJECUTADA_POR = "R060"  # Activity -> Agent "is or was performed by"
 R_SUBORDINADO = "R045"  # Agent -> Agent "has or had subordinate"
 R_REGULA = "R063"  # Rule -> Thing "regulates or regulated" (Mandato de la serie -> Actividad)
-R_MIEMBRO = "R055"  # Group -> Person "has or had member" (oficina -> funcionario)
+R_OCUPA = "R054"  # Person -> Position "occupies or occupied" (funcionario -> cargo)
+R_EXISTE_EN = "R056"  # Position -> Group "exists or existed in" (cargo -> oficina)
 
 COLUMNAS = {
     "trd": {
@@ -199,6 +200,19 @@ def _relacion_manual(origen, destino, relacion_id, usuario):
         fuente_relacion="Instrumento archivístico precargado (M5)",
     ).save()
     return True
+
+
+def _clave_cargo(texto):
+    return _normalizar(texto).replace("_", " ")
+
+
+def _cargo(nombre, oficina, usuario):
+    """El cargo (RiC-E12 Position) de una oficina, único por (oficina, cargo)."""
+    identificador = f"CARGO {oficina.identificador or oficina.pk if oficina is not None else '-'}:{_clave_cargo(nombre)}"[:255]
+    cargo = Position.objects.filter(identificador=identificador).first()
+    if cargo is not None:
+        return cargo, False
+    return Position.objects.create(nombre=nombre, identificador=identificador, creado_por=usuario), True
 
 
 def _corporativa(nombre, usuario, codigo=""):
@@ -468,6 +482,7 @@ def importar_organigrama(contenido, usuario):
             superior, _ = _corporativa(e["superior"], usuario)
             por_clave[e["superior"]] = superior
         relaciones += _relacion_manual(superior, por_clave[e["codigo"] or e["nombre"]], R_SUBORDINADO, usuario)
+    cargos = 0
     for p in personas:
         if not p["nombre"]:
             continue
@@ -477,10 +492,18 @@ def importar_organigrama(contenido, usuario):
             persona.modificado_por = usuario
             persona.save()
         oficina = por_clave.get(p["codigo"])
+        if not p["cargo"]:
+            continue
+        # RiC-E12 Position: el cargo es una entidad propia, distinta de quien lo
+        # ocupe hoy; se deduplica por (oficina, cargo) para que un organigrama
+        # histórico con otra persona reutilice el mismo cargo.
+        cargo, creado = _cargo(p["cargo"], oficina, usuario)
+        cargos += creado
+        relaciones += _relacion_manual(persona, cargo, R_OCUPA, usuario)
         if oficina is not None:
-            relaciones += _relacion_manual(oficina, persona, R_MIEMBRO, usuario)
-    registrar_evento(None, EventoRiC.Tipo.INGESTA, agente=usuario, detalle={"instrumento": "organigrama", "creadas": creadas, "funcionarios": funcionarios, "relaciones": relaciones})
-    return {"creadas": creadas, "funcionarios": funcionarios, "relaciones": relaciones, "filas": filas}
+            relaciones += _relacion_manual(cargo, oficina, R_EXISTE_EN, usuario)
+    registrar_evento(None, EventoRiC.Tipo.INGESTA, agente=usuario, detalle={"instrumento": "organigrama", "creadas": creadas, "funcionarios": funcionarios, "cargos": cargos, "relaciones": relaciones})
+    return {"creadas": creadas, "funcionarios": funcionarios, "cargos": cargos, "relaciones": relaciones, "filas": filas}
 
 
 IMPORTADORES = {"trd": importar_trd, "ccd": importar_ccd, "organigrama": importar_organigrama}

@@ -48,6 +48,8 @@
         <label>Definición</label><textarea name="definicion" rows="2">{{ entidad.definicion }}</textarea>
         {% else %}
         <label>Identificador / código (RiC-A22)</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
+        {% if es_agente %}<label>Nombres alternativos (una variante por línea)</label><textarea name="nombres_alternativos" rows="2" placeholder="Formas con las que aparece en los documentos">{{ entidad.nombres_alternativos }}</textarea>{% endif %}
+        {% if es_regla %}<div class="trd"><div><label>Fecha de expedición</label><input type="date" name="fecha_expedicion" value="{{ entidad.fecha_expedicion|date:'Y-m-d' }}"></div><div><label>Enlace al texto completo</label><input type="url" name="enlace_texto_completo" value="{{ entidad.enlace_texto_completo }}" placeholder="https://"></div></div>{% endif %}
         <label>Descripción general (RiC-A43)</label><textarea name="descripcion_general" rows="2">{{ entidad.descripcion_general }}</textarea>
         {% endif %}
         {% if es_mandato %}
@@ -70,6 +72,8 @@
         <dt>Nombre</dt><dd>{{ entidad.nombre }}</dd>
         {% if es_forma %}<dt>Definición</dt><dd>{{ entidad.definicion|default:"—" }}</dd>
         {% else %}<dt>Identificador</dt><dd>{{ entidad.identificador|default:"—" }}</dd><dt>Descripción</dt><dd>{{ entidad.descripcion_general|default:"—" }}</dd>{% endif %}
+        {% if es_agente and entidad.nombres_alternativos %}<dt>Nombres alternativos</dt><dd>{{ entidad.nombres_alternativos|linebreaksbr }}</dd>{% endif %}
+        {% if es_regla %}{% if entidad.fecha_expedicion %}<dt>Expedición</dt><dd>{{ entidad.fecha_expedicion|date:"d/m/Y" }}</dd>{% endif %}{% if entidad.enlace_texto_completo %}<dt>Texto completo</dt><dd><a href="{{ entidad.enlace_texto_completo }}" rel="noopener" target="_blank">{{ entidad.enlace_texto_completo }}</a></dd>{% endif %}{% endif %}
         {% if es_mandato %}<dt>Retención</dt><dd>{{ entidad.retencion_texto|default:"—" }}</dd>{% if entidad.procedimiento %}<dt>Procedimiento</dt><dd>{{ entidad.procedimiento }}</dd>{% endif %}{% endif %}
         <dt>Serie TRD</dt><dd>{{ entidad.serie_trd|default:"—" }}</dd>
       </dl>
