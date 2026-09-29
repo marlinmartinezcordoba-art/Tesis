@@ -1,15 +1,25 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Panel de indicadores · RICORA{% endblock %}
 {% block estilos_extra %}
-  .ricora-saludo { margin-bottom: 1.25rem; }
+  .ricora-saludo { margin-bottom: 1.1rem; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+  .periodos { display: flex; gap: .25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .2rem; flex-wrap: wrap; }
+  .periodos a { text-decoration: none; font-size: .8rem; padding: .35rem .75rem; border-radius: 8px; color: var(--ink-suave); }
+  .periodos a.activo { background: var(--ricora-dark); color: #fff; }
+  .alerta-atraso { display: flex; flex-direction: column; gap: .15rem; text-decoration: none; background: #fdf0ee; border: 1px solid #efc2ba; border-left: 5px solid var(--ricora-critical); color: #7a1f1f; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; }
+  .alerta-atraso span { font-size: .82rem; }
+  .nota-limite { font-size: .76rem; margin: -.6rem 0 1rem; text-align: right; }
+  .ricora-barras .barra b { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font-size: .6rem; color: var(--ink-suave); font-weight: 600; }
   .ricora-saludo h1 { margin: 0 0 .2rem; font-size: 1.6rem; }
   .ricora-saludo p { margin: 0; color: #6b7280; }
 
-  .ricora-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-bottom: 1.25rem; }
-  @media (max-width: 900px) { .ricora-cards { grid-template-columns: repeat(2, 1fr); } }
+  .ricora-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .8rem; margin-bottom: 1.25rem; }
+  a.ricora-card { text-decoration: none; color: inherit; transition: transform .12s, box-shadow .12s; }
+  a.ricora-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(21,48,75,.1); }
+  a.ricora-card:focus-visible { outline: 2px solid var(--ricora-accent); outline-offset: 2px; }
+  .ricora-card .ver { display: block; font-size: .72rem; color: var(--ricora-accent); margin-top: .35rem; }
   .ricora-card { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; box-shadow: 0 3px 10px rgba(21,48,75,.05); border-top: 3px solid var(--ricora-accent); }
-  .ricora-card:nth-child(1) { border-top-color: #d97706; } .ricora-card:nth-child(2) { border-top-color: #2f7a56; }
-  .ricora-card:nth-child(3) { border-top-color: #2563eb; } .ricora-card:nth-child(4) { border-top-color: #dc2626; }
+  .ricora-card.c1 { border-top-color: #d97706; } .ricora-card.c2 { border-top-color: #2f7a56; }
+  .ricora-card.c3 { border-top-color: #2563eb; } .ricora-card.c4 { border-top-color: #dc2626; } .ricora-card.c5 { border-top-color: #7c3aed; }
   .ricora-card .numero { font-size: 1.6rem; font-weight: 700; color: var(--ricora-dark); }
   .ricora-card .numero small { font-size: .8rem; color: #8a94a3; font-weight: 400; }
   .ricora-card .etiqueta { font-size: .74rem; color: #6b7280; margin-top: .15rem; }
@@ -44,7 +54,7 @@
   .ricora-leyenda div { display: flex; justify-content: space-between; margin: .4rem 0; }
   .ricora-punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 
-  .ricora-barras { display: flex; align-items: flex-end; gap: 6px; height: 90px; margin-top: .5rem; }
+  .ricora-barras { display: flex; align-items: flex-end; gap: 4px; height: 120px; margin-top: 1rem; }
   .ricora-barras .barra { flex: 1; background: #f0efe9; border-radius: 3px 3px 0 0; position: relative; min-height: 2px; }
   .ricora-barras .barra i { display: block; width: 100%; background: var(--ricora-accent); border-radius: 3px 3px 0 0; position: absolute; bottom: 0; }
   .ricora-barras-etiquetas { display: flex; justify-content: space-between; font-size: .62rem; color: #8a94a3; margin-top: .3rem; }
@@ -58,45 +68,59 @@
 {% endblock %}
 {% block contenido %}
 <div class="ricora-saludo">
-  <h1>Panel de indicadores</h1>
-  <p>Cifras reales del sistema, para quien dirige el proceso sin revisar documento por documento.</p>
+  <div>
+    <h1>Panel de indicadores</h1>
+    <p>Cifras vigentes del sistema · <strong>{{ periodo_nombre|lower }}</strong>{% if puede_revisar %} · haga clic en una cifra para ver los documentos que la componen{% endif %}.</p>
+  </div>
+  <nav class="periodos" aria-label="Periodo del panel">
+    {% for valor, nombre in periodos %}<a href="?periodo={{ valor }}" class="{% if valor == periodo %}activo{% endif %}"{% if valor == periodo %} aria-current="true"{% endif %}>{{ nombre }}</a>{% endfor %}
+  </nav>
 </div>
+
+{% if alertas %}
+<a class="alerta-atraso" href="{% if puede_revisar %}{% url 'revision_lista' %}?filtro=atrasados{% else %}#{% endif %}">
+  <strong>⚠ {{ alertas|length }} documento(s) llevan más de {{ limite_dias }} días esperando revisión.</strong>
+  <span>El más antiguo: «{{ alertas.0.record }}», desde hace {{ alertas.0.dias }} día{{ alertas.0.dias|pluralize }}.{% if puede_revisar %} Ver la lista →{% endif %}</span>
+</a>
+{% endif %}
 
 <div class="ricora-cards">
-  <div class="ricora-card">
-    <div class="numero">{{ total_instanciaciones }}</div>
-    <div class="etiqueta">archivos ingestados en total</div>
-    {% if puede_ingestar %}<a href="{% url 'preproceso' %}">Ver cola de procesamiento →</a>{% endif %}
-  </div>
-  <div class="ricora-card">
-    <div class="numero">{% if validado.porcentaje is not None %}{{ validado.porcentaje }}%{% else %}—{% endif %} <small>{{ validado.publicados }}/{{ validado.total }}</small></div>
-    <div class="etiqueta">documentos con descripción validada y publicada</div>
-    <a href="{% url 'catalogo' %}">Ver catálogo →</a>
-  </div>
-  <div class="ricora-card">
-    <div class="numero">{% if tiempo_revision %}{{ tiempo_revision.dias }} <small>días ({{ tiempo_revision.horas }} h)</small>{% else %}— <small>sin datos aún</small>{% endif %}</div>
-    <div class="etiqueta">tiempo promedio de revisión por documento (carga → publicación)</div>
-  </div>
-  <div class="ricora-card {% if alertas %}alerta{% endif %}">
-    <div class="numero">{% if alertas is not None %}{{ alertas|length }}{% else %}—{% endif %}</div>
-    <div class="etiqueta">documentos pendientes de revisión por más de {{ limite_dias }} días</div>
-    {% if puede_administrar %}<a href="{% url 'admin_usuarios' %}?pestana=parametros">Cambiar el límite →</a>{% endif %}
-  </div>
+  <{% if puede_revisar %}a href="{% url 'revision_lista' %}?filtro=ingestados&periodo={{ periodo }}"{% else %}div{% endif %} class="ricora-card c1">
+    <div class="numero">{{ ingestados }} <small>{{ archivos_periodo }} archivo(s)</small></div>
+    <div class="etiqueta">documentos ingestados · {{ periodo_nombre|lower }}</div>
+    {% if puede_revisar %}<span class="ver">Ver documentos →</span>{% endif %}
+  </{% if puede_revisar %}a{% else %}div{% endif %}>
+  <{% if puede_revisar %}a href="{% url 'revision_lista' %}?filtro=validados&periodo={{ periodo }}"{% else %}div{% endif %} class="ricora-card c2">
+    <div class="numero">{% if validado.porcentaje is not None %}{{ validado.porcentaje }}%{% else %}—{% endif %} <small>{{ validado.publicados }} de {{ validado.total }}</small></div>
+    <div class="etiqueta">con descripción validada y publicada (de los ingestados en el periodo)</div>
+    {% if puede_revisar %}<span class="ver">Ver documentos →</span>{% endif %}
+  </{% if puede_revisar %}a{% else %}div{% endif %}>
+  <{% if puede_revisar %}a href="{% url 'revision_lista' %}?filtro=publicados&periodo={{ periodo }}"{% else %}div{% endif %} class="ricora-card c3">
+    <div class="numero">{% if tiempos.revision %}{{ tiempos.revision.dias }} <small>días ({{ tiempos.revision.horas }} h)</small>{% else %}— <small>sin publicaciones en el periodo</small>{% endif %}</div>
+    <div class="etiqueta">tiempo promedio de revisión (fin del análisis → publicación){% if tiempos.ciclo %} · ciclo completo carga → publicación: {{ tiempos.ciclo.dias }} días{% endif %}</div>
+    {% if puede_revisar %}<span class="ver">Ver los {{ tiempos.revision.documentos|default:0 }} documento(s) →</span>{% endif %}
+  </{% if puede_revisar %}a{% else %}div{% endif %}>
+  <{% if puede_revisar %}a href="{% url 'revision_lista' %}?filtro=pendientes"{% else %}div{% endif %} class="ricora-card c4 {% if alertas %}alerta{% endif %}">
+    <div class="numero">{{ pendientes_revision }} <small>{{ alertas|length }} atrasado(s)</small></div>
+    <div class="etiqueta">pendientes de revisión (análisis o fichas sin revisar) · límite {{ limite_dias }} días</div>
+    {% if puede_revisar %}<span class="ver">Ver documentos →</span>{% endif %}
+  </{% if puede_revisar %}a{% else %}div{% endif %}>
   {% if puede_revisar %}
-  <div class="ricora-card {% if retencion_vencida %}alerta{% endif %}">
+  <a href="{% url 'valoracion_transferencias' %}" class="ricora-card c5 {% if retencion_vencida %}alerta{% endif %}">
     <div class="numero">{{ retencion_vencida }}</div>
-    <div class="etiqueta">expedientes con retención vencida o por vencer (transferencia o disposición final)</div>
-    <a href="{% url 'valoracion_transferencias' %}">Ver transferencias →</a>
-  </div>
+    <div class="etiqueta">expedientes con retención vencida o por vencer</div>
+    <span class="ver">Ver transferencias →</span>
+  </a>
   {% endif %}
 </div>
+{% if puede_administrar %}<p class="nota-limite"><a href="{% url 'admin_usuarios' %}?pestana=parametros">Cambiar el límite de días de la alerta →</a></p>{% endif %}
 
 <div class="ricora-panel">
-  <header><h2>Ingreso de documentos por semana (últimas 8 semanas)</h2></header>
-  <div class="ricora-barras">
-    {% for s in ingesta_semanas %}<div class="barra" title="{{ s.etiqueta }}: {{ s.total }}"><i style="height: {{ s.porcentaje }}%"></i></div>{% endfor %}
+  <header><h2>Ingreso de documentos {{ grafica.titulo }} · {{ periodo_nombre|lower }}</h2><span style="font-size:.78rem;color:#8a94a3">{{ grafica.total }} en el periodo</span></header>
+  <div class="ricora-barras" role="img" aria-label="Ingreso de documentos {{ grafica.titulo }}: {% for s in grafica.serie %}{{ s.etiqueta }} {{ s.total }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+    {% for s in grafica.serie %}<div class="barra" title="{{ s.etiqueta }}: {{ s.total }}"><i style="height: {{ s.porcentaje }}%"></i>{% if s.total %}<b>{{ s.total }}</b>{% endif %}</div>{% endfor %}
   </div>
-  <div class="ricora-barras-etiquetas"><span>{{ ingesta_semanas.0.etiqueta }}</span>{% with ultima=ingesta_semanas|last %}<span>{{ ultima.etiqueta }} (esta semana: {{ ultima.total }})</span>{% endwith %}</div>
+  <div class="ricora-barras-etiquetas"><span>{{ grafica.serie.0.etiqueta }}</span>{% with ultima=grafica.serie|last %}<span>{{ ultima.etiqueta }}</span>{% endwith %}</div>
 </div>
 
 {% if puede_revisar %}
@@ -128,17 +152,7 @@
 </div>
 {% endif %}
 
-{% if alertas %}
-<div class="ricora-panel alerta">
-  <header><h2>⚠ Alerta: revisión atrasada (más de {{ limite_dias }} días)</h2></header>
-  {% for a in alertas %}
-  <div class="ricora-item">
-    <span>{{ a.record }} <span class="origen">· pendiente desde hace {{ a.dias }} día{{ a.dias|pluralize }}</span></span>
-    <a class="accion" href="{% url 'analisis' a.record.pk %}">Revisar ahora →</a>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
+
 
 <div class="ricora-dashboard">
   <div>

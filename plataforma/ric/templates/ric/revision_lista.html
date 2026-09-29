@@ -5,5 +5,8 @@
   <h1>Revisión archivística</h1>
   <p>Primero los documentos listos para revisar. En cada uno se acepta o rechaza ficha por ficha y, cuando no queda ninguna pendiente, se aprueba y publica en el catálogo.</p>
 </hgroup>
+{% if filtro %}
+<p class="mensaje info">Desde el panel de indicadores: <strong>{{ filtro_nombre }}</strong>{% if filtro_con_periodo %} · {{ periodo_nombre|lower }}{% endif %} — {{ filas|length }} documento(s). <a href="{% url 'revision_lista' %}">Ver todos</a> · <a href="{% url 'panel' %}">← Volver al panel</a></p>
+{% endif %}
 {% include "ric/_lista_documentos.html" %}
 {% endblock %}

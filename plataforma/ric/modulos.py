@@ -30,8 +30,8 @@ MODULOS_ESPEC = {
     6: ("Revisión archivística", VALIDADO),
     7: ("Trazabilidad", VALIDADO),
     8: ("Catálogo y consulta", VALIDADO),
-    9: ("Exportación e interoperabilidad", POR_VALIDAR),
-    10: ("Panel de indicadores", PENDIENTE),
+    9: ("Exportación e interoperabilidad", VALIDADO),
+    10: ("Panel de indicadores", POR_VALIDAR),
     11: ("Administración", PENDIENTE),
 }
 # Pantalla (nombre de URL de la pestaña o del proceso) -> módulo de la especificación.

@@ -411,11 +411,26 @@ def _tiene_procedencia(record):
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 def revision_lista(request):
+    """Bandeja de revisión. Con ?filtro= (desde un indicador del panel, M10)
+    muestra exactamente los documentos que componen esa cifra."""
+    from . import indicadores
+
+    filtro = request.GET.get("filtro", "")
+    periodo = indicadores.periodo_valido(request.GET.get("periodo", ""))
+    queryset = None
+    if filtro in indicadores.FILTROS:
+        queryset = indicadores.documentos_de(filtro, periodo, ConfiguracionSistema.actual().dias_limite_revision)
     orden = {flujo.EN_REVISION: 0, flujo.EN_ANALISIS: 1, flujo.SIN_ANALIZAR: 2, flujo.SIN_TEXTO: 3, flujo.PUBLICADO: 4}
-    filas = sorted(flujo.documentos_con_estado(), key=lambda f: orden[f["estado"]])
+    filas = sorted(flujo.documentos_con_estado(queryset), key=lambda f: orden[f["estado"]])
     for f in filas:
         f["por_revisar"] = flujo.pendientes_revision(f["record"]).count()
-    return render(request, "ric/revision_lista.html", {"filas": filas})
+    return render(request, "ric/revision_lista.html", {
+        "filas": filas,
+        "filtro": filtro if filtro in indicadores.FILTROS else "",
+        "filtro_nombre": indicadores.FILTROS.get(filtro, ""),
+        "periodo_nombre": dict(indicadores.PERIODOS)[periodo],
+        "filtro_con_periodo": filtro in ("ingestados", "validados", "publicados"),
+    })
 
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)

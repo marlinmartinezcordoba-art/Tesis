@@ -71,66 +71,26 @@ def _actividad_ultimos_dias(dias=14):
     return _serie(conteos, claves, lambda d: d.strftime("%d/%m"))
 
 
-def _ingesta_por_semana(semanas=8):
-    """RF-M10-01: documentos ingestados por semana (semanas ISO, lunes)."""
-    hoy = timezone.localdate()
-    lunes_actual = hoy - datetime.timedelta(days=hoy.weekday())
-    desde = lunes_actual - datetime.timedelta(weeks=semanas - 1)
-    conteos = {}
-    for semana, total in (
-        Instantiation.objects.filter(fecha_registro__date__gte=desde)
-        .annotate(semana=TruncWeek("fecha_registro")).values("semana")
-        .annotate(total=Count("pk")).values_list("semana", "total")
-    ):
-        conteos[timezone.localtime(semana).date() if timezone.is_aware(semana) else semana.date()] = total
-    claves = [desde + datetime.timedelta(weeks=i) for i in range(semanas)]
-    return _serie(conteos, claves, lambda d: "sem. " + d.strftime("%d/%m"))
-
-
-def _porcentaje_validado():
-    """RF-M10-02: documentos publicados (descripción validada) / ingestados."""
-    total = Record.objects.count()
-    publicados = Record.objects.filter(publicado=True).count()
-    return {"total": total, "publicados": publicados, "porcentaje": round(publicados / total * 100) if total else None}
-
-
-def _tiempo_promedio_revision():
-    """RF-M10-03: promedio, sobre los documentos publicados, entre la
-    primera carga del documento y su publicación; None si no hay ninguno."""
-    duraciones = []
-    for record in Record.objects.filter(publicado=True, fecha_publicacion__isnull=False):
-        primera = record.instanciaciones.order_by("fecha_registro").values_list("fecha_registro", flat=True).first()
-        if primera:
-            duraciones.append((record.fecha_publicacion - primera).total_seconds())
-    if not duraciones:
-        return None
-    horas = sum(duraciones) / len(duraciones) / 3600
-    return {"horas": round(horas, 1), "dias": round(horas / 24, 1), "documentos": len(duraciones)}
-
-
-def _alertas_pendientes(limite_dias):
-    """RF-M10-04: documentos con propuestas pendientes desde hace más de
-    `limite_dias` días."""
-    ahora = timezone.now()
-    alertas = []
-    pendientes = flujo.pendientes_por_documento()
-    records = {r.pk: r for r in Record.objects.filter(pk__in=pendientes.keys())}
-    for pk, datos in pendientes.items():
-        dias = (ahora - datos["desde"]).days
-        if dias >= limite_dias and pk in records:
-            alertas.append({"record": records[pk], "dias": dias, "pendientes": None})
-    alertas.sort(key=lambda a: -a["dias"])
-    return alertas
-
-
 @login_required
 def panel(request):
+    """Cifras vigentes para el periodo elegido (selector superior); cada
+    cifra enlaza a la lista de documentos que la compone (historia 10)."""
+    from . import indicadores
+
     config = ConfiguracionSistema.actual()
-    validado = _porcentaje_validado()
+    periodo = indicadores.periodo_valido(request.GET.get("periodo", ""))
+    alertas = indicadores.atrasados(config.dias_limite_revision)
     contexto = {
-        "validado": validado,
-        "tiempo_revision": _tiempo_promedio_revision(),
-        "ingesta_semanas": _ingesta_por_semana(),
+        "periodo": periodo,
+        "periodos": indicadores.PERIODOS,
+        "periodo_nombre": dict(indicadores.PERIODOS)[periodo],
+        "ingestados": indicadores.ingestados(periodo).count(),
+        "archivos_periodo": Instantiation.objects.filter(**({"fecha_registro__gte": indicadores.desde(periodo)} if indicadores.desde(periodo) else {})).count(),
+        "validado": indicadores.porcentaje_validado(periodo),
+        "tiempos": indicadores.tiempos_de_revision(periodo),
+        "grafica": indicadores.serie_ingesta(periodo),
+        "pendientes_revision": len(indicadores.esperando_revision()),
+        "alertas": alertas,
         "total_instanciaciones": Instantiation.objects.count(),
         "relaciones_validadas": RelacionRiC.objects.filter(estado__in=flujo.ESTADOS_VALIDADOS).count(),
         "limite_dias": config.dias_limite_revision,
@@ -149,7 +109,6 @@ def panel(request):
         rechazadas = decididas.filter(estado=PropuestaRiC.Estado.RECHAZADA).count()
         contexto.update({
             "pendientes": pendientes_totales,
-            "alertas": _alertas_pendientes(config.dias_limite_revision),
             "retencion_vencida": valoracion.conteo_vencidos(),
             # CC-02: documentos en curso a los que falta forma documental, agente o fecha.
             "incompletos": [

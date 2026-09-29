@@ -23,9 +23,9 @@ class PanelTest(CasoModulos):
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("panel"))
         self.assertIsNone(resp.context["validado"]["porcentaje"])
-        self.assertIsNone(resp.context["tiempo_revision"])
-        self.assertEqual(len(resp.context["ingesta_semanas"]), 8)  # RF-M10-01
-        self.assertContains(resp, "sin datos aún")
+        self.assertIsNone(resp.context["tiempos"]["revision"])
+        self.assertEqual(len(resp.context["grafica"]["serie"]), 30)  # RF-M10-01: último mes, por día
+        self.assertContains(resp, "sin publicaciones en el periodo")
         self.assertContains(resp, "Todavía no se ha subido ningún documento")
 
     def test_porcentaje_validado_y_tiempo_de_revision(self):
@@ -37,8 +37,8 @@ class PanelTest(CasoModulos):
         self.client.force_login(self.archivista)
         resp = self.client.get(reverse("panel"))
         self.assertEqual(resp.context["validado"]["porcentaje"], 50)  # RF-M10-02
-        self.assertEqual(resp.context["tiempo_revision"]["dias"], 2.0)  # RF-M10-03
-        self.assertEqual(resp.context["ingesta_semanas"][-1]["total"], 1)
+        self.assertEqual(resp.context["tiempos"]["ciclo"]["dias"], 2.0)  # ciclo completo carga → publicación
+        self.assertEqual(resp.context["grafica"]["serie"][-1]["total"], 2)
 
     def test_alerta_de_revision_atrasada_con_limite_configurable(self):
         record, inst = self.documento()
@@ -47,8 +47,8 @@ class PanelTest(CasoModulos):
         self.client.force_login(self.revisor)
         resp = self.client.get(reverse("panel"))
         self.assertEqual(len(resp.context["alertas"]), 1)  # RF-M10-04
-        self.assertContains(resp, "Alerta: revisión atrasada")
-        self.assertContains(resp, reverse("analisis", args=[record.pk]))
+        self.assertContains(resp, "llevan más de 7 días esperando revisión")
+        self.assertContains(resp, reverse("revision_lista") + "?filtro=atrasados")
         config = ConfiguracionSistema.actual()
         config.dias_limite_revision = 30
         config.save()
@@ -77,5 +77,6 @@ class PanelTest(CasoModulos):
         resp = self.client.get(reverse("panel"))
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("distribucion", resp.context)
-        self.assertNotContains(resp, "Ingesta de documentos")
+        self.assertNotContains(resp, "Ingesta por día")
+        self.assertNotContains(resp, "?filtro=")  # las cifras no enlazan a listas de trabajo interno
         self.assertContains(resp, "Consulta y exportación")
