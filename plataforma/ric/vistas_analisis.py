@@ -167,6 +167,7 @@ def analisis(request, pk):
         "instanciacion": instanciacion,
         "texto_html": _texto_resaltado(texto, fichas),
         "grupos": grupos,
+        "pendientes_total": sum(len(g["fichas"]) for g in grupos),
         "clases": [(slug, nombre) for slug, nombre, _ in CLASES],
         "decididas": decididas,
         "total_pendientes": len(fichas),

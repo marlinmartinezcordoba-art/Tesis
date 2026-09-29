@@ -3,7 +3,7 @@
 {% block estilos_extra %}
   .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
   .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
-  .comparar { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
+  .comparar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
   @media (max-width: 800px) { .comparar { grid-template-columns: 1fr; } }
   .comparar .lado h4 { margin: 0 0 .3rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #8a94a3; }
   .comparar .lado.ia { border-right: 1px dashed #e6e3dc; padding-right: .8rem; }

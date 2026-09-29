@@ -1,7 +1,7 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}Página {{ pagina.numero }} · {{ instanciacion.nombre }} · RICORA{% endblock %}
 {% block estilos_extra %}
-  .visor { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.2rem; align-items: start; }
+  .visor { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
   @media (max-width: 900px) { .visor { grid-template-columns: 1fr; } }
   .visor img { max-width: 100%; border: 1px solid #e6e3dc; border-radius: 8px; background: #fff; }
   .texto { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem; white-space: pre-wrap; font-size: .85rem; max-height: 60vh; overflow: auto; }

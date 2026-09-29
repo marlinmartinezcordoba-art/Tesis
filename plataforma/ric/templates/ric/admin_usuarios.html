@@ -5,7 +5,7 @@
   .pestanas { display: flex; gap: .3rem; border-bottom: 1px solid #e6e3dc; margin-bottom: 1.1rem; }
   .pestanas a { padding: .55rem 1rem; text-decoration: none; color: #52606d; border-bottom: 3px solid transparent; font-size: .9rem; }
   .pestanas a.activa { color: var(--ricora-dark); border-color: var(--ricora-accent); font-weight: 600; }
-  .grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.2rem; align-items: start; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.2rem; align-items: start; }
   .grid > * { min-width: 0; }
   .tarjeta { overflow-x: auto; }
   @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }

@@ -3,10 +3,33 @@
 {% block estilos_extra %}
   .encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
   .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+  .encabezado { margin-bottom: .8rem; }
   .encabezado p { margin: 0; color: #6b7280; font-size: .88rem; }
-  .paneles { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
-  @media (max-width: 960px) { .paneles { grid-template-columns: 1fr; } }
-  .texto { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; white-space: pre-wrap; font-size: .86rem; line-height: 1.55; max-height: 78vh; overflow: auto; position: sticky; top: 1rem; }
+  /* Dos zonas a lo alto de la pantalla, cada una con su propio desplazamiento.
+     En pantallas angostas el texto pasa a ser una pestaña más (nunca se apila). */
+  .paneles { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1rem; height: calc(100vh - 13rem); min-height: 420px; }
+  .zona-texto, .zona-fichas { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .texto { flex: 1; min-height: 0; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .88rem; line-height: 1.6; overflow: auto; }
+  .pie-texto { font-size: .76rem; color: #8a94a3; margin: .45rem 0 0; }
+  .pestanas-analisis { display: flex; gap: .15rem; border-bottom: 1px solid var(--border); margin-bottom: .7rem; overflow-x: auto; flex-shrink: 0; }
+  .pestanas-analisis button { all: unset; cursor: pointer; padding: .5rem .8rem; font-size: .84rem; color: var(--ink-suave); border-bottom: 3px solid transparent; white-space: nowrap; }
+  .pestanas-analisis button:hover { color: var(--ink); }
+  .pestanas-analisis button:focus-visible { outline: 2px solid var(--ricora-accent); outline-offset: -2px; }
+  .pestanas-analisis button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ricora-accent); font-weight: 600; }
+  .pestanas-analisis .n { font-size: .7rem; background: var(--surface-alt); border-radius: 999px; padding: 0 6px; margin-left: .3rem; }
+  .pestanas-analisis .n.alerta { background: #fde8e8; color: #7a1f1f; }
+  .pestanas-analisis .solo-angosto { display: none; }
+  .panel-pestana { flex: 1; min-height: 0; overflow: auto; padding-right: .3rem; }
+  .panel-pestana[hidden] { display: none; }
+  @media (max-width: 1100px) {
+    .paneles { grid-template-columns: minmax(0, 1fr); }
+    .pestanas-analisis .solo-angosto { display: inline-block; }
+    .zona-texto { display: none; }
+    .paneles.ver-texto .zona-texto { display: flex; }
+    .paneles.ver-texto .zona-fichas .panel-pestana { display: none; }
+    .paneles.ver-texto { grid-template-rows: auto minmax(0, 1fr); }
+    .paneles.ver-texto .zona-fichas { order: -1; }
+  }
   .texto mark.ev { background: #fff2df; border-bottom: 2px solid var(--ricora-accent); border-radius: 3px; padding: 0 2px; cursor: pointer; }
   .texto mark.ev.clase-agente { background: #eaf1fb; border-color: #1f3a5f; }
   .texto mark.ev.clase-actividad { background: #e3f9e5; border-color: #2f7d4f; }
@@ -50,7 +73,7 @@
   .rechazo-banner form { margin: 0; } .rechazo-banner button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
   .forma-doc { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; font-size: .84rem; }
   .forma-doc form { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; margin: 0; }
-  .forma-doc select, .forma-doc input { margin: 0; font-size: .82rem; padding: .35rem .6rem; height: auto; width: auto; min-width: 180px; }
+  .forma-doc select, .forma-doc input { margin: 0; font-size: .82rem; padding: .35rem .6rem; height: auto; width: auto; min-width: 0; flex: 1 1 12rem; }
   .forma-doc button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
 {% endblock %}
 {% block contenido %}
@@ -59,9 +82,7 @@
   <div>
     <h1>Análisis y relaciones — {{ record }}</h1>
     <p style="margin:.2rem 0 0"><a href="{% url 'visor_documento' record.pk %}">Ver documento en el visor ↗</a></p>
-    <p>Texto a la izquierda con los fragmentos resaltados; a la derecha, las entidades propuestas agrupadas por clase,
-    cada una como ficha editable. La IA propone, la persona decide: acepte (corrigiendo el nombre si hace falta),
-    vincule a una entrada ya existente en vocabularios, o rechace con su motivo.</p>
+    <p>La IA propone, usted decide: acepte (corrigiendo el nombre si hace falta), vincule a una entrada existente o rechace con su motivo.</p>
   </div>
   {% if puede_decidir %}
   <form method="post" action="{% url 'analisis_generar' record.pk %}" style="margin:0">
@@ -83,49 +104,30 @@
 </div>
 {% endif %}
 
-<div class="paneles">
-  <div>
+<div class="paneles" id="paneles">
+  <section class="zona-texto" aria-label="Texto del documento">
     {% if instanciacion %}
     <div class="texto" id="texto">{{ texto_html }}</div>
-    <p style="font-size:.76rem; color:#8a94a3; margin:.5rem 0 0;">
+    <p class="pie-texto">
       Texto de «{{ instanciacion.nombre }}» · <a href="{% url 'ric_archivo' instanciacion.pk %}" target="_blank">ver el documento original ↗</a>
     </p>
     {% else %}
     <p class="sin-datos">Este documento todavía no tiene un archivo con texto extraído. <a href="{% url 'ingesta' %}?record={{ record.pk }}">Cargar uno →</a></p>
     {% endif %}
-  </div>
+  </section>
 
-  <div>
+  <section class="zona-fichas">
+    <div class="pestanas-analisis" role="tablist" aria-label="Análisis del documento">
+      <button type="button" role="tab" class="solo-angosto" data-panel="texto" aria-selected="false">Texto del documento</button>
+      <button type="button" role="tab" data-panel="entidades" aria-selected="true">Entidades propuestas<span class="n">{{ pendientes_total|default:0 }}</span></button>
+      <button type="button" role="tab" data-panel="forma" aria-selected="false">Forma documental</button>
+      {% if clases_faltantes or advertencias %}<button type="button" role="tab" data-panel="avisos" aria-selected="false">Avisos<span class="n alerta">{% if clases_faltantes %}!{% else %}{{ advertencias|length }}{% endif %}</span></button>{% endif %}
+      {% if decididas %}<button type="button" role="tab" data-panel="decididas" aria-selected="false">Ya decididas<span class="n">{{ decididas|length }}</span></button>{% endif %}
+    </div>
+
+    <div class="panel-pestana" data-panel="entidades" role="tabpanel">
     <div class="chips">
       {% for slug, nombre in clases %}<span class="chip-clase" data-clase="{{ slug }}">{{ nombre }}</span>{% endfor %}
-    </div>
-
-    {% if clases_faltantes %}
-    <div class="ficha" style="border-color:#f1b7b0; background:#fff7f6;">
-      <strong style="font-size:.85rem">⚠ Descripción incompleta (CC-02)</strong>
-      <p style="margin:.3rem 0 0; font-size:.8rem;">Toda descripción necesita al menos una forma documental, un agente y una fecha. Falta: <strong>{{ clases_faltantes|join:", " }}</strong>. El documento no avanza en silencio: queda señalado aquí y en el panel de indicadores.</p>
-    </div>
-    {% endif %}
-    {% if advertencias %}
-    <div class="ficha" style="border-color:#e0b566; background:#fffaf2;">
-      <strong style="font-size:.85rem">⚠ Advertencias del motor de análisis</strong>
-      <ul style="margin:.3rem 0 0; font-size:.8rem;">{% for a in advertencias %}<li>{{ a }}</li>{% endfor %}</ul>
-    </div>
-    {% endif %}
-
-    <div class="forma-doc">
-      <strong>Forma documental</strong> (RiC-A17): {% if record.forma_documental %}<em>{{ record.forma_documental }}</em>{% elif record.tipo_forma_documental %}<em>{{ record.tipo_forma_documental }}</em> (sin controlar){% else %}<em>sin asignar</em>{% endif %}
-      {% if forma_sugerida and not record.forma_documental %}
-      <div style="font-size:.8rem; color:#52606d; margin-top:.3rem;">✦ El motor sugiere <strong>{{ forma_sugerida.nombre_tipo }}</strong> (confianza {{ forma_sugerida.confianza|floatformat:2 }}){% if forma_sugerida.fragmento_fuente %} — “{{ forma_sugerida.fragmento_fuente|truncatechars:120 }}”{% endif %}</div>
-      {% endif %}
-      {% if puede_decidir %}
-      <form method="post" action="{% url 'analisis_forma' record.pk %}" style="margin-top:.4rem">
-        {% csrf_token %}
-        <select name="forma_id"><option value="">— elegir del vocabulario —</option>{% for f in formas %}<option value="{{ f.pk }}" {% if record.forma_documental_id == f.pk %}selected{% endif %}>{{ f.nombre }}</option>{% endfor %}</select>
-        <input type="text" name="forma_nombre" placeholder="o escribir una nueva (oficio, acta...)" {% if forma_sugerida and not record.forma_documental and forma_sugerida.nombre_tipo != "tipo no identificado" %}value="{{ forma_sugerida.nombre_tipo }}"{% endif %}>
-        <button type="submit">Guardar</button>
-      </form>
-      {% endif %}
     </div>
 
     {% if not grupos %}
@@ -194,9 +196,51 @@
     </div>
     {% endfor %}
 
+    <div class="siguiente">
+      <a role="button" href="{% url 'analisis_grafo' record.pk %}">Continuar a relaciones →</a>
+    </div>
+    </div>
+
+    <div class="panel-pestana" data-panel="forma" role="tabpanel" hidden>
+    <div class="forma-doc">
+      <strong>Forma documental</strong> (RiC-A17): {% if record.forma_documental %}<em>{{ record.forma_documental }}</em>{% elif record.tipo_forma_documental %}<em>{{ record.tipo_forma_documental }}</em> (sin controlar){% else %}<em>sin asignar</em>{% endif %}
+      {% if forma_sugerida and not record.forma_documental %}
+      <div style="font-size:.8rem; color:#52606d; margin-top:.3rem;">✦ El motor sugiere <strong>{{ forma_sugerida.nombre_tipo }}</strong> (confianza {{ forma_sugerida.confianza|floatformat:2 }}){% if forma_sugerida.fragmento_fuente %} — “{{ forma_sugerida.fragmento_fuente|truncatechars:120 }}”{% endif %}</div>
+      {% endif %}
+      {% if puede_decidir %}
+      <form method="post" action="{% url 'analisis_forma' record.pk %}" style="margin-top:.4rem">
+        {% csrf_token %}
+        <select name="forma_id"><option value="">— elegir del vocabulario —</option>{% for f in formas %}<option value="{{ f.pk }}" {% if record.forma_documental_id == f.pk %}selected{% endif %}>{{ f.nombre }}</option>{% endfor %}</select>
+        <input type="text" name="forma_nombre" placeholder="o escribir una nueva (oficio, acta...)" {% if forma_sugerida and not record.forma_documental and forma_sugerida.nombre_tipo != "tipo no identificado" %}value="{{ forma_sugerida.nombre_tipo }}"{% endif %}>
+        <button type="submit">Guardar</button>
+      </form>
+      {% endif %}
+    </div>
+
+    </div>
+
+    {% if clases_faltantes or advertencias %}
+    <div class="panel-pestana" data-panel="avisos" role="tabpanel" hidden>
+    {% if clases_faltantes %}
+    <div class="ficha" style="border-color:#f1b7b0; background:#fff7f6;">
+      <strong style="font-size:.85rem">⚠ Descripción incompleta (CC-02)</strong>
+      <p style="margin:.3rem 0 0; font-size:.8rem;">Toda descripción necesita al menos una forma documental, un agente y una fecha. Falta: <strong>{{ clases_faltantes|join:", " }}</strong>. El documento no avanza en silencio: queda señalado aquí y en el panel de indicadores.</p>
+    </div>
+    {% endif %}
+    {% if advertencias %}
+    <div class="ficha" style="border-color:#e0b566; background:#fffaf2;">
+      <strong style="font-size:.85rem">⚠ Advertencias del motor de análisis</strong>
+      <ul style="margin:.3rem 0 0; font-size:.8rem;">{% for a in advertencias %}<li>{{ a }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    </div>
+    {% endif %}
+
     {% if decididas %}
-    <details class="decididas">
-      <summary>Ya decididas en este documento ({{ decididas|length }})</summary>
+    <div class="panel-pestana" data-panel="decididas" role="tabpanel" hidden>
+    {% if decididas %}
+    <div class="decididas">
       <ul>
         {% for p in decididas %}
         <li><span class="estado-p {{ p.estado }}">{{ p.get_estado_display }}</span> {{ p.entidad_nombre }} · {{ p.relacion_id }}
@@ -204,19 +248,34 @@
           {% if p.motivo_decision %}· <em>{{ p.motivo_decision }}</em>{% endif %}</li>
         {% endfor %}
       </ul>
-    </details>
+    </div>
     {% endif %}
 
-    <div class="siguiente">
-      <a role="button" href="{% url 'analisis_grafo' record.pk %}">Continuar a relaciones →</a>
     </div>
-  </div>
+    {% endif %}
+  </section>
 </div>
 
 <script>
 (function () {
+  var paneles = document.getElementById("paneles");
+  var botones = document.querySelectorAll(".pestanas-analisis button");
+  function abrir(nombre) {
+    botones.forEach(function (b) { b.setAttribute("aria-selected", b.dataset.panel === nombre ? "true" : "false"); });
+    paneles.classList.toggle("ver-texto", nombre === "texto");
+    document.querySelectorAll(".panel-pestana").forEach(function (p) { p.hidden = nombre !== "texto" && p.dataset.panel !== nombre; });
+    if (nombre === "texto") document.querySelectorAll(".panel-pestana").forEach(function (p) { p.hidden = true; });
+  }
+  botones.forEach(function (b) { b.addEventListener("click", function () { abrir(b.dataset.panel); }); });
+  // Si la ventana se ensancha estando en «Texto», el texto ya se ve al lado: volver a Entidades.
+  window.matchMedia("(min-width: 1101px)").addEventListener("change", function (e) {
+    if (e.matches && paneles.classList.contains("ver-texto")) abrir("entidades");
+  });
+  {% if clases_faltantes and not grupos %}abrir("avisos");{% endif %}
   var marcas = document.querySelectorAll("mark.ev");
-  function destacar(pk) {
+  function destacar(pk, desdeFicha) {
+    if (desdeFicha && window.matchMedia("(max-width: 1100px)").matches) abrir("texto");
+    if (!desdeFicha && window.matchMedia("(max-width: 1100px)").matches) abrir("entidades");
     marcas.forEach(function (m) { m.classList.toggle("destacada", m.dataset.propuesta === String(pk)); });
     var m = document.getElementById("ev-" + pk);
     if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -224,9 +283,9 @@
     if (ficha) ficha.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
   document.querySelectorAll(".evidencia[data-ev]").forEach(function (el) {
-    el.addEventListener("click", function () { destacar(el.dataset.ev); });
+    el.addEventListener("click", function () { destacar(el.dataset.ev, true); });
   });
-  marcas.forEach(function (m) { m.addEventListener("click", function () { destacar(m.dataset.propuesta); }); });
+  marcas.forEach(function (m) { m.addEventListener("click", function () { destacar(m.dataset.propuesta, false); }); });
   document.querySelectorAll(".chip-clase").forEach(function (chip) {
     chip.addEventListener("click", function () {
       var activa = chip.classList.toggle("activa");

@@ -3,7 +3,7 @@
 {% block estilos_extra %}
   .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
   .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
-  .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.1rem; align-items: start; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1.1rem; align-items: start; }
   @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
   .tl { position: relative; padding-left: 1.4rem; border-left: 2px solid #e6e3dc; }
   .tl-item { position: relative; padding: .2rem 0 1rem; font-size: .85rem; }

@@ -22,7 +22,7 @@
   .ricora-panel header a { font-size: .78rem; color: var(--ricora-accent); text-decoration: none; }
   .ricora-panel.alerta { border-color: #f1b7b0; background: #fff7f6; }
 
-  .ricora-dashboard { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.1rem; align-items: start; }
+  .ricora-dashboard { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.1rem; align-items: start; }
   @media (max-width: 960px) { .ricora-dashboard { grid-template-columns: 1fr; } }
 
   .ricora-item { padding: .55rem 0; border-bottom: 1px solid #f0efe9; display: flex; justify-content: space-between; gap: .6rem; align-items: center; font-size: .86rem; }

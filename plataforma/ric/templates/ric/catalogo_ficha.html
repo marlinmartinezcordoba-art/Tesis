@@ -1,7 +1,7 @@
 {% extends "ric/_base.html" %}
 {% block titulo %}{{ entidad }} · Catálogo · RICORA{% endblock %}
 {% block estilos_extra %}
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; align-items: start; }
   @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
   .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
