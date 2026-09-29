@@ -178,16 +178,62 @@ GUIAS = [
     },
     # --- Administración ---
     {
-        "clave": "admin_usuarios", "proceso": "Administración", "titulo": "Administración",
-        "para_que": "Gestiona usuarios y roles, proveedores de inteligencia artificial, parámetros, auditoría, elementos eliminados y el estado de los módulos.",
+        "clave": "admin_usuarios", "proceso": "Administración", "titulo": "Usuarios y roles",
+        "para_que": "Decide quién entra a RICORA y qué puede hacer: cada cuenta tiene exactamente uno de los cuatro roles.",
         "pasos": [
-            "Usuarios y roles: cree cuentas, asigne rol (archivista, revisor o consulta), desactive o cierre sesiones.",
-            "Proveedores de IA: agregue un proveedor, pruebe la conexión y actívelo; puede dejar otro como respaldo automático.",
-            "Parámetros: días límite de revisión, umbral de calidad del OCR y umbrales de confianza.",
-            "Auditoría: quién hizo qué y cuándo, con filtros y descarga en CSV.",
-            "Eliminados: todo lo borrado se puede restaurar desde aquí.",
+            "Pulse «Nuevo usuario», escriba el nombre y el correo; el nombre de usuario se sugiere solo a partir del correo.",
+            "Elija el rol: archivista, revisor, consulta o administrador. Debajo de cada uno se explica lo que permite.",
+            "Pulse «Guardar». La persona recibe un enlace para crear su propia contraseña; si el servidor no tiene correo, copie el enlace que aparece arriba y envíeselo.",
+            "Para cambiar el nombre, el correo o el rol, pulse «Editar» en la fila de la cuenta.",
+            "Desde «Editar» también puede reenviar la invitación, restablecer el acceso, cerrar sesiones o desactivar la cuenta.",
         ],
-        "consejos": ["Solo el administrador ve esta sección."],
+        "consejos": [
+            "Usted nunca conoce ni escribe la contraseña de otra persona: cada quien crea la suya con el enlace, que sirve una sola vez.",
+            "Nada se borra: una cuenta desactivada no puede entrar, pero conserva todo su historial.",
+            "Siempre debe quedar al menos un administrador activo; el sistema no deja quitarle el rol al último.",
+            "Use el buscador, el filtro de rol y «Solo activos» para encontrar una cuenta rápido.",
+        ],
+    },
+    {
+        "clave": "admin_proveedores", "proceso": "Administración", "titulo": "Proveedores de IA",
+        "para_que": "Configura los servicios de inteligencia artificial que usa el motor de análisis para proponer entidades y relaciones.",
+        "pasos": [
+            "Pulse «Agregar proveedor» y elija el proveedor de la lista.",
+            "Pegue la clave de acceso si el proveedor la pide (la IA local no la necesita).",
+            "Pulse «Probar conexión»: si sale bien aparece el punto verde y se habilita «Guardar».",
+            "Pulse «Guardar» para dejarlo como fuente del motor de análisis.",
+            "En la tabla puede volver a probar, activar otro, dejar uno como respaldo automático o retirarlo.",
+        ],
+        "consejos": [
+            "Ningún proveedor se guarda sin una prueba exitosa de esos mismos datos: si cambia la clave después de probar, hay que probar de nuevo.",
+            "El respaldo automático se usa solo cuando el principal falla (saturado, sin conexión o sin cupo).",
+            "La clave nunca se muestra completa: solo sus últimos cuatro caracteres.",
+        ],
+    },
+    {
+        "clave": "admin_parametros", "proceso": "Administración", "titulo": "Parámetros",
+        "para_que": "Ajusta los valores que rigen el funcionamiento: cuándo una revisión se considera atrasada y los umbrales de calidad y confianza.",
+        "pasos": [
+            "Cambie el valor que necesite; debajo de cada uno se explica su efecto.",
+            "Pulse «Guardar parámetros». El cambio aplica de inmediato en toda la plataforma.",
+        ],
+        "consejos": ["Queda registrado quién hizo el último cambio y cuándo, con el valor anterior y el nuevo en la auditoría."],
+    },
+    {
+        "clave": "admin_auditoria", "proceso": "Administración", "titulo": "Auditoría",
+        "para_que": "Muestra quién hizo qué, sobre qué y cuándo: ingresos, intentos fallidos, accesos denegados, creaciones, cambios, borrados y restauraciones.",
+        "pasos": [
+            "Filtre por usuario, acción, fechas u objeto y pulse «Filtrar».",
+            "Abra «campo(s)» en una fila para ver el valor anterior y el nuevo de cada cambio.",
+            "Pulse «CSV» para descargar lo filtrado.",
+        ],
+        "consejos": ["La auditoría solo se escribe: nadie la puede editar ni borrar desde la aplicación."],
+    },
+    {
+        "clave": "admin_eliminados", "proceso": "Administración", "titulo": "Eliminados",
+        "para_que": "Reúne todo lo que se retiró de las pantallas (borrado lógico), con quién lo retiró, cuándo y por qué.",
+        "pasos": ["Busque el elemento en la lista.", "Pulse «Restaurar» para devolverlo a las pantallas con todo su historial."],
+        "consejos": ["Nada se elimina de forma irreversible; cada restauración queda en la auditoría."],
     },
 ]
 
@@ -206,5 +252,5 @@ def guia_de(url_name):
     if not url_name:
         return None
     if url_name.startswith("admin_"):
-        return _POR_CLAVE["admin_usuarios"]
+        return _POR_CLAVE.get(url_name, _POR_CLAVE["admin_usuarios"])
     return _POR_CLAVE.get(_EQUIVALENCIAS.get(url_name, url_name))

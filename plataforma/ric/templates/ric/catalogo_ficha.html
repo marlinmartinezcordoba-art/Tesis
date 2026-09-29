@@ -3,7 +3,7 @@
 {% block estilos_extra %}
   .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; align-items: start; }
   @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .tarjeta { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
   .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
   .tarjeta dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .86rem; }
   .tarjeta dt { color: #6b7280; } .tarjeta dd { margin: 0; }
@@ -11,7 +11,7 @@
   .badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: #fff2df; color: #8a6100; margin-right: .3rem; }
   .acciones { display: flex; gap: .6rem; flex-wrap: wrap; margin: .6rem 0 1rem; }
   .acciones a[role=button] { width: auto; margin: 0; padding: .45rem .9rem; font-size: .82rem; }
-  .acciones a.secundario { background: #fff; color: var(--ricora-dark); border-color: #cbd2d9; }
+  .acciones a.secundario { background: var(--surface); color: var(--ricora-dark); border-color: #cbd2d9; }
   .inst { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; align-items: center; font-size: .84rem; padding: .4rem 0; border-bottom: 1px solid #f0efe9; }
   .inst select { margin: 0; font-size: .8rem; padding: .3rem .5rem; height: auto; width: auto; }
 {% endblock %}

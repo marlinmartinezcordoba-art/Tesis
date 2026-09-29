@@ -9,3 +9,11 @@ def dict_valor(diccionario, clave):
     if not isinstance(diccionario, dict):
         return ""
     return diccionario.get(clave, "")
+
+
+@register.filter
+def hace(fecha):
+    """«hace 3 horas»: solo la unidad mayor, más fácil de leer que «3 horas, 47 minutos»."""
+    from django.utils.timesince import timesince
+
+    return f"hace {timesince(fecha, depth=1)}" if fecha else ""

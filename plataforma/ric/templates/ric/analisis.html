@@ -9,7 +9,7 @@
      En pantallas angostas el texto pasa a ser una pestaña más (nunca se apila). */
   .paneles { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1rem; height: calc(100vh - 13rem); min-height: 420px; }
   .zona-texto, .zona-fichas { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-  .texto { flex: 1; min-height: 0; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .88rem; line-height: 1.6; overflow: auto; }
+  .texto { flex: 1; min-height: 0; background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .88rem; line-height: 1.6; overflow: auto; }
   .pie-texto { font-size: .76rem; color: #8a94a3; margin: .45rem 0 0; }
   .pestanas-analisis { display: flex; gap: .15rem; border-bottom: 1px solid var(--border); margin-bottom: .7rem; overflow-x: auto; flex-shrink: 0; }
   .pestanas-analisis button { all: unset; cursor: pointer; padding: .5rem .8rem; font-size: .84rem; color: var(--ink-suave); border-bottom: 3px solid transparent; white-space: nowrap; }
@@ -39,11 +39,11 @@
   .texto mark.ev.destacada { outline: 3px solid var(--ricora-accent-2); }
   .texto mark.ev.apagada { opacity: .35; }
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .9rem; }
-  .chip-clase { border: 1px solid #e6e3dc; background: #fff; border-radius: 20px; padding: .25rem .75rem; font-size: .76rem; cursor: pointer; }
+  .chip-clase { border: 1px solid #e6e3dc; background: var(--surface); border-radius: 20px; padding: .25rem .75rem; font-size: .76rem; cursor: pointer; }
   .chip-clase.activa { background: var(--ricora-dark); color: #fff; border-color: var(--ricora-dark); }
   .chip-clase b { color: var(--ricora-accent); margin-left: .25rem; }
   .grupo h3 { font-size: .9rem; margin: 1rem 0 .5rem; color: #52606d; text-transform: uppercase; letter-spacing: .04em; }
-  .ficha { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
+  .ficha { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
   .ficha header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
   .ficha header h4 { margin: 0; font-size: .95rem; }
   .ficha .confianza { font-size: .78rem; font-weight: 700; }
@@ -72,7 +72,7 @@
   .analizando { background: #eaf1fb; border: 1px solid #cddcf0; color: #1f3a5f; border-radius: 10px; padding: .6rem 1rem; margin-bottom: .8rem; font-size: .88rem; }
   .rechazo-banner { background: #fde8e8; border: 1px solid #f1b7b0; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
   .rechazo-banner form { margin: 0; } .rechazo-banner button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
-  .forma-doc { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; font-size: .84rem; }
+  .forma-doc { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; font-size: .84rem; }
   .forma-doc form { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; margin: 0; }
   .forma-doc select, .forma-doc input { margin: 0; font-size: .82rem; padding: .35rem .6rem; height: auto; width: auto; min-width: 0; flex: 1 1 12rem; }
   .forma-doc button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }

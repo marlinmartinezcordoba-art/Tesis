@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth.views import LogoutView
 
-from ric.vistas_acceso import IngresoView
+from ric.vistas_acceso import IngresoView, invitacion
 from django.urls import path
 from django.views.generic import RedirectView
 
@@ -32,6 +32,7 @@ urlpatterns = [
     path("admin/usuarios/", vistas_admin.admin_usuarios, name="admin_usuarios"),
     path("admin/usuarios/<int:pk>/", vistas_admin.admin_usuario_editar, name="admin_usuario_editar"),
     path("admin/usuarios/proveedores/", vistas_admin.admin_proveedor_agregar, name="admin_proveedor_agregar"),
+    path("admin/usuarios/proveedores/probar/", vistas_admin.admin_proveedor_probar_nuevo, name="admin_proveedor_probar_nuevo"),
     path("admin/usuarios/proveedores/<int:pk>/probar/", vistas_admin.admin_proveedor_probar, name="admin_proveedor_probar"),
     path("admin/usuarios/proveedores/<int:pk>/activar/", vistas_admin.admin_proveedor_activar, name="admin_proveedor_activar"),
     path("admin/usuarios/proveedores/<int:pk>/eliminar/", vistas_admin.admin_proveedor_eliminar, name="admin_proveedor_eliminar"),
@@ -98,6 +99,7 @@ urlpatterns = [
 
     # Acceso y utilidades compartidas
     path("ric/entrar/", IngresoView.as_view(), name="ric_login"),
+    path("ric/invitacion/<uidb64>/<token>/", invitacion, name="invitacion"),
     path("ric/salir/", LogoutView.as_view(next_page="ric_login"), name="ric_logout"),
     path("ric/archivo/<int:pk>/", vistas_visor.archivo_original, name="ric_archivo"),
     path("ric/archivo/<int:pk>/pagina/<int:numero>.png", vistas_visor.archivo_pagina_png, name="ric_archivo_pagina"),

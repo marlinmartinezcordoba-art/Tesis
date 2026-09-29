@@ -1,12 +1,14 @@
-"""M11 (Administración y seguridad, RF-M11-01 / RF-M11-03): tres roles —
+"""M11 (Administración y seguridad, RF-M11-01 / RF-M11-03): cuatro roles,
+exactamente uno por cuenta —
+administrador (usuarios, proveedores de IA, parámetros, auditoría; puede todo),
 archivista (ingesta, analiza, modela relaciones y también puede aprobar),
 revisor (revisa y aprueba, no ingesta) y consulta (solo catálogo,
-exportación y panel). La cuenta superusuario administra usuarios y
-proveedores de IA.
+exportación y panel).
 
-Se apoya en lo que Django ya trae: `is_staff` marca al archivista (es lo
-que además le abre el panel técnico) y un grupo "revisor" marca al
-revisor; quien no tiene ninguna de las dos es de consulta."""
+Se apoya en lo que Django ya trae: `is_superuser` marca al administrador,
+`is_staff` al archivista y un grupo "revisor" al revisor; quien no tiene
+ninguna de las tres es de consulta. Así una cuenta no puede quedar con dos
+roles a la vez."""
 
 from functools import wraps
 
@@ -15,18 +17,24 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
 from django.shortcuts import redirect
 
-SUPERUSUARIO = "superusuario"
-ADMINISTRADOR = SUPERUSUARIO  # el cuarto rol de los documentos: administra usuarios, proveedores y parámetros
+ADMINISTRADOR = "administrador"
+SUPERUSUARIO = ADMINISTRADOR  # nombre histórico: la cuenta superusuario de Django es el administrador
 ARCHIVISTA = "archivista"
 REVISOR = "revisor"
 CONSULTA = "consulta"
 
-ROLES_ASIGNABLES = (ARCHIVISTA, REVISOR, CONSULTA)
+ROLES_ASIGNABLES = (ARCHIVISTA, REVISOR, CONSULTA, ADMINISTRADOR)
 ETIQUETAS = {
-    SUPERUSUARIO: "Administrador",
+    ADMINISTRADOR: "Administrador",
     ARCHIVISTA: "Archivista",
     REVISOR: "Revisor",
     CONSULTA: "Consulta",
+}
+DESCRIPCIONES = {
+    ARCHIVISTA: "Carga, preprocesa, decide las propuestas de la IA, modela relaciones, aprueba y publica.",
+    REVISOR: "Revisa ficha por ficha, aprueba y publica o rechaza con motivo; no carga documentos.",
+    CONSULTA: "Consulta el catálogo publicado, exporta y ve los indicadores.",
+    ADMINISTRADOR: "Todo lo anterior, más usuarios, proveedores de IA, parámetros y auditoría.",
 }
 _GRUPO_REVISOR = "revisor"
 
@@ -43,15 +51,34 @@ def rol_de(usuario):
     return CONSULTA
 
 
+class UltimoAdministrador(Exception):
+    """Quitarle el rol o desactivar al único administrador activo dejaría la
+    plataforma sin quien la administre."""
+
+
+def administradores_activos():
+    from django.contrib.auth.models import User
+
+    return User.objects.filter(is_superuser=True, is_active=True)
+
+
+def es_ultimo_administrador(usuario):
+    return usuario.is_superuser and usuario.is_active and not administradores_activos().exclude(pk=usuario.pk).exists()
+
+
 def asignar_rol(usuario, rol):
     if rol not in ROLES_ASIGNABLES:
         raise ValueError(f"Rol desconocido: {rol!r}")
     from .auditoria_acciones import registrar_accion
 
     rol_anterior = rol_de(usuario)
+    if rol_anterior == ADMINISTRADOR and rol != ADMINISTRADOR and es_ultimo_administrador(usuario):
+        raise UltimoAdministrador("Es el único administrador activo: asigne primero el rol de administrador a otra cuenta.")
     grupo, _ = Group.objects.get_or_create(name=_GRUPO_REVISOR)
-    usuario.is_staff = rol == ARCHIVISTA
-    usuario.save(update_fields=["is_staff"])
+    # Exactamente un rol: cada marca se fija o se quita según el rol elegido.
+    usuario.is_superuser = rol == ADMINISTRADOR
+    usuario.is_staff = rol in (ARCHIVISTA, ADMINISTRADOR)
+    usuario.save(update_fields=["is_staff", "is_superuser"])
     if rol == REVISOR:
         usuario.groups.add(grupo)
     else:
@@ -94,7 +121,7 @@ def requiere_rol(*roles, mensaje=None):
                     "acceso_denegado", usuario=request.user, exitoso=False,
                     detalle={"ruta": request.path, "rol": rol_de(request.user), "requiere": list(roles) or ["administrador"]},
                 )
-                permitidos = " o ".join(ETIQUETAS[r].lower() for r in roles)
+                permitidos = " o ".join(ETIQUETAS[r].lower() for r in roles) or "administrador"
                 messages.error(
                     request,
                     mensaje or f"Esta acción requiere el rol {permitidos}; tu cuenta es de {ETIQUETAS[rol_de(request.user)].lower()}.",
@@ -123,7 +150,8 @@ def requiere_rol_api(*roles):
 
                 registrar_accion("acceso_denegado", usuario=request.user, exitoso=False,
                                  detalle={"ruta": request.path, "rol": rol_de(request.user), "requiere": list(roles)})
-                return JsonResponse({"ok": False, "error": "Esta acción requiere el rol " + " o ".join(ETIQUETAS[r].lower() for r in roles) + "."}, status=403)
+                permitidos = " o ".join(ETIQUETAS[r].lower() for r in roles) or "administrador"
+                return JsonResponse({"ok": False, "error": f"Esta acción requiere el rol {permitidos}."}, status=403)
             return vista(request, *args, **kwargs)
 
         return envoltura

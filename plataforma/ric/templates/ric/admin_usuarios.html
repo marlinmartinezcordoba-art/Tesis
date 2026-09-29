@@ -1,165 +1,255 @@
 {% extends "ric/_base.html" %}
 {% load ric_extras %}
-{% block titulo %}Administración y seguridad · RICORA{% endblock %}
+{% block titulo %}{{ pantalla_nombre|default:"Administración" }} · RICORA{% endblock %}
 {% block estilos_extra %}
-  .pestanas { display: flex; gap: .3rem; border-bottom: 1px solid #e6e3dc; margin-bottom: 1.1rem; }
-  .pestanas a { padding: .55rem 1rem; text-decoration: none; color: #52606d; border-bottom: 3px solid transparent; font-size: .9rem; }
-  .pestanas a.activa { color: var(--ricora-dark); border-color: var(--ricora-accent); font-weight: 600; }
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.2rem; align-items: start; }
-  .grid > * { min-width: 0; }
-  .tarjeta { overflow-x: auto; }
-  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
-  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
-  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
-  .tarjeta label { font-size: .78rem; } .tarjeta input, .tarjeta select { font-size: .86rem; margin-bottom: .5rem; }
+  .cabeza { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .cabeza h1 { margin: 0 0 .15rem; } .cabeza p { margin: 0; color: var(--ink-suave); font-size: .9rem; }
+  .cabeza button, .cabeza a[role=button] { width: auto; margin: 0; display: inline-flex; align-items: center; gap: .45rem; font-size: .88rem; padding: .55rem 1rem; border-radius: 10px; }
+  .cabeza svg, .btn-editar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.2rem; margin-bottom: 1rem; overflow-x: auto; }
+  .tarjeta h3 { font-size: .98rem; margin: 0 0 .6rem; }
   .tarjeta button { width: auto; margin: 0; }
-  .roles { display: grid; gap: .4rem; margin: .3rem 0 .8rem; }
-  .roles label { display: flex; gap: .5rem; align-items: flex-start; border: 1px solid #e6e3dc; border-radius: 10px; padding: .5rem .7rem; font-weight: 400; cursor: pointer; }
-  .roles label small { display: block; color: #6b7280; }
-  .roles input { margin: .2rem 0 0; }
+
+  .filtros { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: .9rem; }
+  .filtros .buscar { position: relative; flex: 1 1 260px; max-width: 360px; margin: 0; }
+  .filtros .buscar svg { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; fill: none; stroke: var(--ink-tenue); stroke-width: 2; pointer-events: none; z-index: 1; }
+  .filtros input[type=search] { margin: 0; padding-left: 2.2rem !important; height: 2.5rem; background-image: none !important; }
+  .filtros select { margin: 0; width: auto; min-width: 190px; height: 2.5rem; padding-top: 0; padding-bottom: 0; }
+  .chip-filtro { all: unset; cursor: pointer; font-size: .82rem; font-weight: 600; padding: .45rem .9rem; border-radius: 999px; border: 1px solid var(--border-fuerte); color: var(--ink-suave); background: var(--surface); }
+  .chip-filtro[aria-pressed=true] { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .contador { margin-left: auto; font-size: .8rem; color: var(--ink-suave); }
+
+  .lista { width: 100%; border-collapse: collapse; margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .lista th { text-align: left; font-size: .76rem; font-weight: 600; color: var(--ink-suave); padding: .65rem 1rem; background: var(--surface-alt); border-bottom: 1px solid var(--border); }
+  .lista td { padding: .7rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; background: none; font-size: .86rem; }
+  .lista tr:last-child td { border-bottom: 0; }
+  .lista tr.inactiva td { opacity: .6; }
+  .persona { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+  .persona .avatar-lista { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: .76rem; font-weight: 700; flex-shrink: 0; }
+  .persona b { display: block; font-weight: 600; }
+  .persona small { color: var(--ink-suave); font-size: .76rem; }
+  .persona .yo { font-weight: 500; color: var(--ink-suave); font-size: .76rem; }
+  .rol-badge { display: inline-block; font-size: .74rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+  .rol-administrador, .av-administrador { background: var(--morado-claro); color: #5537b0; }
+  .rol-archivista, .av-archivista { background: var(--azul-claro); color: var(--azul-oscuro); }
+  .rol-revisor, .av-revisor { background: var(--naranja-claro); color: var(--naranja-texto); }
+  .rol-consulta, .av-consulta { background: var(--surface-alt); color: var(--ink-suave); }
+  .estado { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+  .estado.activo { background: #dcefe3; color: #1f6b3e; }
+  .estado.inactivo { background: #f1dcdc; color: #8f2d25; }
+  .estado.pendiente { background: var(--naranja-claro); color: var(--naranja-texto); }
+  .acceso { color: var(--ink-suave); font-size: .82rem; white-space: nowrap; }
+  .celda-accion { text-align: right; white-space: nowrap; }
+  .btn-editar { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; font-size: .82rem; font-weight: 600; color: var(--ink); border: 1px solid var(--border-fuerte); border-radius: 9px; padding: .35rem .8rem; background: var(--surface); }
+  .btn-editar:hover { border-color: var(--azul); color: var(--azul); }
+
+  .invitacion { background: var(--naranja-claro); border: 1px solid #efcfb4; border-radius: 12px; padding: .9rem 1rem; margin-bottom: 1rem; }
+  .invitacion p { margin: 0 0 .5rem; font-size: .88rem; }
+  .invitacion .copiar { display: flex; gap: .5rem; }
+  .invitacion input { margin: 0; font-family: var(--fuente-mono); font-size: .78rem; background: var(--surface); }
+  .invitacion button { width: auto; margin: 0; white-space: nowrap; }
+
+  /* pico.css convierte todo <dialog> en una capa de pantalla completa: aquí es una ventana centrada */
+  dialog.ventana { position: fixed; inset: 0; margin: auto; display: block; border: 0; border-radius: 16px; padding: 0; width: min(540px, calc(100vw - 2rem)); min-width: 0; height: fit-content; min-height: 0; max-height: calc(100vh - 2rem); overflow-y: auto; background: var(--surface); color: var(--ink); box-shadow: 0 24px 60px rgba(15,20,45,.35); backdrop-filter: none; }
+  dialog.ventana:not([open]) { display: none; }
+  dialog.ventana::backdrop { background: rgba(20,28,45,.45); }
+  .ventana header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.1rem 1.3rem .8rem; border-bottom: 1px solid var(--border); }
+  .ventana header h2 { font-size: 1.1rem; margin: 0; } .ventana header p { margin: .15rem 0 0; font-size: .8rem; color: var(--ink-suave); }
+  .ventana header button { all: unset; cursor: pointer; font-size: 1.4rem; line-height: 1; color: var(--ink-suave); }
+  .ventana .cuerpo { padding: 1rem 1.3rem; overflow-y: auto; }
+  .ventana label { font-size: .8rem; font-weight: 600; }
+  .ventana input, .ventana select { margin-bottom: .75rem; font-size: .9rem; }
+  .ventana footer { display: flex; justify-content: flex-end; gap: .5rem; padding: .8rem 1.3rem 1.1rem; border-top: 1px solid var(--border); }
+  .ventana footer button { width: auto; margin: 0; }
+  .roles-opciones { display: grid; gap: .4rem; margin: .3rem 0 .6rem; }
+  .roles-opciones label { width: 100%; display: flex; gap: .55rem; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: .55rem .75rem; font-weight: 400; cursor: pointer; margin: 0; }
+  .roles-opciones label:has(input:checked) { border-color: var(--azul); background: var(--azul-claro); }
+  .roles-opciones input { margin: .15rem 0 0 !important; }
+  .roles-opciones b { font-size: .86rem; } .roles-opciones small { display: block; color: var(--ink-suave); font-size: .76rem; line-height: 1.4; }
+  .acciones-cuenta { border-top: 1px solid var(--border); margin-top: .6rem; padding-top: .8rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+  .acciones-cuenta form { margin: 0; }
+  .acciones-cuenta button { width: auto; margin: 0; font-size: .8rem; padding: .4rem .8rem; }
+  .acciones-cuenta button.peligro { background: #f1dcdc; color: #8f2d25; border-color: #e3c0bd; }
+  .nota { font-size: .76rem; color: var(--ink-suave); margin: .3rem 0 0; }
+  .aviso-ultimo { font-size: .78rem; background: var(--morado-claro); color: #4a3197; border-radius: 8px; padding: .5rem .7rem; margin-top: .6rem; }
+
+  .prueba { display: flex; align-items: center; gap: .6rem; margin: .2rem 0 .8rem; flex-wrap: wrap; }
+  .prueba button { width: auto; margin: 0; }
+  .indicador { display: inline-flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--ink-suave); }
+  .punto { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: var(--border-fuerte); flex-shrink: 0; }
+  .punto.ok { background: #2f9e5a; box-shadow: 0 0 0 3px #d3eddc; } .punto.fallo { background: #c43a31; } .punto.probando { background: var(--naranja); }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 600; border-radius: 999px; padding: 1px 8px; margin-left: .3rem; }
+  .tag.fuente { background: #dcefe3; color: #1f6b3e; } .tag.respaldo { background: var(--azul-claro); color: var(--azul-oscuro); }
+  .fila-acciones { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end; }
+  .fila-acciones form { margin: 0; }
+  .fila-acciones button { width: auto; margin: 0; padding: .3rem .7rem; font-size: .76rem; }
+
   table.tabla { width: 100%; border-collapse: collapse; font-size: .82rem; }
-  table.tabla th { text-align: left; color: #8a94a3; font-size: .68rem; text-transform: uppercase; padding: .45rem .4rem; border-bottom: 1px solid #e6e3dc; }
-  table.tabla td { padding: .45rem .4rem; border-bottom: 1px solid #f0efe9; vertical-align: top; }
-  .badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; text-transform: uppercase; }
-  .badge.archivista { background: #eaf1fb; color: #1f3a5f; } .badge.revisor { background: #f1e6ff; color: #4b2a8a; }
-  .badge.consulta { background: #f0efe9; color: #6b7280; } .badge.superusuario { background: #fff2df; color: #a9660a; }
-  .badge.inactiva { background: #fde8e8; color: #7a1f1f; }
-  .fila-acciones form { display: inline-flex; gap: .3rem; align-items: center; margin: 0 .2rem .3rem 0; }
-  .fila-acciones select, .fila-acciones input { margin: 0; font-size: .76rem; padding: .25rem .4rem; height: auto; width: auto; }
-  .fila-acciones button { padding: .25rem .6rem; font-size: .74rem; }
-  .fila-acciones details { display: inline-block; font-size: .76rem; }
-  .estado-con { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
-  .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #cbd2d9; }
-  .punto.ok { background: #2f7d4f; } .punto.fallo { background: #c0392b; }
-  .activo-tag { background: #e3f9e5; color: #1b4d2e; border-radius: 10px; padding: 1px 8px; font-size: .68rem; font-weight: 700; }
+  table.tabla th { text-align: left; color: var(--ink-suave); font-size: .72rem; font-weight: 600; padding: .5rem .45rem; border-bottom: 1px solid var(--border); background: none; }
+  table.tabla td { padding: .5rem .45rem; border-bottom: 1px solid var(--border); vertical-align: top; background: none; }
   .param { display: grid; grid-template-columns: 1fr 140px; gap: .6rem; align-items: center; margin-bottom: .5rem; font-size: .86rem; }
   .param input { margin: 0; }
-  .param small { display: block; color: #6b7280; font-size: .74rem; }
+  .param small { display: block; color: var(--ink-suave); font-size: .74rem; }
 {% endblock %}
 {% block contenido %}
-<hgroup>
-  <h1>{{ pantalla_nombre|default:"Administración" }}</h1>
-  <p>{% if pestana == "usuarios" %}Cuentas de la plataforma y el rol de cada persona: archivista, revisor o consulta.{% elif pestana == "proveedores" %}Servicios de inteligencia artificial que alimentan el motor de análisis, con su estado de conexión.{% elif pestana == "parametros" %}Valores que rigen el funcionamiento del sistema.{% elif pestana == "auditoria" %}Registro de quién hizo qué y cuándo en la plataforma.{% elif pestana == "eliminados" %}Lo retirado de las pantallas, con su motivo; desde aquí se restaura.{% endif %}</p>
-</hgroup>
-
-
-
-{% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
+<div class="cabeza">
+  <div>
+    <h1>{{ pantalla_nombre|default:"Administración" }}</h1>
+    <p>{% if pestana == "usuarios" %}Quién entra a RICORA y con qué rol. Cada cuenta tiene exactamente uno de los cuatro roles.{% elif pestana == "proveedores" %}Servicios de inteligencia artificial que alimentan el motor de análisis. Ninguno se guarda sin una prueba de conexión exitosa.{% elif pestana == "parametros" %}Valores que rigen el funcionamiento del sistema.{% elif pestana == "auditoria" %}Registro de quién hizo qué y cuándo en la plataforma.{% elif pestana == "eliminados" %}Lo retirado de las pantallas, con su motivo; desde aquí se restaura.{% endif %}</p>
+  </div>
+  {% if pestana == "usuarios" %}<button type="button" data-abrir="nuevo-usuario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Nuevo usuario</button>
+  {% elif pestana == "proveedores" %}<button type="button" data-abrir="nuevo-proveedor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Agregar proveedor</button>{% endif %}
+</div>
 
 {% if pestana == "usuarios" %}
-<div class="grid">
-  <div class="tarjeta">
-    <h3>Nuevo usuario</h3>
-    <form method="post">
-      {% csrf_token %}
-      <label for="id_username">Nombre de usuario (para iniciar sesión)</label>
-      <input type="text" name="username" id="id_username" placeholder="Ej. zully" required>
-      <label for="id_nombre_completo">Nombre</label>
-      <input type="text" name="nombre_completo" id="id_nombre_completo" placeholder="Nombre completo">
-      <label for="id_email">Correo</label>
-      <input type="email" name="email" id="id_email" placeholder="correo@entidad.gov.co">
+{% if invitacion %}
+<div class="invitacion" role="status">
+  <p><b>Enlace de invitación de «{{ invitacion.usuario }}»</b> · con él la persona crea su propia contraseña. Se muestra solo esta vez.</p>
+  <div class="copiar"><input type="text" id="enlace-invitacion" value="{{ invitacion.url }}" readonly aria-label="Enlace de invitación"><button type="button" data-copiar="enlace-invitacion">Copiar enlace</button></div>
+</div>
+{% endif %}
+
+<div class="filtros">
+  <label class="buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input type="search" id="filtro-texto" placeholder="Nombre, usuario o correo" aria-label="Buscar usuarios"></label>
+  <select id="filtro-rol" aria-label="Filtrar por rol"><option value="">Todos los roles</option>{% for valor, nombre, _d in roles %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}</select>
+  <button type="button" class="chip-filtro" id="filtro-activos" aria-pressed="true">Solo activos</button>
+  <span class="contador" id="contador">{{ total_activos }} activa(s) de {{ usuarios|length }}</span>
+</div>
+
+<table class="lista" id="tabla-usuarios">
+  <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead>
+  <tbody>
+    {% for f in usuarios %}{% with u=f.usuario %}
+    <tr class="{% if not u.is_active %}inactiva{% endif %}" data-texto="{{ f.nombre|lower }} {{ u.username|lower }} {{ u.email|lower }}" data-rol="{{ f.rol }}" data-activo="{% if u.is_active %}1{% else %}0{% endif %}">
+      <td><div class="persona"><span class="avatar-lista av-{{ f.rol }}" aria-hidden="true">{{ f.iniciales }}</span>
+        <span><b>{{ f.nombre }}{% if u.pk == request.user.pk %} <span class="yo">(usted)</span>{% endif %}</b><small>{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}</small></span></div></td>
+      <td><span class="rol-badge rol-{{ f.rol }}">{{ f.rol_etiqueta }}</span></td>
+      <td>{% if not u.is_active %}<span class="estado inactivo">Inactivo</span>{% elif f.pendiente %}<span class="estado pendiente">Invitación pendiente</span>{% else %}<span class="estado activo">Activo</span>{% endif %}</td>
+      <td class="acceso">{% if u.last_login %}{{ u.last_login|hace }}{% else %}Nunca{% endif %}</td>
+      <td class="celda-accion"><button type="button" class="btn-editar" data-abrir="editar-{{ u.pk }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Editar</button></td>
+    </tr>
+    {% endwith %}{% endfor %}
+  </tbody>
+</table>
+<p class="nota" id="sin-resultados" hidden>Ninguna cuenta coincide con el filtro.</p>
+
+<dialog class="ventana" id="nuevo-usuario" aria-labelledby="t-nuevo-usuario">
+  <form method="post">
+    {% csrf_token %}
+    <header><div><h2 id="t-nuevo-usuario">Nuevo usuario</h2><p>{% if correo_configurado %}Al guardar, la persona recibe por correo un enlace para crear su contraseña.{% else %}Al guardar, recibirá un enlace de invitación para enviarle a la persona.{% endif %}</p></div><button type="button" data-cerrar aria-label="Cerrar">×</button></header>
+    <div class="cuerpo">
+      {% if errores %}<div class="mensaje error" role="alert">{% for e in errores %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+      <label for="nu-nombre">Nombre</label>
+      <input type="text" name="nombre_completo" id="nu-nombre" value="{{ datos.nombre_completo|default:'' }}" placeholder="Nombre completo" required>
+      <label for="nu-correo">Correo</label>
+      <input type="email" name="email" id="nu-correo" value="{{ datos.email|default:'' }}" placeholder="correo@entidad.gov.co" required>
+      <label for="nu-usuario">Nombre de usuario (para iniciar sesión)</label>
+      <input type="text" name="username" id="nu-usuario" value="{{ datos.username|default:'' }}" pattern="[\w.@+\-]+" placeholder="Ej. zully.rojas" required>
       <label>Rol</label>
-      <div class="roles">
-        {% for valor, nombre in roles %}
-        <label><input type="radio" name="rol" value="{{ valor }}" {% if valor == 'archivista' %}checked{% endif %}>
-          <span>{{ nombre }}<small>{% if valor == 'archivista' %}Ingesta, preprocesa, decide propuestas, modela relaciones, aprueba y publica; entra al panel técnico.{% elif valor == 'revisor' %}Revisa fichas, aprueba y publica o rechaza con motivo; no ingesta.{% else %}Consulta el catálogo publicado, exporta y ve el panel.{% endif %}</small></span></label>
+      <div class="roles-opciones">
+        {% for valor, nombre, descripcion in roles %}
+        <label><input type="radio" name="rol" value="{{ valor }}" {% if datos.rol == valor or not datos.rol and valor == 'consulta' %}checked{% endif %} required><span><b>{{ nombre }}</b><small>{{ descripcion }}</small></span></label>
         {% endfor %}
       </div>
-      <label for="id_password">Contraseña inicial</label>
-      <input type="password" name="password" id="id_password" required>
-      <label for="id_password_confirmar">Confirmar contraseña</label>
-      <input type="password" name="password_confirmar" id="id_password_confirmar" required>
-      <button type="submit">Guardar</button>
-      <p style="font-size:.76rem; color:#6b7280; margin:.6rem 0 0;">{% if correo_configurado %}Al guardar se envía una invitación por correo.{% else %}El servidor no tiene correo configurado (EMAIL_HOST): comparta la contraseña directamente.{% endif %}</p>
-    </form>
-  </div>
+    </div>
+    <footer><button type="button" class="secondary" data-cerrar>Cancelar</button><button type="submit">Guardar</button></footer>
+  </form>
+</dialog>
 
-  <div class="tarjeta">
-    <h3>Cuentas ({{ usuarios|length }})</h3>
-    <table class="tabla">
-      <thead><tr><th>Usuario</th><th>Nombre / correo</th><th>Rol</th><th>Acciones</th></tr></thead>
-      <tbody>
-        {% for f in usuarios %}{% with u=f.usuario %}
-        <tr>
-          <td><strong>{{ u.username }}</strong>{% if not u.is_active %} <span class="badge inactiva">inactiva</span>{% endif %}<br><small style="color:#8a94a3">desde {{ u.date_joined|date:"d/m/Y" }}</small></td>
-          <td>{{ u.first_name|default:"—" }}<br><small>{{ u.email|default:"—" }}</small></td>
-          <td><span class="badge {{ f.rol }}">{{ f.rol_etiqueta }}</span></td>
-          <td class="fila-acciones">
-            {% if not u.is_superuser %}
-            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}
-              <input type="hidden" name="accion" value="cambiar_rol">
-              <select name="rol">{% for valor, nombre in roles %}<option value="{{ valor }}" {% if f.rol == valor %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select>
-              <button type="submit">Cambiar rol</button>
-            </form>
-            {% if u.is_active %}
-            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
-            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_sesiones"><button type="submit" class="secondary" title="Revoca todas las sesiones abiertas de esta cuenta">Cerrar sesiones</button></form>
-            {% else %}
-            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><button type="submit">Reactivar</button></form>
-            {% endif %}
-            {% endif %}
-            <details><summary>Restablecer contraseña</summary>
-              <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="restablecer">
-                <input type="password" name="password" placeholder="nueva" required><input type="password" name="password_confirmar" placeholder="confirmar" required><button type="submit">Guardar</button>
-              </form>
-            </details>
-          </td>
-        </tr>
-        {% endwith %}{% endfor %}
-      </tbody>
-    </table>
+{% for f in usuarios %}{% with u=f.usuario %}
+<dialog class="ventana" id="editar-{{ u.pk }}" aria-labelledby="t-editar-{{ u.pk }}">
+  <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">
+    {% csrf_token %}<input type="hidden" name="accion" value="editar">
+    <header><div><h2 id="t-editar-{{ u.pk }}">{{ f.nombre }}</h2><p>Usuario {{ u.username }} · creado el {{ u.date_joined|date:"d/m/Y" }}</p></div><button type="button" data-cerrar aria-label="Cerrar">×</button></header>
+    <div class="cuerpo">
+      <label for="ed-nombre-{{ u.pk }}">Nombre</label>
+      <input type="text" name="nombre_completo" id="ed-nombre-{{ u.pk }}" value="{{ u.get_full_name|default:u.first_name }}" required>
+      <label for="ed-correo-{{ u.pk }}">Correo</label>
+      <input type="email" name="email" id="ed-correo-{{ u.pk }}" value="{{ u.email }}" required>
+      <label>Rol</label>
+      <div class="roles-opciones">
+        {% for valor, nombre, descripcion in roles %}
+        <label><input type="radio" name="rol" value="{{ valor }}" {% if f.rol == valor %}checked{% endif %}><span><b>{{ nombre }}</b><small>{{ descripcion }}</small></span></label>
+        {% endfor %}
+      </div>
+      {% if f.ultimo_admin %}<p class="aviso-ultimo">Es el único administrador activo: no se le puede quitar el rol ni desactivar hasta que otra cuenta sea administradora.</p>{% endif %}
+    </div>
+    <footer><button type="button" class="secondary" data-cerrar>Cancelar</button><button type="submit">Guardar cambios</button></footer>
+  </form>
+  <div class="cuerpo" style="padding-top:0">
+    <div class="acciones-cuenta">
+      {% if u.pk != request.user.pk %}
+      <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="restablecer"><button type="submit" class="secondary" title="{% if f.pendiente %}Genera un enlace nuevo; el anterior deja de servir{% else %}La contraseña actual deja de servir y la persona crea una nueva con el enlace{% endif %}">{% if f.pendiente %}Reenviar invitación{% else %}Restablecer acceso{% endif %}</button></form>
+      {% endif %}
+      {% if u.is_active %}
+      <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_sesiones"><button type="submit" class="secondary" title="Revoca todas las sesiones abiertas de esta cuenta">Cerrar sesiones</button></form>
+      {% if u.pk != request.user.pk and not f.ultimo_admin %}
+      <form method="post" action="{% url 'admin_usuario_editar' u.pk %}" data-confirmar="¿Desactivar la cuenta de {{ f.nombre }}? No podrá iniciar sesión; su historial se conserva.">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="peligro">Desactivar</button></form>
+      {% endif %}
+      {% else %}
+      <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><button type="submit">Reactivar</button></form>
+      {% endif %}
+    </div>
+    <p class="nota">Nada se borra: una cuenta desactivada conserva todo su historial en la auditoría.</p>
   </div>
-</div>
+</dialog>
+{% endwith %}{% endfor %}
 
 {% elif pestana == "proveedores" %}
-<div class="grid">
-  <div class="tarjeta">
-    <h3>Agregar proveedor</h3>
-    <form method="post" action="{% url 'admin_proveedor_agregar' %}">
-      {% csrf_token %}
-      <label for="id_proveedor">Proveedor</label>
-      <select name="proveedor" id="id_proveedor">{% for valor, nombre in opciones_proveedor %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}</select>
-      <label for="id_modelo">Modelo (vacío = por defecto: {% for p, m in modelos_por_defecto.items %}{{ p }} → {{ m }}{% if not forloop.last %}, {% endif %}{% endfor %})</label>
-      <input type="text" name="modelo" id="id_modelo" placeholder="Ej. gemini-2.5-pro">
-      <label for="id_clave">Clave de acceso (API key) — vacío = usar la variable de entorno del servidor; no aplica a la IA local</label>
-      <input type="password" name="clave_api" id="id_clave" autocomplete="off">
-      <button type="submit">Agregar proveedor</button>
-    </form>
-  </div>
-  <div class="tarjeta">
-    <h3>Proveedores configurados</h3>
-    {% if not proveedores %}<p class="sin-datos">Todavía no hay proveedores. Sin un proveedor activo, el motor de análisis no propone entidades.</p>{% endif %}
-    <table class="tabla">
-      <thead><tr><th>Proveedor</th><th>Clave</th><th>Conexión</th><th>Acciones</th></tr></thead>
-      <tbody>
-        {% for p in proveedores %}
-        <tr>
-          <td><strong>{{ p.get_proveedor_display }}</strong>{% if p.activo %} <span class="activo-tag">activo · fuente del motor</span>{% endif %}{% if p.es_respaldo %} <span class="activo-tag" style="background:#eaf1fb;color:#1f3a5f">respaldo automático</span>{% endif %}<br><small>{{ p.modelo|default:"modelo por defecto" }}</small></td>
-          <td><code style="font-size:.74rem">{{ p.clave_enmascarada }}</code></td>
-          <td><span class="estado-con"><i class="punto {% if p.prueba_exitosa %}ok{% elif p.prueba_exitosa is False %}fallo{% endif %}"></i>
-            {% if p.prueba_exitosa is None %}sin probar{% elif p.prueba_exitosa %}correcta{% else %}falló{% endif %}</span>
-            {% if p.mensaje_prueba %}<br><small style="color:#52606d">{{ p.mensaje_prueba }}</small>{% endif %}
-            {% if p.ultima_prueba %}<br><small style="color:#8a94a3">{{ p.ultima_prueba|date:"d/m/Y H:i" }}</small>{% endif %}</td>
-          <td class="fila-acciones">
-            <form method="post" action="{% url 'admin_proveedor_probar' p.pk %}">{% csrf_token %}<button type="submit">Probar conexión</button></form>
-            {% if p.activo %}
-            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
-            {% else %}
-            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<button type="submit" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Guardar y activar</button></form>
-            {% endif %}
-            {% if not p.activo %}{% if p.es_respaldo %}
-            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="quitar_respaldo"><button type="submit" class="secondary">Quitar como respaldo</button></form>
-            {% else %}
-            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="respaldo"><button type="submit" class="secondary" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Usar como respaldo</button></form>
-            {% endif %}{% endif %}
-            <form method="post" action="{% url 'admin_proveedor_eliminar' p.pk %}" onsubmit="return confirm('¿Eliminar este proveedor?');">{% csrf_token %}<button type="submit" class="secondary">Eliminar</button></form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="tarjeta" style="padding:0">
+  {% if not proveedores %}<p class="sin-datos" style="padding:1rem 1.2rem; margin:0">Todavía no hay proveedores. Sin uno activo, el motor de análisis no propone entidades.</p>{% else %}
+  <table class="lista" style="border:0">
+    <thead><tr><th>Proveedor</th><th>Clave</th><th>Conexión</th><th></th></tr></thead>
+    <tbody>
+      {% for p in proveedores %}
+      <tr>
+        <td><b>{{ p.get_proveedor_display }}</b>{% if p.activo %}<span class="tag fuente">Fuente del motor</span>{% endif %}{% if p.es_respaldo %}<span class="tag respaldo">Respaldo automático</span>{% endif %}<br><small style="color:var(--ink-suave)">{{ p.modelo|default:"modelo por defecto" }}</small></td>
+        <td><code style="font-size:.76rem">{{ p.clave_enmascarada }}</code></td>
+        <td><span class="indicador"><i class="punto {% if p.prueba_exitosa %}ok{% elif p.prueba_exitosa is False %}fallo{% endif %}"></i>{% if p.prueba_exitosa is None %}Sin probar{% elif p.prueba_exitosa %}Conexión correcta{% else %}Falló{% endif %}</span>
+          {% if p.mensaje_prueba %}<br><small style="color:var(--ink-suave)">{{ p.mensaje_prueba }}</small>{% endif %}
+          {% if p.ultima_prueba %}<br><small style="color:var(--ink-tenue)">{{ p.ultima_prueba|date:"d/m/Y H:i" }}</small>{% endif %}</td>
+        <td><div class="fila-acciones">
+          <form method="post" action="{% url 'admin_proveedor_probar' p.pk %}">{% csrf_token %}<button type="submit" class="secondary">Probar conexión</button></form>
+          {% if p.activo %}
+          <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
+          {% else %}
+          <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<button type="submit" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Activar</button></form>
+          {% if p.es_respaldo %}
+          <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="quitar_respaldo"><button type="submit" class="secondary">Quitar respaldo</button></form>
+          {% else %}
+          <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="respaldo"><button type="submit" class="secondary" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Usar como respaldo</button></form>
+          {% endif %}{% endif %}
+          <form method="post" action="{% url 'admin_proveedor_eliminar' p.pk %}" data-confirmar="¿Retirar este proveedor? Queda en Eliminados y se puede restaurar.">{% csrf_token %}<button type="submit" class="secondary">Retirar</button></form>
+        </div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </div>
+
+<dialog class="ventana" id="nuevo-proveedor" aria-labelledby="t-nuevo-proveedor">
+  <form method="post" action="{% url 'admin_proveedor_agregar' %}" id="form-proveedor" data-probar="{% url 'admin_proveedor_probar_nuevo' %}">
+    {% csrf_token %}<input type="hidden" name="comprobante" id="comprobante">
+    <header><div><h2 id="t-nuevo-proveedor">Agregar proveedor de IA</h2><p>Primero pruebe la conexión; «Guardar» se habilita solo si la prueba sale bien.</p></div><button type="button" data-cerrar aria-label="Cerrar">×</button></header>
+    <div class="cuerpo">
+      <label for="np-proveedor">Proveedor</label>
+      <select name="proveedor" id="np-proveedor">{% for valor, nombre in opciones_proveedor %}<option value="{{ valor }}" data-modelo="{% for k, m in modelos_por_defecto.items %}{% if k == valor %}{{ m }}{% endif %}{% endfor %}">{{ nombre }}</option>{% endfor %}</select>
+      <label for="np-modelo">Modelo <small style="font-weight:400; color:var(--ink-suave)">(vacío = el del proveedor por defecto)</small></label>
+      <input type="text" name="modelo" id="np-modelo" autocomplete="off">
+      <label for="np-clave">Clave de acceso (API key) <small style="font-weight:400; color:var(--ink-suave)">(vacío = la del servidor; no aplica a la IA local)</small></label>
+      <input type="password" name="clave_api" id="np-clave" autocomplete="off">
+      <div class="prueba">
+        <button type="button" class="secondary" id="btn-probar">Probar conexión</button>
+        <span class="indicador" id="resultado-prueba" aria-live="polite"><i class="punto"></i>Sin probar</span>
+      </div>
+      <label style="display:flex; gap:.5rem; align-items:center; font-weight:400"><input type="checkbox" name="activar" value="1" checked style="margin:0">Usarlo como fuente del motor de análisis al guardar</label>
+    </div>
+    <footer><button type="button" class="secondary" data-cerrar>Cancelar</button><button type="submit" id="btn-guardar-proveedor" disabled>Guardar</button></footer>
+  </form>
+</dialog>
 
 {% elif pestana == "auditoria" %}
 <div class="tarjeta">
@@ -230,4 +320,80 @@
   </form>
 </div>
 {% endif %}
+
+<script>
+(function () {
+  // Ventanas (Nuevo usuario, Editar, Agregar proveedor): <dialog> nativo; Escape cierra.
+  document.querySelectorAll("[data-abrir]").forEach(function (b) {
+    b.addEventListener("click", function () { var d = document.getElementById(b.dataset.abrir); if (d) d.showModal(); });
+  });
+  document.querySelectorAll("dialog [data-cerrar]").forEach(function (b) {
+    b.addEventListener("click", function () { b.closest("dialog").close(); });
+  });
+  document.querySelectorAll("form[data-confirmar]").forEach(function (f) {
+    f.addEventListener("submit", function (e) { if (!confirm(f.dataset.confirmar)) e.preventDefault(); });
+  });
+  document.querySelectorAll("[data-copiar]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var c = document.getElementById(b.dataset.copiar); c.select();
+      try { navigator.clipboard.writeText(c.value); } catch (e) { document.execCommand("copy"); }
+      b.textContent = "Copiado ✓";
+    });
+  });
+  {% if errores %}var nu = document.getElementById("nuevo-usuario"); if (nu) nu.showModal();{% endif %}
+
+  // Filtros de la tabla de usuarios, en el navegador.
+  var tabla = document.getElementById("tabla-usuarios");
+  if (tabla) {
+    var texto = document.getElementById("filtro-texto"), rol = document.getElementById("filtro-rol"),
+        activos = document.getElementById("filtro-activos"), contador = document.getElementById("contador"),
+        vacio = document.getElementById("sin-resultados"), filas = tabla.querySelectorAll("tbody tr");
+    function filtrar() {
+      var t = texto.value.trim().toLowerCase(), r = rol.value, solo = activos.getAttribute("aria-pressed") === "true", n = 0;
+      filas.forEach(function (f) {
+        var ver = (!t || f.dataset.texto.indexOf(t) >= 0) && (!r || f.dataset.rol === r) && (!solo || f.dataset.activo === "1");
+        f.hidden = !ver; if (ver) n++;
+      });
+      contador.textContent = n + " de " + filas.length + " cuenta(s)";
+      vacio.hidden = n > 0;
+    }
+    texto.addEventListener("input", filtrar); rol.addEventListener("change", filtrar);
+    activos.addEventListener("click", function () { activos.setAttribute("aria-pressed", activos.getAttribute("aria-pressed") === "true" ? "false" : "true"); filtrar(); });
+    filtrar();
+  }
+
+  // Nuevo usuario: el nombre de usuario se sugiere a partir del correo.
+  var correo = document.getElementById("nu-correo"), usuario = document.getElementById("nu-usuario");
+  if (correo && usuario) correo.addEventListener("input", function () {
+    if (!usuario.dataset.tocado) usuario.value = correo.value.split("@")[0].toLowerCase().replace(/[^\w.@+-]/g, "");
+  });
+  if (usuario) usuario.addEventListener("input", function () { usuario.dataset.tocado = "1"; });
+
+  // Agregar proveedor: probar la conexión antes de habilitar «Guardar».
+  var fp = document.getElementById("form-proveedor");
+  if (fp) {
+    var guardar = document.getElementById("btn-guardar-proveedor"), probar = document.getElementById("btn-probar"),
+        resultado = document.getElementById("resultado-prueba"), comprobante = document.getElementById("comprobante"),
+        sel = document.getElementById("np-proveedor"), modelo = document.getElementById("np-modelo");
+    function estado(clase, textoEstado) { resultado.innerHTML = '<i class="punto ' + clase + '"></i>'; resultado.appendChild(document.createTextNode(textoEstado)); }
+    function invalidar() { comprobante.value = ""; guardar.disabled = true; estado("", "Sin probar"); }
+    function sugerir() { modelo.placeholder = "Por defecto: " + (sel.selectedOptions[0].dataset.modelo || "—"); }
+    sugerir();
+    sel.addEventListener("change", function () { sugerir(); invalidar(); });
+    fp.querySelectorAll("input[name=modelo], input[name=clave_api]").forEach(function (i) { i.addEventListener("input", invalidar); });
+    probar.addEventListener("click", function () {
+      invalidar(); estado("probando", "Probando la conexión…"); probar.disabled = true;
+      var datos = new FormData(fp);
+      fetch(fp.dataset.probar, { method: "POST", body: datos, credentials: "same-origin", headers: { "X-Requested-With": "fetch" } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.ok) { comprobante.value = j.comprobante; guardar.disabled = false; estado("ok", j.mensaje || "Conexión correcta"); }
+          else { estado("fallo", j.mensaje || j.error || "La conexión falló."); }
+        })
+        .catch(function () { estado("fallo", "No se pudo completar la prueba. Revise su conexión e intente de nuevo."); })
+        .then(function () { probar.disabled = false; });
+    });
+  }
+})();
+</script>
 {% endblock %}

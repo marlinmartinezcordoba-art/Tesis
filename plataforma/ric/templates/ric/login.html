@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
   :root {
-    --tinta: #1d4ed8; --tinta-2: #6d28d9; --tinta-3: #3b82f6; --papel: #f6f8fc; --superficie: #ffffff;
-    --borde: #dfe5ef; --texto: #111827; --texto-suave: #5b6475; --acento: #2563eb; --acento-2: #fdba74; --peligro: #dc2626;
+    --tinta: #1d4ed8; --tinta-2: #6d28d9; --tinta-3: #3b82f6; --papel: #e6eaf0; --superficie: #f7f8fa;
+    --borde: #dfe5ef; --texto: #111827; --texto-suave: #5b6475; --acento: #2f5fd0; --acento-2: #fdba74; --peligro: #dc2626;
     --titulo: "Inter", "Segoe UI", system-ui, sans-serif; --cuerpo: "Inter", "Segoe UI", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
@@ -20,7 +20,7 @@
 
   /* Presentación de la plataforma */
   .presentacion { position: relative; overflow: hidden; color: #eef1ea; padding: 3rem clamp(1.5rem, 5vw, 4.5rem); display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
-                  background: radial-gradient(90% 80% at 100% 0%, rgba(249,115,22,.35) 0%, rgba(249,115,22,0) 55%), linear-gradient(150deg, #2563eb 0%, #4f46e5 55%, #7c3aed 100%); }
+                  background: radial-gradient(90% 80% at 100% 0%, rgba(234,122,46,.28) 0%, rgba(234,122,46,0) 55%), linear-gradient(150deg, #28479f 0%, #3a3f9e 55%, #533aa6 100%); }
   .presentacion::after { content: ""; position: absolute; left: -120px; bottom: -140px; width: 380px; height: 380px; border-radius: 50%; border: 50px solid rgba(255,255,255,.10); }
   .marca { font-family: var(--titulo); font-size: 1.6rem; font-weight: 600; letter-spacing: .01em; }
   .marca span { color: #fdba74; }
@@ -49,9 +49,10 @@
   .ver-clave { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; color: var(--texto-suave); font: inherit; font-size: .8rem; padding: .3rem .5rem; border-radius: 6px; }
   .ver-clave:hover { color: var(--acento); } .ver-clave:focus-visible { outline: 2px solid var(--acento); }
   button.entrar { width: 100%; font: inherit; font-weight: 600; font-size: 1rem; padding: .85rem; border-radius: 10px; border: 0; cursor: pointer; background: var(--acento); color: #fff; margin-top: .4rem; transition: background .15s, transform .1s; }
-  button.entrar:hover { background: #1d4ed8; } button.entrar:active { transform: translateY(1px); }
+  button.entrar:hover { background: #274fb0; } button.entrar:active { transform: translateY(1px); }
   button.entrar:focus-visible { outline: 3px solid rgba(37,99,235,.4); outline-offset: 2px; }
   .errores { background: #f6e8e6; color: #93392a; border: 1px solid #e7c3bd; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1.1rem; }
+  .exito { background: #e3f1e8; color: #1f5c38; border: 1px solid #bfdcc9; padding: .7rem .9rem; border-radius: 10px; font-size: .86rem; margin-bottom: 1.1rem; }
   .nota { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--borde); font-size: .78rem; color: var(--texto-suave); line-height: 1.5; display: flex; gap: .5rem; }
 </style>
 </head>
@@ -88,6 +89,7 @@
     <h2>Ingresar</h2>
     <p class="sub">Use el usuario y la contraseña que le asignó el administrador.</p>
 
+    {% for m in messages %}<div class="{% if m.tags == 'success' %}exito{% else %}errores{% endif %}" role="status">{{ m }}</div>{% endfor %}
     {% if bloqueado %}
     <div class="errores" role="alert">Demasiados intentos fallidos ({{ intentos }}) para este usuario. Por seguridad, espere {{ minutos }} minutos antes de volver a intentarlo. El intento quedó registrado.</div>
     {% elif form.errors %}

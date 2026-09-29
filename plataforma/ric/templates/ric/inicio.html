@@ -13,20 +13,20 @@
   .fila-principal { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 1rem; margin-bottom: 1rem; align-items: stretch; }
   @media (max-width: 1100px) { .fila-principal { grid-template-columns: minmax(0, 1fr); } }
 
-  .mi-trabajo { background: linear-gradient(135deg, #eaf1ff 0%, #f3eeff 100%); border: 1px solid #dde5fb; color: var(--ink); border-radius: 16px; padding: 1.2rem 1.3rem 1.3rem; }
+  .mi-trabajo { background: linear-gradient(135deg, #d9e2f7 0%, #e3dbf5 100%); border: 1px solid #cbd5ee; color: var(--ink); border-radius: 16px; padding: 1.2rem 1.3rem 1.3rem; }
   .mi-trabajo h2 { font-size: 1.1rem; margin: 0; }
   .mi-trabajo > p { color: var(--ink-suave); font-size: .8rem; margin: .1rem 0 1rem; }
   .tarjetas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
   @media (max-width: 640px) { .tarjetas { grid-template-columns: minmax(0, 1fr); } }
   .tarjeta-tarea { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .85rem; align-items: center; text-decoration: none; color: inherit;
-                   background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 1rem; transition: border-color .12s, box-shadow .12s, transform .12s; }
+                   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; transition: border-color .12s, box-shadow .12s, transform .12s; }
   .tarjeta-tarea:hover { border-color: #b9ccf7; box-shadow: 0 6px 16px rgba(37,99,235,.10); transform: translateY(-1px); }
   .tarjeta-tarea .ico { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; }
   .tarjeta-tarea .ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .ico-ocr { background: var(--azul-claro); color: var(--azul); }
   .ico-ia { background: var(--morado-claro); color: var(--morado); }
   .ico-revision { background: var(--naranja-claro); color: var(--naranja-texto); }
-  .ico-retencion { background: #fdecec; color: #dc2626; }
+  .ico-retencion { background: #f6dedb; color: #c43a31; }
   .tarjeta-tarea .n { display: block; font-size: 1.7rem; font-weight: 700; line-height: 1; color: var(--ink); }
   .tarjeta-tarea .t { display: block; font-size: .86rem; font-weight: 600; margin-top: .3rem; color: var(--ink); }
   .tarjeta-tarea .d { display: block; font-size: .74rem; color: var(--ink-suave); margin-top: .1rem; }

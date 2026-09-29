@@ -13,24 +13,28 @@
      que si no imponen su azul a botones y enlaces */
   :root, :root[data-theme="light"] {
     /* Paleta clara: azul (principal), naranja (destacado) y morado (IA). */
-    --azul: #2563eb; --azul-oscuro: #1d4ed8; --azul-claro: #eaf1ff;
-    --naranja: #f97316; --naranja-texto: #c2410c; --naranja-claro: #fff3e8;
-    --morado: #7c3aed; --morado-claro: #f3eeff;
-    --bg: #f6f8fc; --surface: #ffffff; --surface-alt: #f0f3f9;
-    --border: #e3e8f1; --border-fuerte: #cbd4e3;
-    --ink: #111827; --ink-suave: #5b6475; --ink-tenue: #8b93a5;
-    --sidebar-bg: #ffffff; --sidebar-ink: #1f2a44; --sidebar-ink-suave: #5b6475; --sidebar-activo: #eaf1ff;
-    --accent: #2563eb; --accent-ink: #ffffff; --ok: #15803d; --alerta: #c2410c; --peligro: #dc2626;
+    /* Término medio: fondos gris azulado suaves (sin blanco que encandile),
+       menú en azul marino, azul principal, naranja destacado y morado para la IA. */
+    --azul: #2f5fd0; --azul-oscuro: #274fb0; --azul-claro: #dfe7f8;
+    --naranja: #ea7a2e; --naranja-texto: #b45309; --naranja-claro: #f8e8da;
+    --morado: #6d4bd1; --morado-claro: #e8e1f8;
+    --bg: #e6eaf0; --surface: #f7f8fa; --surface-alt: #eceff4;
+    --border: #d5dbe5; --border-fuerte: #b9c3d3;
+    --ink: #1c2433; --ink-suave: #515b6d; --ink-tenue: #7f889a;
+    --sidebar-bg: #1f2b47; --sidebar-ink: #e6ebf5; --sidebar-ink-suave: #a7b1c6; --sidebar-activo: #2d3b5e;
+    --accent: #2f5fd0; --accent-ink: #ffffff; --ok: #1f7a45; --alerta: #b45309; --peligro: #c43a31;
     --fuente-titulo: "Inter", "Segoe UI", system-ui, sans-serif;
     --fuente-cuerpo: "Inter", "Segoe UI", system-ui, sans-serif;
     --fuente-mono: "IBM Plex Mono", ui-monospace, monospace;
     --radio: 12px; --radio-chico: 8px;
     --sombra: 0 1px 2px rgba(17,24,39,.05), 0 6px 18px rgba(17,24,39,.06);
-    --ricora-dark: #2563eb; --ricora-dark-2: #1d4ed8; --ricora-accent: #2563eb; --ricora-accent-2: #f97316;
-    --ricora-bg: #f6f8fc; --ricora-critical: #dc2626;
-    --pico-primary: #2563eb; --pico-primary-background: #2563eb; --pico-primary-border: #2563eb;
-    --pico-primary-hover: #1d4ed8; --pico-primary-hover-background: #1d4ed8; --pico-primary-hover-border: #1d4ed8;
-    --pico-primary-focus: rgba(37,99,235,.25); --pico-primary-inverse: #fff;
+    --ricora-dark: #2f5fd0; --ricora-dark-2: #274fb0; --ricora-accent: #2f5fd0; --ricora-accent-2: #ea7a2e;
+    --ricora-bg: #e6eaf0; --ricora-critical: #c43a31;
+    --pico-primary: #2f5fd0; --pico-primary-background: #2f5fd0; --pico-primary-border: #2f5fd0;
+    --pico-primary-hover: #274fb0; --pico-primary-hover-background: #274fb0; --pico-primary-hover-border: #274fb0;
+    --pico-primary-focus: rgba(47,95,208,.25); --pico-primary-inverse: #fff;
+    --pico-background-color: var(--bg); --pico-form-element-background-color: var(--surface);
+    --pico-card-background-color: var(--surface); --pico-table-row-stripped-background-color: var(--surface-alt);
     --pico-font-family: var(--fuente-cuerpo); --pico-border-radius: 8px;
     color-scheme: light;
   }
@@ -46,27 +50,27 @@
   /* Menú lateral */
   .ricora-sidebar {
     width: 250px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--sidebar-ink);
-    padding: 1.1rem .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; border-right: 1px solid var(--border);
+    padding: 1.1rem .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; border-right: 0;
   }
   .ricora-brand { display: block; color: var(--sidebar-ink); text-decoration: none; margin: 0 .55rem 1.3rem; }
-  .ricora-brand strong { font-size: 1.35rem; font-weight: 800; letter-spacing: .02em; display: block; line-height: 1.1; color: var(--azul); }
-  .ricora-brand strong span { color: var(--naranja); }
+  .ricora-brand strong { font-size: 1.35rem; font-weight: 800; letter-spacing: .02em; display: block; line-height: 1.1; color: #9dbbff; }
+  .ricora-brand strong span { color: #f59e5b; }
   .ricora-brand small { display: block; font-size: .72rem; color: var(--sidebar-ink-suave); margin-top: .15rem; }
   .ricora-sidebar nav { display: flex; flex-direction: column; gap: .15rem; }
   .ricora-sidebar nav a {
     color: var(--sidebar-ink-suave); text-decoration: none; padding: .45rem .7rem; border-radius: var(--radio-chico);
     font-size: .86rem; line-height: 1.25; display: flex; align-items: center; gap: .7rem; transition: background .12s, color .12s; position: relative;
   }
-  .ricora-sidebar nav a:hover { background: var(--surface-alt); color: var(--sidebar-ink); }
-  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--azul-oscuro); font-weight: 600; }
-  .ricora-sidebar nav a.activo::before { content: ""; position: absolute; left: -.75rem; top: 20%; bottom: 20%; width: 3px; border-radius: 0 3px 3px 0; background: var(--naranja); }
+  .ricora-sidebar nav a:hover { background: rgba(255,255,255,.07); color: #fff; }
+  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: #fff; font-weight: 600; }
+  .ricora-sidebar nav a.activo::before { content: ""; position: absolute; left: -.75rem; top: 20%; bottom: 20%; width: 3px; border-radius: 0 3px 3px 0; background: #f59e5b; }
   .menu svg.ic { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .menu .menu-texto { flex: 1; min-width: 0; text-align: left; }
+  .menu .menu-texto { flex: 1; min-width: 0; text-align: left; overflow-wrap: normal; word-break: normal; hyphens: none; }
   .ricora-sidebar .menu button.menu-titulo {
     all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .7rem;
     padding: .45rem .7rem; border-radius: var(--radio-chico); color: var(--sidebar-ink-suave); font-size: .86rem; line-height: 1.25; cursor: pointer;
   }
-  .ricora-sidebar .menu button.menu-titulo:hover { background: var(--surface-alt); color: var(--sidebar-ink); }
+  .ricora-sidebar .menu button.menu-titulo:hover { background: rgba(255,255,255,.07); color: #fff; }
   .ricora-sidebar .menu button.menu-titulo:focus-visible { outline: 2px solid var(--ricora-accent-2); outline-offset: 1px; }
   .menu .menu-grupo.actual > .menu-titulo { color: var(--sidebar-ink); font-weight: 600; }
   .menu .menu-flecha { font-size: 1rem; transition: transform .15s; opacity: .6; }
@@ -75,7 +79,7 @@
   .menu .menu-grupo.abierto .menu-sub { display: flex; }
   .ricora-sidebar .menu .menu-sub a { padding: .38rem .7rem; font-size: .82rem; }
   .ricora-sidebar .menu .menu-sub a.activo::before { left: -2.3rem; }
-  .menu-separador { height: 1px; background: var(--border); margin: .5rem .4rem; }
+  .menu-separador { height: 1px; background: rgba(255,255,255,.1); margin: .5rem .4rem; }
 
   /* Barra superior: buscador, fecha y persona */
   .ricora-shell { flex: 1; min-width: 0; overflow-x: hidden; }
@@ -118,6 +122,9 @@
   .mensaje.warning { background: #fef3e2; color: #92620f; border-color: #f3dcae; }
   .sin-datos { color: #92620f; font-style: italic; }
   table { font-size: .86rem; }
+  /* Botones secundarios claros (pico.css los pinta gris oscuro) */
+  button.secondary, [role=button].secondary, input[type=submit].secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border-fuerte); }
+  button.secondary:hover, [role=button].secondary:hover { background: var(--surface-alt); color: var(--azul); border-color: var(--azul); }
   input, select, textarea { font-size: .9rem; }
 
   @media (max-width: 1100px) { .ricora-sidebar { width: 220px; } }
@@ -127,7 +134,7 @@
   }
 
   /* Ayuda: ambulancia flotante que abre la guía de la pantalla, paso a paso. */
-  .ambulancia { all: unset; position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 45; width: 54px; height: 54px; border-radius: 50%; background: #fff; border: 1px solid var(--border);
+  .ambulancia { all: unset; position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 45; width: 54px; height: 54px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border);
                 box-shadow: 0 6px 20px rgba(20,30,24,.18); display: grid; place-items: center; cursor: pointer; transition: transform .12s, box-shadow .12s; color: #2b3a33; }
   .ambulancia:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20,30,24,.22); }
   .ambulancia:focus-visible { outline: 3px solid rgba(192,57,43,.45); outline-offset: 3px; }

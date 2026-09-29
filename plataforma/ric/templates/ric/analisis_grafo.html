@@ -7,8 +7,8 @@
   .encabezado p { margin: 0 0 .8rem; color: #6b7280; font-size: .88rem; }
   .lienzo-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start; }
   @media (max-width: 960px) { .lienzo-grid { grid-template-columns: 1fr; } }
-  #cy { width: 100%; height: 68vh; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; }
-  .lateral { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; font-size: .85rem; position: sticky; top: 1rem; }
+  #cy { width: 100%; height: 68vh; background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; }
+  .lateral { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; font-size: .85rem; position: sticky; top: 1rem; }
   .lateral h3 { font-size: .95rem; margin: 0 0 .5rem; }
   .lateral .leyenda span { display: inline-flex; align-items: center; gap: .35rem; margin: .15rem .6rem .15rem 0; font-size: .76rem; }
   .lateral .leyenda i { width: 14px; height: 3px; display: inline-block; border-radius: 2px; }
@@ -19,7 +19,7 @@
   .lateral .vacio { color: #8a94a3; font-style: italic; }
   .siguiente { display: flex; justify-content: space-between; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; }
   .siguiente a[role=button] { width: auto; margin: 0; }
-  .siguiente a.secundario { background: #fff; color: var(--ricora-dark); border-color: #cbd2d9; }
+  .siguiente a.secundario { background: var(--surface); color: var(--ricora-dark); border-color: #cbd2d9; }
 {% endblock %}
 {% block contenido %}
 {% include "ric/_pasos.html" %}

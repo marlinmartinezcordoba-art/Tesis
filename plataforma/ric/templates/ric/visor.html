@@ -4,19 +4,19 @@
 {% block estilos_extra %}
   .visor { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr); gap: 1.1rem; align-items: start; }
   @media (max-width: 980px) { .visor { grid-template-columns: 1fr; } }
-  .lienzo { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; overflow: hidden; }
+  .lienzo { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; overflow: hidden; }
   .barra-visor { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; padding: .5rem .7rem; border-bottom: 1px solid #efeae0; background: #faf8f3; font-size: .82rem; }
   .barra-visor button, .barra-visor a[role=button] { margin: 0; width: auto; padding: .25rem .6rem; font-size: .78rem; }
   .barra-visor .sep { flex: 1; }
   .barra-visor select { margin: 0; width: auto; padding: .2rem .5rem; font-size: .78rem; height: auto; }
   /* bloque y no flex: con flex centrado, lo que desborda se recorta por la izquierda sin poder desplazarse */
   .area { overflow: auto; max-height: 78vh; background: #eceae4; padding: 1rem; text-align: center; }
-  .area canvas, .area img { display: inline-block; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.12); transform-origin: center center; max-width: none; vertical-align: top; }
-  .texto-extraido { white-space: pre-wrap; font-size: .84rem; background: #fff; padding: 1rem 1.1rem; max-height: 78vh; overflow: auto; margin: 0; font-family: var(--fuente-mono); line-height: 1.5; }
+  .area canvas, .area img { display: inline-block; background: var(--surface); box-shadow: 0 2px 10px rgba(0,0,0,.12); transform-origin: center center; max-width: none; vertical-align: top; }
+  .texto-extraido { white-space: pre-wrap; font-size: .84rem; background: var(--surface); padding: 1rem 1.1rem; max-height: 78vh; overflow: auto; margin: 0; font-family: var(--fuente-mono); line-height: 1.5; }
   .pestanas-visor { display: flex; gap: .2rem; padding: 0 .7rem; border-bottom: 1px solid #efeae0; }
   .pestanas-visor button { background: none; border: none; border-bottom: 2px solid transparent; color: #52606d; padding: .45rem .7rem; margin: 0; width: auto; font-size: .8rem; border-radius: 0; }
   .pestanas-visor button.activa { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
-  .panel { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: .9rem; }
+  .panel { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: .9rem; }
   .panel h3 { font-size: .9rem; margin: 0 0 .5rem; }
   .panel dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .7rem; margin: 0; font-size: .82rem; }
   .panel dt { color: #6b7280; } .panel dd { margin: 0; }

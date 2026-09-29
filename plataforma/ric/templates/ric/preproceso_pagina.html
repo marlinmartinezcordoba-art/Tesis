@@ -3,9 +3,9 @@
 {% block estilos_extra %}
   .visor { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
   @media (max-width: 900px) { .visor { grid-template-columns: 1fr; } }
-  .visor img { max-width: 100%; border: 1px solid #e6e3dc; border-radius: 8px; background: #fff; }
-  .texto { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem; white-space: pre-wrap; font-size: .85rem; max-height: 60vh; overflow: auto; }
-  .ficha { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .visor img { max-width: 100%; border: 1px solid #e6e3dc; border-radius: 8px; background: var(--surface); }
+  .texto { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem; white-space: pre-wrap; font-size: .85rem; max-height: 60vh; overflow: auto; }
+  .ficha { background: var(--surface); border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
   .ficha dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .88rem; }
   .ficha dt { color: #6b7280; }
   .ficha dd { margin: 0; }

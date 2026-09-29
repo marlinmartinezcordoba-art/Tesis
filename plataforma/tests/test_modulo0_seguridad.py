@@ -68,11 +68,12 @@ class AutenticacionTest(CasoModulos):
         self.assertEqual(registro.usuario, self.superusuario)
         admin.post(reverse("admin_usuario_editar", args=[self.revisor.pk]), {"accion": "reactivar"})
         self.client.post(reverse("ric_login"), {"username": "revisor", "password": "x"})
-        admin.post(reverse("admin_usuario_editar", args=[self.revisor.pk]), {"accion": "restablecer", "password": "NuevaClave987", "password_confirmar": "NuevaClave987"})
+        admin.post(reverse("admin_usuario_editar", args=[self.revisor.pk]), {"accion": "restablecer"})
         self.assertEqual(self.client.get(reverse("revision_lista")).status_code, 302)
-        # la contraseña nunca queda en claro en la auditoría
+        # la contraseña (ni su hash) nunca queda en claro en la auditoría
+        self.revisor.refresh_from_db()
         for r in RegistroAuditoria.objects.filter(object_id=self.revisor.pk):
-            self.assertNotIn("NuevaClave987", str(r.antes) + str(r.despues) + str(r.detalle))
+            self.assertNotIn(self.revisor.password, str(r.antes) + str(r.despues) + str(r.detalle))
 
 
 class AutorizacionTest(CasoModulos):
@@ -118,7 +119,7 @@ class AuditoriaTest(CasoModulos):
 
     def test_pantalla_de_auditoria_filtra_y_exporta_csv(self):
         self.client.force_login(self.superusuario)
-        self.client.post(reverse("admin_usuario_editar", args=[self.consulta.pk]), {"accion": "cambiar_rol", "rol": "revisor"})
+        self.client.post(reverse("admin_usuario_editar", args=[self.consulta.pk]), {"accion": "editar", "nombre_completo": "Consulta", "email": "consulta@entidad.gov.co", "rol": "revisor"})
         resp = self.client.get(reverse("admin_usuarios"), {"pestana": "auditoria", "accion": "modificar", "usuario": "marlin"})
         self.assertContains(resp, "<b>rol</b>: consulta → revisor")
         resp = self.client.get(reverse("admin_usuarios"), {"pestana": "auditoria", "accion": "modificar", "usuario": "nadie"})

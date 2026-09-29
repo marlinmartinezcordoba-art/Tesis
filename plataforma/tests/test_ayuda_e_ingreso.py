@@ -34,7 +34,8 @@ class AyudaTest(CasoModulos):
         self.assertEqual(len(claves), len(set(claves)))
         for g in ayuda.GUIAS:
             self.assertTrue(g["para_que"] and g["pasos"], g["clave"])
-        self.assertEqual(ayuda.guia_de("admin_parametros")["clave"], "admin_usuarios")
+        self.assertEqual(ayuda.guia_de("admin_parametros")["clave"], "admin_parametros")
+        self.assertEqual(ayuda.guia_de("admin_restaurar")["clave"], "admin_usuarios")
 
     def test_pantallas_sin_codigos_de_desarrollo(self):
         self.client.force_login(self.archivista)

@@ -31,8 +31,8 @@ MODULOS_ESPEC = {
     7: ("Trazabilidad", VALIDADO),
     8: ("Catálogo y consulta", VALIDADO),
     9: ("Exportación e interoperabilidad", VALIDADO),
-    10: ("Panel de indicadores", POR_VALIDAR),
-    11: ("Administración", PENDIENTE),
+    10: ("Panel de indicadores", VALIDADO),
+    11: ("Administración", POR_VALIDAR),
 }
 # Pantalla (nombre de URL de la pestaña o del proceso) -> módulo de la especificación.
 MODULO_DE_PANTALLA = {
@@ -159,7 +159,8 @@ def contexto_modulos(request):
     from .ayuda import guia_de
 
     return {
-        "guia": guia_de(url_name or ("inicio" if request.path == "/" else "")),
+        "guia": guia_de(f"admin_{request.GET.get('pestana', 'usuarios')}" if url_name == "admin_usuarios"
+                        else url_name or ("inicio" if request.path == "/" else "")),
         "pantalla_nombre": activa["nombre"] if activa else "",
         "icono_inicio": ICONOS["inicio"],
         "en_inicio": url_name == "inicio",
