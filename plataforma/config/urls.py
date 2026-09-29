@@ -58,6 +58,7 @@ urlpatterns = [
     path("vocabularios/", vistas_vocabularios.vocabularios, name="vocabularios"),
     path("vocabularios/duplicados/", vistas_vocabularios.vocabularios_duplicados, name="vocabularios_duplicados"),
     path("vocabularios/importar/", vistas_vocabularios.vocabularios_importar, name="vocabularios_importar"),
+    path("vocabularios/sembrar/", vistas_vocabularios.vocabularios_sembrar, name="vocabularios_sembrar"),
     path("vocabularios/<str:tipo>/<int:pk>/", vistas_vocabularios.vocabulario_ficha, name="vocabulario_ficha"),
     path("vocabularios/<str:tipo>/<int:pk>/fusionar/", vistas_vocabularios.vocabulario_fusionar, name="vocabulario_fusionar"),
 

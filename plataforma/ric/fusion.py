@@ -107,3 +107,41 @@ def fusionar_entidades(duplicada, superviviente, usuario):
         )
 
     return {"relaciones_movidas": relaciones_movidas, "propuestas_movidas": propuestas_movidas}
+
+
+def fusionar_formas(duplicada, superviviente, usuario):
+    """La forma documental no es una entidad RiC con RelacionRiC: lo que
+    la referencia son los documentos (Record.forma_documental) y las
+    series de la TRD (Activity.formas_documentales). Ambas cosas pasan a la
+    superviviente y la duplicada se retira; queda el evento de fusión
+    (CC-08) con su nombre para poder reconstruir qué se unió."""
+    from .models import EventoRiC, FormaDocumental, registrar_evento
+
+    if not isinstance(duplicada, FormaDocumental) or not isinstance(superviviente, FormaDocumental):
+        raise ErrorDeFusion("Solo se pueden fusionar dos formas documentales entre sí.")
+    if duplicada.pk == superviviente.pk:
+        raise ErrorDeFusion("No se puede fusionar una forma documental consigo misma.")
+
+    with transaction.atomic():
+        documentos_movidos = duplicada.records.update(forma_documental=superviviente)
+        series_movidas = 0
+        for actividad in duplicada.actividades.all():
+            actividad.formas_documentales.add(superviviente)
+            series_movidas += 1
+        if not superviviente.definicion and duplicada.definicion:
+            superviviente.definicion = duplicada.definicion
+        if not superviviente.serie_trd and duplicada.serie_trd:
+            superviviente.serie_trd = duplicada.serie_trd
+        superviviente.modificado_por = usuario
+        superviviente.save()
+        nombre_duplicada = duplicada.nombre
+        duplicada.delete()
+        registrar_evento(
+            None, EventoRiC.Tipo.FUSION, agente=usuario,
+            detalle={
+                "tipo_entidad": "formadocumental", "duplicada": nombre_duplicada,
+                "superviviente_id": superviviente.pk, "superviviente": superviviente.nombre,
+                "documentos_movidos": documentos_movidos, "series_movidas": series_movidas,
+            },
+        )
+    return {"documentos_movidos": documentos_movidos, "series_movidas": series_movidas}

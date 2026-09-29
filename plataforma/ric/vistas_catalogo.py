@@ -191,6 +191,7 @@ def catalogo_ficha(request, tipo, pk):
         contexto.update({
             "record": entidad, "estado": estado, "etiqueta_estado": flujo.ETIQUETAS[estado], "paso_actual": 6,
             "instanciaciones": entidad.instanciaciones.all(),
+            "series_trd": flujo.series_trd_de(entidad),
         })
     return render(request, "ric/catalogo_ficha.html", contexto)
 

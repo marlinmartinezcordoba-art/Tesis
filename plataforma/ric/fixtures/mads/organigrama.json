@@ -1,0 +1,562 @@
+{
+ "fuente": "Organigrama del Ministerio de Ambiente y Desarrollo Sostenible (transcripción de la imagen oficial)",
+ "entidades": [
+  [
+   "MADS",
+   "Ministerio de Ambiente y Desarrollo Sostenible",
+   null
+  ],
+  [
+   "1000",
+   "Despacho del Ministro",
+   "MADS"
+  ],
+  [
+   "1001",
+   "Grupo de Comunicaciones",
+   "1000"
+  ],
+  [
+   "OG-NEGVERDES",
+   "Oficina de Negocios Verdes Sostenibles",
+   "1000"
+  ],
+  [
+   "1101",
+   "Grupo de Análisis Económico para la Sostenibilidad",
+   "OG-NEGVERDES"
+  ],
+  [
+   "1102",
+   "Grupo de Competitividad y Promoción de Negocios Verdes Sostenibles",
+   "OG-NEGVERDES"
+  ],
+  [
+   "1200",
+   "Oficina Asesora de Planeación",
+   "1000"
+  ],
+  [
+   "OG-APOYOTEC",
+   "Grupo de Apoyo Técnico, Evaluación y Seguimiento a Proyectos de Inversión del Sector Ambiental",
+   "1200"
+  ],
+  [
+   "1201",
+   "Grupo de Programación y Gestión Presupuestal",
+   "1200"
+  ],
+  [
+   "1202",
+   "Grupo de Gestión de Proyectos",
+   "1200"
+  ],
+  [
+   "1203",
+   "Grupo de Gestión y Desempeño Institucional",
+   "1200"
+  ],
+  [
+   "1204",
+   "Grupo de Políticas, Planeación y Seguimiento",
+   "1200"
+  ],
+  [
+   "1300",
+   "Oficina Asesora Jurídica",
+   "1000"
+  ],
+  [
+   "OG-CONCBIODIV",
+   "Grupo de Conceptos y Normatividad en Biodiversidad",
+   "1300"
+  ],
+  [
+   "OG-CONCSECT",
+   "Grupo de Conceptos y Normatividad en Políticas Sectoriales",
+   "1300"
+  ],
+  [
+   "1301",
+   "Grupo de Procesos Judiciales",
+   "1300"
+  ],
+  [
+   "1400",
+   "Oficina de Asuntos Internacionales",
+   "1000"
+  ],
+  [
+   "1500",
+   "Oficina de Tecnologías de la Información y la Comunicación",
+   "1000"
+  ],
+  [
+   "1600",
+   "Oficina de Control Interno",
+   "1000"
+  ],
+  [
+   "OG-COMUNIC",
+   "Grupo de Comunicaciones (despacho)",
+   "1000"
+  ],
+  [
+   "4000",
+   "Secretaría General",
+   "MADS"
+  ],
+  [
+   "4001",
+   "Grupo de Talento Humano",
+   "4000"
+  ],
+  [
+   "4002",
+   "Grupo de Contratos",
+   "4000"
+  ],
+  [
+   "4003",
+   "Grupo de Control Interno Disciplinario",
+   "4000"
+  ],
+  [
+   "4004",
+   "Unidad Coordinadora para el Gobierno Abierto y Servicio a la Ciudadanía",
+   "4000"
+  ],
+  [
+   "4100",
+   "Subdirección Administrativa y Financiera",
+   "4000"
+  ],
+  [
+   "4101",
+   "Grupo de Servicios Administrativos",
+   "4100"
+  ],
+  [
+   "4102",
+   "Grupo de Presupuesto",
+   "4100"
+  ],
+  [
+   "4103",
+   "Grupo de Contabilidad",
+   "4100"
+  ],
+  [
+   "4104",
+   "Grupo de Tesorería",
+   "4100"
+  ],
+  [
+   "4105",
+   "Grupo de Comisiones y Apoyo Logístico",
+   "4100"
+  ],
+  [
+   "4106",
+   "Grupo de Gestión Documental",
+   "4100"
+  ],
+  [
+   "2000",
+   "Viceministerio de Políticas y Normalización Ambiental",
+   "MADS"
+  ],
+  [
+   "2100",
+   "Dirección de Bosques, Biodiversidad y Servicios Ecosistémicos",
+   "2000"
+  ],
+  [
+   "2101",
+   "Grupo de Gestión de Biodiversidad",
+   "2100"
+  ],
+  [
+   "2102",
+   "Grupo de Gestión Integral de Bosques y Reservas Forestales Nacionales",
+   "2100"
+  ],
+  [
+   "2103",
+   "Grupo de Recursos Genéticos",
+   "2100"
+  ],
+  [
+   "2400",
+   "Dirección de Asuntos Ambientales, Sectorial y Urbana",
+   "2000"
+  ],
+  [
+   "2401",
+   "Grupo de Gestión Ambiental Urbana",
+   "2400"
+  ],
+  [
+   "2402",
+   "Grupo de Producción Responsable y Sector Agropecuario",
+   "2400"
+  ],
+  [
+   "OG-HIDROCARB",
+   "Grupo de Sector Hidrocarburos, Minería y Energéticos",
+   "2400"
+  ],
+  [
+   "2403",
+   "Grupo de Sustancias Químicas y Residuos Peligrosos y Unidad Técnica de Ozono",
+   "2400"
+  ],
+  [
+   "2300",
+   "Dirección de Gestión Integral del Recurso Hídrico",
+   "2000"
+  ],
+  [
+   "2301",
+   "Grupo de Fortalecimiento y Gobernanza del Agua",
+   "2300"
+  ],
+  [
+   "2302",
+   "Grupo de Administración del Recurso Hídrico",
+   "2300"
+  ],
+  [
+   "2303",
+   "Grupo de Planificación de Cuencas",
+   "2300"
+  ],
+  [
+   "2200",
+   "Dirección de Asuntos Marinos, Costeros y Recursos Acuáticos",
+   "2000"
+  ],
+  [
+   "2201",
+   "Grupo de Ordenamiento Ambiental del Territorio y Gestión Sostenible de la Biodiversidad Costera y Marina",
+   "2200"
+  ],
+  [
+   "2202",
+   "Grupo de Gestión de Riesgo, Información y Participación Comunitaria Marino Costera",
+   "2200"
+  ],
+  [
+   "3000",
+   "Viceministerio de Ordenamiento Ambiental del Territorio",
+   "MADS"
+  ],
+  [
+   "3100",
+   "Dirección de Ordenamiento Ambiental Territorial y Sistema Nacional Ambiental - SINA",
+   "3000"
+  ],
+  [
+   "OG-INFOGEO",
+   "Grupo de Manejo de Información Ambiental Geográfica",
+   "3100"
+  ],
+  [
+   "3103",
+   "Grupo de Ordenamiento Ambiental",
+   "3100"
+  ],
+  [
+   "3104",
+   "Grupo Sistema Nacional Ambiental - SINA",
+   "3100"
+  ],
+  [
+   "3200",
+   "Dirección de Cambio Climático y Gestión del Riesgo",
+   "3000"
+  ],
+  [
+   "3201",
+   "Grupo de Adaptación al Cambio Climático",
+   "3200"
+  ],
+  [
+   "3202",
+   "Grupo de Mitigación del Cambio Climático",
+   "3200"
+  ],
+  [
+   "3203",
+   "Grupo de Gestión Integral del Riesgo",
+   "3200"
+  ],
+  [
+   "3110",
+   "Subdirección de Educación y Participación",
+   "3000"
+  ],
+  [
+   "3111",
+   "Grupo de Educación",
+   "3110"
+  ],
+  [
+   "3112",
+   "Grupo de Participación",
+   "3110"
+  ],
+  [
+   "3113",
+   "Grupo de Divulgación del Conocimiento y Cultura Ambiental",
+   "3110"
+  ]
+ ],
+ "personas": [
+  [
+   "Fabio Arjona Hincapié",
+   "Ministro de Ambiente y Desarrollo Sostenible",
+   "1000"
+  ],
+  [
+   "María Andrea Solano Behaine",
+   "Coordinadora, Grupo de Comunicaciones",
+   "1001"
+  ],
+  [
+   "Carla B. Mosquera Zapata",
+   "Jefe de Oficina, Oficina de Negocios Verdes Sostenibles",
+   "OG-NEGVERDES"
+  ],
+  [
+   "Mayra Daniela Maldonado Ladino",
+   "Coordinadora, Grupo de Análisis Económico para la Sostenibilidad",
+   "1101"
+  ],
+  [
+   "Juan Carlos Revelo López",
+   "Coordinador, Grupo de Competitividad y Promoción de Negocios Verdes Sostenibles",
+   "1102"
+  ],
+  [
+   "Olga Lucía Bautista Martínez",
+   "Jefe de Oficina, Oficina Asesora de Planeación",
+   "1200"
+  ],
+  [
+   "Farley Clara Milena Sandoval Romero",
+   "Coordinadora, Grupo de Programación y Gestión Presupuestal",
+   "1201"
+  ],
+  [
+   "Jorge Eduardo Ramírez Hincapié",
+   "Coordinador, Grupo de Gestión de Proyectos",
+   "1202"
+  ],
+  [
+   "Dorian Alberto Muñoz Rodas",
+   "Coordinador, Grupo de Políticas, Planeación y Seguimiento",
+   "1204"
+  ],
+  [
+   "Alba Cristina Melo Gómez",
+   "Jefe de Oficina, Oficina Asesora Jurídica",
+   "1300"
+  ],
+  [
+   "Sonia Alejandra Agudelo Espinosa",
+   "Coordinadora, Grupo de Procesos Judiciales",
+   "1301"
+  ],
+  [
+   "Luis Eduardo Quintero González",
+   "Jefe de Oficina, Oficina de Asuntos Internacionales",
+   "1400"
+  ],
+  [
+   "María Lucía Franco Ensuncho",
+   "Jefe de Oficina, Oficina de Tecnologías de la Información y la Comunicación",
+   "1500"
+  ],
+  [
+   "José Daniel Quilaguy Bernal",
+   "Jefe de Oficina, Oficina de Control Interno",
+   "1600"
+  ],
+  [
+   "Carlos Alberto Frasser Arrieta",
+   "Secretario General",
+   "4000"
+  ],
+  [
+   "Liudmila Poveda Vargas",
+   "Coordinadora, Grupo de Talento Humano",
+   "4001"
+  ],
+  [
+   "Nadia Susana Valderrama Montoya",
+   "Coordinadora, Grupo de Control Interno Disciplinario",
+   "4003"
+  ],
+  [
+   "Alexander Figueroa Maldonado",
+   "Coordinador, Unidad Coordinadora para el Gobierno Abierto y Servicio a la Ciudadanía",
+   "4004"
+  ],
+  [
+   "Talma Elvira Furnieles Galván",
+   "Subdirectora Administrativa y Financiera",
+   "4100"
+  ],
+  [
+   "Luz Stella García Salcedo",
+   "Coordinadora, Grupo de Servicios Administrativos",
+   "4101"
+  ],
+  [
+   "Jhony Leonardo Caicedo Cortés",
+   "Coordinador, Grupo de Presupuesto",
+   "4102"
+  ],
+  [
+   "Roneel Cáceres Mojica",
+   "Coordinador, Grupo de Contabilidad",
+   "4103"
+  ],
+  [
+   "Carlos Alberto Puentes Ramos",
+   "Coordinador, Grupo de Tesorería",
+   "4104"
+  ],
+  [
+   "Ángela Lisseth Díaz Tarquino",
+   "Coordinadora, Grupo de Comisiones y Apoyo Logístico",
+   "4105"
+  ],
+  [
+   "Nelson Humberto León Acuña",
+   "Coordinador, Grupo de Gestión Documental",
+   "4106"
+  ],
+  [
+   "Gustavo Adolfo Guerrero Ruiz",
+   "Viceministro de Políticas y Normalización Ambiental",
+   "2000"
+  ],
+  [
+   "Juliana Hurtado Rassi",
+   "Directora, Dirección de Bosques, Biodiversidad y Servicios Ecosistémicos",
+   "2100"
+  ],
+  [
+   "Camilo Andrés Cárdenas Burgos",
+   "Coordinador, Grupo de Gestión de Biodiversidad",
+   "2101"
+  ],
+  [
+   "Efraín Torres Ariza",
+   "Coordinador, Grupo de Recursos Genéticos",
+   "2103"
+  ],
+  [
+   "Sandra Carolina Díaz Mesa",
+   "Coordinadora, Grupo de Gestión Integral de Bosques y Reservas Forestales Nacionales",
+   "2102"
+  ],
+  [
+   "Daniel Alfonso Gómez Cure",
+   "Director, Dirección de Asuntos Ambientales, Sectorial y Urbana",
+   "2400"
+  ],
+  [
+   "María del Carmen Cabeza Alarcón",
+   "Coordinadora, Grupo de Gestión Ambiental Urbana",
+   "2401"
+  ],
+  [
+   "Carlos Jairo Ramírez Rodríguez",
+   "Coordinador, Grupo de Producción Responsable y Sector Agropecuario",
+   "2402"
+  ],
+  [
+   "Karen Viviana López Aguilar",
+   "Coordinadora, Grupo de Sector Hidrocarburos, Minería y Energéticos",
+   "OG-HIDROCARB"
+  ],
+  [
+   "Diego Escobar Ocampo",
+   "Coordinador, Grupo de Sustancias Químicas y Residuos Peligrosos y Unidad Técnica de Ozono",
+   "2403"
+  ],
+  [
+   "Natalia Acero Martínez",
+   "Directora, Dirección de Gestión Integral del Recurso Hídrico",
+   "2300"
+  ],
+  [
+   "Sebastián Ardila Muñoz",
+   "Coordinador, Grupo de Fortalecimiento y Gobernanza del Agua",
+   "2301"
+  ],
+  [
+   "Nelson Mauricio Anillo Rincón",
+   "Coordinador, Grupo de Administración del Recurso Hídrico",
+   "2302"
+  ],
+  [
+   "Gina Paola Gallo Gil",
+   "Coordinadora, Grupo de Planificación de Cuencas",
+   "2303"
+  ],
+  [
+   "Julián Augusto Reina Moreno",
+   "Director, Dirección de Asuntos Marinos, Costeros y Recursos Acuáticos",
+   "2200"
+  ],
+  [
+   "David Olarte Amaya",
+   "Viceministro de Ordenamiento Ambiental del Territorio",
+   "3000"
+  ],
+  [
+   "Iván Andrés Gil Chaves",
+   "Director, Dirección de Ordenamiento Ambiental Territorial y Sistema Nacional Ambiental - SINA",
+   "3100"
+  ],
+  [
+   "Jorge Enrique Jiménez Guacaneme",
+   "Coordinador, Grupo Sistema Nacional Ambiental - SINA",
+   "3104"
+  ],
+  [
+   "Nubia Jazmín Brijaldo Flechas",
+   "Subdirectora de Educación y Participación",
+   "3110"
+  ],
+  [
+   "Luz Andrea Meneses Ortegón",
+   "Coordinadora, Grupo de Participación",
+   "3112"
+  ],
+  [
+   "Adriana Marcela Gutiérrez López",
+   "Directora, Dirección de Cambio Climático y Gestión del Riesgo",
+   "3200"
+  ],
+  [
+   "Luis Alberto Guerra Vargas",
+   "Coordinador, Grupo de Adaptación al Cambio Climático",
+   "3201"
+  ],
+  [
+   "Mauricio Galván Gómez",
+   "Coordinador, Grupo de Mitigación del Cambio Climático",
+   "3202"
+  ],
+  [
+   "Zoraida Piedrahita Calle",
+   "Coordinadora, Grupo de Gestión Integral del Riesgo",
+   "3203"
+  ]
+ ]
+}

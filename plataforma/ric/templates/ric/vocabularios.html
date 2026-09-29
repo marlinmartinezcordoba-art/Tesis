@@ -57,21 +57,30 @@
 {% if puede_editar %}
 <details class="crear">
   <summary style="cursor:pointer; font-size:.9rem;"><strong>Precargar instrumentos archivísticos</strong> — TRD, cuadro de clasificación y organigrama (CSV)</summary>
-  <p style="font-size:.8rem; color:#6b7280; margin:.5rem 0;">Insumo obligatorio antes de encender el motor de análisis: sin estos instrumentos el criterio CC-05 no tiene contra qué verificar. Cada fila se busca por nombre y se actualiza, nunca se duplica.</p>
+  <p style="font-size:.8rem; color:#6b7280; margin:.5rem 0;">Insumo obligatorio antes de encender el motor de análisis: sin estos instrumentos el criterio CC-05 no tiene contra qué verificar. Cada fila se busca por código o por nombre y se actualiza, nunca se duplica.
+  Cada serie o subserie de la TRD queda como un <strong>mandato</strong> (con su retención en gestión y en central y su disposición final CT/E/MT/S), una <strong>actividad</strong> (la función, ejecutada por la oficina productora) y sus <strong>formas documentales</strong> (los tipos que produce). Hoy hay <strong>{{ series_trd }}</strong> serie(s) cargadas.</p>
+  {% if semilla_mads %}
+  <form method="post" action="{% url 'vocabularios_sembrar' %}" style="grid-template-columns: 1fr auto; margin-bottom:.7rem;" onsubmit="return confirm('Se cargarán el organigrama del Ministerio de Ambiente (62 dependencias, 49 funcionarios) y sus 54 TRD oficiales (380 series, 1.321 tipos documentales). Puede tardar medio minuto. ¿Continuar?');">
+    {% csrf_token %}
+    <div style="font-size:.8rem;"><strong>Semilla MADS</strong> — organigrama + 54 Tablas de Retención Documental V2 2022 del Ministerio de Ambiente y Desarrollo Sostenible, incluidas en el sistema. Se puede volver a cargar sin duplicar nada.</div>
+    <button type="submit">Cargar semilla MADS</button>
+  </form>
+  {% endif %}
   <form method="post" action="{% url 'vocabularios_importar' %}" enctype="multipart/form-data" style="grid-template-columns: 1fr 1.5fr auto;">
     {% csrf_token %}
     <div><label>Instrumento</label>
       <select name="instrumento" style="margin:0">
-        <option value="trd">Tabla de Retención Documental (formas documentales)</option>
+        <option value="trd">Tabla de Retención Documental (series → mandato, actividad y formas documentales)</option>
         <option value="ccd">Cuadro de Clasificación Documental (funciones y actividades)</option>
-        <option value="organigrama">Organigrama (entidades corporativas y jerarquía)</option>
+        <option value="organigrama">Organigrama (dependencias, jerarquía y funcionarios)</option>
       </select></div>
-    <div><label>Archivo CSV</label><input type="file" name="archivo" accept=".csv,text/csv" required></div>
+    <div><label>Archivo CSV o JSON</label><input type="file" name="archivo" accept=".csv,.json,text/csv,application/json" required></div>
     <button type="submit">Importar</button>
   </form>
   <ul style="font-size:.76rem; color:#6b7280; margin:.6rem 0 0;">
     {% for clave, columnas in columnas_instrumentos.items %}<li><code>{{ clave }}</code>: {{ columnas|join:", " }}</li>{% endfor %}
-    <li>Relaciones que se crean: función → <code>R060 is or was performed by</code> → dependencia; dependencia superior → <code>R045 has or had subordinate</code> → dependencia.</li>
+    <li>En la TRD, <code>tipos_documentales</code> se separan con <code>|</code> (o una fila por tipo con <code>forma_documental</code>); <code>disposicion_final</code> admite CT, E, MT, S combinados (ej. <code>CT, S</code>).</li>
+    <li>Relaciones que se crean (todas verificadas en RiC-CM 1.0): mandato de la serie → <code>R063 regulates or regulated</code> → actividad; actividad → <code>R060 is or was performed by</code> → oficina productora; dependencia superior → <code>R045 has or had subordinate</code> → dependencia; oficina → <code>R055 has or had member</code> → funcionario.</li>
   </ul>
 </details>
 {% endif %}
@@ -84,11 +93,9 @@
     <div><label>Nombre</label><input type="text" name="nombre" placeholder="Oficio, acta, resolución..." required></div>
     <div><label>Definición</label><input type="text" name="definicion" placeholder="Descripción breve del tipo documental"></div>
     <div><label>Serie / subserie TRD</label><input type="text" name="serie_trd" placeholder="Ej. 100.02 Actas"></div>
-    <div><label>Retención archivo de gestión (años)</label><input type="number" min="0" name="retencion_gestion"></div>
-    <div><label>Retención archivo central (años)</label><input type="number" min="0" name="retencion_central"></div>
-    <div><label>Disposición final</label><select name="disposicion_final" style="margin:0"><option value="">—</option>{% for v, n in disposiciones %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
     <button type="submit">Crear</button>
   </form>
+  <p style="font-size:.76rem; color:#6b7280; margin:.5rem 0 0;">La retención y la disposición final no van aquí: una misma forma («Oficio», «Acta») aparece en muchas series con plazos distintos. Van en el <a href="?tipo=mandate">mandato</a> de cada serie de la TRD.</p>
 </div>
 {% endif %}
 
@@ -101,7 +108,7 @@
     {% for f in filas %}
     <tr>
       <td><span class="tag">{{ f.tipo|capfirst }}</span></td>
-      <td><a href="{% url 'vocabulario_ficha' f.slug f.pk %}">{{ f.nombre }}</a></td>
+      <td><a href="{% url 'vocabulario_ficha' f.slug f.pk %}">{{ f.nombre }}</a>{% if f.identificador %} <small style="color:#8a94a3">{{ f.identificador }}</small>{% endif %}</td>
       <td>{{ f.serie_trd|default:"—" }}</td>
       <td>{{ f.creado_por.get_username|default:"sistema" }}</td>
       <td>{{ f.fecha|date:"d/m/Y" }}</td>

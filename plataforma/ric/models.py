@@ -146,13 +146,14 @@ class FormaDocumental(models.Model):
     resolución, contrato... En RiC-O 1.1 es la clase
     `rico:DocumentaryFormType`, a la que un Record apunta mediante
     `rico:hasDocumentaryFormType` (RiC-A17, verificado en ric_matrix.json).
-    Cada entrada se vincula con la serie/subserie de la TRD (RF-M5-03)."""
+    Cada entrada se vincula con la serie/subserie de la TRD (RF-M5-03).
 
-    class Disposicion(models.TextChoices):
-        CONSERVACION_TOTAL = "conservacion_total", "Conservación total"
-        ELIMINACION = "eliminacion", "Eliminación"
-        SELECCION = "seleccion", "Selección"
-        DIGITALIZACION = "digitalizacion", "Digitalización"
+    Es un catálogo de tipos reutilizable: "Oficio" o "Acta de reunión"
+    aparecen en decenas de series distintas, cada una con su propio plazo
+    de retención y su propia disposición final. Por eso esos datos NO
+    viven aquí sino en el Mandato de cada serie (corrección de la
+    especificación v3); las series en las que aparece una forma se llegan
+    por `actividades` (Activity.formas_documentales)."""
 
     nombre = models.CharField(max_length=255, unique=True)
     definicion = models.TextField(blank=True)
@@ -160,11 +161,6 @@ class FormaDocumental(models.Model):
         max_length=255, blank=True,
         help_text="Serie o subserie de la Tabla de Retención Documental a la que corresponde este tipo.",
     )
-    # Leídos de la TRD vigente al vincular la forma documental: así la revisión
-    # ya sabe cuánto permanece el documento en cada fase y su disposición final.
-    tiempo_retencion_archivo_gestion = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo de gestión, según la TRD.")
-    tiempo_retencion_archivo_central = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo central, según la TRD.")
-    disposicion_final = models.CharField(max_length=20, choices=Disposicion.choices, blank=True)
     fecha_registro = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     creado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -177,6 +173,11 @@ class FormaDocumental(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    def series(self):
+        """Las series/subseries de la TRD (Actividad + su Mandato) en las que
+        esta forma documental aparece como tipo documental."""
+        return self.actividades.select_related("mandato").order_by("nombre")
 
 
 class Record(RecordResource):
@@ -460,9 +461,19 @@ class Event(Thing):
 
 
 class Activity(Event):
-    """RiC-E15 Activity: evento diseñado y realizado por un agente con un propósito."""
+    """RiC-E15 Activity: evento diseñado y realizado por un agente con un
+    propósito. Cada serie o subserie de la TRD se registra como una
+    Actividad (función) vinculada a su Mandato (especificación v3)."""
 
     tipo_actividad = models.CharField(max_length=255, blank=True, help_text="RiC-A02 Activity Type.")
+    mandato = models.ForeignKey(
+        "Mandate", null=True, blank=True, on_delete=models.SET_NULL, related_name="actividades",
+        help_text="La serie/subserie de la TRD que regula esta función (caso común de RiC-R063 'regulates or regulated').",
+    )
+    formas_documentales = models.ManyToManyField(
+        FormaDocumental, blank=True, related_name="actividades",
+        help_text="Tipos documentales que produce esta serie según la TRD (RF-M5-03).",
+    )
 
     class Meta:
         verbose_name = "actividad"
@@ -485,13 +496,59 @@ class Rule(Thing):
 
 
 class Mandate(Rule):
-    """RiC-E17 Mandate: delegación explícita de responsabilidad o autoridad."""
+    """RiC-E17 Mandate: delegación explícita de responsabilidad o autoridad.
+
+    Es también la entidad que representa cada serie o subserie de la Tabla
+    de Retención Documental (especificación v3): aquí, y no en la forma
+    documental, van los tiempos de retención y la disposición final, porque
+    varían serie por serie. Las cuatro casillas de disposición son las de la
+    TRD colombiana (CT, E, MT, S) y pueden combinarse (p. ej. CT + MT)."""
 
     tipo_mandato = models.CharField(max_length=255, blank=True, help_text="RiC-A44 Mandate Type.")
+    codigo_serie = models.CharField(max_length=20, blank=True, help_text="Código de la serie en la TRD.")
+    codigo_subserie = models.CharField(max_length=20, blank=True, help_text="Código de la subserie en la TRD, si aplica.")
+    tiempo_retencion_archivo_gestion = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo de gestión, según la TRD.")
+    tiempo_retencion_archivo_central = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo central, según la TRD.")
+    conservacion_total = models.BooleanField(default=False, help_text="Disposición final CT.")
+    eliminacion = models.BooleanField(default=False, help_text="Disposición final E.")
+    medio_tecnologico = models.BooleanField(default=False, help_text="Disposición final MT (medio tecnológico / digitalización).")
+    seleccion = models.BooleanField(default=False, help_text="Disposición final S.")
+    soporte = models.CharField(max_length=100, blank=True, help_text="Soporte según la TRD: papel, electrónico...")
+    procedimiento = models.TextField(blank=True, help_text="Columna 'Procedimiento' de la TRD: qué se hace al vencer la retención.")
+    vigencia = models.DateField(null=True, blank=True, help_text="Fecha de vigencia/aprobación de la TRD de la que sale esta serie.")
+
+    DISPOSICIONES = (
+        ("conservacion_total", "CT", "Conservación total"),
+        ("eliminacion", "E", "Eliminación"),
+        ("medio_tecnologico", "MT", "Medio tecnológico"),
+        ("seleccion", "S", "Selección"),
+    )
 
     class Meta:
         verbose_name = "mandato"
         verbose_name_plural = "mandatos"
+
+    def disposicion_final_codigos(self):
+        return [codigo for campo, codigo, _ in self.DISPOSICIONES if getattr(self, campo)]
+
+    def disposicion_final_texto(self):
+        return " + ".join(nombre for campo, _, nombre in self.DISPOSICIONES if getattr(self, campo))
+
+    @property
+    def es_serie_trd(self):
+        return bool(self.codigo_serie or self.tiempo_retencion_archivo_gestion is not None or self.disposicion_final_codigos())
+
+    def retencion_texto(self):
+        """Resumen legible para fichas y revisión: 'gestión 3 años · central 7 años · Selección'."""
+        if not self.es_serie_trd:
+            return ""
+        partes = []
+        if self.tiempo_retencion_archivo_gestion is not None:
+            partes.append(f"gestión {self.tiempo_retencion_archivo_gestion} años")
+        if self.tiempo_retencion_archivo_central is not None:
+            partes.append(f"central {self.tiempo_retencion_archivo_central} años")
+        partes.append(self.disposicion_final_texto() or "sin disposición")
+        return " · ".join(partes)
 
 
 # ---------------------------------------------------------------------------

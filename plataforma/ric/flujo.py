@@ -60,6 +60,22 @@ def otro_lado(relacion, record):
     return relacion.destino if es_origen else relacion.origen
 
 
+def series_trd_de(record):
+    """Las series de la TRD que aplican a este documento: las actividades
+    (funciones) con las que quedó relacionado y que tienen su Mandato con
+    retención y disposición (especificación v3). Es de ahí, y no de la
+    forma documental, de donde la revisión lee cuánto se conserva."""
+    from .models import Activity
+
+    series = []
+    for rel in relaciones_de(record):
+        otro = otro_lado(rel, record)
+        if isinstance(otro, Activity) and otro.mandato_id and otro.mandato.es_serie_trd:
+            if all(s["actividad"].pk != otro.pk for s in series):
+                series.append({"actividad": otro, "mandato": otro.mandato, "relacion": rel})
+    return series
+
+
 def instanciacion_principal(record):
     """La instanciación con más texto extraído (misma regla que el motor de
     análisis usa para elegir qué texto leer)."""

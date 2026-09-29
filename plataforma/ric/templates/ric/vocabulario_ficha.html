@@ -7,23 +7,37 @@
   .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
   .tarjeta dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .86rem; }
   .tarjeta dt { color: #6b7280; } .tarjeta dd { margin: 0; }
-  .tarjeta label { font-size: .78rem; } .tarjeta input, .tarjeta textarea { font-size: .86rem; margin-bottom: .5rem; }
+  .tarjeta label { font-size: .78rem; } .tarjeta input, .tarjeta textarea, .tarjeta select { font-size: .86rem; margin-bottom: .5rem; }
   .tarjeta button { width: auto; margin: 0; }
   .tarjeta li { font-size: .86rem; margin: .3rem 0; }
   .dup { display: flex; justify-content: space-between; align-items: center; gap: .6rem; font-size: .86rem; padding: .4rem 0; border-bottom: 1px solid #f0efe9; }
   .dup form { margin: 0; } .dup button { padding: .3rem .7rem; font-size: .76rem; width: auto; margin: 0; background: #1f3a5f; border-color: #1f3a5f; }
   .acciones a { font-size: .84rem; margin-right: .8rem; }
   .tag { font-size: .7rem; background: #fff2df; color: #8a6100; border-radius: 4px; padding: 1px 6px; }
+  .trd { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .8rem; }
+  .trd .ancho { grid-column: 1 / -1; }
+  .casillas { display: flex; gap: .9rem; flex-wrap: wrap; margin: .2rem 0 .6rem; font-size: .84rem; }
+  .casillas label { display: flex; gap: .3rem; align-items: center; font-size: .84rem; }
+  .casillas input[type=checkbox] { appearance: auto; -webkit-appearance: checkbox; margin: 0; width: 1rem; height: 1rem; }
+  .retencion { background: #f4f7fb; border-radius: 8px; padding: .6rem .8rem; font-size: .86rem; margin-bottom: .6rem; }
+  .serie { padding: .4rem 0; border-bottom: 1px solid #f0efe9; font-size: .86rem; }
+  .serie small { color: #6b7280; display: block; }
 {% endblock %}
 {% block contenido %}
 <p><a href="{% url 'vocabularios' %}">← Vocabularios y autoridades</a></p>
 <hgroup>
-  <h1>{{ entidad }} <span class="tag">{% if es_forma %}Forma documental{% else %}{{ tipo_nombre|capfirst }} · {{ ric_id }}{% endif %}</span></h1>
+  <h1>{{ entidad }} <span class="tag">{% if es_forma %}Forma documental · RiC-A17{% else %}{{ tipo_nombre|capfirst }} · {{ ric_id }}{% endif %}</span></h1>
   <p>Registro de autoridad. {% if not es_forma %}Enlaces: <span class="acciones"><a href="{% url 'ric_grafo' tipo entidad.pk %}">ver en grafo</a><a href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF</a><a href="{% url 'catalogo_ficha' tipo entidad.pk %}">ficha de catálogo</a></span>{% endif %}</p>
 </hgroup>
 
 <div class="grid">
   <div>
+    {% if es_mandato and entidad.es_serie_trd %}
+    <div class="retencion">
+      <strong>Serie de la Tabla de Retención Documental</strong>{% if entidad.codigo_serie %} · código {{ entidad.codigo_serie }}{% if entidad.codigo_subserie %}.{{ entidad.codigo_subserie }}{% endif %}{% endif %}<br>
+      Retención: {{ entidad.retencion_texto }}{% if entidad.soporte %} · soporte: {{ entidad.soporte }}{% endif %}{% if entidad.vigencia %} · TRD vigente desde {{ entidad.vigencia|date:"d/m/Y" }}{% endif %}
+    </div>
+    {% endif %}
     <div class="tarjeta">
       <h3>Datos de la entrada</h3>
       {% if puede_editar %}
@@ -32,12 +46,21 @@
         <label>Nombre autorizado</label><input type="text" name="nombre" value="{{ entidad.nombre }}" required>
         {% if es_forma %}
         <label>Definición</label><textarea name="definicion" rows="2">{{ entidad.definicion }}</textarea>
-        <label>Retención en archivo de gestión (años, según la TRD)</label><input type="number" min="0" name="retencion_gestion" value="{{ entidad.tiempo_retencion_archivo_gestion|default_if_none:'' }}">
-        <label>Retención en archivo central (años)</label><input type="number" min="0" name="retencion_central" value="{{ entidad.tiempo_retencion_archivo_central|default_if_none:'' }}">
-        <label>Disposición final</label><select name="disposicion_final"><option value="">—</option>{% for v, n in disposiciones %}<option value="{{ v }}" {% if entidad.disposicion_final == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
         {% else %}
-        <label>Identificador (RiC-A22)</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
+        <label>Identificador / código (RiC-A22)</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
         <label>Descripción general (RiC-A43)</label><textarea name="descripcion_general" rows="2">{{ entidad.descripcion_general }}</textarea>
+        {% endif %}
+        {% if es_mandato %}
+        <div class="trd">
+          <div><label>Código de serie</label><input type="text" name="codigo_serie" value="{{ entidad.codigo_serie }}"></div>
+          <div><label>Código de subserie</label><input type="text" name="codigo_subserie" value="{{ entidad.codigo_subserie }}"></div>
+          <div><label>Retención en archivo de gestión (años)</label><input type="number" min="0" name="retencion_gestion" value="{{ entidad.tiempo_retencion_archivo_gestion|default_if_none:'' }}"></div>
+          <div><label>Retención en archivo central (años)</label><input type="number" min="0" name="retencion_central" value="{{ entidad.tiempo_retencion_archivo_central|default_if_none:'' }}"></div>
+          <div class="ancho"><label>Disposición final (casillas de la TRD, pueden combinarse)</label>
+            <div class="casillas">{% for codigo, nombre, marcado in disposiciones %}<label><input type="checkbox" name="disposicion_{{ codigo }}" value="1" {% if marcado %}checked{% endif %}> {{ codigo }} · {{ nombre }}</label>{% endfor %}</div></div>
+          <div class="ancho"><label>Soporte</label><input type="text" name="soporte" value="{{ entidad.soporte }}" placeholder="papel, electrónico"></div>
+          <div class="ancho"><label>Procedimiento (qué se hace al vencer la retención)</label><textarea name="procedimiento" rows="3">{{ entidad.procedimiento }}</textarea></div>
+        </div>
         {% endif %}
         <label>Serie / subserie de la TRD vigente (RF-M5-03)</label><input type="text" name="serie_trd" value="{{ entidad.serie_trd }}" placeholder="Ej. 100.02 Actas de comité">
         <button type="submit">Guardar cambios</button>
@@ -46,8 +69,8 @@
       <dl>
         <dt>Nombre</dt><dd>{{ entidad.nombre }}</dd>
         {% if es_forma %}<dt>Definición</dt><dd>{{ entidad.definicion|default:"—" }}</dd>
-        <dt>Retención</dt><dd>gestión {{ entidad.tiempo_retencion_archivo_gestion|default_if_none:"—" }} años · central {{ entidad.tiempo_retencion_archivo_central|default_if_none:"—" }} años · {{ entidad.get_disposicion_final_display|default:"sin disposición" }}</dd>
         {% else %}<dt>Identificador</dt><dd>{{ entidad.identificador|default:"—" }}</dd><dt>Descripción</dt><dd>{{ entidad.descripcion_general|default:"—" }}</dd>{% endif %}
+        {% if es_mandato %}<dt>Retención</dt><dd>{{ entidad.retencion_texto|default:"—" }}</dd>{% if entidad.procedimiento %}<dt>Procedimiento</dt><dd>{{ entidad.procedimiento }}</dd>{% endif %}{% endif %}
         <dt>Serie TRD</dt><dd>{{ entidad.serie_trd|default:"—" }}</dd>
       </dl>
       {% endif %}
@@ -63,6 +86,41 @@
   </div>
 
   <div>
+    {% if es_forma %}
+    <div class="tarjeta">
+      <h3>Series de la TRD en las que aparece ({{ series|length }})</h3>
+      {% if series %}
+      {% for a in series %}
+      <div class="serie">
+        <a href="{% url 'vocabulario_ficha' 'activity' a.pk %}">{{ a.nombre }}</a>
+        {% if a.mandato %}<small><a href="{% url 'vocabulario_ficha' 'mandate' a.mandato.pk %}">{{ a.mandato.identificador|default:a.mandato.nombre }}</a> · {{ a.mandato.retencion_texto|default:"sin retención registrada" }}</small>{% endif %}
+      </div>
+      {% endfor %}
+      {% else %}<p class="sin-datos">Ninguna serie de la TRD la lista todavía como tipo documental. La retención se define en el mandato de cada serie, no aquí.</p>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if es_mandato %}
+    <div class="tarjeta">
+      <h3>Actividades (funciones) que regula ({{ actividades_reguladas|length }})</h3>
+      {% if actividades_reguladas %}
+      <ul>{% for a in actividades_reguladas %}<li><a href="{% url 'vocabulario_ficha' 'activity' a.pk %}">{{ a.nombre }}</a> · {{ a.formas_documentales.count }} tipo(s) documental(es)</li>{% endfor %}</ul>
+      {% else %}<p class="sin-datos">Ninguna actividad apunta a este mandato.</p>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if es_actividad %}
+    <div class="tarjeta">
+      <h3>Serie de la TRD y tipos documentales</h3>
+      {% if entidad.mandato %}
+      <div class="retencion">Mandato: <a href="{% url 'vocabulario_ficha' 'mandate' entidad.mandato.pk %}">{{ entidad.mandato.nombre }}</a><br>Retención: {{ entidad.mandato.retencion_texto|default:"sin retención registrada" }}</div>
+      {% else %}<p class="sin-datos">Sin mandato (serie de la TRD) asociado.</p>{% endif %}
+      {% if formas_actividad %}
+      <ul>{% for f in formas_actividad %}<li><a href="{% url 'vocabulario_ficha' 'formadocumental' f.pk %}">{{ f.nombre }}</a></li>{% endfor %}</ul>
+      {% else %}<p class="sin-datos">Sin tipos documentales registrados para esta serie.</p>{% endif %}
+    </div>
+    {% endif %}
+
     <div class="tarjeta">
       <h3>Documentos relacionados ({{ documentos|length }})</h3>
       {% if documentos %}
@@ -77,6 +135,7 @@
       <ul>{% for r in relaciones %}<li>{{ r.direccion }} {{ r.relacion.relacion_id }} {{ r.nombre }} · <a href="{% url 'catalogo_ficha' r.otro_slug r.otro.pk %}">{{ r.otro }}</a></li>{% endfor %}</ul>
       {% else %}<p class="sin-datos">Sin relaciones validadas.</p>{% endif %}
     </div>
+    {% endif %}
 
     {% if fusionable %}
     <div class="tarjeta">
@@ -86,7 +145,7 @@
       <div class="dup">
         <span><a href="{% url 'vocabulario_ficha' tipo d.pk %}">{{ d.nombre }}</a></span>
         {% if puede_editar %}
-        <form method="post" action="{% url 'vocabulario_fusionar' tipo entidad.pk %}" onsubmit="return confirm('¿Fusionar «{{ d.nombre|escapejs }}» en «{{ entidad.nombre|escapejs }}»? Sus relaciones pasan a esta entrada y la duplicada se retira (queda en el historial).');">
+        <form method="post" action="{% url 'vocabulario_fusionar' tipo entidad.pk %}" onsubmit="return confirm('¿Fusionar «{{ d.nombre|escapejs }}» en «{{ entidad.nombre|escapejs }}»? {% if es_forma %}Sus documentos y series pasan a esta forma documental y la duplicada se retira.{% else %}Sus relaciones pasan a esta entrada y la duplicada se retira (queda en el historial).{% endif %}');">
           {% csrf_token %}<input type="hidden" name="duplicada" value="{{ d.pk }}">
           <button type="submit">⇄ Fusionar en esta</button>
         </form>
@@ -95,7 +154,6 @@
       {% endfor %}
       {% else %}<p class="sin-datos">No se detectan entradas parecidas.</p>{% endif %}
     </div>
-    {% endif %}
     {% endif %}
   </div>
 </div>

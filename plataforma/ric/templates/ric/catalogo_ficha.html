@@ -40,8 +40,8 @@
         <dt>Nombre (RiC-A28)</dt><dd>{{ entidad.nombre }}</dd>
         {% if entidad.descripcion_general %}<dt>Descripción</dt><dd>{{ entidad.descripcion_general }}</dd>{% endif %}
         {% if es_documento %}
-          <dt>Forma documental</dt><dd>{{ entidad.forma_documental|default:entidad.tipo_forma_documental|default:"—" }}
-            {% if entidad.forma_documental and entidad.forma_documental.disposicion_final %}<br><small>TRD: gestión {{ entidad.forma_documental.tiempo_retencion_archivo_gestion|default_if_none:"—" }} años · central {{ entidad.forma_documental.tiempo_retencion_archivo_central|default_if_none:"—" }} años · {{ entidad.forma_documental.get_disposicion_final_display }}</small>{% endif %}</dd>
+          <dt>Forma documental</dt><dd>{{ entidad.forma_documental|default:entidad.tipo_forma_documental|default:"—" }}</dd>
+          <dt>Serie de la TRD</dt><dd>{% if series_trd %}{% for s in series_trd %}<a href="{% url 'vocabulario_ficha' 'mandate' s.mandato.pk %}">{{ s.mandato.identificador|default:s.mandato.nombre }}</a> · {{ s.actividad.nombre }}<br><small>Retención: {{ s.mandato.retencion_texto }}</small>{% if not forloop.last %}<br>{% endif %}{% endfor %}{% else %}<span style="color:#6b7280">sin serie asociada — relacione el documento con la actividad (función) de su serie para heredar la retención</span>{% endif %}</dd>
           <dt>Conjunto (fondo/serie)</dt><dd>{{ entidad.record_set|default:"—" }}</dd>
           <dt>Idioma</dt><dd>{{ entidad.idioma|default:"—" }}</dd>
           <dt>Serie TRD</dt><dd>{{ entidad.serie_trd|default:"—" }}</dd>

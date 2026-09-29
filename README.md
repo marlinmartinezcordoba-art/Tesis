@@ -54,6 +54,7 @@ cd plataforma
 ../.venv/bin/python manage.py loaddata criterios_borrador
 ../.venv/bin/python manage.py loaddata cuadro_demo  # opcional: un cuadro de clasificación de ejemplo
 ../.venv/bin/python manage.py createsuperuser
+../.venv/bin/python manage.py sembrar_mads   # opcional: organigrama + 54 TRD del Ministerio de Ambiente en el vocabulario (M5)
 ../.venv/bin/python manage.py runserver
 ```
 
