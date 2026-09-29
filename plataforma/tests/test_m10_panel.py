@@ -78,4 +78,4 @@ class PanelTest(CasoModulos):
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("distribucion", resp.context)
         self.assertNotContains(resp, "Ingesta de documentos")
-        self.assertContains(resp, "Catálogo y consulta")
+        self.assertContains(resp, "Consulta y exportación")

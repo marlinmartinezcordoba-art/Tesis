@@ -1,145 +1,115 @@
-import shutil
-import tempfile
-from unittest.mock import MagicMock
+"""Valoración y disposición: retención heredada de la TRD por cada
+expediente, fases, transferencias e inventario FUID."""
 
-from django.contrib.auth.models import User
+import datetime
+
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.urls import reverse
 
-from acceso.models import RevisionDatosPersonales as Revision
-from acceso.servicios import revisar_datos_personales
-from acervo.extraccion import extraer_texto
-from acervo.models import Documento
-from asistencia.proveedor_claude import (
-    ErrorProveedorIA,
-    IndicioPropuesto,
-    ProveedorValoracionClaude,
-    ValoracionPropuesta,
-)
-from asistencia.proveedor_local import ProveedorValoracionLocal
-from asistencia.proveedores import generar_sugerencias
-from lineamientos.verificacion import CUMPLE, MANUAL, NO_CUMPLE, evaluar_documento
+from ric import clasificacion, instrumentos, valoracion
+from ric.models import Activity, RecordSet
 
-MEDIA = tempfile.mkdtemp()
-
-TEXTO = (
-    "Relato de la fiesta tradicional del pueblo, con la comunidad reunida en "
-    "torno a la independencia de la villa durante la guerra de 1810."
-)
+from ._ayudas import CasoModulos
+from .test_m1_ingesta import ORGANIGRAMA, TRD
 
 
-@override_settings(MEDIA_ROOT=MEDIA)
-class ValoracionBaseTest(TestCase):
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(MEDIA, ignore_errors=True)
-
+class ValoracionTest(CasoModulos):
     def setUp(self):
-        call_command("loaddata", "criterios_borrador", verbosity=0)
-        self.archivista = User.objects.create_user("archivista", password="x")
-        self.doc = Documento.objects.create(
-            titulo="Relato", archivo=SimpleUploadedFile("relato.txt", TEXTO.encode())
-        )
-        extraer_texto(self.doc)
+        super().setUp()
+        instrumentos.importar_organigrama(ORGANIGRAMA, self.archivista)
+        instrumentos.importar_trd(TRD, self.archivista)
+        self.serie = Activity.objects.get(identificador="TRD 1000-24")  # gestión 3, central 7, S
+        self.actas = Activity.objects.get(identificador="TRD 4106-10")  # gestión 2, central 18, CT
 
-    def criterio(self, codigo):
-        return next(r for r in evaluar_documento(self.doc) if r.criterio.codigo == codigo)
+    def _expediente(self, serie, nombre, cierre=None, apertura=None):
+        e, _ = clasificacion.crear_expediente(serie, nombre, self.archivista, fecha_apertura=apertura)
+        e.fecha_cierre = cierre
+        e.save()
+        clasificacion.registrar_documentos(e, [SimpleUploadedFile(f"{nombre}.txt", b"texto")], self.archivista)
+        return e
 
+    def test_fases_calculadas_desde_el_cierre_y_la_trd(self):
+        hoy = datetime.date(2026, 9, 29)
+        abierto = self._expediente(self.serie, "Abierto")
+        gestion = self._expediente(self.serie, "En gestión", cierre=datetime.date(2025, 1, 15))
+        central = self._expediente(self.serie, "En central", cierre=datetime.date(2022, 1, 15))
+        vencido = self._expediente(self.serie, "Vencido", cierre=datetime.date(2010, 1, 15))
+        self.assertEqual(valoracion.resumen(abierto, hoy)["fase"], valoracion.ABIERTO)
+        r = valoracion.resumen(gestion, hoy)
+        self.assertEqual(r["fase"], valoracion.GESTION)
+        self.assertEqual(r["fin_gestion"], datetime.date(2028, 1, 15))
+        self.assertEqual(r["fin_central"], datetime.date(2035, 1, 15))
+        self.assertFalse(r["pronto"])
+        r = valoracion.resumen(central, hoy)
+        self.assertEqual(r["fase"], valoracion.CENTRAL)
+        self.assertEqual(r["fin_gestion"], datetime.date(2025, 1, 15))
+        r = valoracion.resumen(vencido, hoy)
+        self.assertEqual(r["fase"], valoracion.DISPOSICION)
+        self.assertEqual(r["disposicion"], "Selección")
+        self.assertEqual(r["documentos"], 1)
+        # por vencer dentro del aviso
+        pronto = self._expediente(self.serie, "Pronto", cierre=datetime.date(2023, 10, 20))
+        r = valoracion.resumen(pronto, hoy)
+        self.assertEqual(r["fase"], valoracion.GESTION)
+        self.assertTrue(r["pronto"])
+        self.assertEqual(r["dias"], 21)
 
-class Val01SiempreCumpleTest(ValoracionBaseTest):
-    def test_val_01_no_depende_del_documento(self):
-        # La plataforma nunca ofrece eliminar documentos; el criterio es
-        # estructural, no depende de si hay sugerencias o no.
-        self.assertEqual(self.criterio("VAL-01").estado, CUMPLE)
+    def test_listas_de_transferencia_y_disposicion(self):
+        hoy = datetime.date(2026, 9, 29)
+        self._expediente(self.serie, "En central", cierre=datetime.date(2022, 1, 15))
+        self._expediente(self.actas, "Acta vieja", cierre=datetime.date(2000, 1, 15))
+        self._expediente(self.serie, "Reciente", cierre=datetime.date(2026, 1, 15))
+        listas = valoracion.transferencias(hoy)
+        self.assertEqual([r["expediente"].nombre for r in listas["primaria"]], ["En central"])
+        self.assertEqual([r["expediente"].nombre for r in listas["disposicion"]], ["Acta vieja"])
+        self.assertEqual(listas["disposicion"][0]["codigos"], ["CT"])
+        self.assertEqual(valoracion.conteo_vencidos(hoy), 2)
 
-    def test_admin_no_permite_eliminar_documentos(self):
-        from django.contrib import admin as django_admin
+    def test_pantallas_y_edicion_de_fechas(self):
+        e = self._expediente(self.serie, "Petición 12", apertura=datetime.date(2026, 2, 1))
+        self.client.force_login(self.revisor)
+        resp = self.client.get(reverse("valoracion"))
+        self.assertContains(resp, "Petición 12")
+        self.assertContains(resp, "Abierto (sin fecha de cierre)")
+        self.assertContains(resp, "gestión 3 años · central 7 años · Selección")
+        self.assertNotContains(resp, 'name="fecha_cierre"')  # el revisor no edita
+        self.client.force_login(self.archivista)
+        resp = self.client.post(reverse("valoracion_expediente", args=[e.pk]), {"fecha_apertura": "2026-02-01", "fecha_cierre": "2026-06-30"}, follow=True)
+        self.assertContains(resp, "En archivo de gestión")
+        e.refresh_from_db()
+        self.assertEqual(str(e.fecha_cierre), "2026-06-30")
+        resp = self.client.post(reverse("valoracion_expediente", args=[e.pk]), {"fecha_apertura": "2026-02-01", "fecha_cierre": "2025-01-01"}, follow=True)
+        self.assertContains(resp, "no puede ser anterior")
+        resp = self.client.get(reverse("valoracion_transferencias"))
+        self.assertContains(resp, "Transferencia primaria (0)")
+        self.client.force_login(self.consulta)
+        self.assertContains(self.client.get(reverse("valoracion"), follow=True), "Esta acción requiere")
 
-        self.assertFalse(
-            django_admin.site._registry[Documento].has_delete_permission(MagicMock())
-        )
+    def test_inventario_fuid_en_csv(self):
+        self._expediente(self.serie, "Petición 12", apertura=datetime.date(2026, 2, 1), cierre=datetime.date(2026, 6, 30))
+        self.client.force_login(self.archivista)
+        resp = self.client.get(reverse("valoracion_fuid"))
+        self.assertEqual(resp["Content-Type"], "text/csv; charset=utf-8")
+        cuerpo = resp.content.decode("utf-8-sig")
+        self.assertIn("Entidad productora;Unidad administrativa;Oficina productora", cuerpo)
+        fila = cuerpo.splitlines()[1].split(";")
+        self.assertEqual(fila[1], "Ministerio de Ambiente")
+        self.assertEqual(fila[3], "Despacho del Ministro")
+        self.assertEqual(fila[5], "Derechos de petición")
+        self.assertEqual(fila[6], "Petición 12")
+        self.assertEqual(fila[7:9], ["2026-02-01", "2026-06-30"])
+        self.assertEqual(fila[13:16], ["3", "7", "Selección"])
 
-
-class ProveedorValoracionLocalTest(ValoracionBaseTest):
-    def test_detecta_varios_tipos_de_valor_a_la_vez(self):
-        sugerencias = generar_sugerencias(self.doc, ProveedorValoracionLocal())
-        campos = {s.campo for s in sugerencias}
-        self.assertIn("valor_historico", campos)
-        self.assertIn("valor_cultural", campos)
-        for s in sugerencias:
-            self.assertTrue(s.evidencia_verificada)
-
-    def test_sin_coincidencias_no_propone_nada(self):
-        doc = Documento.objects.create(
-            titulo="Recibo", archivo=SimpleUploadedFile("r.txt", b"Recibido: 5 pesos por transporte.")
-        )
-        extraer_texto(doc)
-        self.assertEqual(generar_sugerencias(doc, ProveedorValoracionLocal()), [])
-        self.assertEqual(self.criterio("VAL-02").estado, MANUAL)
-
-    def test_criterio_val_02_tras_validar(self):
-        self.assertEqual(self.criterio("VAL-02").estado, MANUAL)
-        sugerencias = generar_sugerencias(self.doc, ProveedorValoracionLocal())
-        self.assertEqual(self.criterio("VAL-02").estado, MANUAL)  # aún pendientes de decisión
-        for s in sugerencias:
-            s.validar(self.archivista, aceptar=True)
-        self.assertEqual(self.criterio("VAL-02").estado, CUMPLE)
-
-    def test_rechazar_indicio_no_modifica_el_documento(self):
-        [s, *_] = generar_sugerencias(self.doc, ProveedorValoracionLocal())
-        s.validar(self.archivista, aceptar=False, motivo="No aplica en este caso")
-        self.assertEqual(s.estado, "rechazada")
-        # Rechazar no toca ningún campo del documento: no hay campo que valorar module.
-
-
-class ProveedorValoracionClaudeTest(ValoracionBaseTest):
-    def test_no_envia_sin_revision_de_datos_personales(self):
-        with self.assertRaises(ErrorProveedorIA):
-            ProveedorValoracionClaude().texto_de(self.doc)
-
-    def test_propone_multiples_indicios_con_evidencia(self):
-        revisar_datos_personales(self.doc).decidir(self.archivista, Revision.Decision.PUBLICABLE, "")
-
-        propuesta = ValoracionPropuesta(indicios=[
-            IndicioPropuesto(tipo="historico", evidencia="guerra de 1810", confianza="alta",
-                              justificacion="Se refiere a la guerra de independencia."),
-            IndicioPropuesto(tipo="cultural", evidencia="fiesta tradicional", confianza="media",
-                              justificacion="Describe una fiesta tradicional de la comunidad."),
-        ])
-        respuesta = MagicMock(stop_reason="end_turn", model="claude-opus-4-8", parsed_output=propuesta)
-        cliente = MagicMock()
-        cliente.beta.messages.parse.return_value = respuesta
-
-        sugerencias = generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente))
-        campos = {s.campo: s for s in sugerencias}
-        self.assertEqual(len(sugerencias), 2)
-        self.assertTrue(campos["valor_historico"].evidencia_verificada)
-        self.assertTrue(campos["valor_cultural"].evidencia_verificada)
-
-    def test_lista_vacia_no_genera_sugerencias(self):
-        revisar_datos_personales(self.doc).decidir(self.archivista, Revision.Decision.PUBLICABLE, "")
-
-        respuesta = MagicMock(
-            stop_reason="end_turn", model="claude-opus-5",
-            parsed_output=ValoracionPropuesta(indicios=[]),
-        )
-        cliente = MagicMock()
-        cliente.beta.messages.parse.return_value = respuesta
-        self.assertEqual(generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente)), [])
-
-    def test_duplica_tipo_se_queda_con_el_primero(self):
-        revisar_datos_personales(self.doc).decidir(self.archivista, Revision.Decision.PUBLICABLE, "")
-
-        propuesta = ValoracionPropuesta(indicios=[
-            IndicioPropuesto(tipo="historico", evidencia="guerra de 1810", confianza="alta", justificacion="a"),
-            IndicioPropuesto(tipo="historico", evidencia="independencia", confianza="baja", justificacion="b"),
-        ])
-        respuesta = MagicMock(stop_reason="end_turn", model="claude-opus-5", parsed_output=propuesta)
-        cliente = MagicMock()
-        cliente.beta.messages.parse.return_value = respuesta
-
-        sugerencias = generar_sugerencias(self.doc, ProveedorValoracionClaude(cliente=cliente))
-        self.assertEqual(len(sugerencias), 1)
-        self.assertEqual(sugerencias[0].justificacion, "a")
+    def test_ficha_del_documento_hereda_ruta_y_retencion_del_expediente(self):
+        e = self._expediente(self.serie, "Petición 12", cierre=datetime.date(2026, 6, 30))
+        from ric.models import Record
+        record = Record.objects.get(record_set=e)
+        self.client.force_login(self.archivista)
+        resp = self.client.get(reverse("catalogo_ficha", args=["record", record.pk]))
+        self.assertContains(resp, "Ministerio de Ambiente")
+        self.assertContains(resp, "Derechos de petición")
+        self.assertContains(resp, "Retención heredada")
+        self.assertContains(resp, "gestión 3 años · central 7 años · Selección")
+        resp = self.client.get(reverse("catalogo_ficha", args=["recordset", e.pk]))
+        self.assertContains(resp, "Contenido (0 conjunto(s), 1 documento(s))")
+        self.assertContains(resp, "En archivo de gestión")

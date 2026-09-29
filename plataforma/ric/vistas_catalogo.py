@@ -10,8 +10,8 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import busqueda, exportacion, flujo, grafo, reglas, roles, tipos
-from .models import Exportacion, Instantiation, Record, RelacionRiC
+from . import clasificacion, valoracion, busqueda, exportacion, flujo, grafo, reglas, roles, tipos
+from .models import Exportacion, Instantiation, Record, RecordSet, RelacionRiC
 
 # Filtros de clase del panel izquierdo (RF-M8-01) -> modelos concretos.
 CLASES_CATALOGO = [
@@ -188,10 +188,22 @@ def catalogo_ficha(request, tipo, pk):
     }
     if es_documento:
         estado = flujo.estado_documento(entidad)
+        expediente = clasificacion.expediente_de(entidad)
         contexto.update({
             "record": entidad, "estado": estado, "etiqueta_estado": flujo.ETIQUETAS[estado], "paso_actual": 6,
             "instanciaciones": entidad.instanciaciones.all(),
             "series_trd": flujo.series_trd_de(entidad),
+            "expediente": expediente,
+            "ruta": expediente.ruta() if expediente is not None else [],
+            "valoracion": valoracion.resumen(expediente) if expediente is not None and expediente.es_expediente else None,
+        })
+    if isinstance(entidad, RecordSet):
+        contexto.update({
+            "es_conjunto": True, "ruta": entidad.ruta(),
+            "subconjuntos": entidad.hijos.order_by("nombre"),
+            "documentos_del_conjunto": Record.objects.filter(record_set=entidad).order_by("nombre"),
+            "valoracion": valoracion.resumen(entidad) if entidad.es_expediente else None,
+            "mandato_conjunto": entidad.mandato(),
         })
     return render(request, "ric/catalogo_ficha.html", contexto)
 

@@ -12,7 +12,7 @@ from django.db.models.functions import TruncDate, TruncWeek
 from django.shortcuts import render
 from django.utils import timezone
 
-from . import auditoria, flujo, roles
+from . import valoracion, auditoria, flujo, roles
 from .models import ConfiguracionSistema, EventoRiC, Instantiation, PropuestaRiC, Record, RelacionRiC
 
 _COLORES_DISTRIBUCION = ["#c08a3e", "#2f7d4f", "#a9660a", "#7046d9", "#c0392b", "#1f6f8b"]
@@ -150,6 +150,7 @@ def panel(request):
         contexto.update({
             "pendientes": pendientes_totales,
             "alertas": _alertas_pendientes(config.dias_limite_revision),
+            "retencion_vencida": valoracion.conteo_vencidos(),
             # CC-02: documentos en curso a los que falta forma documental, agente o fecha.
             "incompletos": [
                 {**f, "faltan": flujo.clases_faltantes(f["record"])}

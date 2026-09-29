@@ -48,25 +48,37 @@ class RolesTest(CasoModulos):
         self.assertContains(self._get(self.archivista, "admin_usuarios"), "Esta acción requiere")
 
     def test_menu_lateral_por_rol(self):
+        # Menú por proceso archivístico: seis entradas; Administración solo para el superusuario.
         resp = self._get(self.consulta, "panel")
-        self.assertNotContains(resp, "Ingesta de documentos")
-        self.assertNotContains(resp, "Revisión archivística")
+        self.assertNotContains(resp, "Captura y clasificación")
+        self.assertNotContains(resp, ">Descripción<")
+        self.assertNotContains(resp, "Valoración y disposición")
         self.assertNotContains(resp, "Panel técnico")
-        self.assertContains(resp, "Catálogo y consulta")
+        self.assertContains(resp, "Consulta y exportación")
+        self.assertContains(resp, "Instrumentos archivísticos")
         self.assertContains(resp, "Consulta</span>")
 
         resp = self._get(self.revisor, "panel")
-        self.assertNotContains(resp, "Ingesta de documentos")
-        self.assertContains(resp, "Revisión archivística")
-        self.assertContains(resp, "Motor de análisis RiC")
+        self.assertNotContains(resp, "Captura y clasificación")
+        self.assertContains(resp, ">Descripción<")
+        self.assertContains(resp, "Valoración y disposición")
 
         resp = self._get(self.archivista, "panel")
-        self.assertContains(resp, "Ingesta de documentos")
+        self.assertContains(resp, "Captura y clasificación")
         self.assertNotContains(resp, "Panel técnico")  # el menú ya no enlaza al admin de Django
-        self.assertNotContains(resp, "Administración y seguridad")
+        self.assertNotContains(resp, ">Administración<")
 
         resp = self._get(self.superusuario, "panel")
-        self.assertContains(resp, "Administración y seguridad")
+        self.assertContains(resp, ">Administración<")
+
+    def test_pestanas_del_proceso(self):
+        resp = self._get(self.archivista, "revision_lista")
+        self.assertContains(resp, 'class="activa">Revisión archivística')
+        self.assertContains(resp, "Análisis y relaciones")
+        self.assertContains(resp, "Trazabilidad y auditoría")
+        resp = self._get(self.archivista, "preproceso")
+        self.assertContains(resp, 'class="activa">Preprocesamiento y OCR')
+        self.assertContains(resp, ">Cargar documentos<")
 
     def test_el_archivo_original_exige_sesion_pero_no_rol(self):
         self.client.force_login(self.consulta)

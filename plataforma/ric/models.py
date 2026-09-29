@@ -111,17 +111,39 @@ class RecordResource(Thing):
 
 
 class RecordSet(RecordResource):
-    """RiC-E03 Record Set: agrupación de uno o más Records (fondo, sección, serie, subserie)."""
+    """RiC-E03 Record Set: agrupación de uno o más Records. Todo lo que está
+    por encima del documento es un Record Set con su tipo (RiC-A36): fondo,
+    sección (oficina productora), serie o subserie (de la TRD), expediente.
+    La cadena se enlaza por `padre` (caso común de R024) y R024 como
+    relación general (pertenencia múltiple, especificación v3)."""
+
+    class Tipo(models.TextChoices):
+        FONDO = "fondo", "Fondo"
+        SECCION = "seccion", "Sección"
+        SERIE = "serie", "Serie"
+        SUBSERIE = "subserie", "Subserie"
+        EXPEDIENTE = "expediente", "Expediente"
+        COLECCION = "coleccion", "Colección"
 
     accruals = models.CharField(max_length=255, blank=True, help_text="RiC-A01 Accruals.")
     tipo_conjunto = models.CharField(
         max_length=50, blank=True,
-        help_text="RiC-A36 Record Set Type: fondo, sección, serie, subserie, colección...",
+        help_text="RiC-A36 Record Set Type: fondo, sección, serie, subserie, expediente, colección...",
     )
     padre = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.PROTECT, related_name="hijos",
         help_text="Caso común de RiC-R024 'includes or included' entre Record Sets; el caso general se "
                    "modela con RelacionRiC.",
+    )
+    actividad = models.ForeignKey(
+        "Activity", null=True, blank=True, on_delete=models.SET_NULL, related_name="conjuntos",
+        help_text="Para una serie/subserie: la función de la TRD que este conjunto documenta "
+                  "(caso común de RiC-R033 'documents'); por ella hereda la retención del Mandato.",
+    )
+    fecha_apertura = models.DateField(null=True, blank=True, help_text="Expediente: fecha del primer documento.")
+    fecha_cierre = models.DateField(
+        null=True, blank=True,
+        help_text="Expediente: fecha de cierre del trámite. Desde aquí corre la retención en archivo de gestión.",
     )
 
     class Meta:
@@ -139,6 +161,46 @@ class RecordSet(RecordResource):
             .select_related()
             .first()
         )
+
+    # --- jerarquía y herencia de la TRD ----------------------------------
+
+    def ancestros(self):
+        """De este conjunto hacia arriba, sin incluirse: [padre, abuelo, ... fondo]."""
+        cadena, actual, vistos = [], self.padre, {self.pk}
+        while actual is not None and actual.pk not in vistos:
+            cadena.append(actual)
+            vistos.add(actual.pk)
+            actual = actual.padre
+        return cadena
+
+    def ruta(self):
+        """Fondo > sección > serie > ... > este conjunto."""
+        return list(reversed(self.ancestros())) + [self]
+
+    def ruta_texto(self):
+        return " > ".join(c.nombre for c in self.ruta())
+
+    def serie(self):
+        """La serie o subserie de la TRD (el conjunto con actividad) más
+        cercana: este mismo o un ancestro."""
+        for conjunto in [self] + self.ancestros():
+            if conjunto.actividad_id:
+                return conjunto
+        return None
+
+    def mandato(self):
+        serie = self.serie()
+        return serie.actividad.mandato if serie is not None and serie.actividad.mandato_id else None
+
+    def seccion(self):
+        for conjunto in [self] + self.ancestros():
+            if conjunto.tipo_conjunto == self.Tipo.SECCION:
+                return conjunto
+        return None
+
+    @property
+    def es_expediente(self):
+        return self.tipo_conjunto == self.Tipo.EXPEDIENTE
 
 
 class FormaDocumental(models.Model):

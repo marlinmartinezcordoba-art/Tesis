@@ -11,9 +11,9 @@ from django.views.decorators.http import require_POST
 
 from acervo.extraccion import EXT_DOCX, EXT_IMAGEN, EXT_TEXTO
 
-from . import flujo, roles
+from . import clasificacion, flujo, roles
 from .idioma import nombre_idioma
-from .models import ConfiguracionSistema, EventoRiC, Instantiation, Record, registrar_evento
+from .models import Activity, ConfiguracionSistema, EventoRiC, Instantiation, Record, RecordSet, registrar_evento
 
 FORMATOS_SOPORTADOS = sorted(EXT_TEXTO | EXT_IMAGEN | EXT_DOCX | {".pdf"})
 _EXT_IMAGEN_VISOR = {".jpg", ".jpeg", ".png"}
@@ -41,46 +41,101 @@ def _estado_preproceso(instanciacion):
     return "listo"
 
 
+def _fecha(valor):
+    import datetime
+
+    try:
+        return datetime.date.fromisoformat(valor) if valor else None
+    except ValueError:
+        return None
+
+
+def _agrupar_por_carpeta(archivos, rutas):
+    """Opción C: al subir una carpeta, el nombre de la carpeta de primer
+    nivel de cada archivo es su expediente. {carpeta: [archivos]}; la
+    clave "" agrupa los archivos sueltos."""
+    grupos = {}
+    for i, archivo in enumerate(archivos):
+        ruta = rutas[i] if i < len(rutas) else ""
+        partes = [p for p in ruta.replace("\\", "/").split("/") if p]
+        carpeta = partes[-2] if len(partes) >= 2 else ""
+        grupos.setdefault(carpeta, []).append(archivo)
+    return grupos
+
+
 @roles.requiere_rol(roles.ARCHIVISTA)
 def ingesta(request):
+    """Captura y clasificación (opción A): 1) la serie o subserie de la TRD,
+    2) el expediente de esa serie (existente o nuevo; o el nombre de la
+    carpeta cargada), 3) los archivos, cada uno un documento salvo que sean
+    partes de un mismo documento. Al cargar, el preprocesamiento (texto u
+    OCR, idioma, calidad) corre solo y el documento pasa al motor."""
+    from .ingesta import preprocesar
+
     errores, cargados = [], []
-    record = None
     reemplaza = None
-    if request.GET.get("reemplaza"):
-        reemplaza = Instantiation.objects.filter(pk=request.GET["reemplaza"]).select_related("record_resource").first()
+    if request.GET.get("reemplaza") or request.POST.get("reemplaza_id"):
+        reemplaza = Instantiation.objects.filter(pk=request.GET.get("reemplaza") or request.POST.get("reemplaza_id")).select_related("record_resource").first()
+
+    serie_id = request.POST.get("serie_id") or request.GET.get("serie", "")
+    actividad = Activity.objects.filter(pk=serie_id, mandato__isnull=False).select_related("mandato").first() if str(serie_id).isdigit() else None
+    expediente_id = request.POST.get("expediente_id") or request.GET.get("expediente", "")
+    expediente = RecordSet.objects.filter(pk=expediente_id, tipo_conjunto=RecordSet.Tipo.EXPEDIENTE).first() if str(expediente_id).isdigit() else None
 
     if request.method == "POST":
-        record_id = request.POST.get("record_id", "").strip()
-        nombre_nuevo = request.POST.get("nombre_nuevo", "").strip()
         archivos = request.FILES.getlist("archivos")
+        rutas = request.POST.getlist("rutas")
+        nombre_nuevo = request.POST.get("expediente_nuevo", "").strip()
+        un_solo = request.POST.get("un_solo_documento") == "1"
+        grupos = _agrupar_por_carpeta(archivos, rutas)
+        con_carpetas = any(grupos) and expediente is None
 
-        if not record_id and not nombre_nuevo:
-            errores.append("Indique a qué expediente pertenece el documento, o escriba el nombre de uno nuevo.")
         if not archivos:
             errores.append("Seleccione al menos un archivo para cargar.")
         for archivo in archivos:
             error = _validar_archivo(archivo)
             if error:
                 errores.append(error)
+        if reemplaza is None:
+            if actividad is None:
+                errores.append("Elija primero la serie o subserie de la TRD a la que pertenece el expediente.")
+            elif expediente is None and not nombre_nuevo and not con_carpetas:
+                errores.append("Indique a qué expediente pertenece el documento, o escriba el nombre de uno nuevo.")
 
         if not errores:
-            if record_id:
-                record = get_object_or_404(Record, pk=record_id)
+            nuevas = []
+            if reemplaza is not None:
+                record = _record_de(reemplaza)
+                for archivo in archivos:
+                    inst = Instantiation.objects.create(nombre=archivo.name, record_resource=record, archivo=archivo, creado_por=request.user, instanciacion_origen=reemplaza)
+                    registrar_evento(inst, EventoRiC.Tipo.INGESTA, agente=request.user, detalle={"archivo": archivo.name, "formato": inst.formato, "tamano_bytes": inst.tamano_bytes, "sha256": inst.sha256, "reescaneo_de": reemplaza.nombre})
+                    nuevas.append(inst)
+                reemplaza = None
+            elif con_carpetas:
+                for carpeta, lista in grupos.items():
+                    destino = expediente
+                    if carpeta:
+                        destino, _ = clasificacion.crear_expediente(actividad, carpeta, request.user, fecha_apertura=_fecha(request.POST.get("fecha_apertura")))
+                    elif nombre_nuevo:
+                        destino, _ = clasificacion.crear_expediente(actividad, nombre_nuevo, request.user, codigo=request.POST.get("expediente_codigo", "").strip(), fecha_apertura=_fecha(request.POST.get("fecha_apertura")))
+                    if destino is None:
+                        errores.append(f"{len(lista)} archivo(s) sueltos sin expediente: póngalos en una carpeta o escriba el nombre de un expediente nuevo.")
+                        continue
+                    nuevas += clasificacion.registrar_documentos(destino, lista, request.user, un_solo_documento=un_solo, nombre_documento=request.POST.get("nombre_documento", "").strip())
             else:
-                record = Record.objects.create(nombre=nombre_nuevo, creado_por=request.user)
-            for archivo in archivos:
-                instanciacion = Instantiation.objects.create(
-                    nombre=archivo.name, record_resource=record, archivo=archivo, creado_por=request.user,
-                )
-                # RF-M1-04: usuario, fecha y hora de cada carga, en la bitácora encadenada.
-                registrar_evento(
-                    instanciacion, EventoRiC.Tipo.INGESTA, agente=request.user,
-                    detalle={
-                        "archivo": archivo.name, "formato": instanciacion.formato,
-                        "tamano_bytes": instanciacion.tamano_bytes, "sha256": instanciacion.sha256,
-                    },
-                )
-                cargados.append(instanciacion)
+                if expediente is None:
+                    expediente, creado = clasificacion.crear_expediente(
+                        actividad, nombre_nuevo, request.user, codigo=request.POST.get("expediente_codigo", "").strip(),
+                        fecha_apertura=_fecha(request.POST.get("fecha_apertura")),
+                    )
+                    if creado:
+                        messages.success(request, f"Expediente «{expediente.nombre}» creado en {expediente.ruta_texto()}.")
+                nuevas = clasificacion.registrar_documentos(expediente, archivos, request.user, un_solo_documento=un_solo, nombre_documento=request.POST.get("nombre_documento", "").strip())
+
+            for inst in nuevas:
+                resultado = preprocesar(inst, agente=request.user)
+                _informar_resultado(request, inst, resultado)
+                cargados.append(inst)
 
     en_cola = (
         Instantiation.objects.exclude(eventos__tipo=EventoRiC.Tipo.EXTRACCION)
@@ -88,15 +143,18 @@ def ingesta(request):
         .select_related("record_resource")
         .order_by("-fecha_registro")[:50]
     )
-    record_preseleccionado = request.GET.get("record") or (reemplaza.record_resource_id if reemplaza else None)
+    q = request.GET.get("q", "").strip()
     return render(request, "ric/ingesta.html", {
-        "registros": Record.objects.order_by("nombre"),
+        "q": q,
+        "series": clasificacion.series_trd(q) if (q or actividad is None) else [],
+        "hay_series": Activity.objects.filter(mandato__isnull=False).exists(),
+        "actividad": actividad,
+        "oficina": clasificacion.oficina_de(actividad) if actividad else None,
+        "expedientes": clasificacion.expedientes_de(actividad) if actividad else [],
+        "expediente": expediente,
         "errores": errores,
-        "cargados": cargados,
+        "cargados": [{"instanciacion": i, "estado": _estado_preproceso(i), "record": _record_de(i)} for i in cargados],
         "en_cola": en_cola,
-        "total_filas": len(cargados) + len(en_cola),
-        "record": record,
-        "record_preseleccionado": str(record_preseleccionado or ""),
         "reemplaza": reemplaza,
         "formatos": ", ".join(FORMATOS_SOPORTADOS),
         "tamano_maximo": settings.RICORA_TAMANO_MAXIMO_MB,

@@ -34,6 +34,14 @@
 
 <div class="grid">
   <div>
+    {% if es_conjunto %}
+    <div class="tarjeta">
+      <h3>{{ entidad.get_tipo_conjunto_display|default:"Conjunto" }} · ruta</h3>
+      <p style="font-size:.86rem; margin:0 0 .5rem">{% for c in ruta %}{% if not forloop.first %} › {% endif %}{% if c.pk == entidad.pk %}<strong>{{ c.nombre }}</strong>{% else %}<a href="{% url 'catalogo_ficha' 'recordset' c.pk %}">{{ c.nombre }}</a>{% endif %}{% endfor %}</p>
+      {% if mandato_conjunto %}<p style="font-size:.84rem; margin:0">Retención (TRD <a href="{% url 'vocabulario_ficha' 'mandate' mandato_conjunto.pk %}">{{ mandato_conjunto.identificador }}</a>): {{ mandato_conjunto.retencion_texto }}</p>{% endif %}
+      {% if valoracion %}<p style="font-size:.84rem; margin:.3rem 0 0">Fase: <strong>{{ valoracion.etiqueta }}</strong>{% if valoracion.fin_gestion %} · fin de gestión {{ valoracion.fin_gestion|date:"d/m/Y" }} · fin de central {{ valoracion.fin_central|date:"d/m/Y" }}{% endif %} · <a href="{% url 'valoracion' %}?q={{ entidad.nombre|urlencode }}">valoración</a></p>{% endif %}
+    </div>
+    {% endif %}
     <div class="tarjeta">
       <h3>Descripción</h3>
       <dl>
@@ -41,6 +49,8 @@
         {% if entidad.descripcion_general %}<dt>Descripción</dt><dd>{{ entidad.descripcion_general }}</dd>{% endif %}
         {% if es_documento %}
           <dt>Forma documental</dt><dd>{{ entidad.forma_documental|default:entidad.tipo_forma_documental|default:"—" }}</dd>
+          <dt>Expediente</dt><dd>{% if expediente %}<a href="{% url 'catalogo_ficha' 'recordset' expediente.pk %}">{{ expediente.nombre }}</a>{% if expediente.identificador %} <small>{{ expediente.identificador }}</small>{% endif %}<br><small>{% for c in ruta %}{% if not forloop.first %} › {% endif %}<a href="{% url 'catalogo_ficha' 'recordset' c.pk %}">{{ c.nombre }}</a>{% endfor %}</small>{% else %}<span style="color:#6b7280">sin expediente (cargado antes de la clasificación por series)</span>{% endif %}</dd>
+          {% if valoracion and valoracion.mandato %}<dt>Retención heredada</dt><dd>{{ valoracion.mandato.retencion_texto }}<br><small>{{ valoracion.etiqueta }}{% if valoracion.fin_gestion %} · fin de gestión {{ valoracion.fin_gestion|date:"d/m/Y" }} · fin de central {{ valoracion.fin_central|date:"d/m/Y" }}{% endif %} · <a href="{% url 'vocabulario_ficha' 'mandate' valoracion.mandato.pk %}">{{ valoracion.mandato.identificador }}</a></small></dd>{% endif %}
           <dt>Serie de la TRD</dt><dd>{% if series_trd %}{% for s in series_trd %}<a href="{% url 'vocabulario_ficha' 'mandate' s.mandato.pk %}">{{ s.mandato.identificador|default:s.mandato.nombre }}</a> · {{ s.actividad.nombre }}<br><small>Retención: {{ s.mandato.retencion_texto }}</small>{% if not forloop.last %}<br>{% endif %}{% endfor %}{% else %}<span style="color:#6b7280">sin serie asociada — relacione el documento con la actividad (función) de su serie para heredar la retención</span>{% endif %}</dd>
           <dt>Conjunto (fondo/serie)</dt><dd>{{ entidad.record_set|default:"—" }}</dd>
           <dt>Idioma</dt><dd>{{ entidad.idioma|default:"—" }}</dd>
@@ -69,6 +79,14 @@
   </div>
 
   <div>
+    {% if es_conjunto %}
+    <div class="tarjeta">
+      <h3>Contenido ({{ subconjuntos|length }} conjunto(s), {{ documentos_del_conjunto|length }} documento(s))</h3>
+      {% if subconjuntos %}<ul>{% for c in subconjuntos %}<li><a href="{% url 'catalogo_ficha' 'recordset' c.pk %}">{{ c.nombre }}</a> <span class="badge">{{ c.get_tipo_conjunto_display }}</span></li>{% endfor %}</ul>{% endif %}
+      {% if documentos_del_conjunto %}<ul>{% for d in documentos_del_conjunto %}<li><a href="{% url 'catalogo_ficha' 'record' d.pk %}">{{ d }}</a></li>{% endfor %}</ul>{% endif %}
+      {% if not subconjuntos and not documentos_del_conjunto %}<p class="sin-datos">Todavía no contiene nada.</p>{% endif %}
+    </div>
+    {% endif %}
     <div class="tarjeta">
       <h3>{% if es_documento %}Entidades relacionadas{% else %}Relaciones{% endif %} ({{ relaciones|length }})</h3>
       {% if relaciones %}

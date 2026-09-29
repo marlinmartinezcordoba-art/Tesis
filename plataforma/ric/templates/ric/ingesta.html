@@ -1,20 +1,41 @@
 {% extends "ric/_base.html" %}
-{% block titulo %}Ingesta · RICORA{% endblock %}
+{% block titulo %}Captura y clasificación · RICORA{% endblock %}
 {% block estilos_extra %}
-  .zona { border: 2px dashed #c9cdc3; border-radius: 14px; padding: 2rem 1rem; text-align: center; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
+  .pasos-captura { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  .paso { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; }
+  .paso h3 { font-size: .95rem; margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }
+  .paso h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ricora-dark); color: #fff; font-size: .72rem; }
+  .paso h3 .n.ok { background: #2f7d4f; }
+  .paso p.ayuda { font-size: .8rem; color: #6b7280; margin: 0 0 .6rem; }
+  .buscar { display: flex; gap: .5rem; } .buscar input { margin: 0; } .buscar button { width: auto; margin: 0; }
+  .series { list-style: none; margin: .6rem 0 0; padding: 0; max-height: 260px; overflow: auto; border-top: 1px solid #f0efe9; }
+  .series li { border-bottom: 1px solid #f0efe9; }
+  .series a { display: block; padding: .4rem .3rem; text-decoration: none; color: inherit; font-size: .86rem; }
+  .series a:hover { background: #fffaf2; }
+  .series small { color: #6b7280; display: block; font-size: .74rem; }
+  .elegido { background: #f4f7fb; border-radius: 8px; padding: .6rem .8rem; font-size: .86rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .elegido small { display: block; color: #52606d; }
+  .elegido a { font-size: .8rem; white-space: nowrap; }
+  .expediente { display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem; align-items: start; }
+  @media (max-width: 720px) { .expediente { grid-template-columns: 1fr; } }
+  .expediente .o { text-align: center; color: #8a94a3; font-size: .8rem; padding-top: 2rem; }
+  .expediente label { font-size: .78rem; } .expediente input, .expediente select { margin-bottom: .5rem; font-size: .86rem; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .zona { border: 2px dashed #c9cdc3; border-radius: 14px; padding: 1.6rem 1rem; text-align: center; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
   .zona.activa, .zona:hover { border-color: var(--ricora-accent); background: #fffaf2; }
-  .zona strong { display: block; font-size: 1.05rem; margin-bottom: .2rem; }
+  .zona strong { display: block; font-size: 1rem; margin-bottom: .2rem; }
   .zona small { color: #6b7280; }
   .zona input[type=file] { display: none; }
-  .expediente { display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem; align-items: end; margin-top: 1rem; }
-  @media (max-width: 720px) { .expediente { grid-template-columns: 1fr; } }
-  .expediente .o { text-align: center; color: #8a94a3; font-size: .8rem; padding-bottom: .9rem; }
+  .zona .carpeta { margin-top: .5rem; font-size: .78rem; }
   .seleccionados { margin: .8rem 0 0; padding: 0; list-style: none; font-size: .85rem; }
   .seleccionados li { display: flex; justify-content: space-between; padding: .3rem 0; border-bottom: 1px solid #f0efe9; }
   .chip { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
-  .chip.ok { background: #e3f9e5; color: #1b4d2e; }
+  .chip.ok, .chip.listo { background: #e3f9e5; color: #1b4d2e; }
   .chip.cargando { background: #fff2df; color: #8a6100; }
-  .chip.cola { background: #eaf1fb; color: #1f3a5f; }
+  .chip.cola, .chip.en_cola { background: #eaf1fb; color: #1f3a5f; }
+  .chip.calidad_baja { background: #fde8e8; color: #7a1f1f; }
+  .opcion { display: flex; gap: .5rem; align-items: center; font-size: .84rem; margin: .6rem 0 .3rem; }
+  .opcion input[type=checkbox] { appearance: auto; -webkit-appearance: checkbox; width: 1rem; height: 1rem; margin: 0; }
   table.tabla { width: 100%; border-collapse: collapse; font-size: .84rem; background: #fff; border-radius: 12px; overflow: hidden; }
   table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .55rem .6rem; border-bottom: 1px solid #e6e3dc; }
   table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
@@ -24,86 +45,143 @@
 {% endblock %}
 {% block contenido %}
 <hgroup>
-  <h1>1 · Ingesta de documentos</h1>
-  <p>Cargue archivos individuales o por lote. Al cargarlos, RICORA calcula la huella digital
-  SHA-256 de cada uno (evidencia de integridad), detecta su formato y tamaño, y registra quién lo
-  cargó y cuándo. Luego, «Enviar a preprocesamiento» extrae el texto (OCR) y lo entrega al motor de
-  análisis.</p>
+  <h1>Captura y clasificación</h1>
+  <p>Cada documento entra clasificado desde el primer momento: elija la serie o subserie de la Tabla de
+  Retención Documental, el expediente al que pertenece y los archivos. RICORA calcula la huella SHA-256,
+  registra quién cargó y cuándo, extrae el texto (o hace OCR), detecta el idioma y entrega el documento al
+  motor de análisis. El expediente hereda la retención y la disposición final de su serie.</p>
 </hgroup>
-
-{% if reemplaza %}
-<div class="aviso-reemplazo">📎 Reescaneo pedido para <strong>{{ reemplaza.nombre }}</strong> (expediente
-«{{ reemplaza.record_resource }}»). Cargue aquí el nuevo escaneo; el original queda conservado con su huella digital.</div>
-{% endif %}
 
 {% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
 
+{% if reemplaza %}
+<div class="aviso-reemplazo">📎 Reescaneo pedido para <strong>{{ reemplaza.nombre }}</strong> (documento
+«{{ reemplaza.record_resource }}»). Cargue aquí el nuevo escaneo; el original queda conservado con su huella digital.</div>
 <form method="post" enctype="multipart/form-data" id="form-ingesta">
   {% csrf_token %}
+  <input type="hidden" name="reemplaza_id" value="{{ reemplaza.pk }}">
   <label class="zona" id="zona" for="id_archivos">
-    <strong>Arrastra archivos o selecciona una carpeta</strong>
+    <strong>Arrastra el nuevo escaneo</strong>
     <small>Formatos aceptados: {{ formatos }} · máximo {{ tamano_maximo }} MB por archivo</small>
     <input type="file" name="archivos" id="id_archivos" multiple>
   </label>
   <ul class="seleccionados" id="seleccionados"></ul>
-
-  <div class="expediente">
-    <div>
-      <label for="id_record_id">Expediente al que pertenece</label>
-      <select name="record_id" id="id_record_id">
-        <option value="">— Elegir uno ya existente —</option>
-        {% for r in registros %}
-        <option value="{{ r.pk }}" {% if record_preseleccionado == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.nombre }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="o">o</div>
-    <div>
-      <label for="id_nombre_nuevo">Nombre de un expediente nuevo</label>
-      <input type="text" name="nombre_nuevo" id="id_nombre_nuevo" placeholder="Ej. Resolución 0442 de 2019">
-    </div>
-  </div>
-  <button type="submit" id="boton-cargar">Cargar</button>
+  <button type="submit" id="boton-cargar" style="margin-top:.8rem">Cargar</button>
 </form>
+{% else %}
+
+{% if not hay_series %}
+<p class="mensaje error">Todavía no hay series de la TRD cargadas. Cargue primero la Tabla de Retención Documental (o la semilla MADS) en
+<a href="{% url 'vocabularios' %}">Instrumentos archivísticos</a>: sin series no hay contra qué clasificar.</p>
+{% endif %}
+
+<div class="pasos-captura">
+  <div class="paso">
+    <h3><span class="n {% if actividad %}ok{% endif %}">1</span> Serie o subserie de la TRD</h3>
+    {% if actividad %}
+    <div class="elegido">
+      <span><strong>{{ actividad.nombre }}</strong><small>{{ actividad.identificador }}{% if oficina %} · oficina productora: {{ oficina.nombre }}{% endif %}{% if actividad.mandato.es_serie_trd %} · retención: {{ actividad.mandato.retencion_texto }}{% endif %}</small></span>
+      <a href="{% url 'ingesta' %}">cambiar de serie</a>
+    </div>
+    {% else %}
+    <p class="ayuda">Busque por nombre de la serie, código (ej. <code>1000-24</code>) u oficina productora.</p>
+    <form method="get" class="buscar">
+      <input type="search" name="q" value="{{ q }}" placeholder="Derechos de petición, actas, 4106-10..." autofocus>
+      <button type="submit">Buscar</button>
+    </form>
+    {% if series %}
+    <ul class="series">
+      {% for s in series %}
+      <li><a href="?serie={{ s.pk }}">{{ s.nombre }}<small>{{ s.identificador }} · {{ s.mandato.retencion_texto|default:"sin retención registrada" }}</small></a></li>
+      {% endfor %}
+    </ul>
+    {% elif q %}<p class="sin-datos">Ninguna serie coincide con «{{ q }}».</p>{% endif %}
+    {% endif %}
+  </div>
+
+  {% if actividad %}
+  <form method="post" enctype="multipart/form-data" id="form-ingesta">
+    {% csrf_token %}
+    <input type="hidden" name="serie_id" value="{{ actividad.pk }}">
+    <div class="paso" style="margin-bottom:1rem">
+      <h3><span class="n {% if expediente %}ok{% endif %}">2</span> Expediente al que pertenece</h3>
+      <div class="expediente">
+        <div>
+          <label for="id_expediente_id">Uno ya existente en esta serie ({{ expedientes|length }})</label>
+          <select name="expediente_id" id="id_expediente_id">
+            <option value="">— Elegir —</option>
+            {% for e in expedientes %}
+            <option value="{{ e.pk }}" {% if expediente and expediente.pk == e.pk %}selected{% endif %}>{{ e.nombre }}{% if e.identificador %} ({{ e.identificador }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="o">o</div>
+        <div>
+          <label for="id_expediente_nuevo">Expediente nuevo</label>
+          <input type="text" name="expediente_nuevo" id="id_expediente_nuevo" placeholder="Ej. Derecho de petición 2026-0412 · Juan Pérez">
+          <div class="dos">
+            <div><label>Código (opcional)</label><input type="text" name="expediente_codigo" placeholder="1000-24-2026-0412"></div>
+            <div><label>Fecha de apertura</label><input type="date" name="fecha_apertura"></div>
+          </div>
+        </div>
+      </div>
+      <p class="ayuda" style="margin:0">Si sube una carpeta, el nombre de cada carpeta se toma como expediente y no hace falta escribirlo.</p>
+    </div>
+
+    <div class="paso">
+      <h3><span class="n">3</span> Archivos</h3>
+      <label class="zona" id="zona" for="id_archivos">
+        <strong>Arrastra archivos o selecciónalos</strong>
+        <small>Formatos aceptados: {{ formatos }} · máximo {{ tamano_maximo }} MB por archivo</small>
+        <input type="file" name="archivos" id="id_archivos" multiple>
+        <div class="carpeta"><a href="#" id="elegir-carpeta">o selecciona una carpeta completa (un expediente por carpeta)</a></div>
+      </label>
+      <input type="file" id="id_carpeta" webkitdirectory directory multiple style="display:none">
+      <div id="rutas"></div>
+      <ul class="seleccionados" id="seleccionados"></ul>
+      <label class="opcion"><input type="checkbox" name="un_solo_documento" value="1" id="id_un_solo"> Estos archivos son partes de un mismo documento (escaneo partido)</label>
+      <input type="text" name="nombre_documento" id="id_nombre_documento" placeholder="Nombre del documento (si son partes de uno solo)" style="display:none">
+      <p class="ayuda">Por defecto, cada archivo es un documento nuevo del expediente.</p>
+      <button type="submit" id="boton-cargar">Cargar y procesar</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 
 {% if cargados or en_cola %}
 <h3 style="margin-top: 1.6rem;">Archivos cargados</h3>
 <form method="post" action="{% url 'preproceso_enviar' %}" id="form-preproceso">
   {% csrf_token %}
   <table class="tabla">
-    <thead><tr><th>Archivo</th><th>Expediente</th><th>Formato</th><th>Tamaño</th><th>Huella digital</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>Archivo</th><th>Documento</th><th>Expediente</th><th>Formato</th><th>Tamaño</th><th>Huella digital</th><th>Estado</th><th></th></tr></thead>
     <tbody>
-      {% for inst in cargados %}
+      {% for f in cargados %}
       <tr>
-        <td>📄 {{ inst.nombre }}</td>
-        <td>{{ inst.record_resource }}</td>
-        <td>{{ inst.formato|upper }}</td>
-        <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
-        <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
-        <td><span class="chip ok">SHA-256 ✓</span></td>
-        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Enviar a preprocesamiento</button></td>
+        <td>📄 {{ f.instanciacion.nombre }}</td>
+        <td>{% if f.record %}<a href="{% url 'analisis' f.record.pk %}">{{ f.record }}</a>{% else %}{{ f.instanciacion.record_resource }}{% endif %}</td>
+        <td>{{ f.record.record_set|default:"—" }}</td>
+        <td>{{ f.instanciacion.formato|upper }}</td>
+        <td>{% if f.instanciacion.tamano_bytes is not None %}{{ f.instanciacion.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
+        <td><code title="{{ f.instanciacion.sha256 }}">{{ f.instanciacion.sha256|truncatechars:18 }}</code></td>
+        <td><span class="chip ok">SHA-256 ✓</span> <span class="chip {{ f.estado }}">{% if f.estado == "listo" %}texto listo{% elif f.estado == "calidad_baja" %}calidad baja{% else %}sin texto{% endif %}</span></td>
+        <td>{% if f.estado != "listo" %}<a class="boton-min" role="button" href="{% url 'preproceso' %}">Ver en preprocesamiento</a>{% endif %}</td>
       </tr>
       {% endfor %}
       {% for inst in en_cola %}
       <tr>
         <td>📄 {{ inst.nombre }}</td>
         <td>{{ inst.record_resource }}</td>
+        <td>—</td>
         <td>{{ inst.formato|upper }}</td>
         <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
         <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
         <td><span class="chip ok">SHA-256 ✓</span> <span class="chip cola">en cola</span></td>
-        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Enviar a preprocesamiento</button></td>
+        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Preprocesar</button></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {% if total_filas > 1 %}
-  <p style="margin-top: .8rem;">
-    {% for inst in cargados %}<input type="hidden" name="instanciacion" value="{{ inst.pk }}">{% endfor %}
-    {% for inst in en_cola %}<input type="hidden" name="instanciacion" value="{{ inst.pk }}">{% endfor %}
-    <button type="submit" class="boton-min">Enviar todos a preprocesamiento</button>
-  </p>
-  {% endif %}
 </form>
 {% endif %}
 
@@ -111,30 +189,45 @@
 (function () {
   var zona = document.getElementById("zona");
   var input = document.getElementById("id_archivos");
+  var carpeta = document.getElementById("id_carpeta");
+  var rutas = document.getElementById("rutas");
   var lista = document.getElementById("seleccionados");
   var form = document.getElementById("form-ingesta");
-  function pintar(estado) {
+  var unSolo = document.getElementById("id_un_solo");
+  var nombreDoc = document.getElementById("id_nombre_documento");
+  if (!zona || !input || !form) return;
+  function pintar(archivos, estado) {
     lista.innerHTML = "";
-    Array.prototype.forEach.call(input.files, function (f) {
+    Array.prototype.forEach.call(archivos, function (f) {
       var li = document.createElement("li");
-      li.innerHTML = "<span>📄 " + f.name + " · " + (f.size / 1024).toFixed(0) + " KB</span><span class='chip " + estado + "'>" + (estado === "cargando" ? "cargando" : "listo para cargar") + "</span>";
+      var ruta = f.webkitRelativePath ? " (" + f.webkitRelativePath.split("/").slice(0, -1).join("/") + ")" : "";
+      li.innerHTML = "<span>📄 " + f.name + ruta + " · " + (f.size / 1024).toFixed(0) + " KB</span><span class='chip " + estado + "'>" + (estado === "cargando" ? "cargando y procesando" : "listo para cargar") + "</span>";
       lista.appendChild(li);
     });
   }
-  input.addEventListener("change", function () { pintar("cola"); });
-  ["dragenter", "dragover"].forEach(function (ev) {
-    zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.add("activa"); });
-  });
-  ["dragleave", "drop"].forEach(function (ev) {
-    zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.remove("activa"); });
-  });
+  function usarCarpeta() {
+    // Opción C: los archivos de la carpeta pasan al campo real y sus rutas relativas viajan aparte.
+    var dt = new DataTransfer();
+    rutas.innerHTML = "";
+    Array.prototype.forEach.call(carpeta.files, function (f) {
+      dt.items.add(f);
+      var h = document.createElement("input"); h.type = "hidden"; h.name = "rutas"; h.value = f.webkitRelativePath || f.name; rutas.appendChild(h);
+    });
+    input.files = dt.files;
+    pintar(carpeta.files, "cola");
+  }
+  input.addEventListener("change", function () { rutas.innerHTML = ""; pintar(input.files, "cola"); });
+  if (carpeta) {
+    carpeta.addEventListener("change", usarCarpeta);
+    document.getElementById("elegir-carpeta").addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); carpeta.click(); });
+  }
+  ["dragenter", "dragover"].forEach(function (ev) { zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.add("activa"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.remove("activa"); }); });
   zona.addEventListener("drop", function (e) {
-    if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; pintar("cola"); }
+    if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; rutas.innerHTML = ""; pintar(input.files, "cola"); }
   });
-  form.addEventListener("submit", function () {
-    pintar("cargando");
-    document.getElementById("boton-cargar").disabled = true;
-  });
+  if (unSolo) unSolo.addEventListener("change", function () { nombreDoc.style.display = unSolo.checked ? "block" : "none"; });
+  form.addEventListener("submit", function () { pintar(input.files, "cargando"); document.getElementById("boton-cargar").disabled = true; });
 })();
 </script>
 {% endblock %}

@@ -56,6 +56,10 @@
   .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; }
 
   .ricora-shell { flex: 1; min-width: 0; }
+  .pestanas { display: flex; gap: .2rem; flex-wrap: wrap; padding: .45rem 1.6rem 0; background: var(--panel, #fff); border-bottom: 1px solid #e6e3dc; }
+  .pestanas a { text-decoration: none; color: var(--ink-suave); font-size: .82rem; padding: .45rem .8rem; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .pestanas a:hover { color: var(--ink); }
+  .pestanas a.activa { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
   .ricora-topbar {
     display: flex; justify-content: space-between; align-items: center; gap: .75rem;
     padding: .8rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface);
@@ -97,12 +101,8 @@
   <a href="{% url 'panel' %}" class="ricora-brand"><strong>RIC<span>ORA</span></strong></a>
   <nav>
     {% for m in modulos %}
-      {% if m.capa == "entrada" and puede_ingestar or m.capa == "procesamiento" or m.capa == "validacion" and puede_revisar or m.capa == "consulta" or m.capa == "transversal" and puede_administrar %}
-        {% if m.numero == 3 or m.numero == 4 or m.numero == 6 or m.numero == 7 %}{% if not puede_revisar %}{% else %}
-        <a href="{% url m.url %}{% if m.numero == 4 %}?paso=4{% endif %}" class="{% if modulo_numero == m.numero %}activo{% endif %}">{{ m.nombre }}</a>
-        {% endif %}{% else %}
+      {% if m.ver == "todos" or m.ver == "ingestar" and puede_ingestar or m.ver == "revisar" and puede_revisar or m.ver == "administrar" and puede_administrar %}
         <a href="{% url m.url %}" class="{% if modulo_numero == m.numero %}activo{% endif %}">{{ m.nombre }}</a>
-        {% endif %}
       {% endif %}
     {% endfor %}
   </nav>
@@ -121,6 +121,13 @@
       <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Salir</button></form>
     </span>
   </div>
+  {% if modulo_actual and modulo_actual.pestanas|length > 1 %}
+  <nav class="pestanas" aria-label="Pantallas de {{ modulo_actual.nombre }}">
+    {% for url, nombre, prefijos in modulo_actual.pestanas %}{% if url != "ingesta" and url != "preproceso" or puede_ingestar %}
+    <a href="{% url url %}" class="{% if pestana_actual == url %}activa{% endif %}">{{ nombre }}</a>
+    {% endif %}{% endfor %}
+  </nav>
+  {% endif %}
   <main class="{% block main_class %}ricora-main{% endblock %}">
     {% if messages %}
     {% for m in messages %}<p class="mensaje {{ m.tags }}">{{ m }}</p>{% endfor %}

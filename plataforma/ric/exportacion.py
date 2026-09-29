@@ -35,7 +35,7 @@ def _csv_lote(records):
     salida = io.StringIO()
     escritor = csv.writer(salida)
     escritor.writerow([
-        "documento_id", "documento", "forma_documental", "relacion_id", "relacion", "categoria",
+        "documento_id", "documento", "forma_documental", "expediente", "serie_trd", "relacion_id", "relacion", "categoria",
         "entidad", "tipo_entidad", "estado", "origen_decision", "validado_por", "fecha_validacion",
         "evidencia_pagina", "evidencia_fragmento",
     ])
@@ -43,11 +43,13 @@ def _csv_lote(records):
         relaciones = list(flujo.relaciones_de(record))
         if not relaciones:
             escritor.writerow([record.pk, record.nombre, record.forma_documental or record.tipo_forma_documental,
+                               record.record_set or "", record.serie_trd,
                                "", "", "", "", "", "sin relaciones validadas", "", "", "", "", ""])
         for rel in relaciones:
             destino = flujo.otro_lado(rel, record)
             escritor.writerow([
                 record.pk, record.nombre, record.forma_documental or record.tipo_forma_documental,
+                record.record_set or "", record.serie_trd,
                 rel.relacion_id, matriz.get(rel.relacion_id, {}).get("nombre", ""),
                 grafo.CATEGORIAS[grafo.categoria_relacion(rel.relacion_id)][0],
                 str(destino) if destino else "", type(destino).__name__ if destino else "",

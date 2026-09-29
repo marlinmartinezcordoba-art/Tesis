@@ -7,7 +7,7 @@ from django.views.generic import RedirectView
 
 from acervo.views import exportar_dublin_core, exportar_premis
 from lineamientos.views import informe, informe_auditoria
-from ric import vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_vocabularios
+from ric import vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_vocabularios
 from ric.views import (
     evaluacion_datos,
     evaluacion_html,
@@ -53,6 +53,12 @@ urlpatterns = [
     path("analisis/<int:pk>/grafo/", vistas_analisis.analisis_grafo, name="analisis_grafo"),
     path("analisis/<int:pk>/grafo/datos.json", vistas_analisis.analisis_grafo_datos, name="analisis_grafo_datos"),
     path("analisis/<int:pk>/relacion/<int:relacion_pk>/", vistas_analisis.analisis_relacion, name="analisis_relacion"),
+
+    # Valoración y disposición: retención heredada de la TRD, transferencias, FUID
+    path("valoracion/", vistas_valoracion.valoracion_lista, name="valoracion"),
+    path("valoracion/expediente/<int:pk>/", vistas_valoracion.valoracion_expediente, name="valoracion_expediente"),
+    path("valoracion/transferencias/", vistas_valoracion.valoracion_transferencias, name="valoracion_transferencias"),
+    path("valoracion/fuid.csv", vistas_valoracion.valoracion_fuid, name="valoracion_fuid"),
 
     # M5 · Vocabularios y autoridades
     path("vocabularios/", vistas_vocabularios.vocabularios, name="vocabularios"),

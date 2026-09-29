@@ -58,7 +58,7 @@
 {% endblock %}
 {% block contenido %}
 <div class="ricora-saludo">
-  <h1>10 · Panel de indicadores</h1>
+  <h1>Panel de indicadores</h1>
   <p>Cifras reales del sistema, para quien dirige el proceso sin revisar documento por documento.</p>
 </div>
 
@@ -82,6 +82,13 @@
     <div class="etiqueta">documentos pendientes de revisión por más de {{ limite_dias }} días</div>
     {% if puede_administrar %}<a href="{% url 'admin_usuarios' %}?pestana=parametros">Cambiar el límite →</a>{% endif %}
   </div>
+  {% if puede_revisar %}
+  <div class="ricora-card {% if retencion_vencida %}alerta{% endif %}">
+    <div class="numero">{{ retencion_vencida }}</div>
+    <div class="etiqueta">expedientes con retención vencida o por vencer (transferencia o disposición final)</div>
+    <a href="{% url 'valoracion_transferencias' %}">Ver transferencias →</a>
+  </div>
+  {% endif %}
 </div>
 
 <div class="ricora-panel">

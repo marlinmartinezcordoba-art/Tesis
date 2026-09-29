@@ -205,6 +205,31 @@ real de ESTE documento, no de los ejemplos):
 {lista}"""
 
 
+def contexto_archivistico(record):
+    """Lo que ya se sabe del documento por su clasificación (expediente,
+    serie de la TRD, oficina productora): se le informa al motor para que
+    reutilice esas entidades (CC-05) y para la relación de inclusión, sin
+    que tenga que adivinarlas del texto."""
+    from .clasificacion import expediente_de, oficina_de
+
+    if not hasattr(record, "record_set_id"):
+        return ""
+    conjunto = expediente_de(record)
+    if conjunto is None:
+        return ""
+    serie = conjunto.serie()
+    lineas = [f"- expediente: {conjunto.nombre}"]
+    if serie is not None and serie.actividad_id:
+        lineas.append(f"- serie de la TRD: {serie.nombre} ({serie.identificador}) · actividad id {serie.actividad_id} · {serie.actividad.nombre}")
+        oficina = oficina_de(serie.actividad)
+        if oficina is not None:
+            lineas.append(f"- oficina productora: {oficina.nombre} (agente id {oficina.pk}, E11)")
+    return (
+        "\n\nContexto archivístico ya validado por la persona archivista (no lo propongas de nuevo; "
+        "reutiliza estos identificadores en vocabulario_id cuando el texto los mencione):\n" + "\n".join(lineas) + "\n"
+    )
+
+
 def construir_instrucciones(record, texto, con_visual=False):
     """El mensaje de sistema completo para `record`, o None si RiC-CM no
     admite ninguna relación desde ese tipo de origen."""
@@ -218,6 +243,9 @@ def construir_instrucciones(record, texto, con_visual=False):
     )
     if con_visual:
         instrucciones += INSTRUCCIONES_VISUAL
+    contexto = contexto_archivistico(record)
+    if contexto:
+        instrucciones += contexto
     ejemplos = aprendizaje.ejemplos_similares(texto, origen_modelo=type(record))
     if ejemplos:
         instrucciones += EJEMPLOS.format(lista=aprendizaje.formatear_ejemplos(ejemplos))

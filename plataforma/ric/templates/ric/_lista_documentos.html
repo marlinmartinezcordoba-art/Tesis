@@ -23,11 +23,11 @@
       <td>{{ f.record.fecha_registro|date:"d/m/Y" }}</td>
       <td><span class="estado-doc {{ f.estado }}">{{ f.etiqueta }}</span></td>
       <td class="acciones">
-        <a href="{% url 'analisis' f.record.pk %}">3 Análisis</a>
-        <a href="{% url 'analisis_grafo' f.record.pk %}">4 Relaciones</a>
-        <a href="{% url 'revision' f.record.pk %}">6 Revisión</a>
-        <a href="{% url 'historial' f.record.pk %}">7 Historial</a>
-        {% if f.estado == "publicado" %}<a href="{% url 'catalogo_ficha' 'record' f.record.pk %}">8 Catálogo</a>{% endif %}
+        <a href="{% url 'analisis' f.record.pk %}">Análisis</a>
+        <a href="{% url 'analisis_grafo' f.record.pk %}">Relaciones</a>
+        <a href="{% url 'revision' f.record.pk %}">Revisión</a>
+        <a href="{% url 'historial' f.record.pk %}">Historial</a>
+        {% if f.estado == "publicado" %}<a href="{% url 'catalogo_ficha' 'record' f.record.pk %}">Catálogo</a>{% endif %}
       </td>
     </tr>
   {% endfor %}
