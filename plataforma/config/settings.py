@@ -76,6 +76,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "ric.roles.contexto_roles",
+                "ric.modulos.contexto_modulos",
             ],
         },
     },
@@ -170,4 +172,16 @@ MAZUCA_MODELO_IA_GEMINI = os.environ.get("MAZUCA_MODELO_IA_GEMINI", "gemini-2.5-
 # invitado de consulta) — /admin/login/ exige is_staff y rechaza a un
 # invitado de consulta de plano, así que no puede ser el LOGIN_URL general.
 LOGIN_URL = "ric_login"
-LOGIN_REDIRECT_URL = "ric_inicio"
+LOGIN_REDIRECT_URL = "panel"
+
+# M11: invitación por correo al crear una cuenta. Sin EMAIL_HOST configurado
+# el sistema lo dice claramente en vez de fingir que envió algo.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "ricora@localhost")
+
+# M1 (RF-M1-03): tamaño máximo de un archivo cargado.
+RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "50"))

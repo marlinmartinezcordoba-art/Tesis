@@ -36,6 +36,18 @@ class Thing(models.Model):
     descripcion_general = models.TextField(blank=True, help_text="RiC-A43 General Description.")
     fecha_registro = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
+    creado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="RF-M5-04: quién creó esta entrada (vacío si la creó el sistema).",
+    )
+    modificado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="RF-M5-04: quién hizo la última modificación.",
+    )
+    serie_trd = models.CharField(
+        max_length=255, blank=True,
+        help_text="RF-M5-03: serie o subserie de la Tabla de Retención Documental vigente con la que se vincula esta entrada de autoridad.",
+    )
 
     class Meta:
         abstract = True
@@ -85,6 +97,13 @@ class RecordResource(Thing):
         help_text="RiC-A39 State (RiC-O: 'Record State'). Solo aplica a Record/Record Part.",
     )
     estructura = models.TextField(blank=True, help_text="RiC-A40 Structure.")
+    # M6 (RF-M6-04) / M8: un documento solo queda visible en el catálogo
+    # para consulta cuando la revisión archivística lo aprobó y publicó.
+    publicado = models.BooleanField(default=False)
+    fecha_publicacion = models.DateTimeField(null=True, blank=True)
+    publicado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         verbose_name = "recurso documental"
@@ -122,10 +141,52 @@ class RecordSet(RecordResource):
         )
 
 
+class FormaDocumental(models.Model):
+    """M5 (vocabularios): forma documental controlada — oficio, acta,
+    resolución, contrato... En RiC-O 1.1 es la clase
+    `rico:DocumentaryFormType`, a la que un Record apunta mediante
+    `rico:hasDocumentaryFormType` (RiC-A17, verificado en ric_matrix.json).
+    Cada entrada se vincula con la serie/subserie de la TRD (RF-M5-03)."""
+
+    class Disposicion(models.TextChoices):
+        CONSERVACION_TOTAL = "conservacion_total", "Conservación total"
+        ELIMINACION = "eliminacion", "Eliminación"
+        SELECCION = "seleccion", "Selección"
+        DIGITALIZACION = "digitalizacion", "Digitalización"
+
+    nombre = models.CharField(max_length=255, unique=True)
+    definicion = models.TextField(blank=True)
+    serie_trd = models.CharField(
+        max_length=255, blank=True,
+        help_text="Serie o subserie de la Tabla de Retención Documental a la que corresponde este tipo.",
+    )
+    # Leídos de la TRD vigente al vincular la forma documental: así la revisión
+    # ya sabe cuánto permanece el documento en cada fase y su disposición final.
+    tiempo_retencion_archivo_gestion = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo de gestión, según la TRD.")
+    tiempo_retencion_archivo_central = models.PositiveIntegerField(null=True, blank=True, help_text="Años en archivo central, según la TRD.")
+    disposicion_final = models.CharField(max_length=20, choices=Disposicion.choices, blank=True)
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    creado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    modificado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        ordering = ["nombre"]
+        verbose_name = "forma documental"
+        verbose_name_plural = "formas documentales"
+
+    def __str__(self):
+        return self.nombre
+
+
 class Record(RecordResource):
     """RiC-E04 Record: contenido informacional discreto, formado al menos una vez."""
 
     tipo_forma_documental = models.CharField(max_length=255, blank=True, help_text="RiC-A17 Documentary Form Type.")
+    forma_documental = models.ForeignKey(
+        FormaDocumental, null=True, blank=True, on_delete=models.SET_NULL, related_name="records",
+        help_text="RiC-A17 como entrada controlada del vocabulario de formas documentales (M5).",
+    )
     record_set = models.ForeignKey(
         RecordSet, null=True, blank=True, on_delete=models.SET_NULL, related_name="records",
         help_text="Caso común de RiC-R024 'includes or included'; el caso general se modela con RelacionRiC.",
@@ -166,10 +227,37 @@ class Instantiation(Thing):
     extension_soporte = models.CharField(max_length=255, blank=True, help_text="RiC-A04 Carrier Extent.")
     tipo_representacion = models.CharField(max_length=255, blank=True, help_text="RiC-A37 Representation Type.")
     caracteristicas_fisicas = models.TextField(blank=True, help_text="RiC-A31 Physical Characteristics Note.")
+    class CondicionAcceso(models.TextChoices):
+        ABIERTO = "abierto", "Abierto"
+        RESTRINGIDO = "restringido", "Restringido"
+        RESERVADO = "reservado", "Reservado"
+
+    class TipoCopia(models.TextChoices):
+        MASTER = "master_preservacion", "Máster de preservación"
+        ACCESO = "copia_acceso", "Copia de acceso"
+
+    condicion_acceso = models.CharField(
+        max_length=12, choices=CondicionAcceso.choices, default=CondicionAcceso.ABIERTO,
+        help_text="Clasificación de acceso a la información (Ley 1712 de 2014); la decide el equipo archivístico. "
+        "RF-M8-04: el rol consulta solo ve documentos con todas sus instanciaciones abiertas.",
+    )
+    tipo_copia = models.CharField(max_length=20, choices=TipoCopia.choices, default=TipoCopia.ACCESO)
+    nota_autenticidad = models.TextField(
+        blank=True,
+        help_text="Mecanismos de verificación además de la huella SHA-256: firma digital, sello de tiempo, cadena de custodia.",
+    )
+    instanciacion_origen = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="derivadas",
+        help_text="La instanciación de la que esta se deriva por migración o conversión de formato (RiC-R015: una "
+        "copia de preservación PDF/A generada desde el TIFF original), nunca una sustitución silenciosa del original.",
+    )
+    formato = models.CharField(max_length=20, blank=True, help_text="RF-M1-03: extensión detectada al cargar (pdf, docx, png...).")
+    tamano_bytes = models.BigIntegerField(null=True, blank=True, help_text="RF-M1-03: tamaño del archivo al cargar.")
+    idioma_detectado = models.CharField(max_length=8, blank=True, help_text="RF-M2-03: código del idioma detectado en el texto extraído.")
 
     class Meta:
-        verbose_name = "ingesta de un documento (F01/F02) — Instantiation"
-        verbose_name_plural = "ingesta de documentos (F01/F02) — Instantiation"
+        verbose_name = "ingesta de un documento (M1/M2) — Instantiation"
+        verbose_name_plural = "ingesta de documentos (M1/M2) — Instantiation"
 
     def calcular_y_guardar_hash(self):
         import hashlib
@@ -187,7 +275,20 @@ class Instantiation(Thing):
         # original inmutable y no de una posible edición posterior del campo.
         if self.archivo and not self.sha256:
             self.calcular_y_guardar_hash()
+        if self.archivo and not self.formato:
+            self.formato = self.archivo.name.rsplit(".", 1)[-1].lower() if "." in self.archivo.name else ""
+        if self.archivo and self.tamano_bytes is None:
+            try:
+                self.tamano_bytes = self.archivo.size
+            except (OSError, ValueError):
+                self.tamano_bytes = None
         super().save(*args, **kwargs)
+
+    def paginas_calidad_baja(self):
+        """RF-M2-04: páginas con OCR por debajo del umbral configurado y sin
+        decisión de la persona todavía ("aceptar igual" o "reescanear")."""
+        umbral = ConfiguracionSistema.actual().umbral_calidad_ocr
+        return self.paginas.filter(uso_ocr=True, confianza_ocr__lt=umbral, calidad_aceptada__isnull=True)
 
     @property
     def texto_extraido(self):
@@ -211,6 +312,10 @@ class PaginaTexto(models.Model):
         help_text="F02: caja delimitadora de cada palabra reconocida por OCR "
         "(izquierda/arriba/ancho/alto en píxeles, más su confianza). Vacío "
         "cuando la página no tuvo OCR (texto plano o capa de texto de PDF).",
+    )
+    calidad_aceptada = models.BooleanField(
+        null=True, blank=True,
+        help_text="RF-M2-04: decisión sobre una página de calidad baja — True 'aceptar igual', False 'reescanear', vacío sin decidir.",
     )
 
     class Meta:
@@ -548,6 +653,9 @@ class RelacionRiC(models.Model):
         help_text="Nula si la relación se creó a mano por el archivista, sin propuesta de IA de por medio.",
     )
     estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
+    motivo_decision = models.TextField(
+        blank=True, help_text="M4/M6: por qué se retiró o rechazó esta relación (queda en el historial).",
+    )
     validado_por = models.ForeignKey(
         "auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="relaciones_validadas"
     )
@@ -560,6 +668,12 @@ class RelacionRiC(models.Model):
 
     def __str__(self):
         return f"{self.origen} --{self.relacion_id}--> {self.destino}"
+
+    @property
+    def origen_decision(self):
+        """CC-08: de dónde salió la relación — de una propuesta del motor
+        (tiene evidencia) o de una corrección manual del archivista."""
+        return "propuesta_ia" if self.evidencia_id else "correccion_manual"
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -608,6 +722,11 @@ class PropuestaRiC(models.Model):
     confianza = models.FloatField(help_text="Entre 0 y 1.")
     justificacion = models.TextField(blank=True)
     evidencia = models.ForeignKey(Evidencia, null=True, blank=True, on_delete=models.SET_NULL, related_name="propuestas")
+    datos_extra = models.JSONField(
+        default=dict, blank=True,
+        help_text="Lo que el motor propuso además del nombre: rol del agente en el documento, fecha "
+        "normalizada y precisión, tipo de norma, tipo de lugar y código DANE, entrada de vocabulario sugerida.",
+    )
 
     estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
     motivo_decision = models.TextField(
@@ -627,6 +746,30 @@ class PropuestaRiC(models.Model):
 
     def __str__(self):
         return f"{self.relacion_id} · {self.entidad_tipo} {self.entidad_nombre} ({self.estado})"
+
+    def _aplicar_datos_extra(self, entidad):
+        """Lo que el motor propuso por clase (sección 12 de la especificación)
+        llevado a los atributos RiC-CM reales de la entidad nueva: fecha
+        expresada/normalizada/calificador (CC-07), tipo de lugar y DANE,
+        tipo de mandato o regla, tipo de actividad."""
+        extra = self.datos_extra or {}
+        campos = entidad._meta.fields
+        nombres = {c.name for c in campos}
+        if "expresion" in nombres:  # Date (E18)
+            entidad.expresion = extra.get("fecha_texto_original", "") or entidad.expresion
+            entidad.valor_normalizado = extra.get("fecha_normalizada", "") or entidad.valor_normalizado
+            entidad.calificador = extra.get("precision_fecha", "") or entidad.calificador
+            entidad.tipo_fecha = extra.get("tipo_fecha", "") or entidad.tipo_fecha
+        if "tipo_lugar" in nombres:  # Place (E22)
+            entidad.tipo_lugar = extra.get("tipo_lugar", "") or entidad.tipo_lugar
+            if extra.get("codigo_dane") and not entidad.identificador:
+                entidad.identificador = f"DANE:{extra['codigo_dane']}"
+        if "tipo_mandato" in nombres and extra.get("tipo_norma"):  # Mandate (E17)
+            entidad.tipo_mandato = extra["tipo_norma"]
+        elif "tipo_regla" in nombres and extra.get("tipo_norma"):  # Rule (E16)
+            entidad.tipo_regla = extra["tipo_norma"]
+        if "tipo_actividad" in nombres and extra.get("tipo_funcion"):  # Activity (E15)
+            entidad.tipo_actividad = extra["tipo_funcion"].replace("_", " ")
 
     def validar(self, usuario, aceptar, entidad_nombre_final=None, entidad_existente=None, motivo=""):
         """`entidad_existente`: una instancia ya guardada del modelo que
@@ -662,11 +805,20 @@ class PropuestaRiC(models.Model):
                     nombre_final = entidad.nombre
                 else:
                     nombre_final = entidad_nombre_final or self.entidad_nombre
-                    entidad, _creada = modelo.objects.get_or_create(nombre=nombre_final)
+                    entidad, creada = modelo.objects.get_or_create(nombre=nombre_final)
+                    if creada:
+                        entidad.creado_por = usuario
+                        self._aplicar_datos_extra(entidad)
+                        entidad.save()
 
+                rol = (self.datos_extra or {}).get("rol_en_el_documento")
+                # Sentido inverso (p. ej. R080 "is creation date of"): en RiC-CM
+                # la entidad es el dominio y el documento el rango.
+                origen, destino = (entidad, self.origen) if (self.datos_extra or {}).get("inversa") else (self.origen, entidad)
                 relacion = RelacionRiC(
-                    relacion_id=self.relacion_id, origen=self.origen, destino=entidad,
+                    relacion_id=self.relacion_id, origen=origen, destino=destino,
                     evidencia=self.evidencia, validado_por=usuario, fecha_validacion=timezone.now(),
+                    descripcion_relacion=f"Rol en el documento: {rol}." if rol else "",
                 )
                 relacion.save()  # revalida dominio/rango (segunda pasada, defensa en profundidad)
                 relacion.estado = (
@@ -795,6 +947,10 @@ class EventoRiC(models.Model):
         VALIDACION = "validacion_humana", "Validación humana"
         SEGMENTACION = "segmentacion", "Segmentación en documento nuevo (F04)"
         FUSION = "fusion_entidades", "Fusión de dos entidades duplicadas (F08)"
+        INGESTA = "ingesta", "Carga de un archivo (M1)"
+        RELACION_EDITADA = "relacion_editada", "Relación corregida o retirada (M4)"
+        PUBLICACION = "publicacion", "Aprobación y publicación en el catálogo (M6)"
+        EXPORTACION = "exportacion", "Exportación (M9)"
 
     instanciacion = models.ForeignKey(
         Instantiation, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos"
@@ -856,6 +1012,98 @@ def registrar_evento(instanciacion, tipo, agente, detalle=None, exitoso=True):
         evento.hash_evento = evento.calcular_hash()
         evento.save()
     return evento
+
+
+class Exportacion(models.Model):
+    """M9 (RF-M9-03): registro de cada exportación — quién, cuándo, qué
+    formato, qué documentos — con el archivo generado para descargarlo."""
+
+    class Formato(models.TextChoices):
+        RDF = "rdf", "RDF/RiC-O (Turtle)"
+        JSON_LD = "json-ld", "JSON-LD"
+        CSV = "csv", "CSV (tabular)"
+
+    usuario = models.ForeignKey("auth.User", null=True, on_delete=models.SET_NULL, related_name="exportaciones")
+    fecha = models.DateTimeField(auto_now_add=True)
+    formato = models.CharField(max_length=10, choices=Formato.choices)
+    documentos = models.JSONField(default=list, help_text="IDs de los Record exportados.")
+    total_registros = models.PositiveIntegerField(default=0)
+    archivo = models.FileField(upload_to="ric/exportaciones/%Y/%m/")
+
+    class Meta:
+        ordering = ["-fecha"]
+        verbose_name = "exportación (M9)"
+        verbose_name_plural = "exportaciones (M9)"
+
+    def __str__(self):
+        return f"{self.get_formato_display()} · {self.total_registros} registro(s) · {self.fecha:%Y-%m-%d %H:%M}"
+
+
+class ProveedorIAConfig(models.Model):
+    """M11 (RF-M11-02): proveedores de IA configurados desde la propia
+    aplicación, con prueba de conexión antes de activarlos. Solo uno está
+    activo a la vez como fuente del motor de análisis."""
+
+    class Proveedor(models.TextChoices):
+        GEMINI = "gemini", "Gemini (Google, en la nube)"
+        CLAUDE = "claude", "Claude (Anthropic, en la nube)"
+        LOCAL = "local-spacy", "IA local (spaCy, sin salir del servidor)"
+
+    proveedor = models.CharField(max_length=20, choices=Proveedor.choices)
+    modelo = models.CharField(max_length=100, blank=True, help_text="Vacío = el modelo por defecto del proveedor.")
+    clave_api = models.CharField(max_length=500, blank=True, help_text="Vacío = usar la variable de entorno del servidor.")
+    activo = models.BooleanField(default=False)
+    ultima_prueba = models.DateTimeField(null=True, blank=True)
+    prueba_exitosa = models.BooleanField(null=True, blank=True)
+    mensaje_prueba = models.TextField(blank=True)
+    actualizado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-activo", "proveedor"]
+        verbose_name = "proveedor de IA (M11)"
+        verbose_name_plural = "proveedores de IA (M11)"
+
+    def __str__(self):
+        return f"{self.get_proveedor_display()}{' · ' + self.modelo if self.modelo else ''}"
+
+    @property
+    def clave_enmascarada(self):
+        if not self.clave_api:
+            return "(variable de entorno)"
+        return "•••• " + self.clave_api[-4:]
+
+
+class ConfiguracionSistema(models.Model):
+    """Parámetros configurables desde M11: el tiempo límite de revisión
+    (RF-M10-04) y el umbral de calidad del OCR (RF-M2-04). Una sola fila."""
+
+    dias_limite_revision = models.PositiveIntegerField(
+        default=7, help_text="RF-M10-04: días tras los cuales un documento pendiente de revisión genera alerta.",
+    )
+    umbral_calidad_ocr = models.FloatField(
+        default=60.0, help_text="RF-M2-04: confianza media de OCR (0-100) por debajo de la cual una página se marca 'calidad baja'.",
+    )
+    umbral_confianza_revision = models.FloatField(
+        default=0.70, help_text="CC-04: confianza (0-1) por debajo de la cual una ficha se marca de baja confianza en análisis y revisión.",
+    )
+    umbral_similitud_vocabulario = models.FloatField(
+        default=0.80, help_text="CC-05: similitud (0-1) a partir de la cual se propone reutilizar una entrada del vocabulario en vez de crear una nueva.",
+    )
+    actualizado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "configuración del sistema"
+        verbose_name_plural = "configuración del sistema"
+
+    def __str__(self):
+        return "Configuración del sistema"
+
+    @classmethod
+    def actual(cls):
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
 
 
 def verificar_cadena(instanciacion):

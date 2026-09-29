@@ -38,6 +38,20 @@ NOMBRE_CM_A_MODELO_NOMBRE = {
 LEAF_TIPOS = ["E08", "E09", "E10", "E11", "E12", "E13", "E15", "E17", "E18", "E22"]
 
 
+# Slug de URL (nombre de modelo en minúsculas) -> nombre real del modelo,
+# para las vistas que reciben el tipo de entidad como texto en la URL.
+SLUG_A_MODELO_NOMBRE = {nombre.lower(): nombre for nombre in RIC_ID_A_MODELO_NOMBRE.values()}
+
+# Los tipos que son documentos (van al catálogo) frente a los que son
+# entradas de autoridad (van a vocabularios, M5).
+TIPOS_DOCUMENTALES = ["E03", "E04", "E05", "E06"]
+
+
+def modelo_por_slug(slug):
+    nombre = SLUG_A_MODELO_NOMBRE.get((slug or "").lower())
+    return _modelo(nombre) if nombre else None
+
+
 def ric_id_a_modelo(ric_id):
     nombre = RIC_ID_A_MODELO_NOMBRE.get(ric_id)
     return _modelo(nombre) if nombre else None

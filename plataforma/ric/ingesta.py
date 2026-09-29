@@ -39,3 +39,38 @@ def ingerir(instanciacion, agente):
     segmentos = detectar_y_proponer_segmentos(instanciacion)
     resultado["segmentos_propuestos"] = len(segmentos)
     return resultado
+
+
+def preprocesar(instanciacion, agente):
+    """M2 completo sobre un archivo ya cargado (M1): OCR/texto nativo,
+    idioma (RF-M2-03), marca de páginas de calidad baja (RF-M2-04) y,
+    si no queda ninguna página por decidir, entrega automática al motor
+    de análisis (M3) — el paso 7 del flujo "Cargar y procesar"."""
+    from .idioma import detectar_idioma, nombre_idioma
+    from .motor import enviar_al_motor
+
+    resultado = ingerir(instanciacion, agente)
+    resultado.update(idioma="", calidad_baja=0, analisis=None)
+    if not resultado["texto_extraido"]:
+        return resultado
+
+    codigo = detectar_idioma(instanciacion.texto_extraido)
+    instanciacion.idioma_detectado = codigo
+    instanciacion.save(update_fields=["idioma_detectado"])
+    record = instanciacion.record_resource
+    if codigo and not record.idioma:
+        record.idioma = nombre_idioma(codigo)
+        record.save(update_fields=["idioma"])
+    resultado["idioma"] = codigo
+
+    resultado["calidad_baja"] = instanciacion.paginas_calidad_baja().count()
+    if resultado["calidad_baja"]:
+        return resultado  # queda marcada para que la persona decida antes de continuar
+
+    from .models import Record
+
+    documento = Record.objects.filter(pk=record.pk).first()  # la FK apunta a RecordResource
+    if documento is None:
+        return resultado  # un RecordSet/RecordPart: el motor solo analiza Records
+    resultado["analisis"] = enviar_al_motor(documento, agente)
+    return resultado

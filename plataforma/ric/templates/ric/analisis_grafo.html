@@ -1,0 +1,112 @@
+{% extends "ric/_base.html" %}
+{% load static %}
+{% block titulo %}Relaciones · {{ record }} · RICORA{% endblock %}
+{% block scripts_head %}<script src="{% static 'ric/js/cytoscape.min.js' %}"></script>{% endblock %}
+{% block estilos_extra %}
+  .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+  .encabezado p { margin: 0 0 .8rem; color: #6b7280; font-size: .88rem; }
+  .lienzo-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start; }
+  @media (max-width: 960px) { .lienzo-grid { grid-template-columns: 1fr; } }
+  #cy { width: 100%; height: 68vh; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; }
+  .lateral { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; font-size: .85rem; position: sticky; top: 1rem; }
+  .lateral h3 { font-size: .95rem; margin: 0 0 .5rem; }
+  .lateral .leyenda span { display: inline-flex; align-items: center; gap: .35rem; margin: .15rem .6rem .15rem 0; font-size: .76rem; }
+  .lateral .leyenda i { width: 14px; height: 3px; display: inline-block; border-radius: 2px; }
+  .lateral .leyenda i.punteada { border-top: 2px dashed #8a94a3; height: 0; background: none; }
+  .lateral select, .lateral textarea { font-size: .82rem; padding: .4rem .6rem; height: auto; margin-bottom: .5rem; }
+  .lateral button { width: auto; margin: 0 .3rem .3rem 0; padding: .4rem .8rem; font-size: .8rem; }
+  .lateral .eliminar { background: #b3221e; border-color: #b3221e; }
+  .lateral .vacio { color: #8a94a3; font-style: italic; }
+  .siguiente { display: flex; justify-content: space-between; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; }
+  .siguiente a[role=button] { width: auto; margin: 0; }
+  .siguiente a.secundario { background: #fff; color: var(--ricora-dark); border-color: #cbd2d9; }
+{% endblock %}
+{% block contenido %}
+{% include "ric/_pasos.html" %}
+<div class="encabezado">
+  <h1>4 · Modelado de relaciones — {{ record }}</h1>
+  <p>Lienzo interactivo: el documento al centro y sus entidades alrededor, con cada línea etiquetada por el tipo
+  de relación RiC-O. Arrastre un nodo para reorganizar, use la rueda para acercar, y haga clic sobre una línea
+  para corregir el tipo de relación (lista controlada por dominio/rango de RiC-CM) o retirarla sin borrar las entidades.
+  Las líneas punteadas son propuestas todavía pendientes: se deciden en el paso 3.</p>
+</div>
+
+<div class="lienzo-grid">
+  <div>
+    <div id="cy"></div>
+    <p id="sin-datos" class="sin-datos" style="display:none; margin:.6rem 0 0;">Este documento todavía no tiene relaciones confirmadas ni propuestas. <a href="{% url 'analisis' record.pk %}">Volver al motor de análisis →</a></p>
+  </div>
+  <aside class="lateral">
+    <h3>Categorías</h3>
+    <div class="leyenda">
+      {% for slug, nombre, color in categorias %}<span><i style="background:{{ color }}"></i>{{ nombre }}</span>{% endfor %}
+      <span><i class="punteada"></i>propuesta pendiente</span>
+    </div>
+    <hr>
+    <div id="detalle"><p class="vacio">Haga clic sobre una línea del grafo para ver o corregir la relación.</p></div>
+  </aside>
+</div>
+
+<div class="siguiente">
+  <a role="button" class="secundario" href="{% url 'analisis' record.pk %}">← Volver a las entidades</a>
+  <a role="button" href="{% url 'revision' record.pk %}" {% if total_pendientes %}title="Quedan {{ total_pendientes }} propuesta(s) pendientes"{% endif %}>Enviar a revisión final →</a>
+</div>
+
+<script>
+(function () {
+  var puedeEditar = {{ puede_editar|yesno:"true,false" }};
+  var csrf = "{{ csrf_token }}";
+  var urlRelacion = "{% url 'analisis_relacion' record.pk 0 %}";
+  var urlAnalisis = "{% url 'analisis' record.pk %}";
+  var detalle = document.getElementById("detalle");
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+  function mostrar(d) {
+    if (d.propuesta) {
+      detalle.innerHTML = "<h3>Propuesta pendiente</h3><p><strong>" + esc(d.label) + "</strong></p><p>Las propuestas se aceptan, corrigen o rechazan en el motor de análisis.</p><a role='button' href='" + urlAnalisis + "#ficha-" + d.pk + "'>Decidir en el paso 3 →</a>";
+      return;
+    }
+    var opciones = d.opciones.map(function (o) {
+      return "<option value='" + o.id + "'" + (o.id === d.relacion_id ? " selected" : "") + ">" + o.id + " · " + esc(o.nombre) + " (" + o.categoria + ")</option>";
+    }).join("");
+    var html = "<h3>Relación " + esc(d.relacion_id) + "</h3><p><strong>" + esc(d.label) + "</strong><br><small>estado: " + esc(d.estado) + "</small></p>";
+    if (puedeEditar) {
+      html += "<form method='post' action='" + urlRelacion.replace("/0/", "/" + d.pk + "/") + "'>" +
+        "<input type='hidden' name='csrfmiddlewaretoken' value='" + csrf + "'>" +
+        "<label>Tipo de relación (lista controlada RiC-CM)</label><select name='relacion_id'>" + opciones + "</select>" +
+        "<button type='submit' name='accion' value='cambiar_tipo'>Guardar tipo</button></form>" +
+        "<form method='post' action='" + urlRelacion.replace("/0/", "/" + d.pk + "/") + "'>" +
+        "<input type='hidden' name='csrfmiddlewaretoken' value='" + csrf + "'>" +
+        "<label>Retirar esta relación (las entidades se conservan)</label><textarea name='motivo' rows='2' placeholder='Motivo (opcional)'></textarea>" +
+        "<button type='submit' name='accion' value='eliminar' class='eliminar'>Eliminar relación</button></form>";
+    } else {
+      html += "<p class='vacio'>Solo una cuenta archivista puede corregir o retirar relaciones.</p>";
+    }
+    detalle.innerHTML = html;
+  }
+
+  fetch("{% url 'analisis_grafo_datos' record.pk %}")
+    .then(function (r) { return r.json(); })
+    .then(function (datos) {
+      if (datos.edges.length === 0) document.getElementById("sin-datos").style.display = "block";
+      var cy = cytoscape({
+        container: document.getElementById("cy"),
+        elements: datos,
+        wheelSensitivity: 0.3,
+        style: [
+          { selector: "node", style: { "label": "data(label)", "font-size": "11px", "text-valign": "center", "text-halign": "center", "text-wrap": "wrap", "text-max-width": "90px", "width": "72px", "height": "72px", "background-color": "#6b8cae", "color": "#fff" } },
+          { selector: "node[?central]", style: { "background-color": "#1f3a5f", "width": "100px", "height": "100px", "font-weight": "bold" } },
+          { selector: "node[?propuesta]", style: { "background-color": "#fff", "border-width": 2, "border-style": "dashed", "border-color": "#8a94a3", "color": "#1f2933" } },
+          { selector: "edge", style: { "label": "data(label)", "font-size": "9px", "curve-style": "bezier", "target-arrow-shape": "triangle", "line-color": "data(color)", "target-arrow-color": "data(color)", "width": 2.5, "text-background-color": "#fff", "text-background-opacity": 1, "text-background-padding": "2px" } },
+          { selector: "edge[?propuesta]", style: { "line-style": "dashed", "width": 1.5, "opacity": .8 } },
+          { selector: "edge:selected", style: { "width": 5, "text-background-color": "#fff2df" } },
+        ],
+        layout: { name: "cose", animate: false, padding: 30 },
+      });
+      cy.on("tap", "edge", function (e) { mostrar(e.target.data()); });
+      cy.on("tap", function (e) { if (e.target === cy) detalle.innerHTML = "<p class='vacio'>Haga clic sobre una línea del grafo para ver o corregir la relación.</p>"; });
+    });
+})();
+</script>
+{% endblock %}

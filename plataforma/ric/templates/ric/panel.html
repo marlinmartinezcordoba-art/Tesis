@@ -1,0 +1,230 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Panel de indicadores · RICORA{% endblock %}
+{% block estilos_extra %}
+  .ricora-saludo { margin-bottom: 1.25rem; }
+  .ricora-saludo h1 { margin: 0 0 .2rem; font-size: 1.6rem; }
+  .ricora-saludo p { margin: 0; color: #6b7280; }
+
+  .ricora-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-bottom: 1.25rem; }
+  @media (max-width: 900px) { .ricora-cards { grid-template-columns: repeat(2, 1fr); } }
+  .ricora-card { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; box-shadow: 0 3px 10px rgba(21,48,75,.05); border-top: 3px solid var(--ricora-accent); }
+  .ricora-card:nth-child(1) { border-top-color: #d97706; } .ricora-card:nth-child(2) { border-top-color: #2f7a56; }
+  .ricora-card:nth-child(3) { border-top-color: #2563eb; } .ricora-card:nth-child(4) { border-top-color: #dc2626; }
+  .ricora-card .numero { font-size: 1.6rem; font-weight: 700; color: var(--ricora-dark); }
+  .ricora-card .numero small { font-size: .8rem; color: #8a94a3; font-weight: 400; }
+  .ricora-card .etiqueta { font-size: .74rem; color: #6b7280; margin-top: .15rem; }
+  .ricora-card a { display: block; font-size: .72rem; color: var(--ricora-accent); text-decoration: none; margin-top: .3rem; }
+  .ricora-card.alerta .numero { color: var(--ricora-critical); }
+
+  .ricora-panel { background: #fff; border: 1px solid #e6e3dc; border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1.1rem; }
+  .ricora-panel header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
+  .ricora-panel h2 { margin: 0; font-size: .95rem; }
+  .ricora-panel header a { font-size: .78rem; color: var(--ricora-accent); text-decoration: none; }
+  .ricora-panel.alerta { border-color: #f1b7b0; background: #fff7f6; }
+
+  .ricora-dashboard { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 960px) { .ricora-dashboard { grid-template-columns: 1fr; } }
+
+  .ricora-item { padding: .55rem 0; border-bottom: 1px solid #f0efe9; display: flex; justify-content: space-between; gap: .6rem; align-items: center; font-size: .86rem; }
+  .ricora-item:last-child { border-bottom: none; }
+  .ricora-item .origen { font-size: .76rem; color: #8a94a3; }
+  .ricora-item a.accion { font-size: .78rem; white-space: nowrap; }
+
+  .ricora-evento { display: flex; gap: .6rem; padding: .55rem 0; border-bottom: 1px solid #f0efe9; align-items: flex-start; }
+  .ricora-evento:last-child { border-bottom: none; }
+  .ricora-evento .icono { width: 26px; height: 26px; flex-shrink: 0; border-radius: 7px; background: #f6f5f2; display: grid; place-items: center; font-size: .82rem; }
+  .ricora-evento .titulo { font-size: .82rem; font-weight: 600; }
+  .ricora-evento .detalle { font-size: .72rem; color: #8a94a3; }
+
+  .ricora-donut-envoltura { display: flex; align-items: center; gap: 1rem; }
+  .ricora-donut { width: 120px; height: 120px; border-radius: 50%; flex: 0 0 auto; display: grid; place-content: center; text-align: center; }
+  .ricora-donut b { display: block; background: #fff; border-radius: 50%; width: 76px; height: 76px; display: grid; place-content: center; font-size: 1.15rem; margin: 0 auto; }
+  .ricora-donut b small { display: block; font-size: .6rem; font-weight: 400; color: #8a94a3; }
+  .ricora-leyenda { flex: 1; font-size: .8rem; }
+  .ricora-leyenda div { display: flex; justify-content: space-between; margin: .4rem 0; }
+  .ricora-punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+  .ricora-barras { display: flex; align-items: flex-end; gap: 6px; height: 90px; margin-top: .5rem; }
+  .ricora-barras .barra { flex: 1; background: #f0efe9; border-radius: 3px 3px 0 0; position: relative; min-height: 2px; }
+  .ricora-barras .barra i { display: block; width: 100%; background: var(--ricora-accent); border-radius: 3px 3px 0 0; position: absolute; bottom: 0; }
+  .ricora-barras-etiquetas { display: flex; justify-content: space-between; font-size: .62rem; color: #8a94a3; margin-top: .3rem; }
+
+  table.ricora-tabla { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  table.ricora-tabla th { text-align: left; color: #8a94a3; font-weight: 600; font-size: .7rem; text-transform: uppercase; padding: .4rem .3rem; border-bottom: 1px solid #f0efe9; }
+  table.ricora-tabla td { padding: .5rem .3rem; border-bottom: 1px solid #f6f5f2; }
+  .estados { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .estados span { font-size: .74rem; background: #f6f5f2; border-radius: 20px; padding: .2rem .7rem; }
+  .estados span b { color: var(--ricora-dark); }
+{% endblock %}
+{% block contenido %}
+<div class="ricora-saludo">
+  <h1>10 · Panel de indicadores</h1>
+  <p>Cifras reales del sistema, para quien dirige el proceso sin revisar documento por documento.</p>
+</div>
+
+<div class="ricora-cards">
+  <div class="ricora-card">
+    <div class="numero">{{ total_instanciaciones }}</div>
+    <div class="etiqueta">archivos ingestados en total</div>
+    {% if puede_ingestar %}<a href="{% url 'preproceso' %}">Ver cola de procesamiento →</a>{% endif %}
+  </div>
+  <div class="ricora-card">
+    <div class="numero">{% if validado.porcentaje is not None %}{{ validado.porcentaje }}%{% else %}—{% endif %} <small>{{ validado.publicados }}/{{ validado.total }}</small></div>
+    <div class="etiqueta">documentos con descripción validada y publicada</div>
+    <a href="{% url 'catalogo' %}">Ver catálogo →</a>
+  </div>
+  <div class="ricora-card">
+    <div class="numero">{% if tiempo_revision %}{{ tiempo_revision.dias }} <small>días ({{ tiempo_revision.horas }} h)</small>{% else %}— <small>sin datos aún</small>{% endif %}</div>
+    <div class="etiqueta">tiempo promedio de revisión por documento (carga → publicación)</div>
+  </div>
+  <div class="ricora-card {% if alertas %}alerta{% endif %}">
+    <div class="numero">{% if alertas is not None %}{{ alertas|length }}{% else %}—{% endif %}</div>
+    <div class="etiqueta">documentos pendientes de revisión por más de {{ limite_dias }} días</div>
+    {% if puede_administrar %}<a href="{% url 'admin_usuarios' %}?pestana=parametros">Cambiar el límite →</a>{% endif %}
+  </div>
+</div>
+
+<div class="ricora-panel">
+  <header><h2>Ingreso de documentos por semana (últimas 8 semanas)</h2></header>
+  <div class="ricora-barras">
+    {% for s in ingesta_semanas %}<div class="barra" title="{{ s.etiqueta }}: {{ s.total }}"><i style="height: {{ s.porcentaje }}%"></i></div>{% endfor %}
+  </div>
+  <div class="ricora-barras-etiquetas"><span>{{ ingesta_semanas.0.etiqueta }}</span>{% with ultima=ingesta_semanas|last %}<span>{{ ultima.etiqueta }} (esta semana: {{ ultima.total }})</span>{% endwith %}</div>
+</div>
+
+{% if puede_revisar %}
+<div class="ricora-panel">
+  <header><h2>Propuestas del motor por estado</h2><span style="font-size:.78rem;color:#8a94a3">{{ distribucion_estado.total }} en total</span></header>
+  {% if distribucion_estado.total %}
+  <div style="display:flex; height:20px; border-radius:6px; overflow:hidden;">
+    <div style="width:{{ distribucion_estado.p_validadas }}%; background:#2f7a56" title="Validadas {{ distribucion_estado.validadas }}"></div>
+    <div style="width:{{ distribucion_estado.p_pendientes }}%; background:#c2891b" title="Pendientes {{ distribucion_estado.pendientes }}"></div>
+    <div style="width:{{ distribucion_estado.p_rechazadas }}%; background:#b3402f" title="Rechazadas o descartadas {{ distribucion_estado.rechazadas }}"></div>
+  </div>
+  <div style="display:flex; gap:1rem; margin-top:.5rem; font-size:.78rem; color:#52606d;">
+    <span><b style="color:#2f7a56">●</b> Validadas {{ distribucion_estado.p_validadas }}%</span>
+    <span><b style="color:#c2891b">●</b> Pendientes {{ distribucion_estado.p_pendientes }}%</span>
+    <span><b style="color:#b3402f">●</b> Rechazadas o descartadas por reglas {{ distribucion_estado.p_rechazadas }}%</span>
+  </div>
+  {% else %}<p class="sin-datos" style="margin:0">El motor de análisis todavía no ha generado propuestas.</p>{% endif %}
+</div>
+
+{% if incompletos %}
+<div class="ricora-panel" style="border-color:#f3dcae; background:#fffaf2;">
+  <header><h2>⚠ Descripción incompleta (CC-02)</h2></header>
+  {% for f in incompletos %}
+  <div class="ricora-item">
+    <span>{{ f.record }} <span class="origen">· falta {{ f.faltan|join:", " }}</span></span>
+    <a class="accion" href="{% url 'analisis' f.record.pk %}">Completar →</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if alertas %}
+<div class="ricora-panel alerta">
+  <header><h2>⚠ Alerta: revisión atrasada (más de {{ limite_dias }} días)</h2></header>
+  {% for a in alertas %}
+  <div class="ricora-item">
+    <span>{{ a.record }} <span class="origen">· pendiente desde hace {{ a.dias }} día{{ a.dias|pluralize }}</span></span>
+    <a class="accion" href="{% url 'analisis' a.record.pk %}">Revisar ahora →</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="ricora-dashboard">
+  <div>
+    <div class="ricora-panel">
+      <header><h2>Documentos en curso</h2><a href="{% url 'analisis_lista' %}">Ver todos</a></header>
+      <div class="estados" style="margin-bottom:.8rem">{% for etiqueta, total in conteo_estados %}<span>{{ etiqueta }} <b>{{ total }}</b></span>{% endfor %}</div>
+      {% if en_analisis %}
+        {% for f in en_analisis %}
+        <div class="ricora-item">
+          <span>{{ f.record }} <span class="origen">· {{ f.etiqueta }}</span></span>
+          <a class="accion" href="{% url 'analisis' f.record.pk %}">Decidir propuestas →</a>
+        </div>
+        {% endfor %}
+      {% endif %}
+      {% if en_revision %}
+        {% for f in en_revision %}
+        <div class="ricora-item">
+          <span>{{ f.record }} <span class="origen">· {{ f.etiqueta }}</span></span>
+          <a class="accion" href="{% url 'revision' f.record.pk %}">Ir a revisión →</a>
+        </div>
+        {% endfor %}
+      {% endif %}
+      {% if not en_analisis and not en_revision %}<p class="sin-datos">No hay documentos esperando decisión ahora mismo.</p>{% endif %}
+    </div>
+
+    <div class="ricora-panel">
+      <header><h2>Ingesta por día, últimos 14 días</h2></header>
+      <div class="ricora-barras">
+        {% for dia in actividad_dias %}<div class="barra" title="{{ dia.etiqueta }}: {{ dia.total }}"><i style="height: {{ dia.porcentaje }}%"></i></div>{% endfor %}
+      </div>
+      <div class="ricora-barras-etiquetas"><span>{{ actividad_dias.0.etiqueta }}</span>{% with ultimo=actividad_dias|last %}<span>{{ ultimo.etiqueta }} (hoy: {{ ultimo.total }})</span>{% endwith %}</div>
+    </div>
+
+    <div class="ricora-panel">
+      <header><h2>Documentos recientes</h2><a href="{% url 'catalogo' %}">Ver catálogo →</a></header>
+      {% if documentos_recientes %}
+      <table class="ricora-tabla">
+        <thead><tr><th>Archivo</th><th>Expediente</th><th>Páginas</th><th>Fecha</th></tr></thead>
+        <tbody>
+        {% for doc in documentos_recientes %}
+          <tr><td>{{ doc.nombre }}</td><td>{{ doc.record_resource }}</td><td>{{ doc.paginas.count }}</td><td>{{ doc.fecha_registro|date:"d/m/Y" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="sin-datos">Todavía no se ha subido ningún documento.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="ricora-panel">
+      <header><h2>Tipos de entidad en el grafo</h2></header>
+      <div class="ricora-donut-envoltura">
+        <div class="ricora-donut" style="background: conic-gradient({{ gradiente_distribucion }})"><b>{{ total_entidades }}<small>entidades</small></b></div>
+        <div class="ricora-leyenda">
+          {% for fila in distribucion %}
+          <div><span><i class="ricora-punto" style="background: {{ fila.color }}"></i>{{ fila.tipo }}</span><b>{{ fila.total }}</b></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="ricora-panel">
+      <header><h2>Otras cifras</h2><a href="{% url 'ric_evaluacion' %}">Laboratorio de métricas →</a></header>
+      <div class="ricora-item"><span>Propuestas de IA pendientes</span><b>{{ pendientes }}</b></div>
+      <div class="ricora-item"><span>Relaciones ya validadas</span><b>{{ relaciones_validadas }}</b></div>
+      <div class="ricora-item"><span>Archivos sin texto extraído</span><b>{{ documentos_sin_texto }}</b></div>
+      <div class="ricora-item"><span>Muestras de auditoría por revisar</span><b>{{ muestras_pendientes }}</b></div>
+    </div>
+
+    <div class="ricora-panel">
+      <header><h2>Actividad reciente</h2></header>
+      {% if eventos_recientes %}
+        {% for evento in eventos_recientes %}
+        <div class="ricora-evento">
+          <span class="icono">{% if evento.tipo == "extraccion_texto" %}📄{% elif evento.tipo == "ingesta" %}⬆{% elif evento.tipo == "propuesta_ia" %}✦{% elif evento.tipo == "validacion_humana" %}✓{% elif evento.tipo == "publicacion" %}📢{% elif evento.tipo == "fusion_entidades" %}⇄{% elif evento.tipo == "segmentacion" %}✂{% elif evento.tipo == "exportacion" %}⬇{% else %}•{% endif %}</span>
+          <div>
+            <div class="titulo">{{ evento.get_tipo_display }}</div>
+            <div class="detalle">{{ evento.instanciacion|default:"—" }} · {{ evento.agente }} · {{ evento.fecha|date:"d/m/Y H:i" }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="sin-datos">Todavía no hay actividad registrada.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="ricora-panel">
+  <header><h2>Relaciones validadas en el grafo</h2><a href="{% url 'catalogo' %}">Consultar el catálogo →</a></header>
+  <p style="margin:0">{{ relaciones_validadas }} relación(es) RiC ya validadas por el equipo archivístico.</p>
+</div>
+{% endif %}
+{% endblock %}

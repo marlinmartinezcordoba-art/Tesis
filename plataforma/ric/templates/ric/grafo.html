@@ -10,7 +10,8 @@
 {% endblock %}
 {% block contenido %}
 <div class="grafo-header">
-  <h1>{{ entidad }}</h1>
+  <h1>{{ entidad }} <small style="font-weight:400; color:#8a94a3; font-size:.8rem;">· grafo de relaciones validadas, solo lectura</small></h1>
+  <a href="{% url 'catalogo_ficha' tipo entidad.pk %}">← ficha en el catálogo</a> ·
   <a href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">descargar como RDF (Turtle) ↗</a>
 </div>
 <div id="cy"></div>

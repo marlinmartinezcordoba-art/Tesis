@@ -1,0 +1,102 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}{{ entidad }} · Vocabularios · RICORA{% endblock %}
+{% block estilos_extra %}
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
+  .tarjeta dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .86rem; }
+  .tarjeta dt { color: #6b7280; } .tarjeta dd { margin: 0; }
+  .tarjeta label { font-size: .78rem; } .tarjeta input, .tarjeta textarea { font-size: .86rem; margin-bottom: .5rem; }
+  .tarjeta button { width: auto; margin: 0; }
+  .tarjeta li { font-size: .86rem; margin: .3rem 0; }
+  .dup { display: flex; justify-content: space-between; align-items: center; gap: .6rem; font-size: .86rem; padding: .4rem 0; border-bottom: 1px solid #f0efe9; }
+  .dup form { margin: 0; } .dup button { padding: .3rem .7rem; font-size: .76rem; width: auto; margin: 0; background: #1f3a5f; border-color: #1f3a5f; }
+  .acciones a { font-size: .84rem; margin-right: .8rem; }
+  .tag { font-size: .7rem; background: #fff2df; color: #8a6100; border-radius: 4px; padding: 1px 6px; }
+{% endblock %}
+{% block contenido %}
+<p><a href="{% url 'vocabularios' %}">← Vocabularios y autoridades</a></p>
+<hgroup>
+  <h1>{{ entidad }} <span class="tag">{% if es_forma %}Forma documental{% else %}{{ tipo_nombre|capfirst }} · {{ ric_id }}{% endif %}</span></h1>
+  <p>Registro de autoridad. {% if not es_forma %}Enlaces: <span class="acciones"><a href="{% url 'ric_grafo' tipo entidad.pk %}">ver en grafo</a><a href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF</a><a href="{% url 'catalogo_ficha' tipo entidad.pk %}">ficha de catálogo</a></span>{% endif %}</p>
+</hgroup>
+
+<div class="grid">
+  <div>
+    <div class="tarjeta">
+      <h3>Datos de la entrada</h3>
+      {% if puede_editar %}
+      <form method="post">
+        {% csrf_token %}
+        <label>Nombre autorizado</label><input type="text" name="nombre" value="{{ entidad.nombre }}" required>
+        {% if es_forma %}
+        <label>Definición</label><textarea name="definicion" rows="2">{{ entidad.definicion }}</textarea>
+        <label>Retención en archivo de gestión (años, según la TRD)</label><input type="number" min="0" name="retencion_gestion" value="{{ entidad.tiempo_retencion_archivo_gestion|default_if_none:'' }}">
+        <label>Retención en archivo central (años)</label><input type="number" min="0" name="retencion_central" value="{{ entidad.tiempo_retencion_archivo_central|default_if_none:'' }}">
+        <label>Disposición final</label><select name="disposicion_final"><option value="">—</option>{% for v, n in disposiciones %}<option value="{{ v }}" {% if entidad.disposicion_final == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        {% else %}
+        <label>Identificador (RiC-A22)</label><input type="text" name="identificador" value="{{ entidad.identificador }}">
+        <label>Descripción general (RiC-A43)</label><textarea name="descripcion_general" rows="2">{{ entidad.descripcion_general }}</textarea>
+        {% endif %}
+        <label>Serie / subserie de la TRD vigente (RF-M5-03)</label><input type="text" name="serie_trd" value="{{ entidad.serie_trd }}" placeholder="Ej. 100.02 Actas de comité">
+        <button type="submit">Guardar cambios</button>
+      </form>
+      {% else %}
+      <dl>
+        <dt>Nombre</dt><dd>{{ entidad.nombre }}</dd>
+        {% if es_forma %}<dt>Definición</dt><dd>{{ entidad.definicion|default:"—" }}</dd>
+        <dt>Retención</dt><dd>gestión {{ entidad.tiempo_retencion_archivo_gestion|default_if_none:"—" }} años · central {{ entidad.tiempo_retencion_archivo_central|default_if_none:"—" }} años · {{ entidad.get_disposicion_final_display|default:"sin disposición" }}</dd>
+        {% else %}<dt>Identificador</dt><dd>{{ entidad.identificador|default:"—" }}</dd><dt>Descripción</dt><dd>{{ entidad.descripcion_general|default:"—" }}</dd>{% endif %}
+        <dt>Serie TRD</dt><dd>{{ entidad.serie_trd|default:"—" }}</dd>
+      </dl>
+      {% endif %}
+    </div>
+
+    <div class="tarjeta">
+      <h3>Trazabilidad de la entrada (RF-M5-04)</h3>
+      <dl>
+        <dt>Creada</dt><dd>{{ entidad.fecha_registro|date:"d/m/Y H:i" }} · {{ entidad.creado_por.get_username|default:"sistema" }}</dd>
+        <dt>Última modificación</dt><dd>{{ entidad.fecha_actualizacion|date:"d/m/Y H:i" }} · {{ entidad.modificado_por.get_username|default:"—" }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div>
+    <div class="tarjeta">
+      <h3>Documentos relacionados ({{ documentos|length }})</h3>
+      {% if documentos %}
+      <ul>{% for d in documentos %}<li><a href="{% url 'catalogo_ficha' 'record' d.pk %}">{{ d }}</a></li>{% endfor %}</ul>
+      {% else %}<p class="sin-datos">Ningún documento validado apunta todavía a esta entrada.</p>{% endif %}
+    </div>
+
+    {% if not es_forma %}
+    <div class="tarjeta">
+      <h3>Relaciones validadas ({{ relaciones|length }})</h3>
+      {% if relaciones %}
+      <ul>{% for r in relaciones %}<li>{{ r.direccion }} {{ r.relacion.relacion_id }} {{ r.nombre }} · <a href="{% url 'catalogo_ficha' r.otro_slug r.otro.pk %}">{{ r.otro }}</a></li>{% endfor %}</ul>
+      {% else %}<p class="sin-datos">Sin relaciones validadas.</p>{% endif %}
+    </div>
+
+    {% if fusionable %}
+    <div class="tarjeta">
+      <h3>Posibles duplicados</h3>
+      {% if duplicados %}
+      {% for d in duplicados %}
+      <div class="dup">
+        <span><a href="{% url 'vocabulario_ficha' tipo d.pk %}">{{ d.nombre }}</a></span>
+        {% if puede_editar %}
+        <form method="post" action="{% url 'vocabulario_fusionar' tipo entidad.pk %}" onsubmit="return confirm('¿Fusionar «{{ d.nombre|escapejs }}» en «{{ entidad.nombre|escapejs }}»? Sus relaciones pasan a esta entrada y la duplicada se retira (queda en el historial).');">
+          {% csrf_token %}<input type="hidden" name="duplicada" value="{{ d.pk }}">
+          <button type="submit">⇄ Fusionar en esta</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}<p class="sin-datos">No se detectan entradas parecidas.</p>{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

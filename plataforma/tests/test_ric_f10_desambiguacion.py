@@ -88,45 +88,40 @@ class ParesSimilaresTest(TestCase):
 
 
 @override_settings(MEDIA_ROOT=MEDIA)
-class AvisoEnLaBandejaTest(TestCase):
-    """El aviso debe llegar hasta la bandeja de validación, no solo existir
-    en el módulo de desambiguación."""
+class AvisoEnElAnalisisTest(TestCase):
+    """El aviso debe llegar hasta la ficha del motor de análisis (M3), no
+    solo existir en el módulo de desambiguación."""
 
     def setUp(self):
         self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.client.force_login(self.archivista)
 
-    def test_avisa_cuando_el_nombre_propuesto_se_parece_a_uno_existente(self):
+    def _propuesta(self, nombre):
         from django.contrib.contenttypes.models import ContentType
 
         from ric.models import PropuestaRiC
 
-        CorporateBody.objects.create(nombre="Cabildo de Santafé")
         record = Record.objects.create(nombre="Acta")
         PropuestaRiC.objects.create(
             origen_content_type=ContentType.objects.get_for_model(Record),
             origen_object_id=record.pk,
-            relacion_id="R027", entidad_tipo="E11", entidad_nombre="Cabildo de Santa Fe",
+            relacion_id="R027", entidad_tipo="E11", entidad_nombre=nombre,
             proveedor="falso", version_modelo="0", confianza=0.8,
         )
-        respuesta = self.client.get(reverse("ric_bandeja"))
-        self.assertContains(respuesta, "Posible duplicado")
+        return record
+
+    def test_avisa_cuando_el_nombre_propuesto_se_parece_a_uno_existente(self):
+        CorporateBody.objects.create(nombre="Cabildo de Santafé")
+        record = self._propuesta("Cabildo de Santa Fe")
+        respuesta = self.client.get(reverse("analisis", args=[record.pk]))
+        self.assertContains(respuesta, "Se parece a")  # F10: sugiere el posible duplicado, la persona decide
         self.assertContains(respuesta, "⚠")
 
     def test_no_avisa_cuando_no_hay_nada_parecido(self):
-        from django.contrib.contenttypes.models import ContentType
-
-        from ric.models import PropuestaRiC
-
-        record = Record.objects.create(nombre="Acta")
-        PropuestaRiC.objects.create(
-            origen_content_type=ContentType.objects.get_for_model(Record),
-            origen_object_id=record.pk,
-            relacion_id="R027", entidad_tipo="E11", entidad_nombre="Cabildo de Santafé",
-            proveedor="falso", version_modelo="0", confianza=0.8,
-        )
-        respuesta = self.client.get(reverse("ric_bandeja"))
-        self.assertNotContains(respuesta, "Posible duplicado")
+        record = self._propuesta("Cabildo de Santafé")
+        respuesta = self.client.get(reverse("analisis", args=[record.pk]))
+        self.assertNotContains(respuesta, "Se parece a")
+        self.assertNotContains(respuesta, "Ya existe en vocabularios")
 
 
 @override_settings(MEDIA_ROOT=MEDIA)
@@ -135,25 +130,28 @@ class PantallaDeDuplicadosTest(TestCase):
         self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
         self.invitado = User.objects.create_user("consulta", password="x", is_staff=False)
 
-    def test_exige_perfil_de_archivista(self):
-        self.client.force_login(self.invitado)
-        respuesta = self.client.get(reverse("ric_duplicados"), follow=True)
-        self.assertContains(respuesta, "solo consulta")
-
-    def test_lista_un_par_encontrado_con_enlace_al_admin(self):
-        self.client.force_login(self.archivista)
+    def test_consulta_puede_verla_pero_sin_fusionar(self):
         CorporateBody.objects.create(nombre="Cabildo de Santafé")
         CorporateBody.objects.create(nombre="Cabildo de Santa Fe")
-        respuesta = self.client.get(reverse("ric_duplicados"))
+        self.client.force_login(self.invitado)
+        respuesta = self.client.get(reverse("vocabularios_duplicados"))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Cabildo de Santa Fe")
+
+    def test_lista_un_par_encontrado_con_enlace_a_las_fichas(self):
+        self.client.force_login(self.archivista)
+        a = CorporateBody.objects.create(nombre="Cabildo de Santafé")
+        CorporateBody.objects.create(nombre="Cabildo de Santa Fe")
+        respuesta = self.client.get(reverse("vocabularios_duplicados"))
         self.assertContains(respuesta, "Cabildo de Santafé")
         self.assertContains(respuesta, "Cabildo de Santa Fe")
-        self.assertContains(respuesta, reverse("admin:ric_corporatebody_changelist"))
+        self.assertContains(respuesta, reverse("vocabulario_ficha", args=["corporatebody", a.pk]))
 
     def test_sin_nada_parecido_dice_que_no_hay_pares(self):
         self.client.force_login(self.archivista)
         CorporateBody.objects.create(nombre="Cabildo de Santafé")
-        respuesta = self.client.get(reverse("ric_duplicados"))
-        self.assertContains(respuesta, "No se encontró ningún par")
+        respuesta = self.client.get(reverse("vocabularios_duplicados"))
+        self.assertContains(respuesta, "No se detectan entradas parecidas")
 
     def test_recordset_no_aparece_en_la_pantalla_de_duplicados(self):
         # RecordSet no es fusionable (ver ric.fusion); no debería ofrecerse
@@ -163,5 +161,5 @@ class PantallaDeDuplicadosTest(TestCase):
         self.client.force_login(self.archivista)
         RecordSet.objects.create(nombre="Fondo Notarial")
         RecordSet.objects.create(nombre="Fondo Notarial ")
-        respuesta = self.client.get(reverse("ric_duplicados"))
-        self.assertNotContains(respuesta, reverse("admin:ric_recordset_changelist"))
+        respuesta = self.client.get(reverse("vocabularios_duplicados"))
+        self.assertNotContains(respuesta, "Fondo Notarial")

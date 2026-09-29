@@ -1,0 +1,73 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Exportación · RICORA{% endblock %}
+{% block estilos_extra %}
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
+  .formatos { display: flex; gap: .5rem; flex-wrap: wrap; margin: .4rem 0 1rem; }
+  .formatos label { border: 1px solid #e6e3dc; border-radius: 10px; padding: .5rem .8rem; cursor: pointer; font-size: .84rem; display: flex; gap: .4rem; align-items: center; }
+  .formatos label:has(input:checked) { border-color: var(--ricora-accent); background: #fffaf2; font-weight: 600; }
+  .formatos input { margin: 0; }
+  .docs { max-height: 300px; overflow: auto; border: 1px solid #f0efe9; border-radius: 8px; padding: .4rem .6rem; font-size: .84rem; }
+  .docs label { display: flex; gap: .4rem; align-items: center; margin: .15rem 0; font-weight: 400; }
+  .docs input { margin: 0; }
+  .listo { background: #e3f9e5; border: 1px solid #cbead0; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .listo a[role=button] { width: auto; margin: 0; background: #1b7a3d; border-color: #1b7a3d; }
+  table.tabla { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .45rem .4rem; border-bottom: 1px solid #e6e3dc; }
+  table.tabla td { padding: .45rem .4rem; border-bottom: 1px solid #f0efe9; }
+  .tecnico { font-size: .8rem; color: #52606d; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>9 · Exportación e interoperabilidad</h1>
+  <p>Exporte la descripción de uno o varios documentos en datos enlazados conformes a RiC-O 1.1 (RDF/Turtle),
+  en JSON-LD o en formato tabular (CSV), para el intercambio con el sistema de gestión documental electrónico o el
+  portal de datos. Cada exportación queda registrada con su fecha, formato, alcance y quién la solicitó.</p>
+</hgroup>
+
+{% if listo %}
+<div class="listo">
+  <span>✓ Exportación lista: <strong>{{ listo.get_formato_display }}</strong> · {{ listo.total_registros }} registro(s) · {{ listo.fecha|date:"d/m/Y H:i" }}</span>
+  <a role="button" href="{% url 'exportar_descargar' listo.pk %}">⬇ Descargar</a>
+</div>
+{% endif %}
+
+<div class="grid">
+  <div class="tarjeta">
+    <h3>Generar una exportación</h3>
+    <form method="post">
+      {% csrf_token %}
+      <label style="font-size:.8rem">Formato</label>
+      <div class="formatos">
+        {% for valor, nombre in formatos %}
+        <label><input type="radio" name="formato" value="{{ valor }}" {% if forloop.first %}checked{% endif %}> {{ nombre }}</label>
+        {% endfor %}
+      </div>
+      <label style="font-size:.8rem">Documentos ({{ seleccionados|length }} precargado(s) desde el catálogo)</label>
+      <div class="docs">
+        {% for d in seleccionados %}<label><input type="checkbox" name="doc" value="{{ d.pk }}" checked> {{ d }}</label>{% endfor %}
+        {% for d in disponibles %}{% if d not in seleccionados %}<label><input type="checkbox" name="doc" value="{{ d.pk }}"> {{ d }}</label>{% endif %}{% endfor %}
+        {% if not disponibles %}<span class="sin-datos">No hay documentos disponibles para exportar.</span>{% endif %}
+      </div>
+      <button type="submit" style="margin-top:.9rem">Generar exportación</button>
+    </form>
+    <p class="tecnico">Acceso técnico: <a href="{% url 'ric_exportar_rdf_completo' %}">todo el grafo RiC en Turtle</a> · <a href="{% url 'ric_sparql' %}">consola SPARQL</a>.</p>
+  </div>
+
+  <div class="tarjeta">
+    <h3>Registro de exportaciones</h3>
+    {% if historial %}
+    <table class="tabla">
+      <thead><tr><th>Fecha</th><th>Registros</th><th>Formato</th><th>Solicitó</th><th></th></tr></thead>
+      <tbody>
+        {% for e in historial %}
+        <tr><td>{{ e.fecha|date:"Y-m-d H:i" }}</td><td>{{ e.total_registros }}</td><td>{{ e.get_formato_display }}</td><td>{{ e.usuario.get_username|default:"—" }}</td><td><a href="{% url 'exportar_descargar' e.pk %}">descargar</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="sin-datos">Todavía no se ha realizado ninguna exportación.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

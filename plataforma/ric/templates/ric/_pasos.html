@@ -1,0 +1,19 @@
+{# Mapa de flujo del documento (seis pasos): se incluye con `record`, `estado` y `paso_actual` (1-6). #}
+<style>
+  .pasos { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; margin: .2rem 0 1.2rem; font-size: .74rem; }
+  .pasos a, .pasos span.paso { text-decoration: none; color: #52606d; background: #fff; border: 1px solid #e6e3dc; border-radius: 20px; padding: .25rem .7rem; white-space: nowrap; }
+  .pasos .paso.actual { background: var(--ricora-dark); color: #fff; border-color: var(--ricora-dark); font-weight: 600; }
+  .pasos .paso.hecho { background: #e3f9e5; color: #1b4d2e; border-color: #cbead0; }
+  .pasos .flecha { color: #b8bfc9; }
+  .pasos .estado { margin-left: auto; color: #8a6100; font-style: italic; }
+</style>
+<nav class="pasos" aria-label="Recorrido del documento">
+  <a class="paso {% if paso_actual == 1 %}actual{% elif paso_actual > 1 %}hecho{% endif %}" href="{% url 'ingesta' %}">1 Ingesta</a><span class="flecha">→</span>
+  <a class="paso {% if paso_actual == 2 %}actual{% elif paso_actual > 2 %}hecho{% endif %}" href="{% url 'preproceso' %}">2 Preproceso y OCR</a><span class="flecha">→</span>
+  <a class="paso {% if paso_actual == 3 %}actual{% elif paso_actual > 3 %}hecho{% endif %}" href="{% url 'analisis' record.pk %}">3 Motor de análisis</a><span class="flecha">→</span>
+  <a class="paso {% if paso_actual == 4 %}actual{% elif paso_actual > 4 %}hecho{% endif %}" href="{% url 'analisis_grafo' record.pk %}">4 Relaciones</a><span class="flecha">→</span>
+  <a class="paso {% if paso_actual == 5 %}actual{% elif paso_actual > 5 %}hecho{% endif %}" href="{% url 'revision' record.pk %}">5 Revisión archivística</a><span class="flecha">→</span>
+  <a class="paso {% if paso_actual == 6 %}actual{% endif %}" href="{% url 'catalogo_ficha' 'record' record.pk %}">6 Catálogo</a>
+  <a class="paso" href="{% url 'historial' record.pk %}" title="Trazabilidad y auditoría">🕒 Historial</a>
+  <span class="estado">{{ etiqueta_estado }}</span>
+</nav>

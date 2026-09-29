@@ -1,0 +1,75 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Historial · {{ record }} · RICORA{% endblock %}
+{% block estilos_extra %}
+  .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+  .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
+  .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .tl { position: relative; padding-left: 1.4rem; border-left: 2px solid #e6e3dc; }
+  .tl-item { position: relative; padding: .2rem 0 1rem; font-size: .85rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.85rem; top: .45rem; width: 11px; height: 11px; border-radius: 50%; background: var(--ricora-accent); border: 2px solid #fff; }
+  .tl-item.validacion_humana::before, .tl-item.publicacion::before { background: #2f7d4f; }
+  .tl-item.propuesta_ia::before { background: #7046d9; }
+  .tl-item.ingesta::before, .tl-item.extraccion_texto::before { background: #6b8cae; }
+  .tl-item .fecha { font-size: .74rem; color: #8a94a3; }
+  .tl-item .titulo { font-weight: 600; }
+  .tl-item .detalle { font-size: .78rem; color: #52606d; word-break: break-word; }
+  .tl-item .ver { font-size: .76rem; }
+  .estado-panel { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.1rem; position: sticky; top: 1rem; font-size: .85rem; }
+  .estado-panel h3 { font-size: .95rem; margin: 0 0 .4rem; }
+  .estado-panel li { margin: .3rem 0; }
+  .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+  .badge.aceptada, .badge.modificada { background: #e3f9e5; color: #1b4d2e; }
+  .badge.rechazada { background: #eceae4; color: #52606d; }
+  .badge.pendiente { background: #fff2df; color: #8a6100; }
+  .cadena { font-size: .8rem; padding: .5rem .8rem; border-radius: 8px; margin-bottom: .8rem; }
+  .cadena.ok { background: #e3f9e5; color: #1b4d2e; } .cadena.rota { background: #fde8e8; color: #7a1f1f; }
+{% endblock %}
+{% block contenido %}
+{% include "ric/_pasos.html" %}
+<div class="encabezado">
+  <h1>7 · Trazabilidad y auditoría — {{ record }}</h1>
+  <p>Línea de tiempo del documento: qué propuso el motor de análisis, qué decidió cada persona y cuándo.
+  Cada evento está encadenado por hash con el anterior (estilo PREMIS), así que alterar o borrar uno rompe la
+  cadena. En cualquier punto, «ver la descripción en este momento» reconstruye exactamente cómo estaba.</p>
+</div>
+
+<div class="cadena {% if cadena_intacta %}ok{% else %}rota{% endif %}">
+  {% if cadena_intacta %}🔒 Cadena de eventos verificada: íntegra.{% else %}⚠ La cadena de eventos de este documento presenta una alteración.{% endif %}
+</div>
+
+<div class="grid">
+  <div>
+    {% if not eventos %}<p class="sin-datos">Todavía no hay eventos registrados para este documento.</p>{% endif %}
+    <div class="tl">
+      {% for e in eventos %}
+      <div class="tl-item {{ e.tipo }}">
+        <div class="fecha">{{ e.fecha|date:"d/m/Y H:i:s" }} · {{ e.agente }}</div>
+        <div class="titulo">{{ e.get_tipo_display }}</div>
+        <div class="detalle">{{ e.instanciacion.nombre }}{% if e.detalle %} · {% for k, v in e.detalle.items %}{{ k }}: {{ v|truncatechars:80 }}{% if not forloop.last %} · {% endif %}{% endfor %}{% endif %}</div>
+        <a class="ver" href="?momento={{ e.fecha|date:'c'|urlencode }}">ver la descripción en este momento →</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <aside class="estado-panel">
+    {% if reconstruccion is not None %}
+      <h3>Descripción al {{ momento|date:"d/m/Y H:i:s" }}</h3>
+      {% if reconstruccion %}
+      <ul>
+        {% for fila in reconstruccion %}
+        <li><span class="badge {{ fila.estado }}">{{ fila.estado }}</span> {{ fila.relacion_id }} {{ fila.nombre_relacion }} → <strong>{{ fila.destino }}</strong>{% if fila.reconstruida %} <small>(reconstruida desde el historial de versiones)</small>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="sin-datos">En ese momento el documento aún no tenía relaciones.</p>
+      {% endif %}
+      <p><a href="{% url 'historial' record.pk %}">← Volver al estado actual</a></p>
+    {% else %}
+      <h3>Estado actual</h3>
+      <p>{{ etiqueta_estado }}.</p>
+      <p style="color:#6b7280">Elija «ver la descripción en este momento» en cualquier evento de la línea de tiempo para reconstruir cómo estaba entonces (RF-M7-03).</p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

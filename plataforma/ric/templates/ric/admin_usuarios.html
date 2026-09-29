@@ -1,0 +1,175 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Administración y seguridad · RICORA{% endblock %}
+{% block estilos_extra %}
+  .pestanas { display: flex; gap: .3rem; border-bottom: 1px solid #e6e3dc; margin-bottom: 1.1rem; }
+  .pestanas a { padding: .55rem 1rem; text-decoration: none; color: #52606d; border-bottom: 3px solid transparent; font-size: .9rem; }
+  .pestanas a.activa { color: var(--ricora-dark); border-color: var(--ricora-accent); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.2rem; align-items: start; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
+  .tarjeta label { font-size: .78rem; } .tarjeta input, .tarjeta select { font-size: .86rem; margin-bottom: .5rem; }
+  .tarjeta button { width: auto; margin: 0; }
+  .roles { display: grid; gap: .4rem; margin: .3rem 0 .8rem; }
+  .roles label { display: flex; gap: .5rem; align-items: flex-start; border: 1px solid #e6e3dc; border-radius: 10px; padding: .5rem .7rem; font-weight: 400; cursor: pointer; }
+  .roles label small { display: block; color: #6b7280; }
+  .roles input { margin: .2rem 0 0; }
+  table.tabla { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  table.tabla th { text-align: left; color: #8a94a3; font-size: .68rem; text-transform: uppercase; padding: .45rem .4rem; border-bottom: 1px solid #e6e3dc; }
+  table.tabla td { padding: .45rem .4rem; border-bottom: 1px solid #f0efe9; vertical-align: top; }
+  .badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; text-transform: uppercase; }
+  .badge.archivista { background: #eaf1fb; color: #1f3a5f; } .badge.revisor { background: #f1e6ff; color: #4b2a8a; }
+  .badge.consulta { background: #f0efe9; color: #6b7280; } .badge.superusuario { background: #fff2df; color: #a9660a; }
+  .badge.inactiva { background: #fde8e8; color: #7a1f1f; }
+  .fila-acciones form { display: inline-flex; gap: .3rem; align-items: center; margin: 0 .2rem .3rem 0; }
+  .fila-acciones select, .fila-acciones input { margin: 0; font-size: .76rem; padding: .25rem .4rem; height: auto; width: auto; }
+  .fila-acciones button { padding: .25rem .6rem; font-size: .74rem; }
+  .fila-acciones details { display: inline-block; font-size: .76rem; }
+  .estado-con { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
+  .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #cbd2d9; }
+  .punto.ok { background: #2f7d4f; } .punto.fallo { background: #c0392b; }
+  .activo-tag { background: #e3f9e5; color: #1b4d2e; border-radius: 10px; padding: 1px 8px; font-size: .68rem; font-weight: 700; }
+  .param { display: grid; grid-template-columns: 1fr 140px; gap: .6rem; align-items: center; margin-bottom: .5rem; font-size: .86rem; }
+  .param input { margin: 0; }
+  .param small { display: block; color: #6b7280; font-size: .74rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>11 · Administración y seguridad</h1>
+  <p>Usuarios con su rol — archivista (ingesta y analiza), revisor (revisa y aprueba) y consulta (solo catálogo) —,
+  proveedores de inteligencia artificial que alimentan el motor de análisis, con su clave y estado de conexión, y los
+  parámetros del sistema.</p>
+</hgroup>
+
+<nav class="pestanas">
+  <a href="?pestana=usuarios" class="{% if pestana == 'usuarios' %}activa{% endif %}">Usuarios</a>
+  <a href="?pestana=proveedores" class="{% if pestana == 'proveedores' %}activa{% endif %}">Proveedores de IA</a>
+  <a href="?pestana=parametros" class="{% if pestana == 'parametros' %}activa{% endif %}">Parámetros</a>
+</nav>
+
+{% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
+
+{% if pestana == "usuarios" %}
+<div class="grid">
+  <div class="tarjeta">
+    <h3>Nuevo usuario</h3>
+    <form method="post">
+      {% csrf_token %}
+      <label for="id_username">Nombre de usuario (para iniciar sesión)</label>
+      <input type="text" name="username" id="id_username" placeholder="Ej. zully" required>
+      <label for="id_nombre_completo">Nombre</label>
+      <input type="text" name="nombre_completo" id="id_nombre_completo" placeholder="Nombre completo">
+      <label for="id_email">Correo</label>
+      <input type="email" name="email" id="id_email" placeholder="correo@entidad.gov.co">
+      <label>Rol</label>
+      <div class="roles">
+        {% for valor, nombre in roles %}
+        <label><input type="radio" name="rol" value="{{ valor }}" {% if valor == 'archivista' %}checked{% endif %}>
+          <span>{{ nombre }}<small>{% if valor == 'archivista' %}Ingesta, preprocesa, decide propuestas, modela relaciones, aprueba y publica; entra al panel técnico.{% elif valor == 'revisor' %}Revisa fichas, aprueba y publica o rechaza con motivo; no ingesta.{% else %}Consulta el catálogo publicado, exporta y ve el panel.{% endif %}</small></span></label>
+        {% endfor %}
+      </div>
+      <label for="id_password">Contraseña inicial</label>
+      <input type="password" name="password" id="id_password" required>
+      <label for="id_password_confirmar">Confirmar contraseña</label>
+      <input type="password" name="password_confirmar" id="id_password_confirmar" required>
+      <button type="submit">Guardar</button>
+      <p style="font-size:.76rem; color:#6b7280; margin:.6rem 0 0;">{% if correo_configurado %}Al guardar se envía una invitación por correo.{% else %}El servidor no tiene correo configurado (EMAIL_HOST): comparta la contraseña directamente.{% endif %}</p>
+    </form>
+  </div>
+
+  <div class="tarjeta">
+    <h3>Cuentas ({{ usuarios|length }})</h3>
+    <table class="tabla">
+      <thead><tr><th>Usuario</th><th>Nombre / correo</th><th>Rol</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for f in usuarios %}{% with u=f.usuario %}
+        <tr>
+          <td><strong>{{ u.username }}</strong>{% if not u.is_active %} <span class="badge inactiva">inactiva</span>{% endif %}<br><small style="color:#8a94a3">desde {{ u.date_joined|date:"d/m/Y" }}</small></td>
+          <td>{{ u.first_name|default:"—" }}<br><small>{{ u.email|default:"—" }}</small></td>
+          <td><span class="badge {{ f.rol }}">{{ f.rol_etiqueta }}</span></td>
+          <td class="fila-acciones">
+            {% if not u.is_superuser %}
+            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}
+              <input type="hidden" name="accion" value="cambiar_rol">
+              <select name="rol">{% for valor, nombre in roles %}<option value="{{ valor }}" {% if f.rol == valor %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select>
+              <button type="submit">Cambiar rol</button>
+            </form>
+            {% if u.is_active %}
+            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
+            {% else %}
+            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><button type="submit">Reactivar</button></form>
+            {% endif %}
+            {% endif %}
+            <details><summary>Restablecer contraseña</summary>
+              <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="restablecer">
+                <input type="password" name="password" placeholder="nueva" required><input type="password" name="password_confirmar" placeholder="confirmar" required><button type="submit">Guardar</button>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endwith %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif pestana == "proveedores" %}
+<div class="grid">
+  <div class="tarjeta">
+    <h3>Agregar proveedor</h3>
+    <form method="post" action="{% url 'admin_proveedor_agregar' %}">
+      {% csrf_token %}
+      <label for="id_proveedor">Proveedor</label>
+      <select name="proveedor" id="id_proveedor">{% for valor, nombre in opciones_proveedor %}<option value="{{ valor }}">{{ nombre }}</option>{% endfor %}</select>
+      <label for="id_modelo">Modelo (vacío = por defecto: {% for p, m in modelos_por_defecto.items %}{{ p }} → {{ m }}{% if not forloop.last %}, {% endif %}{% endfor %})</label>
+      <input type="text" name="modelo" id="id_modelo" placeholder="Ej. gemini-2.5-pro">
+      <label for="id_clave">Clave de acceso (API key) — vacío = usar la variable de entorno del servidor; no aplica a la IA local</label>
+      <input type="password" name="clave_api" id="id_clave" autocomplete="off">
+      <button type="submit">Agregar proveedor</button>
+    </form>
+  </div>
+  <div class="tarjeta">
+    <h3>Proveedores configurados</h3>
+    {% if not proveedores %}<p class="sin-datos">Todavía no hay proveedores. Sin un proveedor activo, el motor de análisis no propone entidades.</p>{% endif %}
+    <table class="tabla">
+      <thead><tr><th>Proveedor</th><th>Clave</th><th>Conexión</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for p in proveedores %}
+        <tr>
+          <td><strong>{{ p.get_proveedor_display }}</strong>{% if p.activo %} <span class="activo-tag">activo · fuente del motor</span>{% endif %}<br><small>{{ p.modelo|default:"modelo por defecto" }}</small></td>
+          <td><code style="font-size:.74rem">{{ p.clave_enmascarada }}</code></td>
+          <td><span class="estado-con"><i class="punto {% if p.prueba_exitosa %}ok{% elif p.prueba_exitosa is False %}fallo{% endif %}"></i>
+            {% if p.prueba_exitosa is None %}sin probar{% elif p.prueba_exitosa %}correcta{% else %}falló{% endif %}</span>
+            {% if p.mensaje_prueba %}<br><small style="color:#52606d">{{ p.mensaje_prueba }}</small>{% endif %}
+            {% if p.ultima_prueba %}<br><small style="color:#8a94a3">{{ p.ultima_prueba|date:"d/m/Y H:i" }}</small>{% endif %}</td>
+          <td class="fila-acciones">
+            <form method="post" action="{% url 'admin_proveedor_probar' p.pk %}">{% csrf_token %}<button type="submit">Probar conexión</button></form>
+            {% if p.activo %}
+            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
+            {% else %}
+            <form method="post" action="{% url 'admin_proveedor_activar' p.pk %}">{% csrf_token %}<button type="submit" {% if not p.prueba_exitosa %}disabled title="Pruebe la conexión primero"{% endif %}>Guardar y activar</button></form>
+            {% endif %}
+            <form method="post" action="{% url 'admin_proveedor_eliminar' p.pk %}" onsubmit="return confirm('¿Eliminar este proveedor?');">{% csrf_token %}<button type="submit" class="secondary">Eliminar</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="tarjeta" style="max-width:720px">
+  <h3>Parámetros del sistema</h3>
+  <form method="post" action="{% url 'admin_parametros' %}">
+    {% csrf_token %}
+    <div class="param"><label>Días límite de revisión<small>RF-M10-04: pasado este tiempo, un documento pendiente genera alerta en el panel.</small></label><input type="number" min="1" name="dias_limite_revision" value="{{ config.dias_limite_revision }}"></div>
+    <div class="param"><label>Umbral de calidad del OCR (0-100)<small>RF-M2-04: por debajo, la página se marca «calidad baja» y espera decisión.</small></label><input type="number" min="0" max="100" step="1" name="umbral_calidad_ocr" value="{{ config.umbral_calidad_ocr|stringformat:'g' }}"></div>
+    <div class="param"><label>Umbral de confianza en revisión (0-1)<small>CC-04: por debajo, la ficha se marca de baja confianza.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_confianza_revision" value="{{ config.umbral_confianza_revision|stringformat:'g' }}"></div>
+    <div class="param"><label>Umbral de similitud con el vocabulario (0-1)<small>CC-05: desde este parecido se propone reutilizar una entrada existente.</small></label><input type="number" min="0" max="1" step="0.05" name="umbral_similitud_vocabulario" value="{{ config.umbral_similitud_vocabulario|stringformat:'g' }}"></div>
+    <button type="submit">Guardar parámetros</button>
+    {% if config.actualizado_por %}<p style="font-size:.76rem; color:#8a94a3; margin:.6rem 0 0;">Última modificación: {{ config.actualizado_por.get_username }} · {{ config.fecha_actualizacion|date:"d/m/Y H:i" }}</p>{% endif %}
+  </form>
+</div>
+{% endif %}
+{% endblock %}

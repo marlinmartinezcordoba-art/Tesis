@@ -1,0 +1,69 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Preprocesamiento y OCR · RICORA{% endblock %}
+{% block estilos_extra %}
+  table.tabla { width: 100%; border-collapse: collapse; font-size: .84rem; background: #fff; border-radius: 12px; overflow: hidden; }
+  table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .55rem .6rem; border-bottom: 1px solid #e6e3dc; }
+  table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
+  .chip { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .chip.listo { background: #e3f9e5; color: #1b4d2e; }
+  .chip.cola { background: #eaf1fb; color: #1f3a5f; }
+  .chip.baja { background: #fde8e8; color: #7a1f1f; }
+  .avance { width: 140px; height: 7px; background: #eceae4; border-radius: 4px; overflow: hidden; }
+  .avance i { display: block; height: 100%; background: var(--ricora-accent); }
+  .avance.listo i { width: 100%; background: #2f7d4f; }
+  .avance.cola i { width: 8%; }
+  .avance.baja i { width: 70%; background: var(--ricora-critical); }
+  .boton-min { padding: .35rem .7rem; font-size: .78rem; margin: 0; width: auto; }
+  .paginas-baja a { font-size: .78rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>2 · Preprocesamiento y OCR</h1>
+  <p>Cola de procesamiento: cada archivo pasa de <em>en cola</em> a <em>OCR</em> y luego a <em>listo</em>.
+  Los documentos digitales entregan su texto nativo sin OCR; las imágenes y los PDF escaneados pasan por
+  reconocimiento óptico. Se detecta el idioma y se marcan las páginas con calidad de lectura
+  insuficiente para que usted decida si se reescanean o se aceptan. Al quedar listo, el archivo se
+  envía automáticamente al motor de análisis.</p>
+</hgroup>
+
+{% if not filas %}
+<p class="sin-datos">Todavía no hay archivos cargados. <a href="{% url 'ingesta' %}">Cargar el primero →</a></p>
+{% else %}
+<table class="tabla">
+  <thead><tr><th>Archivo</th><th>Expediente</th><th>Avance</th><th>Estado</th><th>Idioma</th><th>Páginas</th><th></th></tr></thead>
+  <tbody>
+    {% for f in filas %}
+    <tr>
+      <td>📄 {{ f.instanciacion.nombre }}</td>
+      <td>{{ f.record }}</td>
+      <td><div class="avance {% if f.estado == 'listo' %}listo{% elif f.estado == 'calidad_baja' %}baja{% else %}cola{% endif %}"><i></i></div></td>
+      <td>
+        {% if f.estado == "listo" %}<span class="chip listo">listo</span>
+        {% elif f.estado == "calidad_baja" %}<span class="chip baja">⚠ calidad baja</span>
+        {% else %}<span class="chip cola">en cola</span>{% endif %}
+      </td>
+      <td>{{ f.idioma|default:"—" }}</td>
+      <td>{{ f.paginas }}</td>
+      <td>
+        {% if f.estado == "en_cola" %}
+          <form method="post" action="{% url 'preproceso_enviar' %}" style="margin:0">{% csrf_token %}
+            <button class="boton-min" type="submit" name="instanciacion" value="{{ f.instanciacion.pk }}">Procesar (OCR)</button>
+          </form>
+        {% elif f.estado == "calidad_baja" %}
+          <span class="paginas-baja">Decidir:
+          {% for n in f.calidad_baja %}<a href="{% url 'preproceso_pagina' f.instanciacion.pk n %}">página {{ n }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+          </span>
+        {% elif f.tiene_propuestas %}
+          <a href="{% url 'analisis' f.record.pk %}">Ver propuesta de entidades →</a>
+        {% else %}
+          <form method="post" action="{% url 'analisis_generar' f.record.pk %}" style="margin:0">{% csrf_token %}
+            <button class="boton-min" type="submit">Enviar al motor de análisis</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

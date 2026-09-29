@@ -1,0 +1,242 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Análisis · {{ record }} · RICORA{% endblock %}
+{% block estilos_extra %}
+  .encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+  .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+  .encabezado p { margin: 0; color: #6b7280; font-size: .88rem; }
+  .paneles { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 960px) { .paneles { grid-template-columns: 1fr; } }
+  .texto { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; white-space: pre-wrap; font-size: .86rem; line-height: 1.55; max-height: 78vh; overflow: auto; position: sticky; top: 1rem; }
+  .texto mark.ev { background: #fff2df; border-bottom: 2px solid var(--ricora-accent); border-radius: 3px; padding: 0 2px; cursor: pointer; }
+  .texto mark.ev.clase-agente { background: #eaf1fb; border-color: #1f3a5f; }
+  .texto mark.ev.clase-actividad { background: #e3f9e5; border-color: #2f7d4f; }
+  .texto mark.ev.clase-fecha { background: #f1e6ff; border-color: #7046d9; }
+  .texto mark.ev.clase-lugar { background: #e0f4f7; border-color: #1f6f8b; }
+  .texto mark.ev.clase-mandato { background: #fde8e8; border-color: #c0392b; }
+  .texto mark.ev.destacada { outline: 3px solid var(--ricora-accent-2); }
+  .texto mark.ev.apagada { opacity: .35; }
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .9rem; }
+  .chip-clase { border: 1px solid #e6e3dc; background: #fff; border-radius: 20px; padding: .25rem .75rem; font-size: .76rem; cursor: pointer; }
+  .chip-clase.activa { background: var(--ricora-dark); color: #fff; border-color: var(--ricora-dark); }
+  .chip-clase b { color: var(--ricora-accent); margin-left: .25rem; }
+  .grupo h3 { font-size: .9rem; margin: 1rem 0 .5rem; color: #52606d; text-transform: uppercase; letter-spacing: .04em; }
+  .ficha { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
+  .ficha header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+  .ficha header h4 { margin: 0; font-size: .95rem; }
+  .ficha .confianza { font-size: .78rem; font-weight: 700; }
+  .ficha .confianza.alta { color: #1b7a3d; } .ficha .confianza.baja { color: #b3541e; }
+  .ficha .relacion { font-size: .78rem; color: #6b7280; margin: .15rem 0 .5rem; }
+  .ficha .evidencia { font-size: .8rem; background: #f6f5f2; border-left: 3px solid var(--ricora-accent); padding: .4rem .7rem; border-radius: 0 8px 8px 0; cursor: pointer; margin: .3rem 0 .6rem; }
+  .ficha .evidencia .badge { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: .4rem; }
+  .ficha .badge.ok { background: #e3f9e5; color: #1b4d2e; } .ficha .badge.no { background: #fde8e8; color: #7a1f1f; }
+  .ficha .aviso { font-size: .78rem; background: #fff6e6; border: 1px solid #e0b566; border-radius: 8px; padding: .4rem .7rem; margin-bottom: .5rem; }
+  .ficha .aviso.reutilizar { background: #eaf1fb; border-color: #9fb8d8; }
+  .ficha label { font-size: .76rem; margin-bottom: .15rem; }
+  .ficha input, .ficha select, .ficha textarea { margin-bottom: .5rem; font-size: .84rem; padding: .4rem .6rem; height: auto; }
+  .ficha .botones { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .ficha .botones button { margin: 0; padding: .4rem .8rem; font-size: .8rem; width: auto; }
+  .ficha .botones .aceptar { background: #1b7a3d; border-color: #1b7a3d; }
+  .ficha .botones .vincular { background: #1f3a5f; border-color: #1f3a5f; }
+  .ficha .botones .rechazar { background: #b3221e; border-color: #b3221e; }
+  .decididas { margin-top: 1.2rem; }
+  .decididas summary { cursor: pointer; font-size: .85rem; color: #52606d; }
+  .decididas li { font-size: .8rem; margin: .3rem 0; }
+  .estado-p { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+  .estado-p.aceptada, .estado-p.modificada { background: #e3f9e5; color: #1b4d2e; }
+  .estado-p.rechazada { background: #eceae4; color: #52606d; }
+  .siguiente { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
+  .siguiente a[role=button], .siguiente button { width: auto; margin: 0; }
+  .rechazo-banner { background: #fde8e8; border: 1px solid #f1b7b0; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .rechazo-banner form { margin: 0; } .rechazo-banner button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
+  .forma-doc { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; font-size: .84rem; }
+  .forma-doc form { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; margin: 0; }
+  .forma-doc select, .forma-doc input { margin: 0; font-size: .82rem; padding: .35rem .6rem; height: auto; width: auto; min-width: 180px; }
+  .forma-doc button { margin: 0; width: auto; padding: .4rem .8rem; font-size: .8rem; }
+{% endblock %}
+{% block contenido %}
+{% include "ric/_pasos.html" %}
+<div class="encabezado">
+  <div>
+    <h1>3 · Motor de análisis RiC — {{ record }}</h1>
+    <p>Texto a la izquierda con los fragmentos resaltados; a la derecha, las entidades propuestas agrupadas por clase,
+    cada una como ficha editable. La IA propone, la persona decide: acepte (corrigiendo el nombre si hace falta),
+    vincule a una entrada ya existente en vocabularios, o rechace con su motivo.</p>
+  </div>
+  {% if puede_decidir %}
+  <form method="post" action="{% url 'analisis_generar' record.pk %}" style="margin:0">
+    {% csrf_token %}
+    <button type="submit" style="width:auto; margin:0; padding:.45rem .9rem; font-size:.82rem;">
+      {% if total_propuestas %}✦ Pedir nueva propuesta{% else %}✦ Generar propuesta de entidades{% endif %}
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% if rechazada %}
+<div class="rechazo-banner">
+  <span>↩ Rechazada en revisión: <strong>{{ rechazada_entidad }}</strong> ({{ rechazada.relacion_id }}) — motivo: <em>{{ rechazada.motivo_decision }}</em>.
+  El motor puede generar una nueva propuesta solo para lo que falta.</span>
+  {% if puede_decidir %}
+  <form method="post" action="{% url 'analisis_generar' record.pk %}">{% csrf_token %}<button type="submit">✦ Generar nueva propuesta</button></form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="paneles">
+  <div>
+    {% if instanciacion %}
+    <div class="texto" id="texto">{{ texto_html }}</div>
+    <p style="font-size:.76rem; color:#8a94a3; margin:.5rem 0 0;">
+      Texto de «{{ instanciacion.nombre }}» · <a href="{% url 'ric_archivo' instanciacion.pk %}" target="_blank">ver el documento original ↗</a>
+    </p>
+    {% else %}
+    <p class="sin-datos">Este documento todavía no tiene un archivo con texto extraído. <a href="{% url 'ingesta' %}?record={{ record.pk }}">Cargar uno →</a></p>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="chips">
+      {% for slug, nombre in clases %}<span class="chip-clase" data-clase="{{ slug }}">{{ nombre }}</span>{% endfor %}
+    </div>
+
+    {% if clases_faltantes %}
+    <div class="ficha" style="border-color:#f1b7b0; background:#fff7f6;">
+      <strong style="font-size:.85rem">⚠ Descripción incompleta (CC-02)</strong>
+      <p style="margin:.3rem 0 0; font-size:.8rem;">Toda descripción necesita al menos una forma documental, un agente y una fecha. Falta: <strong>{{ clases_faltantes|join:", " }}</strong>. El documento no avanza en silencio: queda señalado aquí y en el panel de indicadores.</p>
+    </div>
+    {% endif %}
+    {% if advertencias %}
+    <div class="ficha" style="border-color:#e0b566; background:#fffaf2;">
+      <strong style="font-size:.85rem">⚠ Advertencias del motor de análisis</strong>
+      <ul style="margin:.3rem 0 0; font-size:.8rem;">{% for a in advertencias %}<li>{{ a }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    <div class="forma-doc">
+      <strong>Forma documental</strong> (RiC-A17): {% if record.forma_documental %}<em>{{ record.forma_documental }}</em>{% elif record.tipo_forma_documental %}<em>{{ record.tipo_forma_documental }}</em> (sin controlar){% else %}<em>sin asignar</em>{% endif %}
+      {% if forma_sugerida and not record.forma_documental %}
+      <div style="font-size:.8rem; color:#52606d; margin-top:.3rem;">✦ El motor sugiere <strong>{{ forma_sugerida.nombre_tipo }}</strong> (confianza {{ forma_sugerida.confianza|floatformat:2 }}){% if forma_sugerida.fragmento_fuente %} — “{{ forma_sugerida.fragmento_fuente|truncatechars:120 }}”{% endif %}</div>
+      {% endif %}
+      {% if puede_decidir %}
+      <form method="post" action="{% url 'analisis_forma' record.pk %}" style="margin-top:.4rem">
+        {% csrf_token %}
+        <select name="forma_id"><option value="">— elegir del vocabulario —</option>{% for f in formas %}<option value="{{ f.pk }}" {% if record.forma_documental_id == f.pk %}selected{% endif %}>{{ f.nombre }}</option>{% endfor %}</select>
+        <input type="text" name="forma_nombre" placeholder="o escribir una nueva (oficio, acta...)" {% if forma_sugerida and not record.forma_documental and forma_sugerida.nombre_tipo != "tipo no identificado" %}value="{{ forma_sugerida.nombre_tipo }}"{% endif %}>
+        <button type="submit">Guardar</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if not grupos %}
+      {% if total_propuestas %}
+      <p class="sin-datos">No quedan entidades pendientes de decisión en este documento. {{ relaciones_validadas }} relación(es) ya confirmadas.</p>
+      {% else %}
+      <p class="sin-datos">El motor de análisis todavía no ha propuesto entidades para este documento.</p>
+      {% endif %}
+    {% endif %}
+
+    {% for g in grupos %}
+    <div class="grupo" data-clase="{{ g.slug }}">
+      <h3>{{ g.nombre }} <small>({{ g.fichas|length }})</small></h3>
+      {% for f in g.fichas %}{% with p=f.propuesta %}
+      <article class="ficha" id="ficha-{{ p.pk }}" data-propuesta="{{ p.pk }}">
+        <header>
+          <h4>{{ p.entidad_nombre }}</h4>
+          <span class="confianza {% if f.baja_confianza %}baja{% else %}alta{% endif %}" title="confianza del motor (umbral CC-04: {{ umbral_confianza }})">{{ p.confianza|floatformat:2 }}{% if f.baja_confianza %} · baja confianza{% endif %}</span>
+        </header>
+        <div class="relacion">
+          {{ f.modelo_nombre|capfirst }} ({{ p.entidad_tipo }}) · relación <strong>{{ p.relacion_id }}{% if f.info_relacion %} {{ f.info_relacion.nombre }}{% endif %}</strong>
+          · {{ p.proveedor }} {{ p.version_modelo }}
+          {% if f.extra_legible %}<br>{{ f.extra_legible }}{% endif %}
+        </div>
+        {% if p.evidencia %}
+        <div class="evidencia" data-ev="{{ p.pk }}" title="Ver el fragmento en el texto">
+          “{{ p.evidencia.fragmento|truncatechars:220 }}”
+          {% if p.evidencia.pagina %}<small>· p.{{ p.evidencia.pagina }}</small>{% endif %}
+          <span class="badge {% if p.evidencia.verificada %}ok{% else %}no{% endif %}">{% if p.evidencia.verificada %}✓ en el texto{% else %}⚠ no encontrada{% endif %}</span>
+        </div>
+        {% endif %}
+        {% if p.justificacion %}<p style="font-size:.78rem; color:#6b7280; margin:0 0 .5rem;"><em>{{ p.justificacion }}</em></p>{% endif %}
+
+        {% if f.extra.conflicto_temporal %}
+        <div class="aviso" style="background:#fde8e8; border-color:#f1b7b0;">⚠ Conflicto temporal (CC-07): {{ f.extra.conflicto_temporal }} Revise la fecha antes de aceptarla.</div>
+        {% endif %}
+        {% if f.existente_exacta %}
+        <div class="aviso reutilizar">♻ Ya existe en vocabularios y autoridades: <strong>{{ f.existente_exacta }}</strong>. Use «Vincular» para reutilizarla en vez de crear un duplicado.</div>
+        {% elif f.posibles_duplicados %}
+        <div class="aviso">🔎 Se parece a {% for d in f.posibles_duplicados %}<strong>{{ d.nombre }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %} — revise si es la misma antes de aceptar (marcadas con ⚠ abajo).</div>
+        {% endif %}
+
+        {% if puede_decidir %}
+        <form method="post" action="{% url 'analisis_decidir' p.pk %}">
+          {% csrf_token %}
+          <label for="nombre_{{ p.pk }}">Nombre con el que se guarda (corríjalo si quedó mal extraído)</label>
+          <input type="text" id="nombre_{{ p.pk }}" name="entidad_nombre_final" value="{{ p.entidad_nombre }}">
+          {% if f.candidatas %}
+          <select name="entidad_existente" aria-label="Vincular a una entidad existente">
+            <option value="">— vincular a una entrada ya existente —</option>
+            {% for c in f.candidatas %}<option value="{{ c.pk }}" {% if f.existente_exacta and c.pk == f.existente_exacta.pk %}selected{% endif %}>{% if c.pk in f.duplicado_pks %}⚠ {% endif %}{{ c.nombre }}</option>{% endfor %}
+          </select>
+          {% endif %}
+          <textarea name="motivo" rows="1" placeholder="Motivo (obligatorio solo para rechazar)"></textarea>
+          <div class="botones">
+            <button type="submit" name="accion" value="aceptar" class="aceptar">✓ Aceptar</button>
+            {% if f.candidatas %}<button type="submit" name="accion" value="vincular" class="vincular">⇄ Vincular</button>{% endif %}
+            <button type="submit" name="accion" value="rechazar" class="rechazar">✗ Rechazar</button>
+          </div>
+        </form>
+        {% else %}
+        <p style="font-size:.78rem; color:#8a6100; margin:0;">Solo una cuenta archivista puede decidir esta ficha.</p>
+        {% endif %}
+      </article>
+      {% endwith %}{% endfor %}
+    </div>
+    {% endfor %}
+
+    {% if decididas %}
+    <details class="decididas">
+      <summary>Ya decididas en este documento ({{ decididas|length }})</summary>
+      <ul>
+        {% for p in decididas %}
+        <li><span class="estado-p {{ p.estado }}">{{ p.get_estado_display }}</span> {{ p.entidad_nombre }} · {{ p.relacion_id }}
+          {% if p.validado_por %}· {{ p.validado_por.get_username }} {{ p.fecha_validacion|date:"d/m/Y H:i" }}{% endif %}
+          {% if p.motivo_decision %}· <em>{{ p.motivo_decision }}</em>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+
+    <div class="siguiente">
+      <a role="button" href="{% url 'analisis_grafo' record.pk %}">Continuar a relaciones →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var marcas = document.querySelectorAll("mark.ev");
+  function destacar(pk) {
+    marcas.forEach(function (m) { m.classList.toggle("destacada", m.dataset.propuesta === String(pk)); });
+    var m = document.getElementById("ev-" + pk);
+    if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
+    var ficha = document.getElementById("ficha-" + pk);
+    if (ficha) ficha.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  document.querySelectorAll(".evidencia[data-ev]").forEach(function (el) {
+    el.addEventListener("click", function () { destacar(el.dataset.ev); });
+  });
+  marcas.forEach(function (m) { m.addEventListener("click", function () { destacar(m.dataset.propuesta); }); });
+  document.querySelectorAll(".chip-clase").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var activa = chip.classList.toggle("activa");
+      document.querySelectorAll(".chip-clase").forEach(function (c) { if (c !== chip) c.classList.remove("activa"); });
+      marcas.forEach(function (m) { m.classList.toggle("apagada", activa && !m.classList.contains("clase-" + chip.dataset.clase)); m.classList.remove("destacada"); });
+      var primera = document.querySelector("mark.ev.clase-" + chip.dataset.clase);
+      if (activa && primera) primera.scrollIntoView({ behavior: "smooth", block: "center" });
+      var grupo = document.querySelector(".grupo[data-clase='" + chip.dataset.clase + "']");
+      if (activa && grupo) grupo.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+})();
+</script>
+{% endblock %}

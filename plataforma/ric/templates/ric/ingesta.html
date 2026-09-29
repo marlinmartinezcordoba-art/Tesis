@@ -1,0 +1,140 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Ingesta · RICORA{% endblock %}
+{% block estilos_extra %}
+  .zona { border: 2px dashed #c9cdc3; border-radius: 14px; padding: 2rem 1rem; text-align: center; background: #fff; cursor: pointer; transition: border-color .15s, background .15s; }
+  .zona.activa, .zona:hover { border-color: var(--ricora-accent); background: #fffaf2; }
+  .zona strong { display: block; font-size: 1.05rem; margin-bottom: .2rem; }
+  .zona small { color: #6b7280; }
+  .zona input[type=file] { display: none; }
+  .expediente { display: grid; grid-template-columns: 1fr auto 1fr; gap: .8rem; align-items: end; margin-top: 1rem; }
+  @media (max-width: 720px) { .expediente { grid-template-columns: 1fr; } }
+  .expediente .o { text-align: center; color: #8a94a3; font-size: .8rem; padding-bottom: .9rem; }
+  .seleccionados { margin: .8rem 0 0; padding: 0; list-style: none; font-size: .85rem; }
+  .seleccionados li { display: flex; justify-content: space-between; padding: .3rem 0; border-bottom: 1px solid #f0efe9; }
+  .chip { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .chip.ok { background: #e3f9e5; color: #1b4d2e; }
+  .chip.cargando { background: #fff2df; color: #8a6100; }
+  .chip.cola { background: #eaf1fb; color: #1f3a5f; }
+  table.tabla { width: 100%; border-collapse: collapse; font-size: .84rem; background: #fff; border-radius: 12px; overflow: hidden; }
+  table.tabla th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .55rem .6rem; border-bottom: 1px solid #e6e3dc; }
+  table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
+  table.tabla code { font-size: .75rem; }
+  .boton-min { padding: .35rem .7rem; font-size: .78rem; margin: 0; width: auto; }
+  .aviso-reemplazo { background: #fff2df; border: 1px solid #e0b566; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>1 · Ingesta de documentos</h1>
+  <p>Cargue archivos individuales o por lote. Al cargarlos, RICORA calcula la huella digital
+  SHA-256 de cada uno (evidencia de integridad), detecta su formato y tamaño, y registra quién lo
+  cargó y cuándo. Luego, «Enviar a preprocesamiento» extrae el texto (OCR) y lo entrega al motor de
+  análisis.</p>
+</hgroup>
+
+{% if reemplaza %}
+<div class="aviso-reemplazo">📎 Reescaneo pedido para <strong>{{ reemplaza.nombre }}</strong> (expediente
+«{{ reemplaza.record_resource }}»). Cargue aquí el nuevo escaneo; el original queda conservado con su huella digital.</div>
+{% endif %}
+
+{% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
+
+<form method="post" enctype="multipart/form-data" id="form-ingesta">
+  {% csrf_token %}
+  <label class="zona" id="zona" for="id_archivos">
+    <strong>Arrastra archivos o selecciona una carpeta</strong>
+    <small>Formatos aceptados: {{ formatos }} · máximo {{ tamano_maximo }} MB por archivo</small>
+    <input type="file" name="archivos" id="id_archivos" multiple>
+  </label>
+  <ul class="seleccionados" id="seleccionados"></ul>
+
+  <div class="expediente">
+    <div>
+      <label for="id_record_id">Expediente al que pertenece</label>
+      <select name="record_id" id="id_record_id">
+        <option value="">— Elegir uno ya existente —</option>
+        {% for r in registros %}
+        <option value="{{ r.pk }}" {% if record_preseleccionado == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="o">o</div>
+    <div>
+      <label for="id_nombre_nuevo">Nombre de un expediente nuevo</label>
+      <input type="text" name="nombre_nuevo" id="id_nombre_nuevo" placeholder="Ej. Resolución 0442 de 2019">
+    </div>
+  </div>
+  <button type="submit" id="boton-cargar">Cargar</button>
+</form>
+
+{% if cargados or en_cola %}
+<h3 style="margin-top: 1.6rem;">Archivos cargados</h3>
+<form method="post" action="{% url 'preproceso_enviar' %}" id="form-preproceso">
+  {% csrf_token %}
+  <table class="tabla">
+    <thead><tr><th>Archivo</th><th>Expediente</th><th>Formato</th><th>Tamaño</th><th>Huella digital</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for inst in cargados %}
+      <tr>
+        <td>📄 {{ inst.nombre }}</td>
+        <td>{{ inst.record_resource }}</td>
+        <td>{{ inst.formato|upper }}</td>
+        <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
+        <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
+        <td><span class="chip ok">SHA-256 ✓</span></td>
+        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Enviar a preprocesamiento</button></td>
+      </tr>
+      {% endfor %}
+      {% for inst in en_cola %}
+      <tr>
+        <td>📄 {{ inst.nombre }}</td>
+        <td>{{ inst.record_resource }}</td>
+        <td>{{ inst.formato|upper }}</td>
+        <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
+        <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
+        <td><span class="chip ok">SHA-256 ✓</span> <span class="chip cola">en cola</span></td>
+        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Enviar a preprocesamiento</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if total_filas > 1 %}
+  <p style="margin-top: .8rem;">
+    {% for inst in cargados %}<input type="hidden" name="instanciacion" value="{{ inst.pk }}">{% endfor %}
+    {% for inst in en_cola %}<input type="hidden" name="instanciacion" value="{{ inst.pk }}">{% endfor %}
+    <button type="submit" class="boton-min">Enviar todos a preprocesamiento</button>
+  </p>
+  {% endif %}
+</form>
+{% endif %}
+
+<script>
+(function () {
+  var zona = document.getElementById("zona");
+  var input = document.getElementById("id_archivos");
+  var lista = document.getElementById("seleccionados");
+  var form = document.getElementById("form-ingesta");
+  function pintar(estado) {
+    lista.innerHTML = "";
+    Array.prototype.forEach.call(input.files, function (f) {
+      var li = document.createElement("li");
+      li.innerHTML = "<span>📄 " + f.name + " · " + (f.size / 1024).toFixed(0) + " KB</span><span class='chip " + estado + "'>" + (estado === "cargando" ? "cargando" : "listo para cargar") + "</span>";
+      lista.appendChild(li);
+    });
+  }
+  input.addEventListener("change", function () { pintar("cola"); });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.add("activa"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.remove("activa"); });
+  });
+  zona.addEventListener("drop", function (e) {
+    if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; pintar("cola"); }
+  });
+  form.addEventListener("submit", function () {
+    pintar("cargando");
+    document.getElementById("boton-cargar").disabled = true;
+  });
+})();
+</script>
+{% endblock %}

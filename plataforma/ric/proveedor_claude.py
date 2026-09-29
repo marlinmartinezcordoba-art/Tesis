@@ -24,18 +24,9 @@ from pathlib import Path
 import anthropic
 from django.conf import settings
 
-from . import aprendizaje
-from .ia_prompt import (
-    CONFIANZA,
-    EJEMPLOS,
-    INSTRUCCIONES,
-    INSTRUCCIONES_VISUAL,
-    PropuestasRecordRiC,
-    relaciones_aplicables,
-    tabla_relaciones,
-)
+from .ia_prompt import PropuestasRecordRiC, candidatos_desde_respuesta, construir_instrucciones
 from .proveedores import ErrorProveedorIA as _ErrorBase
-from .proveedores import PropuestaCandidata, ProveedorIA
+from .proveedores import ProveedorIA
 
 # F05 (IA multimodal): formatos con representación visual que Claude puede
 # leer directamente, para notar firmas, sellos o tablas que el OCR de F02
@@ -85,18 +76,11 @@ class ProveedorClaude(ProveedorIA):
         return self._cliente
 
     def proponer(self, record, texto, instanciacion=None):
-        aplicables = relaciones_aplicables(type(record))
-        if not aplicables:
-            return []
-        instrucciones = INSTRUCCIONES.format(tabla_relaciones=tabla_relaciones(aplicables))
-
+        self.advertencias, self.forma_documental = [], None
         contenido_visual = _contenido_visual(instanciacion)
-        if contenido_visual:
-            instrucciones += INSTRUCCIONES_VISUAL
-
-        ejemplos = aprendizaje.ejemplos_similares(texto, origen_modelo=type(record))
-        if ejemplos:
-            instrucciones += EJEMPLOS.format(lista=aprendizaje.formatear_ejemplos(ejemplos))
+        instrucciones = construir_instrucciones(record, texto, con_visual=bool(contenido_visual))
+        if instrucciones is None:
+            return []
 
         contenido = [*contenido_visual, {"type": "text", "text": f"<documento>\n{texto}\n</documento>"}]
 
@@ -125,14 +109,5 @@ class ProveedorClaude(ProveedorIA):
             raise ErrorProveedorIA("La respuesta del servicio de IA llegó incompleta.")
 
         self.version = respuesta.model
-        return [
-            PropuestaCandidata(
-                relacion_id=r.relacion_id,
-                entidad_tipo=r.entidad_tipo,
-                entidad_nombre=r.entidad_nombre,
-                evidencia=r.evidencia,
-                confianza=CONFIANZA[r.confianza],
-                justificacion=r.justificacion,
-            )
-            for r in respuesta.parsed_output.relaciones
-        ]
+        candidatos, self.forma_documental, self.advertencias = candidatos_desde_respuesta(respuesta.parsed_output)
+        return candidatos

@@ -6,96 +6,133 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block titulo %}RICORA{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'ric/css/pico.min.css' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
+  /* Paleta y tipografía del frontend de referencia (misma familia que el
+     documento de especificación: fondo cálido tipo papel, barra lateral en
+     tinta profunda, un color por módulo). */
   :root {
-    --ricora-dark: #16202c;
-    --ricora-dark-2: #202f42;
-    --ricora-accent: #c08a3e;
-    --ricora-accent-2: #e0b566;
-    --ricora-bg: #f6f5f2;
-    --ricora-critical: #c0392b;
+    --bg: #f6f4ee; --surface: #ffffff; --surface-alt: #efebe0;
+    --border: #e2dbc9; --border-fuerte: #cdc2a4;
+    --ink: #1d241f; --ink-suave: #5c655d; --ink-tenue: #8a9088;
+    --sidebar-bg: #142520; --sidebar-ink: #eef1ea; --sidebar-ink-suave: #9db2a4; --sidebar-activo: #1e3a30;
+    --accent: #b5602c; --accent-ink: #ffffff; --ok: #2f7a56; --alerta: #c2891b; --peligro: #b3402f;
+    --fuente-titulo: "Fraunces", Georgia, serif;
+    --fuente-cuerpo: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --fuente-mono: "IBM Plex Mono", ui-monospace, monospace;
+    --radio: 10px; --radio-chico: 6px;
+    --sombra: 0 1px 2px rgba(20,30,24,.06), 0 4px 14px rgba(20,30,24,.06);
+    /* alias del tema anterior, para las pantallas que aún los usan */
+    --ricora-dark: #142520; --ricora-dark-2: #1e3a30; --ricora-accent: #b5602c; --ricora-accent-2: #d98a52;
+    --ricora-bg: #f6f4ee; --ricora-critical: #b3402f;
+    --pico-primary: #b5602c; --pico-primary-background: #b5602c; --pico-primary-border: #b5602c;
+    --pico-primary-hover: #9c4f22; --pico-primary-hover-background: #9c4f22; --pico-primary-hover-border: #9c4f22;
+    --pico-primary-focus: rgba(181,96,44,.25); --pico-primary-inverse: #fff;
+    --pico-font-family: var(--fuente-cuerpo); --pico-border-radius: 8px;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ricora-bg); color: #1f2933; font-family: system-ui, sans-serif; display: flex; min-height: 100vh; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--fuente-cuerpo); font-size: 14.5px; line-height: 1.5; display: flex; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, h4 { font-family: var(--fuente-titulo); font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+  hgroup h1 { font-size: 1.55rem; margin-bottom: .2rem; }
+  hgroup p { color: var(--ink-suave); font-size: .9rem; }
+  code, .mono { font-family: var(--fuente-mono); }
+  a { color: var(--accent); }
 
   .ricora-sidebar {
-    width: 240px; flex-shrink: 0; background: var(--ricora-dark); color: #cfd8e3;
-    padding: 1.25rem 1rem; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    width: 252px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--sidebar-ink);
+    padding: 1.1rem .9rem; position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
-  .ricora-brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-decoration: none; display: block; margin-bottom: 1.75rem; }
-  .ricora-brand span { color: var(--ricora-accent-2); }
-  .ricora-brand small { display: block; font-weight: 400; font-size: .68rem; color: #8593a6; margin-top: 2px; }
-  .ricora-sidebar nav { display: flex; flex-direction: column; gap: .15rem; }
+  .ricora-brand { display: flex; align-items: center; gap: .6rem; color: var(--sidebar-ink); text-decoration: none; margin: 0 .3rem .9rem; }
+  .ricora-brand .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .ricora-brand strong { font-family: var(--fuente-titulo); font-size: 1.05rem; display: block; line-height: 1.1; }
+  .ricora-brand strong span { color: #d98a52; }
+  .ricora-brand small { display: block; color: var(--sidebar-ink-suave); font-size: .66rem; line-height: 1.3; }
+  .ricora-sidebar nav { display: flex; flex-direction: column; gap: .05rem; }
+  .ricora-sidebar nav .capa { font-size: .58rem; text-transform: uppercase; letter-spacing: .08em; color: var(--sidebar-ink-suave); margin: .55rem .6rem .1rem; }
   .ricora-sidebar nav a {
-    color: #cfd8e3; text-decoration: none; padding: .55rem .7rem; border-radius: 8px;
-    font-size: .9rem; display: flex; align-items: center; gap: .55rem;
+    color: var(--sidebar-ink-suave); text-decoration: none; padding: .34rem .6rem; border-radius: var(--radio-chico);
+    font-size: .8rem; line-height: 1.25; display: flex; align-items: center; gap: .5rem; transition: background .12s, color .12s;
   }
-  .ricora-sidebar nav a:hover { background: rgba(255,255,255,.06); }
-  .ricora-sidebar nav a.activo { background: var(--ricora-accent); color: #1a1204; font-weight: 600; }
-  .ricora-sidebar nav a.separador { margin-top: .6rem; padding-top: .6rem; border-top: 1px solid rgba(255,255,255,.12); }
+  .ricora-sidebar nav a .icono { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+  .ricora-sidebar nav a .num { font-family: var(--fuente-mono); font-size: .62rem; opacity: .7; margin-left: auto; }
+  .ricora-sidebar nav a:hover { background: rgba(255,255,255,.05); color: var(--sidebar-ink); }
+  .ricora-sidebar nav a.activo { background: var(--sidebar-activo); color: var(--sidebar-ink); font-weight: 500; }
+  .ricora-sidebar nav a.separador { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid rgba(255,255,255,.12); border-radius: 0; }
 
   .ricora-shell { flex: 1; min-width: 0; }
   .ricora-topbar {
-    display: flex; justify-content: flex-end; align-items: center; gap: .75rem;
-    padding: .9rem 1.75rem; border-bottom: 1px solid #e6e3dc; background: #fff;
+    display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+    padding: .8rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface);
   }
-  .ricora-topbar .usuario { font-size: .85rem; color: #52606d; }
-  .ricora-topbar .usuario strong { color: #1f2933; }
-  .ricora-topbar a { font-size: .82rem; }
-  .salir-form { display: inline; margin: 0; }
-  .salir-boton {
-    background: none; border: none; padding: 0; margin: 0; cursor: pointer;
-    font: inherit; font-size: .82rem; color: #1f3a5f; text-decoration: underline;
-  }
+  .topbar-modulo { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+  .topbar-modulo .icono { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-family: var(--fuente-mono); font-size: .7rem; font-weight: 600; flex-shrink: 0; }
+  .topbar-modulo strong { font-family: var(--fuente-titulo); font-size: .98rem; display: block; line-height: 1.15; }
+  .topbar-modulo small { color: var(--ink-suave); font-size: .76rem; }
+  .ricora-topbar .usuario { font-size: .82rem; color: var(--ink-suave); white-space: nowrap; }
+  .ricora-topbar .usuario strong { color: var(--ink); }
+  .ricora-topbar .rol { font-size: .64rem; font-weight: 600; text-transform: uppercase; background: var(--surface-alt); color: var(--ink-suave); border-radius: 999px; padding: 2px 8px; border: 1px solid var(--border); }
+  .salir-form { display: inline; margin: 0 0 0 .4rem; }
+  .salir-boton { background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit; font-size: .8rem; color: var(--accent); text-decoration: underline; }
 
-  .ricora-main { padding: 1.75rem; max-width: 1180px; }
+  .ricora-main { padding: 1.6rem 1.75rem 3rem; max-width: 1180px; }
   .ricora-main--ancho { max-width: none; padding: 0; }
 
-  .mensaje { padding: .75rem 1rem; border-radius: 8px; margin-bottom: .75rem; }
-  .mensaje.success { background: #e3f9e5; color: #1b4d2e; }
-  .mensaje.error { background: #fde8e8; color: #7a1f1f; }
-  .mensaje.info, .mensaje.warning { background: #eaf1fb; color: #1f3a5f; }
-  .sin-datos { color: #8a6100; font-style: italic; }
+  .mensaje { padding: .7rem 1rem; border-radius: var(--radio-chico); margin-bottom: .7rem; border: 1px solid transparent; font-size: .9rem; }
+  .mensaje.success { background: #e6f4ec; color: #1e6b46; border-color: #bfe3cd; }
+  .mensaje.error { background: #f6e8e6; color: #93392a; border-color: #e7c3bd; }
+  .mensaje.info { background: #eaf1fb; color: #1f3a5f; border-color: #cddcf0; }
+  .mensaje.warning { background: #fef3e2; color: #92620f; border-color: #f3dcae; }
+  .sin-datos { color: #92620f; font-style: italic; }
+
+  table { font-size: .86rem; }
+  input, select, textarea { font-size: .9rem; }
 
   @media (max-width: 860px) {
     body { flex-direction: column; }
     .ricora-sidebar { width: 100%; height: auto; position: static; }
     .ricora-sidebar nav { flex-direction: row; flex-wrap: wrap; }
+    .ricora-sidebar nav .capa { display: none; }
   }
   {% block estilos_extra %}{% endblock %}
 </style>
 {% block scripts_head %}{% endblock %}
 </head>
-<body hx-boost="true">
+<body>
 <aside class="ricora-sidebar">
-  <a href="{% url 'ric_inicio' %}" class="ricora-brand">RIC<span>ORA</span><small>Automatización archivística asistida por IA</small></a>
+  <a href="{% url 'panel' %}" class="ricora-brand"><span class="punto"></span><span><strong>RIC<span>ORA</span></strong><small>Ingesta y descripción documental · RiC-CM 1.0 / RiC-O 1.1</small></span></a>
   <nav>
-    <a href="{% url 'ric_inicio' %}" class="{% if request.resolver_match.url_name == 'ric_inicio' %}activo{% endif %}">🏠 Inicio</a>
+    {% for clave, nombre_capa in capas %}
+      {% if clave == "entrada" and puede_ingestar or clave == "procesamiento" or clave == "validacion" and puede_revisar or clave == "consulta" or clave == "transversal" and puede_administrar %}
+      <div class="capa">{{ nombre_capa }}</div>
+      {% for m in modulos %}{% if m.capa == clave %}
+        {% if m.numero == 3 or m.numero == 4 or m.numero == 6 or m.numero == 7 %}{% if not puede_revisar %}{% else %}
+        <a href="{% url m.url %}{% if m.numero == 4 %}?paso=4{% endif %}" class="{% if modulo_numero == m.numero %}activo{% endif %}"><span class="icono" style="background:{{ m.color }}"></span>{{ m.nombre }}<span class="num">{{ m.numero|stringformat:"02d" }}</span></a>
+        {% endif %}{% else %}
+        <a href="{% url m.url %}" class="{% if modulo_numero == m.numero %}activo{% endif %}"><span class="icono" style="background:{{ m.color }}"></span>{{ m.nombre }}<span class="num">{{ m.numero|stringformat:"02d" }}</span></a>
+        {% endif %}
+      {% endif %}{% endfor %}
+      {% endif %}
+    {% endfor %}
     {% if request.user.is_staff %}
-    <a href="{% url 'ric_subir' %}" class="{% if request.resolver_match.url_name == 'ric_subir' %}activo{% endif %}">⬆️ Subir documento</a>
-    <a href="{% url 'ric_bandeja' %}" class="{% if request.resolver_match.url_name == 'ric_bandeja' %}activo{% endif %}">📋 Bandeja de validación</a>
-    <a href="{% url 'ric_duplicados' %}" class="{% if request.resolver_match.url_name == 'ric_duplicados' %}activo{% endif %}">🔎 Posibles duplicados</a>
-    {% endif %}
-    <a href="{% url 'ric_registros' %}" class="{% if request.resolver_match.url_name == 'ric_registros' %}activo{% endif %}">📁 Registros</a>
-    <a href="{% url 'ric_entidades' %}" class="{% if request.resolver_match.url_name == 'ric_entidades' %}activo{% endif %}">◉ Entidades RiC</a>
-    <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>
-    <a href="{% url 'ric_sparql' %}" class="{% if request.resolver_match.url_name == 'ric_sparql' %}activo{% endif %}">🕸️ SPARQL</a>
-    <a href="{% url 'ric_evaluacion' %}" class="{% if request.resolver_match.url_name == 'ric_evaluacion' %}activo{% endif %}">📊 Evaluación</a>
-    {% if request.user.is_superuser %}
-    <a href="{% url 'ric_usuarios' %}" class="{% if request.resolver_match.url_name == 'ric_usuarios' %}activo{% endif %}">👤 Usuarios</a>
-    {% endif %}
-    {% if request.user.is_staff %}
-    <a href="/admin/" class="separador">⚙️ Panel técnico</a>
+    <a href="/admin/" class="separador"><span class="icono" style="background:#8a9088"></span>Panel técnico</a>
     {% endif %}
   </nav>
 </aside>
 <div class="ricora-shell">
   <div class="ricora-topbar">
-    <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong></span>
-    <form method="post" action="{% url 'ric_logout' %}" class="salir-form">
-      {% csrf_token %}
-      <button type="submit" class="salir-boton">Salir</button>
-    </form>
+    <div class="topbar-modulo">
+      {% if modulo_actual %}
+      <span class="icono" style="background:{{ modulo_actual.color }}">{{ modulo_actual.numero|stringformat:"02d" }}</span>
+      <span><strong>{{ modulo_actual.nombre }}</strong><small>{{ modulo_actual.descripcion }}</small></span>
+      {% else %}
+      <span class="icono" style="background:#8a9088">·</span><span><strong>RICORA</strong></span>
+      {% endif %}
+    </div>
+    <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong> <span class="rol">{{ rol_etiqueta }}</span>
+      <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Salir</button></form>
+    </span>
   </div>
   <main class="{% block main_class %}ricora-main{% endblock %}">
     {% if messages %}

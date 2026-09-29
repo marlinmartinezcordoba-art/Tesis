@@ -1,0 +1,11 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Motor de análisis · RICORA{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>3 · Motor de análisis RiC</h1>
+  <p>Documentos y el paso del flujo en que se encuentra cada uno. Abra un documento para ver el texto
+  con los fragmentos resaltados y las entidades propuestas agrupadas por clase (Agente, Actividad, Fecha,
+  Lugar, Forma documental, Mandato), cada una como ficha editable antes del modelado de relaciones.</p>
+</hgroup>
+{% include "ric/_lista_documentos.html" %}
+{% endblock %}

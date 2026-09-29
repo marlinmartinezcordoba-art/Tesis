@@ -1,0 +1,36 @@
+{# Tabla de documentos con su paso en el flujo; se incluye con `filas` (ver ric.flujo.documentos_con_estado). #}
+<style>
+  table.docs { width: 100%; border-collapse: collapse; font-size: .85rem; background: #fff; border-radius: 12px; overflow: hidden; }
+  table.docs th { text-align: left; color: #8a94a3; font-size: .7rem; text-transform: uppercase; padding: .55rem .6rem; border-bottom: 1px solid #e6e3dc; }
+  table.docs td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
+  .estado-doc { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .estado-doc.sin_texto { background: #eceae4; color: #52606d; }
+  .estado-doc.sin_analizar { background: #eaf1fb; color: #1f3a5f; }
+  .estado-doc.en_analisis { background: #fff2df; color: #8a6100; }
+  .estado-doc.en_revision { background: #f1e6ff; color: #4b2a8a; }
+  .estado-doc.publicado { background: #e3f9e5; color: #1b4d2e; }
+  table.docs td.acciones a { font-size: .8rem; margin-right: .5rem; white-space: nowrap; }
+</style>
+{% if not filas %}
+<p class="sin-datos">Todavía no hay documentos. {% if puede_ingestar %}<a href="{% url 'ingesta' %}">Cargar el primero →</a>{% endif %}</p>
+{% else %}
+<table class="docs">
+  <thead><tr><th>Documento</th><th>Cargado</th><th>Paso actual</th><th>Ir a</th></tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr>
+      <td>{{ f.record }}</td>
+      <td>{{ f.record.fecha_registro|date:"d/m/Y" }}</td>
+      <td><span class="estado-doc {{ f.estado }}">{{ f.etiqueta }}</span></td>
+      <td class="acciones">
+        <a href="{% url 'analisis' f.record.pk %}">3 Análisis</a>
+        <a href="{% url 'analisis_grafo' f.record.pk %}">4 Relaciones</a>
+        <a href="{% url 'revision' f.record.pk %}">6 Revisión</a>
+        <a href="{% url 'historial' f.record.pk %}">7 Historial</a>
+        {% if f.estado == "publicado" %}<a href="{% url 'catalogo_ficha' 'record' f.record.pk %}">8 Catálogo</a>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

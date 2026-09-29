@@ -9,12 +9,15 @@ from .auditoria import MuestraRiC
 from .models import (
     Activity,
     ComponenteEstructural,
+    ConfiguracionSistema,
     CorporateBody,
     Date,
     Evidencia,
     Event,
     EventoRiC,
+    Exportacion,
     Family,
+    FormaDocumental,
     Group,
     Instantiation,
     Mandate,
@@ -25,6 +28,7 @@ from .models import (
     Position,
     PropuestaRiC,
     PropuestaSegmentacion,
+    ProveedorIAConfig,
     Record,
     RecordPart,
     RecordSet,
@@ -32,6 +36,23 @@ from .models import (
     Rule,
     VersionRiC,
 )
+
+admin.site.register(FormaDocumental)
+admin.site.register(ConfiguracionSistema)
+
+
+@admin.register(Exportacion)
+class ExportacionAdmin(admin.ModelAdmin):
+    list_display = ("fecha", "usuario", "formato", "total_registros")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(ProveedorIAConfig)
+class ProveedorIAConfigAdmin(admin.ModelAdmin):
+    list_display = ("proveedor", "modelo", "activo", "prueba_exitosa", "ultima_prueba")
+    exclude = ("clave_api",)
 
 class VerGrafoAdminMixin:
     """T052: un enlace directo, desde cualquier admin de entidad, al grafo
@@ -149,14 +170,13 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
         messages.info(
             request,
             format_html(
-                'Para ingerir documentos (F01): "Añadir registro (Record)" y suba los archivos '
-                'en "Instanciaciones" dentro del mismo formulario — el hash, el OCR (F02) y la '
-                'estructura (F03) se calculan solos. '
-                'Buscar en el texto extraído y en los nombres de entidades: <a href="{}">búsqueda</a>. '
+                'Para cargar documentos use la pantalla <a href="{}">Ingesta</a> (M1): el hash, el OCR '
+                'y la estructura se calculan solos. '
+                'Catálogo y consulta: <a href="{}">catálogo</a>. '
                 'Consultar el grafo validado con SPARQL: <a href="{}">consola SPARQL</a>. '
                 'Métricas del sistema: <a href="{}">laboratorio de evaluación</a>. '
-                '<a href="{}">← Volver al panel de inicio</a>.',
-                reverse("ric_busqueda"), reverse("ric_sparql"), reverse("ric_evaluacion"), reverse("ric_inicio"),
+                '<a href="{}">← Volver al panel de indicadores</a>.',
+                reverse("ingesta"), reverse("catalogo"), reverse("ric_sparql"), reverse("ric_evaluacion"), reverse("panel"),
             ),
         )
         return super().changelist_view(request, extra_context)
@@ -303,9 +323,9 @@ class PropuestaRiCAdmin(admin.ModelAdmin):
         messages.info(
             request,
             format_html(
-                'Para validar viendo a la vez el documento, la evidencia y la propuesta: '
-                '<a href="{}">bandeja de validación</a>.',
-                reverse("ric_bandeja"),
+                'Para decidir cada propuesta viendo a la vez el texto, la evidencia y la ficha: '
+                '<a href="{}">motor de análisis (M3)</a>.',
+                reverse("analisis_lista"),
             ),
         )
         return super().changelist_view(request, extra_context)

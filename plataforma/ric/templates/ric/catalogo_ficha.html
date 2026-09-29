@@ -1,0 +1,92 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}{{ entidad }} · Catálogo · RICORA{% endblock %}
+{% block estilos_extra %}
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }
+  .tarjeta dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .86rem; }
+  .tarjeta dt { color: #6b7280; } .tarjeta dd { margin: 0; }
+  .tarjeta li { font-size: .86rem; margin: .35rem 0; }
+  .badge { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: #fff2df; color: #8a6100; margin-right: .3rem; }
+  .acciones { display: flex; gap: .6rem; flex-wrap: wrap; margin: .6rem 0 1rem; }
+  .acciones a[role=button] { width: auto; margin: 0; padding: .45rem .9rem; font-size: .82rem; }
+  .acciones a.secundario { background: #fff; color: var(--ricora-dark); border-color: #cbd2d9; }
+  .inst { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; align-items: center; font-size: .84rem; padding: .4rem 0; border-bottom: 1px solid #f0efe9; }
+  .inst select { margin: 0; font-size: .8rem; padding: .3rem .5rem; height: auto; width: auto; }
+{% endblock %}
+{% block contenido %}
+{% if es_documento and puede_revisar %}{% include "ric/_pasos.html" %}{% endif %}
+<p><a href="{% url 'catalogo' %}">← Catálogo</a></p>
+<hgroup>
+  <h1>{{ entidad }}</h1>
+  <p><span class="badge">{{ tipo_nombre|capfirst }}</span>{% if es_documento %}{% if entidad.publicado %}<span class="badge" style="background:#e3f9e5;color:#1b4d2e">Publicado {{ entidad.fecha_publicacion|date:"d/m/Y" }}</span>{% else %}<span class="badge">No publicado todavía</span>{% endif %}{% endif %}
+  {% if entidad.identificador %} · {{ entidad.identificador }}{% endif %}</p>
+</hgroup>
+
+<div class="acciones">
+  <a role="button" href="{% url 'ric_grafo' tipo entidad.pk %}">Ver en grafo</a>
+  <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF (Turtle)</a>
+  <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}?formato=json-ld">JSON-LD</a>
+  {% if es_documento %}<a role="button" class="secundario" href="{% url 'exportar' %}?doc={{ entidad.pk }}">Exportar este documento</a>{% endif %}
+  {% if not es_documento %}<a role="button" class="secundario" href="{% url 'vocabulario_ficha' tipo entidad.pk %}">Ficha de autoridad</a>{% endif %}
+</div>
+
+<div class="grid">
+  <div>
+    <div class="tarjeta">
+      <h3>Descripción</h3>
+      <dl>
+        <dt>Nombre (RiC-A28)</dt><dd>{{ entidad.nombre }}</dd>
+        {% if entidad.descripcion_general %}<dt>Descripción</dt><dd>{{ entidad.descripcion_general }}</dd>{% endif %}
+        {% if es_documento %}
+          <dt>Forma documental</dt><dd>{{ entidad.forma_documental|default:entidad.tipo_forma_documental|default:"—" }}
+            {% if entidad.forma_documental and entidad.forma_documental.disposicion_final %}<br><small>TRD: gestión {{ entidad.forma_documental.tiempo_retencion_archivo_gestion|default_if_none:"—" }} años · central {{ entidad.forma_documental.tiempo_retencion_archivo_central|default_if_none:"—" }} años · {{ entidad.forma_documental.get_disposicion_final_display }}</small>{% endif %}</dd>
+          <dt>Conjunto (fondo/serie)</dt><dd>{{ entidad.record_set|default:"—" }}</dd>
+          <dt>Idioma</dt><dd>{{ entidad.idioma|default:"—" }}</dd>
+          <dt>Serie TRD</dt><dd>{{ entidad.serie_trd|default:"—" }}</dd>
+        {% endif %}
+        <dt>Registrado</dt><dd>{{ entidad.fecha_registro|date:"d/m/Y H:i" }}{% if entidad.creado_por %} · {{ entidad.creado_por.get_username }}{% endif %}</dd>
+      </dl>
+    </div>
+
+    {% if es_documento %}
+    <div class="tarjeta">
+      <h3>Archivos (instanciaciones)</h3>
+      {% if puede_editar %}<form method="post">{% csrf_token %}{% endif %}
+      {% for i in instanciaciones %}
+      <div class="inst">
+        <span>📄 <a href="{% url 'ric_archivo' i.pk %}" target="_blank">{{ i.nombre }}</a> · {{ i.formato|upper }} · {% if i.tamano_bytes is not None %}{{ i.tamano_bytes|filesizeformat }}{% else %}—{% endif %} · {{ i.paginas.count }} pág. · {{ i.get_tipo_copia_display }}{% if i.instanciacion_origen %} · derivada de «{{ i.instanciacion_origen.nombre }}» (R015){% endif %}<br><code style="font-size:.7rem" title="{{ i.sha256 }}">SHA-256 {{ i.sha256|truncatechars:20 }}</code>
+          {% if puede_editar %}<br><input type="text" name="autenticidad_{{ i.pk }}" value="{{ i.nota_autenticidad }}" placeholder="Nota de autenticidad: firma digital, sello de tiempo..." style="margin:.3rem 0 0; font-size:.78rem; padding:.3rem .5rem; height:auto;">{% elif i.nota_autenticidad %}<br><small>Autenticidad: {{ i.nota_autenticidad }}</small>{% endif %}</span>
+        {% if puede_editar %}
+        <select name="acceso_{{ i.pk }}">{% for v, n in condiciones %}<option value="{{ v }}" {% if i.condicion_acceso == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        {% else %}<span class="badge">{{ i.get_condicion_acceso_display }}</span><span></span>{% endif %}
+      </div>
+      {% empty %}<p class="sin-datos">Sin archivos.</p>{% endfor %}
+      {% if puede_editar and instanciaciones %}<button type="submit" style="width:auto; margin-top:.6rem; padding:.4rem .8rem; font-size:.8rem;">Guardar condición de acceso</button></form>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="tarjeta">
+      <h3>{% if es_documento %}Entidades relacionadas{% else %}Relaciones{% endif %} ({{ relaciones|length }})</h3>
+      {% if relaciones %}
+      <ul>
+        {% for r in relaciones %}
+        <li><span class="badge">{{ r.categoria }}</span>{{ r.direccion }} {{ r.relacion.relacion_id }} {{ r.nombre }} · <a href="{% url 'catalogo_ficha' r.otro_slug r.otro.pk %}">{{ r.otro }}</a>{% if r.relacion.descripcion_relacion %} <small>({{ r.relacion.descripcion_relacion }})</small>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="sin-datos">Sin relaciones validadas todavía.</p>{% endif %}
+    </div>
+
+    {% if not es_documento %}
+    <div class="tarjeta">
+      <h3>Documentos relacionados ({{ documentos|length }})</h3>
+      {% if documentos %}<ul>{% for d in documentos %}<li>📄 <a href="{% url 'catalogo_ficha' 'record' d.pk %}">{{ d }}</a></li>{% endfor %}</ul>
+      {% else %}<p class="sin-datos">Ningún documento publicado apunta a esta entidad.</p>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

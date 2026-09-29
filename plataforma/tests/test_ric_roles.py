@@ -1,118 +1,73 @@
-"""F16 (Seguridad): dos perfiles, pensando en un front de solo consulta
-para usuarios finales (como en un SaaS) — "archivista" (is_staff, el
-mismo de siempre, con panel técnico) e "invitado de consulta" (sesión
-iniciada, sin is_staff): puede buscar, ver el grafo validado, consultar
-SPARQL y exportar, pero no puede ingerir documentos ni validar
-propuestas de IA. Se crea igual que cualquier usuario, desde el panel
-técnico de Django, sin marcar la casilla "Es staff"."""
+"""RF-M11-03: cada acción del sistema restringida según el rol — archivista,
+revisor y consulta — y el menú lateral muestra solo los módulos que la
+persona puede usar."""
 
-import shutil
-import tempfile
-
-from django.contrib.auth.models import User
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from ric.extraccion import extraer_texto_de_instanciacion
-from ric.models import Instantiation, PropuestaRiC, Record
-from ric.proveedores import PropuestaCandidata, ProveedorIA, generar_propuestas
+from ric.models import PropuestaRiC
 
-MEDIA = tempfile.mkdtemp()
-TEXTO = "Acta del Cabildo de Santafé, 20 de julio de 1810."
+from ._ayudas import CasoModulos, candidato
 
 
-class ProveedorFalso(ProveedorIA):
-    nombre, version = "falso", "0"
-
-    def __init__(self, candidatos):
-        self._candidatos = candidatos
-
-    def proponer(self, record, texto, instanciacion=None):
-        return self._candidatos
-
-
-@override_settings(MEDIA_ROOT=MEDIA)
-class InvitadoDeConsultaTest(TestCase):
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(MEDIA, ignore_errors=True)
-
+class RolesTest(CasoModulos):
     def setUp(self):
-        self.archivista = User.objects.create_user("archivista", password="x", is_staff=True)
-        self.consulta = User.objects.create_user("consulta", password="x", is_staff=False)
+        super().setUp()
+        self.record, self.inst = self.documento()
+        [self.propuesta] = self.proponer(self.record, candidato())
 
-        self.record = Record.objects.create(nombre="Acta")
-        inst = Instantiation.objects.create(
-            nombre="Copia", record_resource=self.record,
-            archivo=SimpleUploadedFile("acta.txt", TEXTO.encode()),
-        )
-        extraer_texto_de_instanciacion(inst)
-        candidatos = [PropuestaCandidata(
-            relacion_id="R027", entidad_tipo="E11", entidad_nombre="Cabildo de Santafé",
-            evidencia="Cabildo de Santafé", confianza=0.9,
-        )]
-        [self.propuesta] = generar_propuestas(self.record, ProveedorFalso(candidatos))
+    def _get(self, usuario, nombre, *args):
+        self.client.force_login(usuario)
+        return self.client.get(reverse(nombre, args=args), follow=True)
 
-    def test_invitado_no_puede_ver_el_formulario_de_subir(self):
+    def test_consulta_solo_catalogo_exportacion_panel_y_vocabularios(self):
+        for nombre in ("catalogo", "exportar", "panel", "vocabularios", "ric_sparql", "ric_evaluacion"):
+            self.assertEqual(self._get(self.consulta, nombre).status_code, 200, nombre)
+        for nombre, args in (("ingesta", ()), ("preproceso", ()), ("analisis_lista", ()), ("analisis", (self.record.pk,)),
+                             ("revision_lista", ()), ("historial", (self.record.pk,)), ("admin_usuarios", ())):
+            resp = self._get(self.consulta, nombre, *args)
+            self.assertContains(resp, "Esta acción requiere", msg_prefix=nombre)
+
+    def test_consulta_no_decide_propuestas(self):
         self.client.force_login(self.consulta)
-        resp = self.client.get(reverse("ric_subir"), follow=True)
-        self.assertContains(resp, "solo consulta")
-        self.assertNotContains(resp, "Subir un documento")
-
-    def test_invitado_no_puede_subir_un_archivo(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.post(reverse("ric_subir"), {
-            "nombre_nuevo": "Intento de invitado",
-            "archivos": [SimpleUploadedFile("otro.txt", b"contenido")],
-        }, follow=True)
-        self.assertContains(resp, "solo consulta")
-        self.assertFalse(Record.objects.filter(nombre="Intento de invitado").exists())
-
-    def test_invitado_no_puede_ver_la_bandeja(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.get(reverse("ric_bandeja"), follow=True)
-        self.assertContains(resp, "solo consulta")
-
-    def test_invitado_no_puede_decidir_una_propuesta(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.post(
-            reverse("ric_decidir_propuesta", args=[self.propuesta.pk]),
-            {"accion": "aceptar", "motivo": ""}, follow=True,
-        )
-        self.assertContains(resp, "solo consulta")
+        resp = self.client.post(reverse("analisis_decidir", args=[self.propuesta.pk]), {"accion": "aceptar"}, follow=True)
+        self.assertContains(resp, "requiere el rol archivista")
         self.propuesta.refresh_from_db()
         self.assertEqual(self.propuesta.estado, PropuestaRiC.Estado.PENDIENTE)
 
-    def test_invitado_si_puede_buscar_ver_grafo_sparql_y_evaluacion(self):
-        self.client.force_login(self.consulta)
-        for nombre in ("ric_inicio", "ric_registros", "ric_busqueda", "ric_sparql", "ric_evaluacion"):
-            resp = self.client.get(reverse(nombre))
-            self.assertEqual(resp.status_code, 200, nombre)
+    def test_revisor_revisa_pero_no_ingesta(self):
+        for nombre, args in (("analisis", (self.record.pk,)), ("analisis_grafo", (self.record.pk,)), ("revision", (self.record.pk,)),
+                             ("historial", (self.record.pk,)), ("catalogo", ())):
+            self.assertEqual(self._get(self.revisor, nombre, *args).status_code, 200, nombre)
+        for nombre in ("ingesta", "preproceso"):
+            self.assertContains(self._get(self.revisor, nombre), "requiere el rol archivista")
+        self.assertContains(self._get(self.revisor, "admin_usuarios"), "Esta acción requiere")
 
-    def test_invitado_si_puede_ver_el_archivo_original(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.get(reverse("ric_archivo", args=[self.propuesta.evidencia.instanciacion.pk]))
-        self.assertEqual(resp.status_code, 200)
+    def test_archivista_hace_todo_menos_administrar(self):
+        for nombre in ("ingesta", "preproceso", "analisis_lista", "revision_lista", "historial_lista", "vocabularios", "catalogo", "exportar", "panel"):
+            self.assertEqual(self._get(self.archivista, nombre).status_code, 200, nombre)
+        self.assertContains(self._get(self.archivista, "admin_usuarios"), "Esta acción requiere")
 
-    def test_archivista_sigue_pudiendo_subir_y_validar(self):
-        self.client.force_login(self.archivista)
-        resp = self.client.get(reverse("ric_subir"))
-        self.assertEqual(resp.status_code, 200)
-        resp = self.client.get(reverse("ric_bandeja"))
-        self.assertEqual(resp.status_code, 200)
-
-    def test_menu_lateral_oculta_lo_de_archivista_para_el_invitado(self):
-        self.client.force_login(self.consulta)
-        resp = self.client.get(reverse("ric_inicio"))
-        self.assertNotContains(resp, "Subir documento")
-        self.assertNotContains(resp, "Bandeja de validación")
+    def test_menu_lateral_por_rol(self):
+        resp = self._get(self.consulta, "panel")
+        self.assertNotContains(resp, "Ingesta de documentos")
+        self.assertNotContains(resp, "Revisión archivística")
         self.assertNotContains(resp, "Panel técnico")
+        self.assertContains(resp, "Catálogo y consulta")
+        self.assertContains(resp, "Consulta</span>")
 
-    def test_menu_lateral_muestra_todo_para_el_archivista(self):
-        self.client.force_login(self.archivista)
-        resp = self.client.get(reverse("ric_inicio"))
-        self.assertContains(resp, "Subir documento")
-        self.assertContains(resp, "Bandeja de validación")
+        resp = self._get(self.revisor, "panel")
+        self.assertNotContains(resp, "Ingesta de documentos")
+        self.assertContains(resp, "Revisión archivística")
+        self.assertContains(resp, "Motor de análisis RiC")
+
+        resp = self._get(self.archivista, "panel")
+        self.assertContains(resp, "Ingesta de documentos")
         self.assertContains(resp, "Panel técnico")
+        self.assertNotContains(resp, "Administración y seguridad")
+
+        resp = self._get(self.superusuario, "panel")
+        self.assertContains(resp, "Administración y seguridad")
+
+    def test_el_archivo_original_exige_sesion_pero_no_rol(self):
+        self.client.force_login(self.consulta)
+        self.assertEqual(self.client.get(reverse("ric_archivo", args=[self.inst.pk])).status_code, 200)

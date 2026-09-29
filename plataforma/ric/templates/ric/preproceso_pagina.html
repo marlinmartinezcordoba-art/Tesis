@@ -1,0 +1,55 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Página {{ pagina.numero }} · {{ instanciacion.nombre }} · RICORA{% endblock %}
+{% block estilos_extra %}
+  .visor { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.2rem; align-items: start; }
+  @media (max-width: 900px) { .visor { grid-template-columns: 1fr; } }
+  .visor img { max-width: 100%; border: 1px solid #e6e3dc; border-radius: 8px; background: #fff; }
+  .texto { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem; white-space: pre-wrap; font-size: .85rem; max-height: 60vh; overflow: auto; }
+  .ficha { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .ficha dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 0; font-size: .88rem; }
+  .ficha dt { color: #6b7280; }
+  .ficha dd { margin: 0; }
+  .decisiones { display: flex; gap: .6rem; }
+  .decisiones button { margin: 0; }
+  .decisiones .aceptar { background: #2f7d4f; border-color: #2f7d4f; }
+  .decisiones .reescanear { background: #b3541e; border-color: #b3541e; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>Página {{ pagina.numero }} — calidad de lectura</h1>
+  <p>{{ instanciacion.nombre }} · expediente «{{ instanciacion.record_resource }}». Revise la página ampliada y decida:
+  <strong>Reescanear</strong> la devuelve al módulo de ingesta para cargar un escaneo mejor;
+  <strong>Aceptar igual</strong> la deja avanzar tal como está.</p>
+</hgroup>
+
+<div class="visor">
+  <div>
+    {% if es_imagen %}
+      <img src="{% url 'ric_archivo' instanciacion.pk %}" alt="Página escaneada">
+    {% else %}
+      <p class="sin-datos">Este formato no tiene vista de imagen en el visor; abra el <a href="{% url 'ric_archivo' instanciacion.pk %}" target="_blank">archivo original ↗</a>.</p>
+    {% endif %}
+    <h4 style="margin-top:1rem">Texto reconocido</h4>
+    <div class="texto">{{ pagina.texto|default:"(sin texto reconocido)" }}</div>
+  </div>
+  <div>
+    <div class="ficha">
+      <dl>
+        <dt>Método</dt><dd>{% if pagina.uso_ocr %}OCR (Tesseract){% else %}texto nativo{% endif %}</dd>
+        <dt>Confianza OCR</dt><dd>{% if pagina.confianza_ocr is not None %}{{ pagina.confianza_ocr|floatformat:"0" }}%{% else %}—{% endif %}</dd>
+        <dt>Umbral configurado</dt><dd>{{ umbral|floatformat:"0" }}%</dd>
+        <dt>Decisión</dt>
+        <dd>{% if pagina.calidad_aceptada is None %}pendiente{% elif pagina.calidad_aceptada %}aceptada igual{% else %}reescaneo solicitado{% endif %}</dd>
+      </dl>
+    </div>
+    {% if pagina.calidad_aceptada is None %}
+    <form method="post" action="{% url 'preproceso_pagina_decidir' instanciacion.pk pagina.numero %}" class="decisiones">
+      {% csrf_token %}
+      <button type="submit" name="decision" value="reescanear" class="reescanear">Reescanear</button>
+      <button type="submit" name="decision" value="aceptar" class="aceptar">Aceptar igual</button>
+    </form>
+    {% endif %}
+    <p><a href="{% url 'preproceso' %}">← Volver a la cola de preprocesamiento</a></p>
+  </div>
+</div>
+{% endblock %}

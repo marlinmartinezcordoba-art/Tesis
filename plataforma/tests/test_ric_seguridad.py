@@ -62,9 +62,9 @@ class TodasLasVistasRicExigenSesionTest(TestCase):
 
     def test_urls_get_sin_argumentos_redirigen_a_login(self):
         urls_get = [
-            "ric_inicio", "ric_subir", "ric_registros", "ric_bandeja",
-            "ric_sparql", "ric_busqueda", "ric_evaluacion",
-            "ric_duplicados",
+            "panel", "ingesta", "preproceso", "analisis_lista", "vocabularios",
+            "vocabularios_duplicados", "revision_lista", "historial_lista",
+            "catalogo", "exportar", "ric_sparql", "ric_evaluacion", "admin_usuarios",
         ]
         for nombre in urls_get:
             respuesta = self.client.get(reverse(nombre))
@@ -91,7 +91,7 @@ class BotonSalirTest(TestCase):
     def test_la_pagina_ya_no_usa_un_enlace_get_para_salir(self):
         usuario = User.objects.create_user("archivista", password="x", is_staff=True)
         self.client.force_login(usuario)
-        respuesta = self.client.get(reverse("ric_inicio"))
+        respuesta = self.client.get(reverse("panel"))
         self.assertNotContains(respuesta, '<a href="/admin/logout/">')
         self.assertContains(respuesta, reverse("ric_logout"))
 
@@ -101,7 +101,7 @@ class BotonSalirTest(TestCase):
         respuesta = self.client.post(reverse("ric_logout"), follow=True)
         self.assertEqual(respuesta.status_code, 200)
 
-        respuesta = self.client.get(reverse("ric_inicio"))
+        respuesta = self.client.get(reverse("panel"))
         self.assertEqual(respuesta.status_code, 302)
         self.assertIn(reverse("ric_login"), respuesta.url)
 
@@ -112,7 +112,7 @@ class BotonSalirTest(TestCase):
         respuesta = self.client.post(reverse("ric_logout"), follow=True)
         self.assertEqual(respuesta.status_code, 200)
 
-        respuesta = self.client.get(reverse("ric_inicio"))
+        respuesta = self.client.get(reverse("panel"))
         self.assertEqual(respuesta.status_code, 302)
         self.assertIn(reverse("ric_login"), respuesta.url)
 
@@ -134,13 +134,13 @@ class PantallaDeIngresoTest(TestCase):
     def test_un_archivista_si_puede_entrar_aqui(self):
         User.objects.create_user("archivista", password="x", is_staff=True)
         respuesta = self.client.post(reverse("ric_login"), {"username": "archivista", "password": "x"})
-        self.assertRedirects(respuesta, reverse("ric_inicio"))
+        self.assertRedirects(respuesta, reverse("panel"))
 
     def test_un_invitado_de_consulta_tambien_puede_entrar_aqui(self):
         # esto es justo lo que /admin/login/ no permitía
         User.objects.create_user("consulta", password="x", is_staff=False)
         respuesta = self.client.post(reverse("ric_login"), {"username": "consulta", "password": "x"})
-        self.assertRedirects(respuesta, reverse("ric_inicio"))
+        self.assertRedirects(respuesta, reverse("panel"))
 
     def test_credenciales_incorrectas_no_entran(self):
         User.objects.create_user("consulta", password="x", is_staff=False)
@@ -149,7 +149,7 @@ class PantallaDeIngresoTest(TestCase):
         self.assertContains(respuesta, "incorrect")
 
     def test_una_pantalla_protegida_redirige_aqui_y_no_al_admin(self):
-        respuesta = self.client.get(reverse("ric_inicio"))
+        respuesta = self.client.get(reverse("panel"))
         self.assertEqual(respuesta.status_code, 302)
         self.assertIn(reverse("ric_login"), respuesta.url)
         self.assertNotIn("/admin/login/", respuesta.url)

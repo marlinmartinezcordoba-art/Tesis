@@ -41,11 +41,15 @@ def buscar_texto(q, limite=20):
     )
 
 
-def buscar_entidades(q, limite=20):
+def buscar_entidades(q, limite=20, modelos=None):
     """Entidades del grafo cuyo nombre coincide con `q`, de cualquier tipo
-    concreto (Person, CorporateBody, Record...), para poder navegar de ahí
-    a sus relaciones ya validadas."""
+    concreto (Person, CorporateBody, Record...) o solo de `modelos`, para
+    poder navegar de ahí a sus relaciones ya validadas."""
     resultados = []
-    for modelo in _tipos_buscables():
+    for modelo in (modelos if modelos is not None else _tipos_buscables()):
         resultados.extend(modelo.objects.filter(nombre__icontains=q)[:limite])
     return resultados[:limite]
+
+
+def tipos_buscables():
+    return _tipos_buscables()

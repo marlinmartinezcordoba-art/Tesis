@@ -95,6 +95,15 @@ def _emitir_entidad(g, entidad, base):
             continue
         predicado = _uri_rico(reglas.cargar_matriz()["atributos"][a_code]["uri_rico"])
         g.add((sujeto, predicado, Literal(str(valor))))
+    # M5: la forma documental controlada se emite como individuo de
+    # rico:DocumentaryFormType (clase verificada en RiC-O_1-1.rdf, subclase
+    # de rico:Type) enlazado con rico:hasDocumentaryFormType (RiC-A17).
+    forma = getattr(entidad, "forma_documental", None)
+    if forma is not None:
+        uri_forma = URIRef(f"{base}formadocumental/{forma.pk}")
+        g.add((uri_forma, RDF.type, RICO.DocumentaryFormType))
+        g.add((uri_forma, _uri_rico(reglas.cargar_matriz()["atributos"]["A28"]["uri_rico"]), Literal(forma.nombre)))
+        g.add((sujeto, _uri_rico(reglas.cargar_matriz()["atributos"]["A17"]["uri_rico"]), uri_forma))
     return sujeto
 
 

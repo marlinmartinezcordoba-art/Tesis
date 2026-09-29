@@ -14,7 +14,7 @@ from django.test import TestCase, override_settings
 from ric.extraccion import extraer_texto_de_instanciacion
 from ric.models import CorporateBody, Instantiation, PropuestaRiC, Record, RelacionRiC
 from ric.proveedor_local import ProveedorLocal
-from ric.proveedores import CONFIANZA_SIN_EVIDENCIA, PropuestaCandidata, ProveedorIA, generar_propuestas
+from ric.proveedores import PropuestaCandidata, ProveedorIA, generar_propuestas
 
 MEDIA = tempfile.mkdtemp()
 
@@ -63,15 +63,18 @@ class GenerarPropuestasTest(TestCase):
         self.assertTrue(p.evidencia.verificada)
         self.assertEqual(p.confianza, 0.9)
 
-    def test_propuesta_con_evidencia_inventada_baja_la_confianza_pero_no_se_descarta(self):
+    def test_propuesta_con_evidencia_inventada_se_descarta_pero_queda_registrada(self):
+        # CC-01 (criterio de calidad de la especificación): sin fragmento
+        # textual real no hay propuesta — pero nunca desaparece en silencio
+        # (CC-02): queda guardada como rechazada, con el motivo, para el historial.
         candidatos = [PropuestaCandidata(
             relacion_id="R027", entidad_tipo="E11", entidad_nombre="Cabildo de Santafé",
             evidencia="esto no está en el texto", confianza=0.9, justificacion="x",
         )]
         [p] = generar_propuestas(self.record, ProveedorFalso(candidatos))
         self.assertFalse(p.evidencia.verificada)
-        self.assertLessEqual(p.confianza, CONFIANZA_SIN_EVIDENCIA)
-        self.assertEqual(p.estado, "pendiente")  # sigue pendiente: la evidencia dudosa no es motivo de rechazo automático
+        self.assertEqual(p.estado, "rechazada")
+        self.assertIn("CC-01", p.motivo_decision)
 
     def test_relacion_id_inexistente_se_rechaza_automaticamente(self):
         candidatos = [PropuestaCandidata(

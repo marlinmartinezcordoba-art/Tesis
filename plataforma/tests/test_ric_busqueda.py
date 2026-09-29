@@ -71,17 +71,17 @@ class BusquedaViewTest(TestCase):
         CorporateBody.objects.create(nombre="Cabildo de Santafé")
 
     def test_requiere_login(self):
-        resp = self.client.get(reverse("ric_busqueda"), {"q": "cabildo"})
+        resp = self.client.get(reverse("catalogo"), {"q": "cabildo"})
         self.assertEqual(resp.status_code, 302)
 
     def test_sin_query_no_busca(self):
         self.client.force_login(self.archivista)
-        resp = self.client.get(reverse("ric_busqueda"))
+        resp = self.client.get(reverse("catalogo"))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["entidades"], [])
+        self.assertEqual(resp.context["tarjetas"], [])
 
     def test_encuentra_y_enlaza_al_grafo(self):
         self.client.force_login(self.archivista)
-        resp = self.client.get(reverse("ric_busqueda"), {"q": "cabildo"})
+        resp = self.client.get(reverse("catalogo"), {"q": "cabildo"})
         self.assertContains(resp, "Cabildo de Santafé")
-        self.assertContains(resp, "/ric/grafo/corporatebody/")
+        self.assertContains(resp, "/catalogo/corporatebody/")

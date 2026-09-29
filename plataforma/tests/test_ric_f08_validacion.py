@@ -61,7 +61,7 @@ class CorregirNombreEnLaBandejaTest(TestCase):
 
     def test_aceptar_con_nombre_corregido_crea_la_entidad_con_el_nombre_correcto(self):
         respuesta = self.client.post(
-            reverse("ric_decidir_propuesta", args=[self.propuesta.pk]),
+            reverse("analisis_decidir", args=[self.propuesta.pk]),
             {"accion": "aceptar", "entidad_nombre_final": "Cabildo de Santafé"},
             follow=True,
         )
@@ -74,7 +74,7 @@ class CorregirNombreEnLaBandejaTest(TestCase):
 
     def test_aceptar_sin_tocar_el_nombre_no_dice_corregido(self):
         respuesta = self.client.post(
-            reverse("ric_decidir_propuesta", args=[self.propuesta.pk]),
+            reverse("analisis_decidir", args=[self.propuesta.pk]),
             {"accion": "aceptar", "entidad_nombre_final": "Cabildo de Santa Fe"},
             follow=True,
         )
@@ -84,7 +84,7 @@ class CorregirNombreEnLaBandejaTest(TestCase):
 
     def test_aceptar_con_el_campo_vacio_usa_el_nombre_propuesto(self):
         respuesta = self.client.post(
-            reverse("ric_decidir_propuesta", args=[self.propuesta.pk]),
+            reverse("analisis_decidir", args=[self.propuesta.pk]),
             {"accion": "aceptar", "entidad_nombre_final": ""},
             follow=True,
         )

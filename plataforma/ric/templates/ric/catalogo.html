@@ -1,0 +1,123 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Catálogo · RICORA{% endblock %}
+{% block estilos_extra %}
+  .catalogo { display: grid; grid-template-columns: 220px 1fr; gap: 1.2rem; align-items: start; }
+  @media (max-width: 860px) { .catalogo { grid-template-columns: 1fr; } }
+  .filtros { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; position: sticky; top: 1rem; }
+  .filtros h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: #8a94a3; margin: 0 0 .5rem; }
+  .filtros a { display: flex; justify-content: space-between; padding: .35rem .5rem; border-radius: 8px; text-decoration: none; color: inherit; font-size: .86rem; }
+  .filtros a.activo { background: var(--ricora-dark); color: #fff; }
+  .filtros a b { color: var(--ricora-accent); }
+  .buscar { display: flex; gap: .5rem; margin-bottom: 1rem; position: relative; }
+  .buscar input[type=search] { flex: 1; margin: 0; }
+  .buscar button { width: auto; margin: 0; }
+  .sugerencias { position: absolute; top: 100%; left: 0; right: 90px; background: #fff; border: 1px solid #e6e3dc; border-radius: 0 0 10px 10px; z-index: 5; display: none; max-height: 240px; overflow: auto; }
+  .sugerencias div { padding: .4rem .8rem; cursor: pointer; font-size: .86rem; }
+  .sugerencias div:hover { background: #f6f5f2; }
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .8rem; }
+  .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .4rem; }
+  .tarjeta .tipo { font-size: .68rem; font-weight: 700; text-transform: uppercase; color: #8a94a3; display: flex; justify-content: space-between; align-items: center; }
+  .tarjeta .tipo .chip { background: #fff2df; color: #8a6100; border-radius: 10px; padding: 1px 7px; font-size: .66rem; }
+  .tarjeta .tipo .chip.publicado { background: #e3f9e5; color: #1b4d2e; }
+  .tarjeta h4 { margin: 0; font-size: .98rem; }
+  .tarjeta h4 a { text-decoration: none; color: inherit; }
+  .tarjeta .rel { font-size: .78rem; color: #52606d; }
+  .tarjeta .rel a { color: var(--ricora-accent); }
+  .tarjeta label { display: flex; gap: .4rem; align-items: center; font-size: .78rem; color: #52606d; margin: 0; }
+  .tarjeta label input { margin: 0; }
+  .barra-exportar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .6rem 1rem; margin-bottom: .8rem; font-size: .86rem; }
+  .barra-exportar button { width: auto; margin: 0; padding: .4rem .9rem; font-size: .82rem; }
+  .aviso-rol { font-size: .78rem; color: #8a6100; margin: 0 0 .8rem; }
+{% endblock %}
+{% block contenido %}
+<hgroup>
+  <h1>8 · Catálogo y consulta</h1>
+  <p>Busque por texto libre (nombre de una persona, una institución, un lugar, o palabras del contenido de los
+  documentos) y filtre por clase de entidad. Cada tarjeta muestra de qué documento se trata y con qué otras
+  entidades está relacionado: navegue de un agente a todo lo que produjo, o de un documento a sus entidades.</p>
+</hgroup>
+{% if solo_publicados %}<p class="aviso-rol">Su cuenta es de consulta: ve únicamente los documentos aprobados, publicados y de acceso abierto.</p>{% endif %}
+
+<div class="catalogo">
+  <aside class="filtros">
+    <h3>Clase de entidad</h3>
+    <a href="?q={{ q|urlencode }}" class="{% if not clase %}activo{% endif %}"><span>Todo</span></a>
+    {% for slug, nombre, total in clases %}
+    <a href="?q={{ q|urlencode }}&clase={{ slug }}" class="{% if clase == slug %}activo{% endif %}"><span>{{ nombre }}</span><b>{{ total }}</b></a>
+    {% endfor %}
+  </aside>
+
+  <div>
+    <form class="buscar" method="get" role="search" autocomplete="off">
+      {% if clase %}<input type="hidden" name="clase" value="{{ clase }}">{% endif %}
+      <input type="search" name="q" id="q" value="{{ q }}" placeholder="Buscar una persona, institución, lugar, documento..." autofocus>
+      <button type="submit">Buscar</button>
+      <div class="sugerencias" id="sugerencias"></div>
+    </form>
+
+    <form method="get" action="{% url 'exportar' %}" id="form-seleccion">
+      <div class="barra-exportar">
+        <span><b id="cuenta">0</b> documento(s) seleccionado(s) para exportar</span>
+        <button type="submit" id="boton-exportar" disabled>Exportar selección →</button>
+      </div>
+
+      {% if not tarjetas %}
+      <p class="sin-datos">{% if q %}Sin resultados para «{{ q }}»{% if clase %} en esta clase{% endif %}.{% else %}Todavía no hay documentos publicados en el catálogo.{% endif %}</p>
+      {% endif %}
+
+      <div class="tarjetas">
+        {% for t in tarjetas %}
+          {% if t.tipo == "documento" %}
+          <div class="tarjeta">
+            <div class="tipo"><span>📄 Documento</span><span class="chip {{ t.estado }}">{{ t.etiqueta_estado }}</span></div>
+            <h4><a href="{% url 'catalogo_ficha' 'record' t.record.pk %}">{{ t.record }}</a></h4>
+            {% if t.record.forma_documental %}<div class="rel">{{ t.record.forma_documental }}</div>{% endif %}
+            {% for r in t.relacionadas %}<div class="rel">{{ r.nombre }} → <a href="{% url 'catalogo_ficha' r.slug r.entidad.pk %}">{{ r.entidad }}</a></div>{% endfor %}
+            <label><input type="checkbox" name="doc" value="{{ t.record.pk }}" class="sel"> Seleccionar para exportar</label>
+          </div>
+          {% else %}
+          <div class="tarjeta">
+            <div class="tipo"><span>◉ {{ t.tipo_nombre|capfirst }}</span><span class="chip">{{ t.clase }}</span></div>
+            <h4><a href="{% url 'catalogo_ficha' t.slug t.entidad.pk %}">{{ t.entidad }}</a></h4>
+            <div class="rel">{{ t.documentos }} documento(s) relacionado(s) · <a href="{% url 'ric_grafo' t.slug t.entidad.pk %}">ver en grafo</a></div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var casillas = document.querySelectorAll("input.sel");
+  var cuenta = document.getElementById("cuenta"), boton = document.getElementById("boton-exportar");
+  function actualizar() {
+    var n = document.querySelectorAll("input.sel:checked").length;
+    cuenta.textContent = n; boton.disabled = n === 0;
+  }
+  casillas.forEach(function (c) { c.addEventListener("change", actualizar); });
+
+  var q = document.getElementById("q"), caja = document.getElementById("sugerencias"), temporizador;
+  q.addEventListener("input", function () {
+    clearTimeout(temporizador);
+    var valor = q.value.trim();
+    if (valor.length < 2) { caja.style.display = "none"; return; }
+    temporizador = setTimeout(function () {
+      fetch("{% url 'catalogo_sugerencias' %}?q=" + encodeURIComponent(valor))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          caja.innerHTML = "";
+          d.sugerencias.forEach(function (s) {
+            var div = document.createElement("div"); div.textContent = s;
+            div.addEventListener("mousedown", function () { q.value = s; q.form.submit(); });
+            caja.appendChild(div);
+          });
+          caja.style.display = d.sugerencias.length ? "block" : "none";
+        });
+    }, 200);
+  });
+  q.addEventListener("blur", function () { setTimeout(function () { caja.style.display = "none"; }, 150); });
+})();
+</script>
+{% endblock %}

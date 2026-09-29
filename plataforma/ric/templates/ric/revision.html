@@ -1,0 +1,106 @@
+{% extends "ric/_base.html" %}
+{% block titulo %}Revisión · {{ record }} · RICORA{% endblock %}
+{% block estilos_extra %}
+  .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+  .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
+  .comparar { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
+  @media (max-width: 800px) { .comparar { grid-template-columns: 1fr; } }
+  .comparar .lado h4 { margin: 0 0 .3rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #8a94a3; }
+  .comparar .lado.ia { border-right: 1px dashed #e6e3dc; padding-right: .8rem; }
+  .comparar .valor { font-size: .95rem; font-weight: 600; }
+  .comparar small { color: #6b7280; font-size: .78rem; display: block; margin-top: .2rem; }
+  .comparar .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+  .badge.aceptada, .badge.modificada { background: #e3f9e5; color: #1b4d2e; }
+  .badge.rechazada { background: #eceae4; color: #52606d; }
+  .badge.categoria { background: #fff2df; color: #8a6100; }
+  .comparar details { margin-top: .5rem; font-size: .82rem; }
+  .comparar details summary { cursor: pointer; color: #b3221e; }
+  .comparar textarea { font-size: .82rem; padding: .4rem .6rem; height: auto; margin: .4rem 0; }
+  .comparar button { width: auto; margin: 0; padding: .4rem .8rem; font-size: .8rem; background: #b3221e; border-color: #b3221e; }
+  .publicar { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .publicar form { margin: 0; }
+  .publicar button { margin: 0; width: auto; background: #1b7a3d; border-color: #1b7a3d; }
+  .publicar button[disabled] { background: #cbd2d9; border-color: #cbd2d9; color: #52606d; }
+  .bloqueo { color: #7a1f1f; font-size: .88rem; }
+  .publicado-ok { color: #1b4d2e; font-size: .88rem; }
+  .rechazadas summary { cursor: pointer; font-size: .85rem; color: #52606d; margin-top: 1rem; }
+  .rechazadas li { font-size: .8rem; margin: .3rem 0; }
+{% endblock %}
+{% block contenido %}
+{% include "ric/_pasos.html" %}
+<div class="encabezado">
+  <h1>6 · Revisión archivística — {{ record }}</h1>
+  <p>Comparación lado a lado por cada entidad o relación: a la izquierda lo que propuso el motor de análisis,
+  a la derecha lo que quedó confirmado. La decisión es ficha por ficha, nunca en bloque. Mientras existan
+  elementos pendientes de decisión, el paso al catálogo queda bloqueado.</p>
+</div>
+
+{% if clases_faltantes and fichas %}
+<p class="mensaje warning">⚠ Descripción incompleta (CC-02): falta {{ clases_faltantes|join:", " }}. No bloquea la publicación, pero queda señalado en el panel de indicadores.</p>
+{% endif %}
+{% if not fichas %}
+<p class="sin-datos">Este documento todavía no tiene entidades ni relaciones confirmadas. <a href="{% url 'analisis' record.pk %}">Ir al motor de análisis →</a></p>
+{% endif %}
+
+{% for f in fichas %}{% with rel=f.relacion %}
+<article class="comparar">
+  <div class="lado ia">
+    <h4>Propuesta del motor de análisis</h4>
+    {% if f.propuesta %}
+      <div class="valor">{{ f.propuesta.entidad_nombre }}</div>
+      <small>{{ f.propuesta.relacion_id }} {{ f.nombre_relacion }} · {{ f.propuesta.entidad_tipo }} · confianza {{ f.propuesta.confianza|floatformat:2 }} · {{ f.propuesta.proveedor }}</small>
+      {% if f.propuesta.evidencia %}<small>“{{ f.propuesta.evidencia.fragmento|truncatechars:160 }}”{% if f.propuesta.evidencia.pagina %} · p.{{ f.propuesta.evidencia.pagina }}{% endif %}</small>{% endif %}
+    {% else %}
+      <div class="valor" style="color:#8a94a3">— sin propuesta de IA —</div>
+      <small>Relación creada o corregida a mano por el equipo archivístico.</small>
+    {% endif %}
+  </div>
+  <div class="lado">
+    <h4>Confirmado por el archivista</h4>
+    <div class="valor">{{ f.entidad }}</div>
+    <small><span class="badge {{ rel.estado }}">{{ rel.get_estado_display }}</span> <span class="badge categoria">{{ f.categoria }}</span> {{ rel.relacion_id }} {{ f.nombre_relacion }} · origen: {% if rel.origen_decision == "propuesta_ia" %}propuesta de IA{% else %}corrección manual{% endif %}{% if rel.descripcion_relacion %} · {{ rel.descripcion_relacion }}{% endif %}</small>
+    {% if f.propuesta and f.propuesta.confianza < umbral_confianza %}<small style="color:#b3541e">⚠ propuesta de baja confianza ({{ f.propuesta.confianza|floatformat:2 }} &lt; {{ umbral_confianza }}), revísela con especial atención (CC-04)</small>{% endif %}
+    <small>{% if rel.validado_por %}{{ rel.validado_por.get_username }} · {{ rel.fecha_validacion|date:"d/m/Y H:i" }}{% endif %}</small>
+    {% if puede_aprobar %}
+    <details>
+      <summary>Rechazar esta ficha</summary>
+      <form method="post" action="{% url 'revision_rechazar' record.pk rel.pk %}">
+        {% csrf_token %}
+        <textarea name="motivo" rows="2" placeholder="Motivo del rechazo (obligatorio)" required></textarea>
+        <button type="submit">Confirmar rechazo</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</article>
+{% endwith %}{% endfor %}
+
+{% if rechazadas %}
+<details class="rechazadas">
+  <summary>Fichas rechazadas o retiradas ({{ rechazadas|length }})</summary>
+  <ul>{% for f in rechazadas %}<li><span class="badge rechazada">{{ f.relacion.get_estado_display }}</span> {{ f.entidad }} · {{ f.relacion.relacion_id }} {{ f.nombre_relacion }}{% if f.relacion.motivo_decision %} · <em>{{ f.relacion.motivo_decision }}</em>{% endif %}</li>{% endfor %}</ul>
+</details>
+{% endif %}
+
+<div class="publicar">
+  <div>
+    {% if pendientes %}
+      <span class="bloqueo">⛔ {{ pendientes|length }} elemento(s) pendientes de decisión — <a href="{% url 'analisis' record.pk %}">decidirlos en el motor de análisis</a> antes de publicar.</span>
+    {% elif fichas and not tiene_procedencia %}
+      <span class="bloqueo">⛔ Falta una relación de procedencia confirmada (quién produjo o firmó el documento) — criterio CC-03. <a href="{% url 'analisis_grafo' record.pk %}">Revisar relaciones →</a></span>
+    {% elif record.publicado %}
+      <span class="publicado-ok">✓ Publicado en el catálogo el {{ record.fecha_publicacion|date:"d/m/Y H:i" }}{% if record.publicado_por %} por {{ record.publicado_por.get_username }}{% endif %}.</span>
+    {% else %}
+      <span>Todo decidido: {{ fichas|length }} relación(es) confirmadas. Al aprobar, el documento queda visible para consulta.</span>
+    {% endif %}
+  </div>
+  {% if puede_aprobar and not record.publicado %}
+  <form method="post" action="{% url 'revision_aprobar' record.pk %}">
+    {% csrf_token %}
+    <button type="submit" {% if pendientes or not fichas or not tiene_procedencia %}disabled{% endif %}>Aprobar y publicar</button>
+  </form>
+  {% elif record.publicado %}
+  <a role="button" href="{% url 'catalogo_ficha' 'record' record.pk %}" style="width:auto; margin:0;">Ver en el catálogo →</a>
+  {% endif %}
+</div>
+{% endblock %}
