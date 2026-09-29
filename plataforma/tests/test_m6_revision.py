@@ -25,8 +25,9 @@ class RevisionTest(CasoModulos):
     def test_comparacion_lado_a_lado_por_ficha(self):
         self.client.force_login(self.revisor)
         resp = self.client.get(reverse("revision", args=[self.record.pk]))
-        self.assertContains(resp, "Propuesta del motor de análisis")
-        self.assertContains(resp, "Confirmado por el archivista")
+        self.assertContains(resp, "Propuesto por el motor")
+        self.assertContains(resp, "Decisión de la revisión")
+        self.assertContains(resp, "✓ Aceptar")  # RF-M6-01: campo editable y aceptar/rechazar por ficha
         self.assertContains(resp, "Rol en el documento: firmante")
         self.assertContains(resp, "origen: propuesta de IA")  # CC-08
         self.assertContains(resp, "Confirmar rechazo")  # RF-M6-02: decisión por ficha
@@ -36,7 +37,7 @@ class RevisionTest(CasoModulos):
         self.proponer(self.record, candidato(entidad_nombre="Bogotá", entidad_tipo="E22", relacion_id="R019", evidencia="Bogotá"))
         self.client.force_login(self.revisor)
         resp = self.client.get(reverse("revision", args=[self.record.pk]))
-        self.assertContains(resp, "pendientes de decisión")
+        self.assertContains(resp, "sin decidir en el motor de análisis")
         self.assertContains(resp, "disabled")
         resp = self.client.post(reverse("revision_aprobar", args=[self.record.pk]), follow=True)
         self.assertContains(resp, "No se puede publicar")  # RF-M6-04 en el servidor
@@ -45,6 +46,7 @@ class RevisionTest(CasoModulos):
 
     def test_cc03_sin_procedencia_no_se_publica(self):
         self.relacion.relacion_id = "R019"  # deja de ser procedencia
+        self.relacion.revision = RelacionRiC.Revision.CONFIRMADA
         self.relacion.save()
         self.client.force_login(self.revisor)
         resp = self.client.post(reverse("revision_aprobar", args=[self.record.pk]), follow=True)
@@ -54,6 +56,7 @@ class RevisionTest(CasoModulos):
 
     def test_aprobar_y_publicar_pasa_al_catalogo(self):
         self.client.force_login(self.revisor)
+        self.client.post(reverse("revision_confirmar", args=[self.record.pk, self.relacion.pk]), {"nombre": "Cabildo de Santafé"})
         resp = self.client.post(reverse("revision_aprobar", args=[self.record.pk]))
         self.assertRedirects(resp, reverse("catalogo"), fetch_redirect_response=False)
         self.record.refresh_from_db()

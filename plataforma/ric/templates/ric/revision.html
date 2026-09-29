@@ -2,105 +2,187 @@
 {% block titulo %}Revisión · {{ record }} · RICORA{% endblock %}
 {% block estilos_extra %}
   .encabezado h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
-  .encabezado p { margin: 0 0 1rem; color: #6b7280; font-size: .88rem; }
-  .comparar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: .9rem 1rem; margin-bottom: .8rem; }
-  @media (max-width: 800px) { .comparar { grid-template-columns: 1fr; } }
-  .comparar .lado h4 { margin: 0 0 .3rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #8a94a3; }
-  .comparar .lado.ia { border-right: 1px dashed #e6e3dc; padding-right: .8rem; }
-  .comparar .valor { font-size: .95rem; font-weight: 600; }
-  .comparar small { color: #6b7280; font-size: .78rem; display: block; margin-top: .2rem; }
-  .comparar .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
-  .badge.aceptada, .badge.modificada { background: #e3f9e5; color: #1b4d2e; }
-  .badge.rechazada { background: #eceae4; color: #52606d; }
-  .badge.categoria { background: #fff2df; color: #8a6100; }
-  .comparar details { margin-top: .5rem; font-size: .82rem; }
-  .comparar details summary { cursor: pointer; color: #b3221e; }
-  .comparar textarea { font-size: .82rem; padding: .4rem .6rem; height: auto; margin: .4rem 0; }
-  .comparar button { width: auto; margin: 0; padding: .4rem .8rem; font-size: .8rem; background: #b3221e; border-color: #b3221e; }
-  .publicar { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .encabezado p { margin: 0 0 .9rem; color: var(--ink-suave); font-size: .88rem; }
+  .avance-revision { display: flex; align-items: center; gap: .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .86rem; flex-wrap: wrap; }
+  .avance-revision .barra { flex: 1 1 200px; height: 8px; background: #eceae4; border-radius: 4px; overflow: hidden; }
+  .avance-revision .barra i { display: block; height: 100%; background: #2f7d4f; }
+  .ficha-rev { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: .8rem; overflow: hidden; scroll-margin-top: 1rem; }
+  .ficha-rev.pendiente { border-left: 4px solid var(--ricora-accent); }
+  .ficha-rev.baja { border-left-color: var(--peligro); }
+  .ficha-rev.revisada { opacity: .92; }
+  @media (max-width: 900px) { .ficha-rev { grid-template-columns: minmax(0, 1fr); } .ficha-rev .ia { border-right: 0; border-bottom: 1px dashed var(--border); } }
+  .ficha-rev .lado { padding: .85rem 1rem; min-width: 0; }
+  .ficha-rev .ia { background: #faf9f5; border-right: 1px dashed var(--border); }
+  .ficha-rev h4 { margin: 0 0 .35rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-tenue); font-family: var(--fuente-cuerpo); }
+  .ficha-rev .valor { font-size: .95rem; font-weight: 600; }
+  .ficha-rev small { color: var(--ink-suave); font-size: .78rem; display: block; margin-top: .2rem; overflow-wrap: anywhere; }
+  .ficha-rev .cita { background: #fff; border-left: 3px solid var(--ricora-accent); padding: .35rem .6rem; border-radius: 0 6px 6px 0; margin-top: .45rem; font-size: .8rem; color: var(--ink); }
+  .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+  .badge.pendiente { background: #fff2df; color: #8a6100; }
+  .badge.confirmada { background: #e3f9e5; color: #1b4d2e; }
+  .badge.corregida { background: #e6effb; color: #1f3a5f; }
+  .badge.categoria { background: var(--surface-alt); color: var(--ink-suave); }
+  .badge.baja { background: #fde8e8; color: #7a1f1f; }
+  .ficha-rev label { font-size: .76rem; margin: .5rem 0 .15rem; font-weight: 500; }
+  .ficha-rev input[type=text], .ficha-rev textarea { font-size: .88rem; padding: .4rem .6rem; height: auto; margin: 0 0 .4rem; }
+  .ficha-rev .botones { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; margin-top: .3rem; }
+  .ficha-rev .botones button { width: auto; margin: 0; padding: .42rem .9rem; font-size: .82rem; }
+  .ficha-rev button.aceptar { background: #1b7a3d; border-color: #1b7a3d; }
+  .ficha-rev button.rechazar { background: #fff; border-color: #d9a39a; color: #93392a; }
+  .ficha-rev button.confirmar-rechazo { background: #b3221e; border-color: #b3221e; }
+  .ficha-rev .zona-rechazo { margin-top: .5rem; background: #fdf3f1; border: 1px solid #efc9c2; border-radius: 8px; padding: .6rem .7rem; }
+  .ficha-rev .zona-rechazo[hidden] { display: none; }
+  .ficha-rev .aviso-compartida { font-size: .76rem; color: #6b4a00; background: #fff7e6; border-radius: 6px; padding: .3rem .5rem; margin: .1rem 0 .4rem; }
+  .ficha-rev .decision { font-size: .8rem; color: var(--ink-suave); margin-top: .3rem; }
+  .ficha-rev .reabrir summary { cursor: pointer; font-size: .78rem; color: var(--accent); margin-top: .4rem; }
+  .publicar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; position: sticky; bottom: .8rem; box-shadow: var(--sombra); scroll-margin-top: 1rem; }
   .publicar form { margin: 0; }
   .publicar button { margin: 0; width: auto; background: #1b7a3d; border-color: #1b7a3d; }
-  .publicar button[disabled] { background: #cbd2d9; border-color: #cbd2d9; color: #52606d; }
+  .publicar button[disabled] { background: #cbd2d9; border-color: #cbd2d9; color: #52606d; cursor: not-allowed; }
   .bloqueo { color: #7a1f1f; font-size: .88rem; }
   .publicado-ok { color: #1b4d2e; font-size: .88rem; }
-  .rechazadas summary { cursor: pointer; font-size: .85rem; color: #52606d; margin-top: 1rem; }
-  .rechazadas li { font-size: .8rem; margin: .3rem 0; }
+  details.lista-extra summary { cursor: pointer; font-size: .85rem; color: var(--ink-suave); margin-top: 1rem; }
+  details.lista-extra li { font-size: .8rem; margin: .3rem 0; }
 {% endblock %}
 {% block contenido %}
 {% include "ric/_pasos.html" %}
 <div class="encabezado">
   <h1>Revisión archivística — {{ record }}</h1>
-  <p>Comparación lado a lado por cada entidad o relación: a la izquierda lo que propuso el motor de análisis,
-  a la derecha lo que quedó confirmado. La decisión es ficha por ficha, nunca en bloque. Mientras existan
-  elementos pendientes de decisión, el paso al catálogo queda bloqueado.</p>
+  <p>Revise cada ficha por separado: a la izquierda, lo que propuso el motor; a la derecha, el campo editable con
+  <strong>Aceptar</strong> o <strong>Rechazar</strong> para esa ficha. Las de baja confianza aparecen primero.
+  El documento solo se publica cuando no queda ninguna ficha pendiente.</p>
 </div>
 
 {% if clases_faltantes and fichas %}
 <p class="mensaje warning">⚠ Descripción incompleta (CC-02): falta {{ clases_faltantes|join:", " }}. No bloquea la publicación, pero queda señalado en el panel de indicadores.</p>
 {% endif %}
-{% if not fichas %}
-<p class="sin-datos">Este documento todavía no tiene entidades ni relaciones confirmadas. <a href="{% url 'analisis' record.pk %}">Ir al motor de análisis →</a></p>
+
+{% if fichas %}
+<div class="avance-revision" role="status">
+  <strong>{{ revisadas }} de {{ fichas|length }} fichas revisadas</strong>
+  <span class="barra" aria-hidden="true"><i style="width: {% widthratio revisadas fichas|length 100 %}%"></i></span>
+  {% if por_revisar %}<span>{{ por_revisar }} pendiente(s)</span>{% else %}<span style="color:#1b4d2e">✓ todas revisadas</span>{% endif %}
+</div>
+{% else %}
+<p class="sin-datos">Este documento todavía no tiene entidades ni relaciones aceptadas en el análisis. <a href="{% url 'analisis' record.pk %}">Ir al motor de análisis →</a></p>
 {% endif %}
 
 {% for f in fichas %}{% with rel=f.relacion %}
-<article class="comparar">
+<article class="ficha-rev {% if f.pendiente %}pendiente{% if f.baja_confianza %} baja{% endif %}{% else %}revisada{% endif %}" id="ficha-{{ rel.pk }}">
   <div class="lado ia">
-    <h4>Propuesta del motor de análisis</h4>
+    <h4>Propuesto por el motor</h4>
     {% if f.propuesta %}
       <div class="valor">{{ f.propuesta.entidad_nombre }}</div>
-      <small>{{ f.propuesta.relacion_id }} {{ f.nombre_relacion }} · {{ f.propuesta.entidad_tipo }} · confianza {{ f.propuesta.confianza|floatformat:2 }} · {{ f.propuesta.proveedor }}</small>
-      {% if f.propuesta.evidencia %}<small>“{{ f.propuesta.evidencia.fragmento|truncatechars:160 }}”{% if f.propuesta.evidencia.pagina %} · p.{{ f.propuesta.evidencia.pagina }}{% endif %}</small>{% endif %}
+      <small>{{ f.propuesta.relacion_id }} {{ f.nombre_relacion }} · {{ f.propuesta.entidad_tipo }} · {{ f.propuesta.proveedor }} {{ f.propuesta.version_modelo }}</small>
+      <small>Confianza {{ f.propuesta.confianza|floatformat:2 }}{% if f.baja_confianza %} <span class="badge baja">baja confianza · revísela con atención (CC-04)</span>{% endif %}</small>
+      {% if f.propuesta.evidencia %}<div class="cita">“{{ f.propuesta.evidencia.fragmento|truncatechars:220 }}”{% if f.propuesta.evidencia.pagina %} · p.{{ f.propuesta.evidencia.pagina }}{% endif %}</div>{% endif %}
     {% else %}
       <div class="valor" style="color:#8a94a3">— sin propuesta de IA —</div>
-      <small>Relación creada o corregida a mano por el equipo archivístico.</small>
+      <small>Relación creada o corregida a mano en el análisis.</small>
     {% endif %}
+    <small style="margin-top:.5rem">Aceptada en el análisis{% if rel.validado_por %} por {{ rel.validado_por.get_username }} · {{ rel.fecha_validacion|date:"d/m/Y H:i" }}{% endif %}</small>
   </div>
+
   <div class="lado">
-    <h4>Confirmado por el archivista</h4>
-    <div class="valor">{{ f.entidad }}</div>
-    <small><span class="badge {{ rel.estado }}">{{ rel.get_estado_display }}</span> <span class="badge categoria">{{ f.categoria }}</span> {{ rel.relacion_id }} {{ f.nombre_relacion }} · origen: {% if rel.origen_decision == "propuesta_ia" %}propuesta de IA{% else %}corrección manual{% endif %}{% if rel.descripcion_relacion %} · {{ rel.descripcion_relacion }}{% endif %}</small>
-    {% if f.propuesta and f.propuesta.confianza < umbral_confianza %}<small style="color:#b3541e">⚠ propuesta de baja confianza ({{ f.propuesta.confianza|floatformat:2 }} &lt; {{ umbral_confianza }}), revísela con especial atención (CC-04)</small>{% endif %}
-    <small>{% if rel.validado_por %}{{ rel.validado_por.get_username }} · {{ rel.fecha_validacion|date:"d/m/Y H:i" }}{% endif %}</small>
-    {% if puede_aprobar %}
-    <details>
-      <summary>Rechazar esta ficha</summary>
-      <form method="post" action="{% url 'revision_rechazar' record.pk rel.pk %}">
-        {% csrf_token %}
-        <textarea name="motivo" rows="2" placeholder="Motivo del rechazo (obligatorio)" required></textarea>
-        <button type="submit">Confirmar rechazo</button>
-      </form>
-    </details>
+    <h4>Decisión de la revisión <span class="badge {{ rel.revision }}">{{ rel.get_revision_display }}</span> <span class="badge categoria">{{ f.categoria }}</span></h4>
+    <small>{{ rel.relacion_id }} {{ f.nombre_relacion }} · origen: {% if rel.origen_decision == "propuesta_ia" %}propuesta de IA{% else %}corrección manual{% endif %}{% if rel.descripcion_relacion %} · {{ rel.descripcion_relacion }}{% endif %}</small>
+
+    {% if f.pendiente and puede_aprobar %}
+    <form method="post" action="{% url 'revision_confirmar' record.pk rel.pk %}">
+      {% csrf_token %}
+      <label for="nombre-{{ rel.pk }}">Nombre de la entidad (corríjalo si hace falta)</label>
+      <input type="text" id="nombre-{{ rel.pk }}" name="nombre" value="{{ f.entidad.nombre }}" {% if f.compartida %}readonly title="Entidad compartida con otros documentos"{% endif %}>
+      {% if f.compartida %}<div class="aviso-compartida">🔗 Esta entidad también describe {{ f.compartida }} documento(s) más: su nombre se corrige en Vocabularios (M5) para no cambiarlo en todos sin querer.</div>{% endif %}
+      <label for="nota-{{ rel.pk }}">Nota de revisión (opcional)</label>
+      <input type="text" id="nota-{{ rel.pk }}" name="nota" placeholder="Ej. verificado contra el original, folio 2">
+      <div class="botones">
+        <button type="submit" class="aceptar">✓ Aceptar</button>
+        <button type="button" class="rechazar" data-abrir-rechazo="{{ rel.pk }}">✗ Rechazar</button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'revision_rechazar' record.pk rel.pk %}" class="zona-rechazo" id="rechazo-{{ rel.pk }}" hidden>
+      {% csrf_token %}
+      <label for="motivo-{{ rel.pk }}">Motivo del rechazo (obligatorio)</label>
+      <textarea id="motivo-{{ rel.pk }}" name="motivo" rows="2" required placeholder="Ej. El firmante es el secretario, no el alcalde."></textarea>
+      <div class="botones">
+        <button type="submit" class="confirmar-rechazo" disabled>Confirmar rechazo</button>
+        <button type="button" class="rechazar" data-cerrar-rechazo="{{ rel.pk }}">Cancelar</button>
+      </div>
+      <small>La ficha vuelve al motor de análisis con su motivo; lo demás ya aceptado se conserva.</small>
+    </form>
+    {% else %}
+      <div class="valor" style="margin-top:.3rem">{{ f.entidad }}</div>
+      {% if rel.revisado_por %}<p class="decision">{{ rel.get_revision_display }} por <strong>{{ rel.revisado_por.get_username }}</strong> · {{ rel.fecha_revision|date:"d/m/Y H:i" }}{% if rel.nota_revision %}<br><em>{{ rel.nota_revision }}</em>{% endif %}</p>{% endif %}
+      {% if puede_aprobar %}
+      <details class="reabrir">
+        <summary>Rechazar esta ficha</summary>
+        <form method="post" action="{% url 'revision_rechazar' record.pk rel.pk %}" class="zona-rechazo">
+          {% csrf_token %}
+          <textarea name="motivo" rows="2" required placeholder="Motivo del rechazo (obligatorio)"></textarea>
+          <div class="botones"><button type="submit" class="confirmar-rechazo">Confirmar rechazo</button></div>
+        </form>
+      </details>
+      {% endif %}
     {% endif %}
   </div>
 </article>
 {% endwith %}{% endfor %}
 
+{% if estructurales %}
+<details class="lista-extra">
+  <summary>Clasificación archivística del documento ({{ estructurales|length }}) — no requiere revisión</summary>
+  <ul>{% for f in estructurales %}<li><span class="badge categoria">{{ f.categoria }}</span> {{ f.relacion.relacion_id }} {{ f.nombre_relacion }} · {{ f.entidad }}</li>{% endfor %}</ul>
+</details>
+{% endif %}
 {% if rechazadas %}
-<details class="rechazadas">
+<details class="lista-extra">
   <summary>Fichas rechazadas o retiradas ({{ rechazadas|length }})</summary>
-  <ul>{% for f in rechazadas %}<li><span class="badge rechazada">{{ f.relacion.get_estado_display }}</span> {{ f.entidad }} · {{ f.relacion.relacion_id }} {{ f.nombre_relacion }}{% if f.relacion.motivo_decision %} · <em>{{ f.relacion.motivo_decision }}</em>{% endif %}</li>{% endfor %}</ul>
+  <ul>{% for f in rechazadas %}<li><span class="badge baja">{{ f.relacion.get_estado_display }}</span> {{ f.entidad }} · {{ f.relacion.relacion_id }} {{ f.nombre_relacion }}{% if f.relacion.motivo_decision %} · <em>{{ f.relacion.motivo_decision }}</em>{% endif %}</li>{% endfor %}</ul>
 </details>
 {% endif %}
 
-<div class="publicar">
+<div class="publicar" id="publicar">
   <div>
     {% if pendientes %}
-      <span class="bloqueo">⛔ {{ pendientes|length }} elemento(s) pendientes de decisión — <a href="{% url 'analisis' record.pk %}">decidirlos en el motor de análisis</a> antes de publicar.</span>
+      <span class="bloqueo">⛔ {{ pendientes|length }} elemento(s) sin decidir en el motor de análisis — <a href="{% url 'analisis' record.pk %}">decidirlos</a> antes de publicar.</span>
+    {% elif por_revisar %}
+      <span class="bloqueo">⛔ Quedan {{ por_revisar }} ficha(s) por revisar. Acepte o rechace cada una para poder publicar (RF-M6-04).</span>
     {% elif fichas and not tiene_procedencia %}
-      <span class="bloqueo">⛔ Falta una relación de procedencia confirmada (quién produjo o firmó el documento) — criterio CC-03. <a href="{% url 'analisis_grafo' record.pk %}">Revisar relaciones →</a></span>
+      <span class="bloqueo">⛔ Falta una relación de procedencia confirmada (quién produjo o firmó el documento) — CC-03. <a href="{% url 'analisis_grafo' record.pk %}">Revisar relaciones →</a></span>
     {% elif record.publicado %}
       <span class="publicado-ok">✓ Publicado en el catálogo el {{ record.fecha_publicacion|date:"d/m/Y H:i" }}{% if record.publicado_por %} por {{ record.publicado_por.get_username }}{% endif %}.</span>
-    {% else %}
-      <span>Todo decidido: {{ fichas|length }} relación(es) confirmadas. Al aprobar, el documento queda visible para consulta.</span>
+    {% elif fichas %}
+      <span>✓ Todo revisado: {{ fichas|length }} ficha(s). Al aprobar, el documento queda visible para consulta.</span>
     {% endif %}
   </div>
   {% if puede_aprobar and not record.publicado %}
   <form method="post" action="{% url 'revision_aprobar' record.pk %}">
     {% csrf_token %}
-    <button type="submit" {% if pendientes or not fichas or not tiene_procedencia %}disabled{% endif %}>Aprobar y publicar</button>
+    <button type="submit" {% if pendientes or por_revisar or not fichas or not tiene_procedencia %}disabled{% endif %}>Aprobar y publicar</button>
   </form>
   {% elif record.publicado %}
   <a role="button" href="{% url 'catalogo_ficha' 'record' record.pk %}" style="width:auto; margin:0;">Ver en el catálogo →</a>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  // Rechazo: se abre el campo de motivo en la misma ficha; «Confirmar
+  // rechazo» se habilita solo cuando el motivo tiene contenido (RF-M6-03).
+  document.querySelectorAll("[data-abrir-rechazo]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var zona = document.getElementById("rechazo-" + b.dataset.abrirRechazo);
+      zona.hidden = false; zona.querySelector("textarea").focus();
+    });
+  });
+  document.querySelectorAll("[data-cerrar-rechazo]").forEach(function (b) {
+    b.addEventListener("click", function () { document.getElementById("rechazo-" + b.dataset.cerrarRechazo).hidden = true; });
+  });
+  document.querySelectorAll(".zona-rechazo").forEach(function (form) {
+    var texto = form.querySelector("textarea"), boton = form.querySelector(".confirmar-rechazo");
+    function revisar() { boton.disabled = !texto.value.trim(); }
+    texto.addEventListener("input", revisar); revisar();
+  });
+})();
+</script>
 {% endblock %}

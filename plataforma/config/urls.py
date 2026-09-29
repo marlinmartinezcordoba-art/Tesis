@@ -78,6 +78,7 @@ urlpatterns = [
     path("revision/<int:pk>/", vistas_analisis.revision, name="revision"),
     path("revision/<int:pk>/aprobar/", vistas_analisis.revision_aprobar, name="revision_aprobar"),
     path("revision/<int:pk>/relacion/<int:relacion_pk>/rechazar/", vistas_analisis.revision_rechazar, name="revision_rechazar"),
+    path("revision/<int:pk>/relacion/<int:relacion_pk>/confirmar/", vistas_analisis.revision_confirmar, name="revision_confirmar"),
 
     # M7 · Trazabilidad y auditoría
     path("documentos/", vistas_analisis.historial_lista, name="historial_lista"),

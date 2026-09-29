@@ -23,11 +23,11 @@ ESTADOS_MODULO = {
 MODULOS_ESPEC = {
     0: ("Autenticación, autorización y auditoría", VALIDADO),
     1: ("Ingesta y visor documental", VALIDADO),
-    2: ("Preprocesamiento y OCR", POR_VALIDAR),
+    2: ("Preprocesamiento y OCR", VALIDADO),
     3: ("Motor de análisis RiC", ANTERIOR),
     4: ("Modelado de relaciones", ANTERIOR),
     5: ("Vocabularios y autoridades", ANTERIOR),
-    6: ("Revisión archivística", PENDIENTE),
+    6: ("Revisión archivística", POR_VALIDAR),
     7: ("Trazabilidad", PENDIENTE),
     8: ("Catálogo y consulta", PENDIENTE),
     9: ("Exportación e interoperabilidad", PENDIENTE),

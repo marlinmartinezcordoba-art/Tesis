@@ -867,6 +867,22 @@ class RelacionRiC(BorradoLogico):
     fecha_validacion = models.DateTimeField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
+    class Revision(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente de revisión"
+        CONFIRMADA = "confirmada", "Confirmada en revisión"
+        CORREGIDA = "corregida", "Corregida en revisión"
+        NO_APLICA = "no_aplica", "Clasificación archivística (no requiere revisión)"
+
+    # M6 (RF-M6-01/02/04): segunda mirada, ficha por ficha, sobre lo que el
+    # archivista aceptó en el motor de análisis. Nada se publica con fichas
+    # pendientes de revisión.
+    revision = models.CharField(max_length=12, choices=Revision.choices, default=Revision.PENDIENTE, db_index=True)
+    revisado_por = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="relaciones_revisadas"
+    )
+    fecha_revision = models.DateTimeField(null=True, blank=True)
+    nota_revision = models.TextField(blank=True, help_text="M6: qué se corrigió en la revisión o por qué se confirmó.")
+
     class Meta:
         verbose_name = "relación RiC"
         verbose_name_plural = "relaciones RiC"

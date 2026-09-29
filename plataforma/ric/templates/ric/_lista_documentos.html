@@ -21,7 +21,7 @@
     <tr>
       <td>{{ f.record }}</td>
       <td>{{ f.record.fecha_registro|date:"d/m/Y" }}</td>
-      <td><span class="estado-doc {{ f.estado }}">{{ f.etiqueta }}</span></td>
+      <td><span class="estado-doc {{ f.estado }}">{{ f.etiqueta }}</span>{% if f.por_revisar %} <span class="estado-doc en_analisis">{{ f.por_revisar }} ficha(s) por revisar</span>{% endif %}</td>
       <td class="acciones">
         <a href="{% url 'analisis' f.record.pk %}">Análisis</a>
         <a href="{% url 'analisis_grafo' f.record.pk %}">Relaciones</a>

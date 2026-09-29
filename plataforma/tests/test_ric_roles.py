@@ -83,7 +83,7 @@ class RolesTest(CasoModulos):
         resp = self._get(self.archivista, "preproceso")
         self.assertContains(resp, '<span class="m">M2</span><span>Preprocesamiento y OCR</span>')
         self.assertContains(resp, "<span>Cargar documentos</span>")
-        self.assertContains(resp, 'estado-modulo por_validar')
+        self.assertContains(resp, 'estado-modulo validado')
 
     def test_administracion_en_el_menu_con_modulo_0(self):
         self.client.force_login(self.superusuario)

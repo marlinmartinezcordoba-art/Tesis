@@ -40,6 +40,12 @@ def pendientes_de(record):
     return propuestas_de(record).filter(estado=PropuestaRiC.Estado.PENDIENTE)
 
 
+def pendientes_revision(record):
+    """M6 (RF-M6-04): relaciones ya aceptadas en el análisis que el revisor
+    todavía no ha confirmado ni corregido, ficha por ficha."""
+    return relaciones_de(record).filter(revision=RelacionRiC.Revision.PENDIENTE)
+
+
 def relaciones_de(record, solo_validadas=True):
     """Las relaciones del documento en ambos sentidos: las que salen de él
     (R027 has creator -> agente) y las que llegan a él desde una entidad

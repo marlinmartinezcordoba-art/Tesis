@@ -328,6 +328,8 @@ def analisis_relacion(request, pk, relacion_pk):
             return redirect("analisis_grafo", pk=pk)
         relacion.relacion_id = nuevo
         relacion.estado = RelacionRiC.Estado.MODIFICADA
+        if relacion.revision != RelacionRiC.Revision.NO_APLICA:
+            relacion.revision = RelacionRiC.Revision.PENDIENTE  # lo cambiado se vuelve a revisar (M6)
         relacion.validado_por = request.user
         relacion.fecha_validacion = timezone.now()
         relacion.save()
@@ -357,20 +359,44 @@ def analisis_relacion(request, pk, relacion_pk):
 # M6 · Revisión archivística
 # ---------------------------------------------------------------------------
 
-def _fichas_revision(record):
+def _fichas_revision(record, umbral=None):
+    """Cada relación del documento como ficha de revisión: lo propuesto por
+    el motor, lo aceptado en el análisis y la decisión del revisor. Primero
+    las pendientes y, entre ellas, las de baja confianza (CC-04)."""
     fichas = []
     matriz = reglas.cargar_matriz()["relaciones"]
-    for rel in flujo.relaciones_de(record, solo_validadas=False).order_by("fecha_creacion"):
+    for rel in flujo.relaciones_de(record, solo_validadas=False).select_related("revisado_por").order_by("fecha_creacion"):
         propuesta = rel.evidencia.propuestas.first() if rel.evidencia else None
+        entidad = flujo.otro_lado(rel, record)
         fichas.append({
             "relacion": rel,
-            "entidad": flujo.otro_lado(rel, record),
+            "entidad": entidad,
             "nombre_relacion": matriz.get(rel.relacion_id, {}).get("nombre", rel.relacion_id),
             "propuesta": propuesta,
             "categoria": grafo.CATEGORIAS[grafo.categoria_relacion(rel.relacion_id)][0],
             "validada": rel.estado in flujo.ESTADOS_VALIDADOS,
+            "pendiente": rel.estado in flujo.ESTADOS_VALIDADOS and rel.revision == RelacionRiC.Revision.PENDIENTE,
+            "estructural": rel.revision == RelacionRiC.Revision.NO_APLICA,
+            "baja_confianza": bool(propuesta and umbral is not None and propuesta.confianza < umbral),
+            "compartida": _documentos_que_usan(entidad, record) if entidad is not None else 0,
         })
+    fichas.sort(key=lambda f: (not f["pendiente"], not f["baja_confianza"]))
     return fichas
+
+
+def _documentos_que_usan(entidad, record):
+    """Cuántos OTROS documentos están relacionados con esta entidad: si la
+    comparten, corregir su nombre desde un documento la cambiaría en todos."""
+    from django.contrib.contenttypes.models import ContentType
+    from django.db.models import Q
+
+    ct, ct_record = ContentType.objects.get_for_model(entidad), ContentType.objects.get_for_model(Record)
+    otros = set(RelacionRiC.objects.filter(
+        Q(origen_content_type=ct, origen_object_id=entidad.pk, destino_content_type=ct_record)
+        | Q(destino_content_type=ct, destino_object_id=entidad.pk, origen_content_type=ct_record),
+        estado__in=flujo.ESTADOS_VALIDADOS,
+    ).values_list("origen_object_id", "destino_object_id"))
+    return len({o if d == entidad.pk else d for o, d in otros} - {record.pk})
 
 
 def _tiene_procedencia(record):
@@ -381,33 +407,91 @@ def _tiene_procedencia(record):
 def revision_lista(request):
     orden = {flujo.EN_REVISION: 0, flujo.EN_ANALISIS: 1, flujo.SIN_ANALIZAR: 2, flujo.SIN_TEXTO: 3, flujo.PUBLICADO: 4}
     filas = sorted(flujo.documentos_con_estado(), key=lambda f: orden[f["estado"]])
+    for f in filas:
+        f["por_revisar"] = flujo.pendientes_revision(f["record"]).count()
     return render(request, "ric/revision_lista.html", {"filas": filas})
 
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 def revision(request, pk):
     record = get_object_or_404(Record, pk=pk)
-    fichas = _fichas_revision(record)
+    umbral = ConfiguracionSistema.actual().umbral_confianza_revision
+    fichas = _fichas_revision(record, umbral)
+    validadas = [f for f in fichas if f["validada"] and not f["estructural"]]
     return render(request, "ric/revision.html", {
         **_contexto_documento(record, 5),
-        "fichas": [f for f in fichas if f["validada"]],
+        "fichas": validadas,
+        "estructurales": [f for f in fichas if f["validada"] and f["estructural"]],
         "rechazadas": [f for f in fichas if not f["validada"]],
+        "por_revisar": sum(1 for f in validadas if f["pendiente"]),
+        "revisadas": sum(1 for f in validadas if not f["pendiente"]),
         "pendientes": list(flujo.pendientes_de(record)),
         "puede_aprobar": roles.puede(request.user, roles.ARCHIVISTA, roles.REVISOR),
         "tiene_procedencia": _tiene_procedencia(record),
-        "umbral_confianza": ConfiguracionSistema.actual().umbral_confianza_revision,
+        "umbral_confianza": umbral,
         "clases_faltantes": flujo.clases_faltantes(record),
     })
 
 
 @roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
 @require_POST
+def revision_confirmar(request, pk, relacion_pk):
+    """RF-M6-01/02: aceptar UNA ficha, tal cual o con el nombre corregido en
+    el campo editable. Nunca en bloque."""
+    record = get_object_or_404(Record, pk=pk)
+    relacion = get_object_or_404(flujo.relaciones_de(record), pk=relacion_pk)
+    if relacion.revision == RelacionRiC.Revision.NO_APLICA:
+        messages.error(request, "Esta relación es de clasificación archivística y no requiere revisión.")
+        return redirect("revision", pk=pk)
+    entidad = flujo.otro_lado(relacion, record)
+    nombre = request.POST.get("nombre", "").strip()
+    nota = request.POST.get("nota", "").strip()
+    corregida = bool(entidad is not None and nombre and nombre != entidad.nombre)
+    antes = entidad.nombre if entidad is not None else ""
+    if corregida:
+        compartida = _documentos_que_usan(entidad, record)
+        if compartida:
+            messages.error(
+                request,
+                f"«{entidad.nombre}» también describe {compartida} documento(s) más: corregir su nombre aquí lo cambiaría "
+                "en todos. Corríjalo en Instrumentos archivísticos → Vocabularios (M5), o rechace esta ficha con su motivo.",
+            )
+            return redirect(f"/revision/{pk}/#ficha-{relacion.pk}")
+        entidad.nombre = nombre
+        entidad.modificado_por = request.user
+        entidad.save()  # la versión anterior queda en VersionRiC y en la auditoría
+    relacion.revision = RelacionRiC.Revision.CORREGIDA if corregida else RelacionRiC.Revision.CONFIRMADA
+    relacion.revisado_por = request.user
+    relacion.fecha_revision = timezone.now()
+    relacion.nota_revision = (f"Nombre corregido: «{antes}» → «{nombre}». " if corregida else "") + nota
+    relacion.save()
+    registrar_evento(
+        flujo.instanciacion_principal(record), EventoRiC.Tipo.VALIDACION, agente=request.user,
+        detalle={"relacion": relacion.pk, "revision": relacion.revision, "antes": antes,
+                 "despues": nombre if corregida else antes, "nota": nota},
+    )
+    restantes = flujo.pendientes_revision(record).count()
+    messages.success(
+        request,
+        (f"Corregida: «{antes}» → «{nombre}»." if corregida else f"Confirmada: «{entidad}».")
+        + (f" Quedan {restantes} ficha(s) por revisar." if restantes else " Todas las fichas están revisadas: ya puede aprobar y publicar."),
+    )
+    return redirect(f"/revision/{pk}/" + (f"#ficha-{relacion.pk}" if restantes else "#publicar"))
+
+
+@roles.requiere_rol(roles.ARCHIVISTA, roles.REVISOR)
+@require_POST
 def revision_aprobar(request, pk):
-    """RF-M6-04: nada pasa al catálogo mientras haya elementos por decidir."""
+    """RF-M6-04: nada pasa al catálogo mientras haya elementos por decidir,
+    ni en el motor de análisis ni en la revisión ficha por ficha."""
     record = get_object_or_404(Record, pk=pk)
     pendientes = flujo.pendientes_de(record).count()
     if pendientes:
         messages.error(request, f"No se puede publicar: quedan {pendientes} elemento(s) pendientes de decisión en el motor de análisis.")
+        return redirect("revision", pk=pk)
+    por_revisar = flujo.pendientes_revision(record).count()
+    if por_revisar:
+        messages.error(request, f"No se puede publicar: quedan {por_revisar} ficha(s) sin revisar. Acepte o rechace cada una.")
         return redirect("revision", pk=pk)
     # CC-03 (verificado en el servidor, no solo en pantalla): sin al menos
     # una relación de procedencia confirmada, el documento no se publica.
@@ -438,15 +522,21 @@ def revision_rechazar(request, pk, relacion_pk):
     motivo (RF-M6-03) y el documento sale del catálogo si estaba publicado."""
     record = get_object_or_404(Record, pk=pk)
     relacion = get_object_or_404(flujo.relaciones_de(record, solo_validadas=False), pk=relacion_pk)
+    if relacion.revision == RelacionRiC.Revision.NO_APLICA:
+        messages.error(request, "Esta relación es de clasificación archivística: se corrige desde la ingesta o los instrumentos, no en la revisión.")
+        return redirect("revision", pk=pk)
     entidad = flujo.otro_lado(relacion, record)
     motivo = request.POST.get("motivo", "").strip()
     if not motivo:
         messages.error(request, "Escriba el motivo del rechazo antes de confirmar (RF-M6-03).")
-        return redirect("revision", pk=pk)
+        return redirect(f"/revision/{pk}/#ficha-{relacion.pk}")
     relacion.estado = RelacionRiC.Estado.RECHAZADA
     relacion.motivo_decision = motivo
     relacion.validado_por = request.user
     relacion.fecha_validacion = timezone.now()
+    relacion.revisado_por = request.user
+    relacion.fecha_revision = timezone.now()
+    relacion.nota_revision = f"Rechazada en revisión: {motivo}"
     relacion.save()
     estaba_publicado = record.publicado
     if estaba_publicado:

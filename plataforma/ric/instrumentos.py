@@ -197,7 +197,7 @@ def _relacion_manual(origen, destino, relacion_id, usuario):
     RelacionRiC(
         relacion_id=relacion_id, origen=origen, destino=destino, validado_por=usuario,
         fecha_validacion=timezone.now(), estado=RelacionRiC.Estado.ACEPTADA,
-        fuente_relacion="Instrumento archivístico precargado (M5)",
+        fuente_relacion="Instrumento archivístico precargado (M5)", revision=RelacionRiC.Revision.NO_APLICA,
     ).save()
     return True
 
