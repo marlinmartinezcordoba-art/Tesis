@@ -286,16 +286,27 @@ def probar_conexion(config):
         proveedor = instanciar(config)
         if config.proveedor == ProveedorIAConfig.Proveedor.GEMINI:
             from google.genai import errors as genai_errors
+            from google.genai import types as genai_types
 
+            # Una generación mínima real: consultar el modelo (models.get) puede
+            # responder bien aunque la clave no pueda generar con él (pasó con
+            # gemini-2.5-pro, retirado para claves nuevas).
             try:
-                info = proveedor.cliente.models.get(model=proveedor.modelo)
+                respuesta = proveedor.cliente.models.generate_content(
+                    model=proveedor.modelo, contents="Responde únicamente: OK",
+                    config=genai_types.GenerateContentConfig(max_output_tokens=5),
+                )
             except genai_errors.ClientError as e:
                 if e.code in (401, 403):
                     return False, "La clave de API de Gemini no es válida."
                 if e.code == 404:
-                    return False, f"El modelo «{proveedor.modelo}» no existe para esta clave."
+                    return False, f"El modelo «{proveedor.modelo}» no está disponible para esta clave: {e.message}"
+                if e.code == 429:
+                    return False, "La clave es válida pero se superó el límite de uso; intente en unos minutos."
                 return False, f"Gemini respondió con un error ({e.code})."
-            return True, f"Conexión correcta con Gemini · modelo {getattr(info, 'name', proveedor.modelo)}."
+            except genai_errors.ServerError as e:
+                return False, f"Gemini respondió con un error del servidor ({e.code})."
+            return True, f"Conexión correcta con Gemini · modelo {respuesta.model_version or proveedor.modelo}."
         if config.proveedor == ProveedorIAConfig.Proveedor.CLAUDE:
             import anthropic
 

@@ -100,6 +100,8 @@ class ProveedorGemini(ProveedorIA):
                 raise ErrorProveedorIA("Se superó el límite de uso del servicio de IA. Intente más tarde.")
             raise ErrorProveedorIA(f"El servicio de IA respondió con un error ({e.code}).")
         except genai_errors.ServerError as e:
+            if e.code == 503:
+                raise ErrorProveedorIA("El servicio de IA está saturado en este momento (alta demanda). Intente de nuevo en unos minutos.")
             raise ErrorProveedorIA(f"El servicio de IA respondió con un error ({e.code}).")
         except _HttpxRequestError:
             raise ErrorProveedorIA("No hay conexión con el servicio de IA.")

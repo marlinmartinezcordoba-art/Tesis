@@ -20,6 +20,9 @@ else:
     print('Ya hay criterios cargados; no se modifican.')
 "
 
+echo "Configuración inicial (superusuario y proveedor de IA desde el entorno)..."
+python manage.py configurar_inicial || echo "Aviso: la configuración inicial falló; la aplicación arranca igual."
+
 echo "Recolectando archivos estáticos..."
 python manage.py collectstatic --noinput
 

@@ -3,6 +3,13 @@ name: Desplegar en el Droplet
 # Se dispara justo cuando llega un cambio a esta rama (no cada 5 minutos
 # como el cron de respaldo en deploy-ricora.sh) — así lo que se trabaja
 # aquí llega al servidor apenas se sube, sin esperar ni adivinar.
+#
+# Secretos opcionales que se escriben en el .env del servidor si existen
+# (Settings → Secrets and variables → Actions):
+#   GEMINI_API_KEY          clave de Gemini: al arrancar, RICORA registra y
+#                           activa el proveedor si la conexión funciona
+#   RICORA_ADMIN_USER       usuario superusuario a crear o restablecer
+#   RICORA_ADMIN_PASSWORD   su contraseña (se restablece en cada despliegue)
 on:
   push:
     branches: [claude/plataforma-base]
@@ -18,9 +25,33 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST
           script: |
             set -e
             cd /root/ricora
             git fetch origin claude/plataforma-base
             git reset --hard origin/claude/plataforma-base
+
+            # Escribe en .env (sin mostrar valores) solo los secretos definidos.
+            poner() {  # poner CLAVE VALOR -> reemplaza o agrega la línea CLAVE=VALOR
+              if [ -n "$2" ]; then
+                grep -v "^$1=" .env > .env.tmp || true
+                mv .env.tmp .env
+                echo "$1=$2" >> .env
+                echo "  .env: $1 actualizado"
+              fi
+            }
+            poner GEMINI_API_KEY "$GEMINI_API_KEY"
+            poner RICORA_ADMIN_USER "$RICORA_ADMIN_USER"
+            poner RICORA_ADMIN_PASSWORD "$RICORA_ADMIN_PASSWORD"
+            # El modelo antiguo dejó de estar disponible para claves nuevas.
+            if grep -q "^MAZUCA_MODELO_IA_GEMINI=gemini-2.5-pro$" .env; then
+              poner MAZUCA_MODELO_IA_GEMINI "gemini-3.5-flash"
+            fi
+            # La IP del servidor siempre debe estar entre los hosts permitidos.
+            if ! grep "^DJANGO_ALLOWED_HOSTS=" .env | grep -q "$DROPLET_HOST"; then
+              actual=$(grep "^DJANGO_ALLOWED_HOSTS=" .env | cut -d= -f2-)
+              poner DJANGO_ALLOWED_HOSTS "${DROPLET_HOST},${actual:-localhost,127.0.0.1}"
+            fi
+
             docker compose up --build -d

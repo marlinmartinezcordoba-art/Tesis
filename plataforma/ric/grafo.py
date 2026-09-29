@@ -22,8 +22,11 @@ CATEGORIAS = {
     "inclusion": ("Inclusión", "#1f6f8b"),
     "asociacion": ("Asociación", "#6b8cae"),
 }
+# Procedencia = quién produjo, creó, acumuló o firmó el documento (CC-03).
+# "addressee" (destinatario) y "subject" son asociación: recibir o ser tema
+# de un documento no es producirlo.
 _PALABRAS_CATEGORIA = (
-    ("procedencia", ("provenance", "creator", "accumulat", "author", "addressee", "sender", "collector", "publisher")),
+    ("procedencia", ("provenance", "creator", "accumulat", "author", "sender", "collector", "publisher")),
     ("temporal", ("date", "precede", "follow", "existence", "beginning", "end")),
     ("inclusion", ("include", "constituent", "part", "member", "subdivision", "subordinate", "contain", "component")),
 )

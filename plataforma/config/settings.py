@@ -166,7 +166,9 @@ MAZUCA_MODELO_IA = os.environ.get("MAZUCA_MODELO_IA", "claude-opus-5")
 # Gemini: el proveedor de IA en la nube que se usa activamente en RICORA
 # (clave en GEMINI_API_KEY). Claude sigue disponible como alternativa desde
 # el panel técnico, pero Gemini es el que se configura y prueba primero.
-MAZUCA_MODELO_IA_GEMINI = os.environ.get("MAZUCA_MODELO_IA_GEMINI", "gemini-2.5-pro")
+# gemini-2.5-pro dejó de estar disponible para claves nuevas (Google responde
+# 404); los modelos Pro tienen cuota 0 en el plan gratuito. Comprobado con la clave real.
+MAZUCA_MODELO_IA_GEMINI = os.environ.get("MAZUCA_MODELO_IA_GEMINI", "gemini-3.5-flash")
 
 # F16: un único punto de ingreso para los dos perfiles (archivista y
 # invitado de consulta) — /admin/login/ exige is_staff y rechaza a un
