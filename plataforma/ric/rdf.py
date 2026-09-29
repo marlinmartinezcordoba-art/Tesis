@@ -14,6 +14,7 @@ se serializa como un triple directo (origen -[predicado RiC-O]-> destino),
 que es exactamente cómo RiC-O define esas propiedades "atajo".
 """
 
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rdflib import Graph, Literal, Namespace, URIRef
@@ -141,10 +142,24 @@ def grafo_de_entidad(entidad, base):
 
 
 def grafo_completo(base):
-    """Todo el grafo RiC validado: cada RelacionRiC aceptada o modificada,
-    con las dos entidades que conecta. Es lo que carga el endpoint SPARQL."""
+    """Todo el grafo RiC: cada entidad ya guardada con sus atributos, más
+    cada RelacionRiC aceptada o modificada entre ellas. Es lo que carga el
+    endpoint SPARQL.
+
+    F12 (auditoría): antes solo recorría las relaciones ya validadas y
+    emitía las dos entidades de cada una — una entidad recién ingerida
+    (F01) o creada a mano, sin ninguna relación validada todavía, no
+    aparecía en absoluto en el RDF completo ni en SPARQL, aunque ya
+    existiera de verdad en el sistema. Ahora se recorren también todos los
+    tipos concretos (mismo inventario que "Entidades RiC"), así que toda
+    entidad guardada aparece con sus propios atributos desde que existe,
+    tenga o no relaciones ya validadas."""
     g = Graph()
     g.bind("rico", RICO)
+    for rid in tipos.TIPOS_CONCRETOS:
+        modelo = apps.get_model("ric", tipos.RIC_ID_A_MODELO_NOMBRE[rid])
+        for entidad in tipos.instancias_propias(modelo):
+            _emitir_entidad(g, entidad, base)
     for relacion in _relaciones_validadas():
         _emitir_relacion(g, relacion, base)
     return g

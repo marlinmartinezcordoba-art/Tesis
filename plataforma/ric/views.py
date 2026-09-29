@@ -25,32 +25,12 @@ from .models import Instantiation, PropuestaRiC, Record, RelacionRiC
 _MODELOS_POR_SLUG = {nombre.lower(): nombre for nombre in tipos.RIC_ID_A_MODELO_NOMBRE.values()}
 
 # F04 (Entidades RiC): IDs de entidad que de verdad se pueden navegar aquí
-# — el mismo inventario que ya registra el admin, uno por uno (se excluye
-# "RecordResource" y "Agent": son las categorías abstractas de RiC-CM, RICORA
-# nunca las instancia solas, solo sus subtipos concretos).
-_TIPOS_NAVEGABLES = [
-    rid for rid in tipos.RIC_ID_A_MODELO_NOMBRE if rid not in ("E02", "E07")
-]
-
-# Con herencia multitabla, un Group que además es Family o CorporateBody
-# tiene fila en las dos tablas — Group.objects.all() ya los incluye. Igual
-# Event/Activity y Rule/Mandate. Sin excluirlos aquí, "Entidades RiC"
-# contaría y listaría cada Family/CorporateBody/Activity/Mandate dos veces
-# (una como ellos mismos, otra disfrazada de su padre).
-_EXCLUYE_HIJOS_MTI = {
-    "Group": ("family", "corporatebody"),
-    "Event": ("activity",),
-    "Rule": ("mandate",),
-}
-
-
-def _instancias_propias(modelo):
-    """`modelo.objects`, pero sin las filas que en realidad son de un
-    subtipo suyo con tabla propia (ver `_EXCLUYE_HIJOS_MTI`)."""
-    qs = modelo.objects.all()
-    for hijo in _EXCLUYE_HIJOS_MTI.get(modelo.__name__, ()):
-        qs = qs.filter(**{f"{hijo}__isnull": True})
-    return qs
+# — el mismo inventario que ya registra el admin, uno por uno. Ver
+# ric.tipos.TIPOS_CONCRETOS / instancias_propias (compartido con ric.rdf,
+# que necesita el mismo recorrido "por tipo, sin duplicar hijos MTI" para
+# la exportación RDF completa).
+_TIPOS_NAVEGABLES = tipos.TIPOS_CONCRETOS
+_instancias_propias = tipos.instancias_propias
 
 
 def archivista_requerido(vista):

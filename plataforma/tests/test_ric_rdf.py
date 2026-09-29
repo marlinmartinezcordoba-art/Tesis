@@ -123,6 +123,43 @@ class InversaDeLaRelacionTest(TestCase):
         self.assertIn((sujeto_cabildo, rdf.RICO.isCreatorOf, sujeto_record), g)
 
 
+class EntidadesSinRelacionesEnElGrafoCompletoTest(TestCase):
+    """F12 (auditoría): una entidad ya guardada (por ingesta o creada a
+    mano) debe aparecer en el RDF completo / SPARQL desde que existe, no
+    solo cuando ya tiene alguna relación validada. Antes de esto,
+    grafo_completo() solo recorría RelacionRiC, así que un Record recién
+    ingerido sin ninguna propuesta todavía validada era invisible."""
+
+    def test_un_record_sin_ninguna_relacion_aparece_igual(self):
+        from ric.models import Person
+
+        aislado = Record.objects.create(nombre="Acta sin relaciones todavía")
+        Person.objects.create(nombre="Alguien sin relaciones todavía")
+        g = rdf.grafo_completo(BASE)
+        sujeto = URIRef(f"{BASE}record/{aislado.pk}")
+        self.assertIn((sujeto, RDF.type, rdf.RICO.Record), g)
+        self.assertIn((sujeto, rdf.RICO.name, Literal("Acta sin relaciones todavía")), g)
+
+    def test_un_corporatebody_no_aparece_tambien_como_group(self):
+        # herencia multitabla: CorporateBody(Group) tiene fila también en
+        # la tabla de Group — sin excluirla, aparecería dos veces, una con
+        # el tipo RDF correcto (CorporateBody) y otra con el equivocado
+        # (Group, heredado por accidente del recorrido "por tipo").
+        cabildo = CorporateBody.objects.create(nombre="Cabildo de Santafé (aislado)")
+        g = rdf.grafo_completo(BASE)
+        sujeto = URIRef(f"{BASE}corporatebody/{cabildo.pk}")
+        self.assertIn((sujeto, RDF.type, rdf.RICO.CorporateBody), g)
+        self.assertNotIn((sujeto, RDF.type, rdf.RICO.Group), g)
+
+    def test_una_entidad_sin_relaciones_no_esta_en_el_grafo_de_otra_entidad(self):
+        # grafo_de_entidad() sigue siendo "el vecindario a un salto" — no
+        # debe traer entidades sueltas que no tengan nada que ver.
+        entidad = Record.objects.create(nombre="Acta principal")
+        Record.objects.create(nombre="Acta completamente aparte")
+        g = rdf.grafo_de_entidad(entidad, BASE)
+        self.assertEqual(len(list(g.subjects(RDF.type, rdf.RICO.Record))), 1)
+
+
 class ExportarRdfViewTest(TestCase):
     def setUp(self):
         self.archivista = User.objects.create_user("archivista", password="x")

@@ -46,3 +46,30 @@ def ric_id_a_modelo(ric_id):
 def nombre_cm_a_modelo(nombre_cm):
     nombre = NOMBRE_CM_A_MODELO_NOMBRE.get(nombre_cm.strip())
     return _modelo(nombre) if nombre else None
+
+
+# IDs que de verdad se instancian y se navegan por separado — se excluyen
+# "RecordResource" y "Agent": son las categorías abstractas de RiC-CM,
+# RICORA nunca las guarda solas, solo sus subtipos concretos.
+TIPOS_CONCRETOS = [rid for rid in RIC_ID_A_MODELO_NOMBRE if rid not in ("E02", "E07")]
+
+# Con herencia multitabla, un Group que además es Family o CorporateBody
+# tiene fila también en la tabla de Group (Group.objects.all() ya lo
+# incluye); igual Event/Activity y Rule/Mandate. Sin excluirlos, cualquier
+# recorrido "por tipo" (listas, catálogos, exportación RDF) contaría o
+# etiquetaría cada Family/CorporateBody/Activity/Mandate dos veces — una
+# como ellos mismos, otra disfrazada de su padre con el tipo RDF equivocado.
+EXCLUYE_HIJOS_MTI = {
+    "Group": ("family", "corporatebody"),
+    "Event": ("activity",),
+    "Rule": ("mandate",),
+}
+
+
+def instancias_propias(modelo):
+    """`modelo.objects`, pero sin las filas que en realidad son de un
+    subtipo suyo con tabla propia (ver `EXCLUYE_HIJOS_MTI`)."""
+    qs = modelo.objects.all()
+    for hijo in EXCLUYE_HIJOS_MTI.get(modelo.__name__, ()):
+        qs = qs.filter(**{f"{hijo}__isnull": True})
+    return qs
