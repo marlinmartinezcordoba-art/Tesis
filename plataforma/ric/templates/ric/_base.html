@@ -81,6 +81,9 @@
     <a href="{% url 'ric_busqueda' %}" class="{% if request.resolver_match.url_name == 'ric_busqueda' %}activo{% endif %}">🔎 Búsqueda</a>
     <a href="{% url 'ric_sparql' %}" class="{% if request.resolver_match.url_name == 'ric_sparql' %}activo{% endif %}">🕸️ SPARQL</a>
     <a href="{% url 'ric_evaluacion' %}" class="{% if request.resolver_match.url_name == 'ric_evaluacion' %}activo{% endif %}">📊 Evaluación</a>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'ric_usuarios' %}" class="{% if request.resolver_match.url_name == 'ric_usuarios' %}activo{% endif %}">👤 Usuarios</a>
+    {% endif %}
     {% if request.user.is_staff %}
     <a href="/admin/" class="separador">⚙️ Panel técnico</a>
     {% endif %}

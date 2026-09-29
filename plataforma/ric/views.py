@@ -51,6 +51,22 @@ def archivista_requerido(vista):
 
     return envoltura
 
+
+def superusuario_requerido(vista):
+    """Crear cuentas (para Zully, Catalina, o cualquier otra persona) es
+    más delicado que ingerir o validar: queda reservado a superusuario
+    (hoy solo la cuenta principal), no a cualquier archivista."""
+
+    @wraps(vista)
+    @login_required
+    def envoltura(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            messages.error(request, "Solo una cuenta superusuario puede crear o administrar usuarios.")
+            return redirect("ric_inicio")
+        return vista(request, *args, **kwargs)
+
+    return envoltura
+
 # F06: formatos sobre los que tiene sentido dibujar el recuadro de posición
 # (izquierda/arriba/ancho/alto son píxeles de la imagen tal cual se subió).
 # Un PDF necesitaría renderizar la página aparte; eso no está construido.
@@ -501,3 +517,59 @@ def duplicados_html(request):
             })
     total = sum(len(g["pares"]) for g in grupos)
     return render(request, "ric/duplicados.html", {"grupos": grupos, "total": total})
+
+
+@superusuario_requerido
+def usuarios_html(request):
+    """F16 (Seguridad): crear una cuenta (archivista o invitado de
+    consulta) sin pasar por el admin de Django — antes la única forma era
+    Panel técnico → Usuarios, con un formulario pensado para gestionar
+    permisos técnicos, no para "dale acceso a Zully"."""
+    from django.contrib.auth.models import User
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from django.db import IntegrityError
+
+    errores = []
+
+    if request.method == "POST":
+        nombre_usuario = request.POST.get("username", "").strip()
+        nombre_completo = request.POST.get("nombre_completo", "").strip()
+        contrasena = request.POST.get("password", "")
+        confirmar = request.POST.get("password_confirmar", "")
+        rol = request.POST.get("rol", "consulta")
+
+        if not nombre_usuario:
+            errores.append("Indique un nombre de usuario.")
+        elif User.objects.filter(username__iexact=nombre_usuario).exists():
+            errores.append(f'Ya existe una cuenta con el nombre de usuario "{nombre_usuario}".')
+
+        if contrasena != confirmar:
+            errores.append("La contraseña y su confirmación no coinciden.")
+        elif not contrasena:
+            errores.append("Escriba una contraseña.")
+        else:
+            try:
+                validate_password(contrasena)
+            except ValidationError as e:
+                errores.extend(e.messages)
+
+        if rol not in ("archivista", "consulta"):
+            errores.append("Elija un perfil válido.")
+
+        if not errores:
+            try:
+                usuario = User.objects.create_user(
+                    username=nombre_usuario, password=contrasena, is_staff=(rol == "archivista"),
+                )
+                if nombre_completo:
+                    usuario.first_name = nombre_completo
+                    usuario.save(update_fields=["first_name"])
+                etiqueta = "archivista" if rol == "archivista" else "invitado de consulta"
+                messages.success(request, f'Cuenta creada: "{nombre_usuario}", perfil {etiqueta}.')
+                return redirect("ric_usuarios")
+            except IntegrityError:
+                errores.append(f'Ya existe una cuenta con el nombre de usuario "{nombre_usuario}".')
+
+    usuarios = User.objects.order_by("username")
+    return render(request, "ric/usuarios.html", {"errores": errores, "usuarios": usuarios})

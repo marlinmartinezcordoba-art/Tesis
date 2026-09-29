@@ -24,6 +24,7 @@ from ric.views import (
     sparql_endpoint,
     sparql_html,
     subir_documento,
+    usuarios_html,
 )
 
 admin.site.site_header = "RICORA · Automatización archivística asistida por IA"
@@ -46,6 +47,7 @@ urlpatterns = [
     path("ric/bandeja/", bandeja_validacion, name="ric_bandeja"),
     path("ric/bandeja/<int:pk>/decidir/", decidir_propuesta, name="ric_decidir_propuesta"),
     path("ric/duplicados/", duplicados_html, name="ric_duplicados"),
+    path("ric/usuarios/", usuarios_html, name="ric_usuarios"),
     path("ric/rdf/", exportar_rdf_completo, name="ric_exportar_rdf_completo"),
     path("ric/rdf/<str:tipo>/<int:pk>/", exportar_rdf, name="ric_exportar_rdf"),
     path("ric/grafo/<str:tipo>/<int:pk>/", grafo_html, name="ric_grafo"),
