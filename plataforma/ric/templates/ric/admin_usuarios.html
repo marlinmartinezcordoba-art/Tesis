@@ -1,4 +1,5 @@
 {% extends "ric/_base.html" %}
+{% load ric_extras %}
 {% block titulo %}Administración y seguridad · RICORA{% endblock %}
 {% block estilos_extra %}
   .pestanas { display: flex; gap: .3rem; border-bottom: 1px solid #e6e3dc; margin-bottom: 1.1rem; }
@@ -45,6 +46,8 @@
   <a href="?pestana=usuarios" class="{% if pestana == 'usuarios' %}activa{% endif %}">Usuarios</a>
   <a href="?pestana=proveedores" class="{% if pestana == 'proveedores' %}activa{% endif %}">Proveedores de IA</a>
   <a href="?pestana=parametros" class="{% if pestana == 'parametros' %}activa{% endif %}">Parámetros</a>
+  <a href="?pestana=auditoria" class="{% if pestana == 'auditoria' %}activa{% endif %}">Auditoría</a>
+  <a href="?pestana=eliminados" class="{% if pestana == 'eliminados' %}activa{% endif %}">Eliminados</a>
 </nav>
 
 {% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
@@ -96,6 +99,7 @@
             </form>
             {% if u.is_active %}
             <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="desactivar"><button type="submit" class="secondary">Desactivar</button></form>
+            <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_sesiones"><button type="submit" class="secondary" title="Revoca todas las sesiones abiertas de esta cuenta">Cerrar sesiones</button></form>
             {% else %}
             <form method="post" action="{% url 'admin_usuario_editar' u.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="reactivar"><button type="submit">Reactivar</button></form>
             {% endif %}
@@ -156,6 +160,61 @@
       </tbody>
     </table>
   </div>
+</div>
+
+{% elif pestana == "auditoria" %}
+<div class="tarjeta">
+  <h3>Auditoría de acciones ({{ total_auditoria }})</h3>
+  <p style="font-size:.8rem; color:#6b7280; margin:.2rem 0 .8rem">Quién hizo qué, sobre qué, cuándo y con qué valores antes y después: inicios y cierres de sesión, intentos fallidos y bloqueos, accesos denegados por rol, creación, modificación, borrado lógico y restauración. Solo se escribe; nunca se edita ni se borra desde la aplicación.</p>
+  <form method="get" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr 1.4fr auto auto; gap:.4rem; align-items:end; margin-bottom:.8rem">
+    <input type="hidden" name="pestana" value="auditoria">
+    <div><label style="font-size:.74rem">Usuario</label><input type="text" name="usuario" value="{{ filtro.usuario }}" style="margin:0"></div>
+    <div><label style="font-size:.74rem">Acción</label><select name="accion" style="margin:0"><option value="">Todas</option>{% for v, n in acciones %}<option value="{{ v }}" {% if filtro.accion == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div><label style="font-size:.74rem">Desde</label><input type="date" name="desde" value="{{ filtro.desde }}" style="margin:0"></div>
+    <div><label style="font-size:.74rem">Hasta</label><input type="date" name="hasta" value="{{ filtro.hasta }}" style="margin:0"></div>
+    <div><label style="font-size:.74rem">Objeto</label><input type="search" name="q" value="{{ filtro.q }}" style="margin:0"></div>
+    <button type="submit" style="margin:0; width:auto">Filtrar</button>
+    <a role="button" class="secondary" style="margin:0; width:auto" href="{% url 'admin_auditoria_csv' %}?usuario={{ filtro.usuario|urlencode }}&accion={{ filtro.accion|urlencode }}&desde={{ filtro.desde }}&hasta={{ filtro.hasta }}&q={{ filtro.q|urlencode }}">⬇ CSV</a>
+  </form>
+  {% if not registros %}<p class="sin-datos">Sin registros con ese filtro.</p>{% else %}
+  <table class="tabla" style="font-size:.8rem">
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Objeto</th><th>Antes → después</th><th>IP</th></tr></thead>
+    <tbody>
+      {% for r in registros %}
+      <tr {% if not r.exitoso %}style="background:#fff7f6"{% endif %}>
+        <td style="white-space:nowrap">{{ r.fecha|date:"d/m/Y H:i:s" }}</td>
+        <td>{{ r.usuario_nombre|default:"—" }}</td>
+        <td>{{ r.get_accion_display }}{% if not r.exitoso %} ✗{% endif %}</td>
+        <td>{% if r.content_type %}<small style="color:#8a94a3">{{ r.content_type.model }}</small> {% endif %}{{ r.objeto_texto|default:"" }}{% if r.detalle %}<br><small style="color:#6b7280">{% for k, v in r.detalle.items %}{{ k }}: {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</small>{% endif %}</td>
+        <td>{% if r.antes or r.despues %}<details><summary style="cursor:pointer; font-size:.76rem">{{ r.despues|length }} campo(s)</summary><small>{% for k, v in r.despues.items %}<div><b>{{ k }}</b>: {{ r.antes|dict_valor:k }} → {{ v }}</div>{% endfor %}</small></details>{% else %}—{% endif %}</td>
+        <td><small>{{ r.ip }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{% elif pestana == "eliminados" %}
+<div class="tarjeta">
+  <h3>Eliminados (borrado lógico) · {{ eliminados|length }}</h3>
+  <p style="font-size:.8rem; color:#6b7280; margin:.2rem 0 .8rem">Nada se elimina de forma irreversible: lo que aquí aparece salió de todas las pantallas y consultas, conserva su historial y puede restaurarse. Cada borrado y cada restauración quedan en la auditoría con su motivo.</p>
+  {% if not eliminados %}<p class="sin-datos">No hay elementos eliminados.</p>{% else %}
+  <table class="tabla" style="font-size:.82rem">
+    <thead><tr><th>Tipo</th><th>Elemento</th><th>Eliminado</th><th>Motivo</th><th></th></tr></thead>
+    <tbody>
+      {% for e in eliminados %}
+      <tr>
+        <td>{{ e.tipo|capfirst }}</td>
+        <td>{{ e.objeto }}</td>
+        <td>{{ e.objeto.eliminado_en|date:"d/m/Y H:i" }} · {{ e.objeto.eliminado_por.get_username|default:"sistema" }}</td>
+        <td>{{ e.objeto.motivo_eliminacion|default:"—" }}</td>
+        <td><form method="post" action="{% url 'admin_restaurar' %}" style="margin:0">{% csrf_token %}<input type="hidden" name="modelo" value="{{ e.slug }}"><input type="hidden" name="pk" value="{{ e.objeto.pk }}"><button type="submit" style="margin:0; width:auto; padding:.3rem .7rem; font-size:.76rem">Restaurar</button></form></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </div>
 
 {% else %}

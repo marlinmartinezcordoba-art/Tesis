@@ -14,10 +14,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import proveedores, roles
-from .models import ConfiguracionSistema, ProveedorIAConfig
+from . import auditoria_acciones, proveedores, roles
+from .models import ConfiguracionSistema, ProveedorIAConfig, RegistroAuditoria
 
-_PESTANAS = ("usuarios", "proveedores", "parametros")
+_PESTANAS = ("usuarios", "proveedores", "parametros", "auditoria", "eliminados")
 
 
 def _volver(pestana="usuarios"):
@@ -95,7 +95,13 @@ def admin_usuarios(request):
         {"usuario": u, "rol": roles.rol_de(u), "rol_etiqueta": roles.ETIQUETAS[roles.rol_de(u)]}
         for u in User.objects.order_by("-is_active", "username")
     ]
+    contexto_extra = {}
+    if pestana == "auditoria":
+        contexto_extra = _contexto_auditoria(request)
+    elif pestana == "eliminados":
+        contexto_extra = {"eliminados": _eliminados()}
     return render(request, "ric/admin_usuarios.html", {
+        **contexto_extra,
         "pestana": pestana,
         "errores": errores,
         "usuarios": usuarios,
@@ -134,7 +140,8 @@ def admin_usuario_editar(request, pk):
         else:
             usuario.is_active = False
             usuario.save(update_fields=["is_active"])
-            messages.info(request, f'Cuenta "{usuario.username}" desactivada: ya no puede iniciar sesión.')
+            cerradas = auditoria_acciones.cerrar_sesiones_de(usuario, motivo="cuenta desactivada")
+            messages.info(request, f'Cuenta "{usuario.username}" desactivada: ya no puede iniciar sesión ({cerradas} sesión(es) abierta(s) cerrada(s)).')
     elif accion == "reactivar":
         usuario.is_active = True
         usuario.save(update_fields=["is_active"])
@@ -151,7 +158,11 @@ def admin_usuario_editar(request, pk):
             else:
                 usuario.set_password(contrasena)
                 usuario.save()
-                messages.success(request, f'Contraseña de "{usuario.username}" restablecida.')
+                cerradas = auditoria_acciones.cerrar_sesiones_de(usuario, motivo="contraseña restablecida")
+                messages.success(request, f'Contraseña de "{usuario.username}" restablecida; {cerradas} sesión(es) abierta(s) cerrada(s).')
+    elif accion == "cerrar_sesiones":
+        cerradas = auditoria_acciones.cerrar_sesiones_de(usuario, motivo="revocación manual del administrador")
+        messages.info(request, f'{cerradas} sesión(es) de "{usuario.username}" cerrada(s).')
     else:
         messages.error(request, "Acción no reconocida.")
     return _volver("usuarios")
@@ -213,8 +224,11 @@ def admin_proveedor_activar(request, pk):
 def admin_proveedor_eliminar(request, pk):
     config = get_object_or_404(ProveedorIAConfig, pk=pk)
     nombre = str(config)
-    config.delete()
-    messages.info(request, f"{nombre} eliminado.")
+    if config.activo:
+        config.activo = False
+        config.save(update_fields=["activo"])
+    config.eliminar(request.user, motivo="Retirado desde Administración")
+    messages.info(request, f"{nombre} retirado (borrado lógico, queda en la auditoría).")
     return _volver("proveedores")
 
 
@@ -237,3 +251,86 @@ def admin_parametros(request):
     config.save()
     messages.success(request, "Parámetros guardados.")
     return _volver("parametros")
+
+
+# ---------------------------------------------------------------------------
+# Auditoría de acciones y papelera (borrado lógico)
+# ---------------------------------------------------------------------------
+
+def _filtrar_auditoria(request):
+    qs = RegistroAuditoria.objects.select_related("usuario", "content_type")
+    usuario = request.GET.get("usuario", "").strip()
+    accion = request.GET.get("accion", "").strip()
+    desde, hasta = request.GET.get("desde", "").strip(), request.GET.get("hasta", "").strip()
+    q = request.GET.get("q", "").strip()
+    if usuario:
+        qs = qs.filter(usuario_nombre__icontains=usuario)
+    if accion:
+        qs = qs.filter(accion=accion)
+    if desde:
+        qs = qs.filter(fecha__date__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha__date__lte=hasta)
+    if q:
+        qs = qs.filter(objeto_texto__icontains=q)
+    return qs
+
+
+def _contexto_auditoria(request):
+    qs = _filtrar_auditoria(request)
+    return {
+        "registros": qs[:300], "total_auditoria": qs.count(),
+        "acciones": RegistroAuditoria.Accion.choices,
+        "filtro": {k: request.GET.get(k, "") for k in ("usuario", "accion", "desde", "hasta", "q")},
+    }
+
+
+def _eliminados(limite=200):
+    """Lo borrado lógicamente, a partir de los registros de auditoría de
+    borrado que todavía no tienen una restauración posterior."""
+    filas = []
+    for r in RegistroAuditoria.objects.filter(accion=RegistroAuditoria.Accion.ELIMINAR).select_related("content_type")[: limite * 2]:
+        if r.content_type is None:
+            continue
+        modelo = r.content_type.model_class()
+        gestor = getattr(modelo, "todos", None)
+        objeto = gestor.filter(pk=r.object_id).first() if gestor is not None else None
+        if objeto is None or not getattr(objeto, "eliminado", False):
+            continue
+        filas.append({"registro": r, "objeto": objeto, "tipo": modelo._meta.verbose_name, "slug": r.content_type.model})
+        if len(filas) >= limite:
+            break
+    return filas
+
+
+@roles.requiere_rol()
+def admin_auditoria_csv(request):
+    import csv
+
+    from django.http import HttpResponse
+
+    salida = HttpResponse("\ufeff", content_type="text/csv; charset=utf-8")
+    salida["Content-Disposition"] = f'attachment; filename="auditoria_{timezone.now():%Y%m%d_%H%M}.csv"'
+    escritor = csv.writer(salida, delimiter=";")
+    escritor.writerow(["fecha", "usuario", "accion", "exitoso", "tipo", "objeto", "antes", "despues", "detalle", "ip"])
+    for r in _filtrar_auditoria(request)[:5000]:
+        escritor.writerow([r.fecha.isoformat(), r.usuario_nombre, r.get_accion_display(), r.exitoso,
+                           r.content_type.model if r.content_type else "", r.objeto_texto, r.antes, r.despues, r.detalle, r.ip])
+    auditoria_acciones.registrar_accion("modificar", detalle={"exportacion_auditoria": True, "filtro": dict(request.GET.items())})
+    return salida
+
+
+@roles.requiere_rol()
+@require_POST
+def admin_restaurar(request):
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = get_object_or_404(ContentType, app_label="ric", model=request.POST.get("modelo", ""))
+    modelo = ct.model_class()
+    objeto = get_object_or_404(getattr(modelo, "todos", modelo._base_manager), pk=request.POST.get("pk"))
+    if not getattr(objeto, "eliminado", False):
+        messages.info(request, f"«{objeto}» no estaba eliminado.")
+    else:
+        objeto.restaurar(request.user)
+        messages.success(request, f"«{objeto}» restaurado.")
+    return _volver("eliminados")

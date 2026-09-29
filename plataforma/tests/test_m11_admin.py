@@ -86,7 +86,7 @@ class UsuariosTest(CasoModulos):
     def test_tabla_de_usuarios_con_su_rol(self):
         self.client.force_login(self.superusuario)
         resp = self.client.get(reverse("admin_usuarios"))
-        for etiqueta in ("Superusuario", "Archivista", "Revisor", "Consulta"):
+        for etiqueta in ("Administrador", "Archivista", "Revisor", "Consulta"):
             self.assertContains(resp, etiqueta)
 
 

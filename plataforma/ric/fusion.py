@@ -51,11 +51,12 @@ def fusionar_entidades(duplicada, superviviente, usuario):
     """Mueve todas las relaciones (RelacionRiC) y propuestas pendientes
     (PropuestaRiC) que apuntaban a `duplicada` para que apunten a
     `superviviente`, guarda una fotografía de `duplicada` en VersionRiC
-    (mismo mecanismo de F07, para no perder su historia) y la borra.
+    (mismo mecanismo de F07, para no perder su historia) y la marca como
+    eliminada (borrado lógico; `eliminar()` toma la fotografía al guardar).
 
     Devuelve {"relaciones_movidas": int, "propuestas_movidas": int}.
     """
-    from .models import EventoRiC, PropuestaRiC, RelacionRiC, _registrar_version, registrar_evento
+    from .models import EventoRiC, PropuestaRiC, RelacionRiC, registrar_evento
 
     nombre_modelo = type(duplicada).__name__
     if nombre_modelo in _MODELOS_NO_FUSIONABLES:
@@ -91,8 +92,10 @@ def fusionar_entidades(duplicada, superviviente, usuario):
         ).update(origen_object_id=superviviente.pk)
 
         descripcion_duplicada = str(duplicada)
-        _registrar_version(duplicada)
-        duplicada.delete()
+        # Regla del proyecto: nada se elimina de forma irreversible. La
+        # duplicada queda marcada como eliminada (borrado lógico) con el
+        # motivo de la fusión y puede restaurarse desde Administración.
+        duplicada.eliminar(usuario, motivo=f"Fusionada en «{superviviente}» (id {superviviente.pk})")
 
         registrar_evento(
             None, EventoRiC.Tipo.FUSION, agente=usuario,
@@ -135,7 +138,7 @@ def fusionar_formas(duplicada, superviviente, usuario):
         superviviente.modificado_por = usuario
         superviviente.save()
         nombre_duplicada = duplicada.nombre
-        duplicada.delete()
+        duplicada.eliminar(usuario, motivo=f"Fusionada en «{superviviente.nombre}» (id {superviviente.pk})")
         registrar_evento(
             None, EventoRiC.Tipo.FUSION, agente=usuario,
             detalle={

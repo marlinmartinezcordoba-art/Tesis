@@ -60,6 +60,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "ric.auditoria_acciones.UsuarioActualMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -101,6 +102,28 @@ DATABASE_URL = os.environ.get(
 )
 DATABASES = {"default": dj_database_url.parse(DATABASE_URL)}
 
+
+# Módulo transversal de seguridad (sección 7 del prompt de desarrollo).
+# Contraseñas con bcrypt (las ya guardadas con PBKDF2 siguen valiendo y se
+# rehashean al siguiente inicio de sesión).
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+]
+# Sesión de servidor (no JWT: las pantallas las sirve el mismo servidor):
+# expiración corta por inactividad, renovada en cada petición ("refresh"),
+# cerrada al cerrar el navegador y revocable desde Administración
+# (ric.auditoria_acciones.cerrar_sesiones_de). Las sesiones viven en la base
+# de datos, así que la revocación aplica a todos los procesos de inmediato.
+SESSION_COOKIE_AGE = int(os.environ.get("RICORA_SESION_MINUTOS", "60")) * 60
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+if os.environ.get("DJANGO_BEHIND_PROXY") == "1":
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

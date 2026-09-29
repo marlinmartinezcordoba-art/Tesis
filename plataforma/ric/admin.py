@@ -158,7 +158,7 @@ class RecordAdmin(VerGrafoAdminMixin, admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         instancias = formset.save(commit=False)
         for eliminada in formset.deleted_objects:
-            eliminada.delete()
+            eliminada.eliminar(request.user, motivo="Retirada desde el panel técnico")
         for instanciacion in instancias:
             es_nueva = instanciacion.pk is None
             instanciacion.save()

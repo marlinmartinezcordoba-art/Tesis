@@ -43,7 +43,9 @@
     <small>Automatización archivística asistida por IA</small>
   </div>
 
-  {% if form.errors %}
+  {% if bloqueado %}
+  <div class="errores">Demasiados intentos fallidos ({{ intentos }}) para este usuario. Por seguridad, espere {{ minutos }} minutos antes de volver a intentarlo. El intento quedó registrado.</div>
+  {% elif form.errors %}
   <div class="errores">Usuario o contraseña incorrectos. Inténtelo de nuevo.</div>
   {% endif %}
 

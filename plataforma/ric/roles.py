@@ -16,13 +16,14 @@ from django.contrib.auth.models import Group
 from django.shortcuts import redirect
 
 SUPERUSUARIO = "superusuario"
+ADMINISTRADOR = SUPERUSUARIO  # el cuarto rol de los documentos: administra usuarios, proveedores y parámetros
 ARCHIVISTA = "archivista"
 REVISOR = "revisor"
 CONSULTA = "consulta"
 
 ROLES_ASIGNABLES = (ARCHIVISTA, REVISOR, CONSULTA)
 ETIQUETAS = {
-    SUPERUSUARIO: "Superusuario",
+    SUPERUSUARIO: "Administrador",
     ARCHIVISTA: "Archivista",
     REVISOR: "Revisor",
     CONSULTA: "Consulta",
@@ -45,6 +46,9 @@ def rol_de(usuario):
 def asignar_rol(usuario, rol):
     if rol not in ROLES_ASIGNABLES:
         raise ValueError(f"Rol desconocido: {rol!r}")
+    from .auditoria_acciones import registrar_accion
+
+    rol_anterior = rol_de(usuario)
     grupo, _ = Group.objects.get_or_create(name=_GRUPO_REVISOR)
     usuario.is_staff = rol == ARCHIVISTA
     usuario.save(update_fields=["is_staff"])
@@ -52,6 +56,8 @@ def asignar_rol(usuario, rol):
         usuario.groups.add(grupo)
     else:
         usuario.groups.remove(grupo)
+    if rol_anterior != rol:
+        registrar_accion("modificar", objeto=usuario, antes={"rol": rol_anterior}, despues={"rol": rol})
 
 
 def puede(usuario, *roles):
@@ -82,6 +88,12 @@ def requiere_rol(*roles, mensaje=None):
         @login_required
         def envoltura(request, *args, **kwargs):
             if not puede(request.user, *roles):
+                from .auditoria_acciones import registrar_accion
+
+                registrar_accion(
+                    "acceso_denegado", usuario=request.user, exitoso=False,
+                    detalle={"ruta": request.path, "rol": rol_de(request.user), "requiere": list(roles) or ["administrador"]},
+                )
                 permitidos = " o ".join(ETIQUETAS[r].lower() for r in roles)
                 messages.error(
                     request,

@@ -21,7 +21,58 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 
 
-class Thing(models.Model):
+class ActivosManager(models.Manager):
+    """Manager por defecto: lo borrado lógicamente no existe para el sistema."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(eliminado=False)
+
+
+class BorradoLogico(models.Model):
+    """Regla no negociable del proyecto: nada archivístico se elimina de forma
+    irreversible. Toda entidad, relación e instanciación se marca como
+    eliminada (quién, cuándo, por qué), desaparece de todas las consultas y
+    puede restaurarse; la auditoría registra ambas acciones."""
+
+    eliminado = models.BooleanField(default=False, db_index=True)
+    eliminado_en = models.DateTimeField(null=True, blank=True)
+    eliminado_por = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    motivo_eliminacion = models.TextField(blank=True)
+
+    objects = ActivosManager()
+    todos = models.Manager()
+
+    class Meta:
+        abstract = True
+
+    def eliminar(self, usuario=None, motivo="", auditar=True):
+        from django.utils import timezone
+
+        from .auditoria_acciones import eliminar_relaciones_de, registrar_accion
+
+        if self.eliminado:
+            return
+        self.eliminado, self.eliminado_en, self.motivo_eliminacion = True, timezone.now(), motivo
+        self.eliminado_por = usuario if usuario is not None and getattr(usuario, "pk", None) else None
+        self.save()
+        detalle = {"motivo": motivo}
+        if isinstance(self, Thing):
+            detalle["relaciones"] = eliminar_relaciones_de(self, usuario, motivo)
+        if auditar:
+            registrar_accion("eliminar", objeto=self, antes={"eliminado": False}, despues={"eliminado": True}, detalle=detalle, usuario=usuario)
+
+    def restaurar(self, usuario=None):
+        from .auditoria_acciones import registrar_accion
+
+        if not self.eliminado:
+            return
+        motivo = self.motivo_eliminacion
+        self.eliminado, self.eliminado_en, self.eliminado_por, self.motivo_eliminacion = False, None, None, ""
+        self.save()
+        registrar_accion("restaurar", objeto=self, antes={"eliminado": True}, despues={"eliminado": False}, detalle={"motivo_original": motivo}, usuario=usuario)
+
+
+class Thing(BorradoLogico):
     """RiC-E01 Thing. Mixin abstracto: atributos comunes a toda entidad RiC.
 
     No se instancia sola (RiC-CM tampoco la instancia directamente salvo
@@ -63,7 +114,7 @@ class Thing(models.Model):
         # un cambio que en realidad nunca se aplicó.
         with transaction.atomic():
             if self.pk:
-                anterior = type(self).objects.filter(pk=self.pk).first()
+                anterior = type(self).todos.filter(pk=self.pk).first()
                 if anterior is not None:
                     _registrar_version(anterior)
             super().save(*args, **kwargs)
@@ -203,7 +254,7 @@ class RecordSet(RecordResource):
         return self.tipo_conjunto == self.Tipo.EXPEDIENTE
 
 
-class FormaDocumental(models.Model):
+class FormaDocumental(BorradoLogico):
     """M5 (vocabularios): forma documental controlada — oficio, acta,
     resolución, contrato... En RiC-O 1.1 es la clase
     `rico:DocumentaryFormType`, a la que un Record apunta mediante
@@ -217,7 +268,7 @@ class FormaDocumental(models.Model):
     especificación v3); las series en las que aparece una forma se llegan
     por `actividades` (Activity.formas_documentales)."""
 
-    nombre = models.CharField(max_length=255, unique=True)
+    nombre = models.CharField(max_length=255)
     definicion = models.TextField(blank=True)
     serie_trd = models.CharField(
         max_length=255, blank=True,
@@ -232,6 +283,9 @@ class FormaDocumental(models.Model):
         ordering = ["nombre"]
         verbose_name = "forma documental"
         verbose_name_plural = "formas documentales"
+        constraints = [
+            models.UniqueConstraint(fields=["nombre"], condition=models.Q(eliminado=False), name="forma_documental_nombre_unico_activa"),
+        ]
 
     def __str__(self):
         return self.nombre
@@ -743,7 +797,7 @@ def _registrar_version(instancia):
     )
 
 
-class RelacionRiC(models.Model):
+class RelacionRiC(BorradoLogico):
     """Una afirmación de relación entre dos entidades del grafo RiC.
 
     `relacion_id` es uno de los 85 identificadores verificados de
@@ -816,7 +870,7 @@ class RelacionRiC(models.Model):
             raise ValidationError(str(e)) from e
 
     def save(self, *args, **kwargs):
-        anterior = RelacionRiC.objects.filter(pk=self.pk).first() if self.pk else None
+        anterior = RelacionRiC.todos.filter(pk=self.pk).first() if self.pk else None
         self.full_clean()
         with transaction.atomic():
             if anterior is not None:
@@ -1187,7 +1241,7 @@ class Exportacion(models.Model):
         return f"{self.get_formato_display()} · {self.total_registros} registro(s) · {self.fecha:%Y-%m-%d %H:%M}"
 
 
-class ProveedorIAConfig(models.Model):
+class ProveedorIAConfig(BorradoLogico):
     """M11 (RF-M11-02): proveedores de IA configurados desde la propia
     aplicación, con prueba de conexión antes de activarlos. Solo uno está
     activo a la vez como fuente del motor de análisis."""
@@ -1263,3 +1317,45 @@ def verificar_cadena(instanciacion):
             return False, evento
         anterior = evento.hash_evento
     return True, None
+
+
+class RegistroAuditoria(models.Model):
+    """Auditoría transversal de acciones humanas (sección 7 del prompt de
+    desarrollo): usuario, acción, entidad afectada, fecha y valores antes y
+    después. Ver ric.auditoria_acciones. Solo se escribe, nunca se edita ni
+    se borra desde la aplicación."""
+
+    class Accion(models.TextChoices):
+        INICIAR_SESION = "iniciar_sesion", "Inicio de sesión"
+        CERRAR_SESION = "cerrar_sesion", "Cierre de sesión"
+        LOGIN_FALLIDO = "login_fallido", "Intento de inicio de sesión fallido"
+        BLOQUEO_LOGIN = "bloqueo_login", "Inicio de sesión bloqueado por intentos"
+        ACCESO_DENEGADO = "acceso_denegado", "Acceso denegado por rol"
+        CREAR = "crear", "Creación"
+        MODIFICAR = "modificar", "Modificación"
+        ELIMINAR = "eliminar", "Borrado lógico"
+        RESTAURAR = "restaurar", "Restauración"
+        SESIONES_CERRADAS = "sesiones_cerradas", "Sesiones revocadas"
+
+    usuario = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="acciones_auditadas")
+    usuario_nombre = models.CharField(max_length=150, blank=True)
+    accion = models.CharField(max_length=30, choices=Accion.choices, db_index=True)
+    content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    object_id = models.PositiveBigIntegerField(null=True, blank=True)
+    objeto = GenericForeignKey("content_type", "object_id")
+    objeto_texto = models.CharField(max_length=255, blank=True)
+    antes = models.JSONField(default=dict, blank=True)
+    despues = models.JSONField(default=dict, blank=True)
+    detalle = models.JSONField(default=dict, blank=True)
+    exitoso = models.BooleanField(default=True)
+    ip = models.CharField(max_length=45, blank=True)
+    agente_usuario = models.CharField(max_length=255, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-fecha", "-id"]
+        verbose_name = "registro de auditoría"
+        verbose_name_plural = "registros de auditoría"
+
+    def __str__(self):
+        return f"{self.fecha:%Y-%m-%d %H:%M} · {self.usuario_nombre} · {self.get_accion_display()} · {self.objeto_texto}"

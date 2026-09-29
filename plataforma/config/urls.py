@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LogoutView
+
+from ric.vistas_acceso import IngresoView
 from django.urls import path
 from django.views.generic import RedirectView
 
@@ -35,6 +37,8 @@ urlpatterns = [
     path("admin/usuarios/proveedores/<int:pk>/activar/", vistas_admin.admin_proveedor_activar, name="admin_proveedor_activar"),
     path("admin/usuarios/proveedores/<int:pk>/eliminar/", vistas_admin.admin_proveedor_eliminar, name="admin_proveedor_eliminar"),
     path("admin/usuarios/parametros/", vistas_admin.admin_parametros, name="admin_parametros"),
+    path("admin/usuarios/auditoria.csv", vistas_admin.admin_auditoria_csv, name="admin_auditoria_csv"),
+    path("admin/usuarios/restaurar/", vistas_admin.admin_restaurar, name="admin_restaurar"),
     path("admin/", admin.site.urls),
 
     # M1 · Ingesta y M2 · Preprocesamiento y OCR
@@ -89,7 +93,7 @@ urlpatterns = [
     path("panel/", vistas_panel.panel, name="panel"),
 
     # Acceso y utilidades compartidas
-    path("ric/entrar/", LoginView.as_view(template_name="ric/login.html", redirect_authenticated_user=True), name="ric_login"),
+    path("ric/entrar/", IngresoView.as_view(), name="ric_login"),
     path("ric/salir/", LogoutView.as_view(next_page="ric_login"), name="ric_logout"),
     path("ric/archivo/<int:pk>/", servir_archivo, name="ric_archivo"),
     path("ric/rdf/", exportar_rdf_completo, name="ric_exportar_rdf_completo"),
