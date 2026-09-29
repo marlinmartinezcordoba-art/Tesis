@@ -39,6 +39,17 @@ jobs:
             git fetch origin claude/plataforma-base
             git reset --hard origin/claude/plataforma-base
 
+            # Memoria de reserva (swap) de 2 GB en el disco: con 2 GB de RAM y
+            # el OCR en segundo plano, un lote grande pone el servidor lento
+            # en vez de cerrar procesos a la fuerza. Se crea una sola vez.
+            if ! swapon --show | grep -q "/swapfile"; then
+              if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile || echo "  aviso: no se pudo crear /swapfile"
+              fi
+              swapon /swapfile && echo "  swap de 2 GB activo" || echo "  aviso: no se pudo activar el swap"
+              grep -q "^/swapfile " /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+            fi
+
             # Escribe en .env (sin mostrar valores) solo los secretos definidos.
             cambio=0
             poner() {  # poner CLAVE VALOR -> reemplaza o agrega la línea CLAVE=VALOR
