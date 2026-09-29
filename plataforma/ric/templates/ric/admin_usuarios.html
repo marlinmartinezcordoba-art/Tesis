@@ -6,6 +6,8 @@
   .pestanas a { padding: .55rem 1rem; text-decoration: none; color: #52606d; border-bottom: 3px solid transparent; font-size: .9rem; }
   .pestanas a.activa { color: var(--ricora-dark); border-color: var(--ricora-accent); font-weight: 600; }
   .grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.2rem; align-items: start; }
+  .grid > * { min-width: 0; }
+  .tarjeta { overflow-x: auto; }
   @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
   .tarjeta { background: #fff; border: 1px solid #e6e3dc; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
   .tarjeta h3 { font-size: .95rem; margin: 0 0 .6rem; }

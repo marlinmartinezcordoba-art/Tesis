@@ -72,9 +72,17 @@
   .ricora-topbar .usuario strong { color: var(--ink); }
   .ricora-topbar .rol { font-size: .64rem; font-weight: 600; text-transform: uppercase; background: var(--surface-alt); color: var(--ink-suave); border-radius: 999px; padding: 2px 8px; border: 1px solid var(--border); }
   .salir-form { display: inline; margin: 0 0 0 .4rem; }
-  .salir-boton { background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit; font-size: .8rem; color: var(--accent); text-decoration: underline; }
+  .salir-boton { background: var(--surface); border: 1px solid var(--border-fuerte); border-radius: var(--radio-chico); padding: .25rem .7rem; margin: 0; width: auto; cursor: pointer; font: inherit; font-size: .78rem; font-weight: 600; color: var(--ink); }
+  .ricora-topbar .salir-boton, .ricora-topbar button.salir-boton[type=submit] { width: auto; display: inline-block; }
+  .ricora-topbar .usuario { display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
+  .salir-boton:hover { border-color: var(--accent); color: var(--accent); }
+  .sidebar-salir { margin: 1.2rem .3rem 0; padding-top: .8rem; border-top: 1px solid rgba(255,255,255,.1); }
+  .sidebar-salir button { background: none; border: 1px solid rgba(255,255,255,.25); color: var(--sidebar-ink); border-radius: var(--radio-chico); padding: .35rem .7rem; margin: 0; width: 100%; font-size: .8rem; cursor: pointer; text-align: left; }
+  .sidebar-salir button:hover { border-color: var(--accent); }
 
-  .ricora-main { padding: 1.6rem 1.75rem 3rem; max-width: 1180px; }
+  /* overflow-x: una tabla ancha se desplaza dentro del contenido; nunca ensancha la página ni esconde «Salir» */
+  .ricora-main { padding: 1.6rem 1.75rem 3rem; max-width: 1180px; overflow-x: auto; }
+  .ricora-shell { overflow-x: hidden; }
   .ricora-main--ancho { max-width: none; padding: 0; }
 
   .mensaje { padding: .7rem 1rem; border-radius: var(--radio-chico); margin-bottom: .7rem; border: 1px solid transparent; font-size: .9rem; }
@@ -106,6 +114,7 @@
       {% endif %}
     {% endfor %}
   </nav>
+  <form method="post" action="{% url 'ric_logout' %}" class="sidebar-salir">{% csrf_token %}<button type="submit">⎋ Cerrar sesión</button></form>
 </aside>
 <div class="ricora-shell">
   <div class="ricora-topbar">
@@ -118,7 +127,7 @@
       {% endif %}
     </div>
     <span class="usuario">Sesión: <strong>{{ request.user.get_username }}</strong> <span class="rol">{{ rol_etiqueta }}</span>
-      <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Salir</button></form>
+      <form method="post" action="{% url 'ric_logout' %}" class="salir-form">{% csrf_token %}<button type="submit" class="salir-boton">Cerrar sesión</button></form>
     </span>
   </div>
   {% if modulo_actual and modulo_actual.pestanas|length > 1 %}
