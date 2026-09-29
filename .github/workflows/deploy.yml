@@ -87,3 +87,22 @@ jobs:
             else
               docker compose up --build -d
             fi
+
+            # Verificación: el despliegue solo es exitoso si la plataforma
+            # responde. Si no, muestra el estado y el registro de la web.
+            echo "Esperando a que RICORA responda..."
+            ok=0
+            for i in $(seq 1 60); do
+              codigo=$(docker compose exec -T web python -c "import urllib.request as u
+            r=u.Request('http://127.0.0.1:8000/ric/entrar/', headers={'Host': '$DROPLET_HOST'})
+            print(u.urlopen(r, timeout=10).status)" 2>/dev/null || true)
+              if [ "$codigo" = "200" ]; then ok=1; echo "  RICORA responde (intento $i)"; break; fi
+              sleep 5
+            done
+            docker compose ps
+            free -m || true
+            if [ "$ok" != 1 ]; then
+              echo "RICORA no responde. Registro de la web:"
+              docker compose logs --tail 150 web
+              exit 1
+            fi
