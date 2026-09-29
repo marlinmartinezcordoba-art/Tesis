@@ -40,7 +40,11 @@ python manage.py collectstatic --noinput
 # cortarse a mitad. Con un proxy delante (Caddy, despliegue) la carga llega
 # ya completa y el trabajador no queda ocupado mientras sube.
 echo "Iniciando RICORA..."
+# Hilos por proceso: una solicitud lenta (una carga grande, una prueba de
+# conexión con la IA local) no deja a las demás personas sin atender.
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers "${GUNICORN_WORKERS:-3}" \
+    --worker-class gthread \
+    --threads "${GUNICORN_THREADS:-4}" \
     --timeout "${GUNICORN_TIMEOUT:-600}"
