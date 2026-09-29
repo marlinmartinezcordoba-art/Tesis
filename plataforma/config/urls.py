@@ -37,6 +37,7 @@ urlpatterns = [
     path("admin/usuarios/proveedores/<int:pk>/activar/", vistas_admin.admin_proveedor_activar, name="admin_proveedor_activar"),
     path("admin/usuarios/proveedores/<int:pk>/eliminar/", vistas_admin.admin_proveedor_eliminar, name="admin_proveedor_eliminar"),
     path("admin/usuarios/parametros/", vistas_admin.admin_parametros, name="admin_parametros"),
+    path("admin/usuarios/correo-prueba/", vistas_admin.admin_correo_prueba, name="admin_correo_prueba"),
     path("admin/usuarios/auditoria.csv", vistas_admin.admin_auditoria_csv, name="admin_auditoria_csv"),
     path("admin/usuarios/restaurar/", vistas_admin.admin_restaurar, name="admin_restaurar"),
     path("admin/", admin.site.urls),

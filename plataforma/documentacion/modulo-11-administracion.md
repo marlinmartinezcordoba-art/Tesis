@@ -51,6 +51,9 @@ Ninguna relación nueva. El módulo decide qué Mecanismo propone relaciones (pr
 ## 8. Funcionalidades
 - **Cuatro roles, exactamente uno por cuenta.** Administrador = `is_superuser`, archivista = `is_staff`, revisor = grupo «revisor» y consulta = ninguna marca. Asignar un rol fija o quita las tres marcas a la vez, así nunca quedan dos roles.
 - **Invitación con enlace de un solo uso.** La cuenta nace sin contraseña utilizable. El enlace (token de Django) deja de servir en cuanto se crea la contraseña y vence a los 3 días. Si el servidor tiene correo, se envía solo; si no, se le entrega el enlace al administrador una sola vez, para que lo haga llegar.
+- **Nadie se quita a sí mismo el rol de administrador;** solo otro administrador puede hacerlo (evita perder el acceso por error). Además, cada despliegue vuelve a hacer administradora a la cuenta de `RICORA_ADMIN_USER` con la contraseña de `RICORA_ADMIN_PASSWORD`: es la vía de recuperación.
+- **Correo del servidor:** con las claves secretas `EMAIL_HOST_USER` y `EMAIL_HOST_PASSWORD` (por ejemplo, Gmail con una contraseña de aplicación) las invitaciones y los restablecimientos llegan solos. En Parámetros se ve si está configurado y hay un botón «Enviar correo de prueba».
+- **Solicitudes de restablecimiento:** se cierran solas si la persona vuelve a ingresar con su contraseña, y el administrador puede descartarlas.
 - **Protección del último administrador.** No se le puede quitar el rol ni desactivar mientras sea el único administrador activo.
 - **Nadie se desactiva a sí mismo ni restablece su propio acceso.**
 - **Restablecer acceso.** La contraseña actual deja de servir, se cierran las sesiones abiertas y la persona recibe un enlace nuevo.

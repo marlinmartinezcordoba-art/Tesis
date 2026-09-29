@@ -239,6 +239,26 @@ class OlvidoContrasenaTest(CasoModulos):
         self.assertContains(self.client.get(url), "Este enlace ya no sirve", status_code=400)
 
     @override_settings(EMAIL_HOST="")
+    def test_si_recuerda_la_contrasena_la_solicitud_se_cierra_sola(self):
+        self.client.post(reverse("olvido_contrasena"), {"identidad": "revisor"})
+        self.client.post(reverse("ric_login"), {"username": "revisor", "password": "x"})
+        solicitud = SolicitudRestablecimiento.objects.get(usuario=self.revisor)
+        self.assertEqual((solicitud.atendida, solicitud.via), (True, "ingreso"))
+
+    @override_settings(EMAIL_HOST="")
+    def test_el_administrador_descarta_una_solicitud_incluso_la_propia(self):
+        self.superusuario.email = "marlin@entidad.gov.co"
+        self.superusuario.save()
+        self.client.post(reverse("olvido_contrasena"), {"identidad": "marlin"})
+        self.client.force_login(self.superusuario)
+        resp = self.client.get(reverse("admin_usuarios"))
+        self.assertContains(resp, "Descartar")
+        self.assertNotContains(resp, '<button type="submit">Generar enlace</button>')  # a sí mismo no: se descarta
+        self.client.post(reverse("admin_usuario_editar", args=[self.superusuario.pk]), {"accion": "descartar_solicitud"})
+        solicitud = SolicitudRestablecimiento.objects.get(usuario=self.superusuario)
+        self.assertEqual((solicitud.atendida, solicitud.via, solicitud.atendida_por), (True, "descartada", self.superusuario))
+
+    @override_settings(EMAIL_HOST="")
     def test_cuenta_inactiva_no_genera_solicitud(self):
         self.revisor.is_active = False
         self.revisor.save()
@@ -336,6 +356,32 @@ class ProveedoresIATest(CasoModulos):
         self.client.post(reverse("admin_proveedor_eliminar", args=[config.pk]))
         self.assertFalse(ProveedorIAConfig.objects.exists())
         self.assertTrue(ProveedorIAConfig.todos.filter(pk=config.pk, eliminado=True).exists())
+
+
+class CorreoDelServidorTest(CasoModulos):
+    def setUp(self):
+        super().setUp()
+        self.superusuario.email = "marlin@entidad.gov.co"
+        self.superusuario.save()
+        self.client.force_login(self.superusuario)
+
+    @override_settings(EMAIL_HOST="")
+    def test_sin_correo_lo_dice(self):
+        self.assertContains(self.client.get(reverse("admin_usuarios"), {"pestana": "parametros"}), "Sin configurar")
+        resp = self.client.post(reverse("admin_correo_prueba"), follow=True)
+        self.assertContains(resp, "no tiene correo configurado")
+
+    @override_settings(EMAIL_HOST="smtp.gmail.com", EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_correo_de_prueba(self):
+        self.assertContains(self.client.get(reverse("admin_usuarios"), {"pestana": "parametros"}), "Enviar correo de prueba")
+        resp = self.client.post(reverse("admin_correo_prueba"), follow=True)
+        self.assertContains(resp, "Correo de prueba enviado a marlin@entidad.gov.co")
+        self.assertEqual(mail.outbox[0].to, ["marlin@entidad.gov.co"])
+
+    def test_solo_el_administrador(self):
+        self.client.force_login(self.archivista)
+        self.client.post(reverse("admin_correo_prueba"))
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class ParametrosTest(CasoModulos):

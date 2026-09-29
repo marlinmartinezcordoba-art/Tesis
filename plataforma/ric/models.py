@@ -1429,6 +1429,8 @@ class SolicitudRestablecimiento(models.Model):
         CORREO = "correo", "Enlace enviado por correo"
         ADMINISTRADOR = "administrador", "Enlace generado por el administrador"
         CONTRASENA_CREADA = "contrasena", "La persona creó su contraseña"
+        INGRESO = "ingreso", "La persona volvió a ingresar con su contraseña"
+        DESCARTADA = "descartada", "Descartada por el administrador"
 
     usuario = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="solicitudes_restablecimiento")
     fecha = models.DateTimeField(auto_now_add=True)

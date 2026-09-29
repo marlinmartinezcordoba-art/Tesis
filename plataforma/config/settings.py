@@ -207,7 +207,8 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "ricora@localhost")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or (f"RICORA <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "ricora@localhost")
+EMAIL_TIMEOUT = 20  # segundos: un servidor de correo lento no deja la página esperando
 
 # M1 (RF-M1-03): tamaño máximo de un archivo cargado.
 RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "200"))

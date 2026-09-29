@@ -20,6 +20,13 @@ class IngresoView(LoginView):
             return self.render_to_response(self.get_context_data(form=form, bloqueado=True, minutos=MINUTOS_BLOQUEO, intentos=INTENTOS_MAXIMOS))
         return super().post(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        # Si recordó su contraseña, la solicitud de restablecimiento ya no hace falta.
+        from .models import SolicitudRestablecimiento
+
+        SolicitudRestablecimiento.atender(form.get_user(), SolicitudRestablecimiento.Via.INGRESO)
+        return super().form_valid(form)
+
 
 def invitacion(request, uidb64, token):
     """M11: la persona invitada crea su propia contraseña con el enlace de un

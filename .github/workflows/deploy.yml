@@ -10,6 +10,10 @@ name: Desplegar en el Droplet
 #                           activa el proveedor si la conexión funciona
 #   RICORA_ADMIN_USER       usuario superusuario a crear o restablecer
 #   RICORA_ADMIN_PASSWORD   su contraseña (se restablece en cada despliegue)
+#   EMAIL_HOST_USER         correo desde el que RICORA envía invitaciones y
+#                           restablecimientos (p. ej. una cuenta de Gmail)
+#   EMAIL_HOST_PASSWORD     su contraseña de aplicación (Gmail: 16 letras)
+#   EMAIL_HOST              servidor SMTP (por defecto smtp.gmail.com si hay EMAIL_HOST_USER)
 on:
   push:
     branches: [claude/plataforma-base]
@@ -28,11 +32,14 @@ jobs:
           RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
           RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST
+          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
           command_timeout: 25m
           script: |
             set -e
@@ -71,6 +78,12 @@ jobs:
             poner GEMINI_API_KEY "$GEMINI_API_KEY"
             poner RICORA_ADMIN_USER "$RICORA_ADMIN_USER"
             poner RICORA_ADMIN_PASSWORD "$RICORA_ADMIN_PASSWORD"
+            # Correo (invitaciones y «¿Olvidó su contraseña?»): con Gmail basta
+            # el usuario y la contraseña de aplicación.
+            if [ -n "$EMAIL_HOST_USER" ] && [ -z "$EMAIL_HOST" ]; then EMAIL_HOST=smtp.gmail.com; fi
+            poner EMAIL_HOST "$EMAIL_HOST"
+            poner EMAIL_HOST_USER "$EMAIL_HOST_USER"
+            poner EMAIL_HOST_PASSWORD "$EMAIL_HOST_PASSWORD"
             # El modelo antiguo dejó de estar disponible para claves nuevas.
             if grep -q "^MAZUCA_MODELO_IA_GEMINI=gemini-2.5-pro$" .env; then
               poner MAZUCA_MODELO_IA_GEMINI "gemini-3.5-flash"

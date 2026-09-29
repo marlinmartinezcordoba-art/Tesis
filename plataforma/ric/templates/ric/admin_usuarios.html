@@ -53,6 +53,7 @@
   .solicitudes li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 0; border-top: 1px solid #efcfb4; list-style: none; font-size: .88rem; }
   .solicitudes li small { color: var(--ink-suave); }
   .solicitudes form { margin: 0; }
+  .botones-solicitud { display: flex; gap: .4rem; }
   .solicitudes button { font-size: .8rem; padding: .35rem .8rem; }
 
   /* pico.css convierte todo <dialog> en una capa de pantalla completa: aquí es una ventana centrada */
@@ -119,7 +120,10 @@
 <div class="invitacion solicitudes" role="status">
   <p><b>{{ solicitudes|length }} persona(s) pidieron restablecer su contraseña</b> desde el ingreso. Genere el enlace y hágaselo llegar; su contraseña actual deja de servir.</p>
   <ul>{% for s in solicitudes %}<li><span>{{ s.usuario.get_full_name|default:s.usuario.username }} <small>· {{ s.usuario.username }}{% if s.usuario.email %} · {{ s.usuario.email }}{% endif %} · {{ s.fecha|hace }}</small></span>
-    <form method="post" action="{% url 'admin_usuario_editar' s.usuario.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="restablecer"><button type="submit">Generar enlace</button></form></li>{% endfor %}</ul>
+    <span class="botones-solicitud">
+      {% if s.usuario.pk != request.user.pk %}<form method="post" action="{% url 'admin_usuario_editar' s.usuario.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="restablecer"><button type="submit">Generar enlace</button></form>{% endif %}
+      <form method="post" action="{% url 'admin_usuario_editar' s.usuario.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="descartar_solicitud"><button type="submit" class="secondary">Descartar</button></form>
+    </span></li>{% endfor %}</ul>
 </div>
 {% endif %}
 
@@ -321,6 +325,15 @@
 </div>
 
 {% else %}
+<div class="tarjeta" style="max-width:720px">
+  <h3>Correo del servidor</h3>
+  {% if correo_configurado %}
+  <p style="font-size:.86rem; margin:.2rem 0 .7rem"><span class="indicador"><i class="punto ok"></i>Configurado</span> · las invitaciones y los restablecimientos de contraseña se envían solos desde <b>{{ remitente }}</b>.</p>
+  <form method="post" action="{% url 'admin_correo_prueba' %}" style="margin:0">{% csrf_token %}<button type="submit" class="secondary">Enviar correo de prueba a {{ request.user.email|default:"mi cuenta" }}</button></form>
+  {% else %}
+  <p style="font-size:.86rem; margin:.2rem 0 0"><span class="indicador"><i class="punto"></i>Sin configurar</span> · las invitaciones y los restablecimientos no salen por correo: el enlace se le muestra a usted para que lo haga llegar. Para activarlo, agregue en GitHub las claves secretas del correo (vea el manual) y vuelva a desplegar.</p>
+  {% endif %}
+</div>
 <div class="tarjeta" style="max-width:720px">
   <h3>Parámetros del sistema</h3>
   <form method="post" action="{% url 'admin_parametros' %}">

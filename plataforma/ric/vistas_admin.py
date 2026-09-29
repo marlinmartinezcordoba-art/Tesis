@@ -144,6 +144,7 @@ def admin_usuarios(request):
         "opciones_proveedor": ProveedorIAConfig.Proveedor.choices,
         "config": ConfiguracionSistema.actual(),
         "correo_configurado": bool(settings.EMAIL_HOST),
+        "remitente": settings.DEFAULT_FROM_EMAIL,
         "modelos_por_defecto": {
             ProveedorIAConfig.Proveedor.GEMINI: settings.MAZUCA_MODELO_IA_GEMINI,
             ProveedorIAConfig.Proveedor.CLAUDE: settings.MAZUCA_MODELO_IA,
@@ -201,6 +202,10 @@ def admin_usuario_editar(request, pk):
                        f"Acceso de «{usuario.username}» restablecido: su contraseña anterior dejó de servir ({cerradas} sesión(es) cerrada(s)).")
             _entregar_invitacion(request, usuario, prefijo)
             SolicitudRestablecimiento.atender(usuario, SolicitudRestablecimiento.Via.ADMINISTRADOR, por=request.user)
+        elif accion == "descartar_solicitud":
+            cerradas = SolicitudRestablecimiento.atender(usuario, SolicitudRestablecimiento.Via.DESCARTADA, por=request.user)
+            auditoria_acciones.registrar_accion("modificar", objeto=usuario, detalle={"solicitud_restablecimiento": "descartada"})
+            messages.info(request, f"Solicitud de «{usuario.username}» descartada." if cerradas else "No había solicitudes pendientes.")
         elif accion == "cerrar_sesiones":
             cerradas = auditoria_acciones.cerrar_sesiones_de(usuario, motivo="revocación manual del administrador")
             messages.info(request, f"{cerradas} sesión(es) de «{usuario.username}» cerrada(s).")
@@ -336,6 +341,31 @@ def admin_proveedor_eliminar(request, pk):
     config.eliminar(request.user, motivo="Retirado desde Administración")
     messages.info(request, f"{nombre} retirado (borrado lógico, queda en la auditoría).")
     return _volver("proveedores")
+
+
+@roles.requiere_rol()
+@require_POST
+def admin_correo_prueba(request):
+    """Comprueba que el correo del servidor funcione enviando un mensaje de
+    prueba a la cuenta del administrador. Muestra el error real si falla."""
+    from django.core.mail import send_mail
+
+    if not settings.EMAIL_HOST:
+        messages.error(request, "El servidor no tiene correo configurado (EMAIL_HOST).")
+        return _volver("parametros")
+    if not request.user.email:
+        messages.error(request, "Su cuenta no tiene correo: agréguelo en Usuarios y roles → Editar.")
+        return _volver("parametros")
+    try:
+        send_mail("Prueba de correo de RICORA", "Si lee este mensaje, el correo del servidor funciona: las invitaciones y los restablecimientos de contraseña llegarán solos.",
+                  settings.DEFAULT_FROM_EMAIL, [request.user.email], fail_silently=False)
+    except Exception as e:
+        auditoria_acciones.registrar_accion("modificar", exitoso=False, detalle={"correo_prueba": str(e)})
+        messages.error(request, f"No se pudo enviar el correo de prueba: {e}")
+        return _volver("parametros")
+    auditoria_acciones.registrar_accion("modificar", detalle={"correo_prueba": f"enviado a {request.user.email}"})
+    messages.success(request, f"Correo de prueba enviado a {request.user.email}. Revise su bandeja (y la carpeta de spam).")
+    return _volver("parametros")
 
 
 @roles.requiere_rol()
