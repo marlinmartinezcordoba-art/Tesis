@@ -187,7 +187,8 @@
         <label><input type="radio" name="rol" value="{{ valor }}" {% if f.rol == valor %}checked{% endif %}><span><b>{{ nombre }}</b><small>{{ descripcion }}</small></span></label>
         {% endfor %}
       </div>
-      {% if f.ultimo_admin %}<p class="aviso-ultimo">Es el único administrador activo: no se le puede quitar el rol ni desactivar hasta que otra cuenta sea administradora.</p>{% endif %}
+      {% if u.pk == request.user.pk and f.rol == "administrador" %}<p class="aviso-ultimo">Es su propia cuenta: no puede quitarse el rol de administrador (perdería el acceso a esta sección). Otro administrador puede hacerlo.</p>
+      {% elif f.ultimo_admin %}<p class="aviso-ultimo">Es el único administrador activo: no se le puede quitar el rol ni desactivar hasta que otra cuenta sea administradora.</p>{% endif %}
     </div>
     <footer><button type="button" class="secondary" data-cerrar>Cancelar</button><button type="submit">Guardar cambios</button></footer>
   </form>

@@ -119,3 +119,9 @@ jobs:
               docker compose logs --tail 150 web
               exit 1
             fi
+
+            # Siempre, aunque el contenedor no se haya reiniciado: la cuenta de
+            # RICORA_ADMIN_USER vuelve a ser administradora con la contraseña de
+            # RICORA_ADMIN_PASSWORD. Es la vía para recuperar el acceso si esa
+            # cuenta perdió el rol o la contraseña.
+            docker compose exec -T -e RICORA_ADMIN_USER -e RICORA_ADMIN_PASSWORD web python manage.py configurar_inicial || echo "  aviso: la configuración inicial falló"

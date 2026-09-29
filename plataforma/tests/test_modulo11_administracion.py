@@ -131,13 +131,24 @@ class UsuariosTest(CasoModulos):
         self.assertTrue(any(r.despues.get("rol") == roles.ARCHIVISTA for r in cambios))
         self.assertTrue(any(r.despues.get("email") == "ana@entidad.gov.co" for r in cambios))
 
-    def test_siempre_queda_un_administrador(self):
+    def test_nadie_se_quita_a_si_mismo_el_rol_de_administrador(self):
+        roles.asignar_rol(self.revisor, roles.ADMINISTRADOR)  # hay otro administrador: aun así no se permite
         url = reverse("admin_usuario_editar", args=[self.superusuario.pk])
-        resp = self.client.post(url, {"accion": "editar", "nombre_completo": "Marlín", "email": "m@e.co", "rol": roles.CONSULTA}, follow=True)
-        self.assertContains(resp, "único administrador activo")
+        resp = self.client.post(url, {"accion": "editar", "nombre_completo": "Marlín", "email": "m@e.co", "rol": roles.REVISOR}, follow=True)
+        self.assertContains(resp, "No puede quitarse a sí mismo el rol de administrador")
+        self.superusuario.refresh_from_db()
+        self.assertEqual(roles.rol_de(self.superusuario), roles.ADMINISTRADOR)
+        self.assertContains(self.client.get(reverse("admin_usuarios")), "Es su propia cuenta: no puede quitarse el rol")
+
+    def test_siempre_queda_un_administrador(self):
+        with self.assertRaises(roles.UltimoAdministrador):
+            roles.asignar_rol(self.superusuario, roles.CONSULTA)
         self.superusuario.refresh_from_db()
         self.assertTrue(self.superusuario.is_superuser)
+        # con otro administrador, este sí puede cambiarle el rol
         roles.asignar_rol(self.revisor, roles.ADMINISTRADOR)
+        self.client.force_login(self.revisor)
+        url = reverse("admin_usuario_editar", args=[self.superusuario.pk])
         self.client.post(url, {"accion": "editar", "nombre_completo": "Marlín", "email": "m@e.co", "rol": roles.CONSULTA})
         self.superusuario.refresh_from_db()
         self.assertFalse(self.superusuario.is_superuser)

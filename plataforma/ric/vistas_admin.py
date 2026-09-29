@@ -164,6 +164,8 @@ def admin_usuario_editar(request, pk):
         if accion == "editar":
             datos = _datos_usuario(request)
             errores = _validar_usuario(datos, usuario)
+            if usuario.pk == request.user.pk and roles.rol_de(usuario) == roles.ADMINISTRADOR and datos["rol"] != roles.ADMINISTRADOR:
+                errores.append("No puede quitarse a sí mismo el rol de administrador: perdería el acceso a esta sección. Pídaselo a otro administrador.")
             if errores:
                 for e in errores:
                     messages.error(request, e)
