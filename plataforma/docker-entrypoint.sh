@@ -26,8 +26,11 @@ python manage.py configurar_inicial || echo "Aviso: la configuración inicial fa
 echo "Recolectando archivos estáticos..."
 python manage.py collectstatic --noinput
 
+# Tiempo de espera amplio: una carga de 200 MB por una conexión lenta no debe
+# cortarse a mitad. Con un proxy delante (Caddy, despliegue) la carga llega
+# ya completa y el trabajador no queda ocupado mientras sube.
 echo "Iniciando RICORA..."
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers "${GUNICORN_WORKERS:-3}" \
-    --timeout "${GUNICORN_TIMEOUT:-120}"
+    --timeout "${GUNICORN_TIMEOUT:-600}"

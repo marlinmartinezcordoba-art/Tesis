@@ -58,6 +58,7 @@
 <div class="encabezado">
   <div>
     <h1>Análisis y relaciones — {{ record }}</h1>
+    <p style="margin:.2rem 0 0"><a href="{% url 'visor_documento' record.pk %}">Ver documento en el visor ↗</a></p>
     <p>Texto a la izquierda con los fragmentos resaltados; a la derecha, las entidades propuestas agrupadas por clase,
     cada una como ficha editable. La IA propone, la persona decide: acepte (corrigiendo el nombre si hace falta),
     vincule a una entrada ya existente en vocabularios, o rechace con su motivo.</p>

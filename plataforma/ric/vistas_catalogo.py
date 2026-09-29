@@ -10,7 +10,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import clasificacion, valoracion, busqueda, exportacion, flujo, grafo, reglas, roles, tipos
+from . import acceso_documentos, clasificacion, valoracion, busqueda, exportacion, flujo, grafo, reglas, roles, tipos
 from .models import Exportacion, Instantiation, Record, RecordSet, RelacionRiC
 
 # Filtros de clase del panel izquierdo (RF-M8-01) -> modelos concretos.
@@ -32,20 +32,11 @@ def _modelos(nombres):
 
 
 def _solo_publicados(usuario):
-    """RF-M8-04: el rol consulta solo ve documentos publicados y con todas
-    sus instanciaciones de acceso abierto."""
-    return not roles.puede(usuario, roles.ARCHIVISTA, roles.REVISOR)
+    return acceso_documentos.solo_publicados(usuario)
 
 
 def documentos_visibles(usuario):
-    qs = Record.objects.all()
-    if _solo_publicados(usuario):
-        qs = qs.filter(publicado=True).exclude(
-            instanciaciones__condicion_acceso__in=(
-                Instantiation.CondicionAcceso.RESTRINGIDO, Instantiation.CondicionAcceso.RESERVADO,
-            )
-        )
-    return qs.distinct()
+    return acceso_documentos.documentos_visibles(usuario)
 
 
 def _tarjeta_documento(record):

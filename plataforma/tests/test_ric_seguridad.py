@@ -30,7 +30,8 @@ class ServirArchivoTest(TestCase):
         shutil.rmtree(MEDIA, ignore_errors=True)
 
     def setUp(self):
-        self.usuario = User.objects.create_user("archivista", password="x")
+        # is_staff = rol archivista (ric.roles): desde el módulo 1 el original respeta el rol.
+        self.usuario = User.objects.create_user("archivista", password="x", is_staff=True)
         self.record = Record.objects.create(nombre="Acta")
         self.inst = Instantiation.objects.create(
             nombre="Copia", record_resource=self.record,

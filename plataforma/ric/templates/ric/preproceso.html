@@ -34,7 +34,7 @@
   <tbody>
     {% for f in filas %}
     <tr>
-      <td>📄 {{ f.instanciacion.nombre }}</td>
+      <td>📄 <a href="{% url 'visor_documento' f.instanciacion.record_resource_id %}?inst={{ f.instanciacion.pk }}">{{ f.instanciacion.nombre }}</a></td>
       <td>{{ f.record }}</td>
       <td><div class="avance {% if f.estado == 'listo' %}listo{% elif f.estado == 'calidad_baja' %}baja{% else %}cola{% endif %}"><i></i></div></td>
       <td>

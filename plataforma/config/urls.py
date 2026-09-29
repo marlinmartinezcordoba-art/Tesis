@@ -9,7 +9,7 @@ from django.views.generic import RedirectView
 
 from acervo.views import exportar_dublin_core, exportar_premis
 from lineamientos.views import informe, informe_auditoria
-from ric import vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_vocabularios
+from ric import vistas_admin, vistas_analisis, vistas_catalogo, vistas_ingesta, vistas_panel, vistas_valoracion, vistas_visor, vistas_vocabularios
 from ric.views import (
     evaluacion_datos,
     evaluacion_html,
@@ -17,7 +17,6 @@ from ric.views import (
     exportar_rdf_completo,
     grafo_datos,
     grafo_html,
-    servir_archivo,
     sparql_endpoint,
     sparql_html,
 )
@@ -43,6 +42,7 @@ urlpatterns = [
 
     # M1 · Ingesta y M2 · Preprocesamiento y OCR
     path("ingesta/", vistas_ingesta.ingesta, name="ingesta"),
+    path("ingesta/archivo/", vistas_ingesta.ingesta_archivo, name="ingesta_archivo"),
     path("ingesta/preproceso/", vistas_ingesta.preproceso, name="preproceso"),
     path("ingesta/preproceso/enviar/", vistas_ingesta.preproceso_enviar, name="preproceso_enviar"),
     path("ingesta/preproceso/<int:pk>/pagina/<int:numero>/", vistas_ingesta.preproceso_pagina, name="preproceso_pagina"),
@@ -95,7 +95,9 @@ urlpatterns = [
     # Acceso y utilidades compartidas
     path("ric/entrar/", IngresoView.as_view(), name="ric_login"),
     path("ric/salir/", LogoutView.as_view(next_page="ric_login"), name="ric_logout"),
-    path("ric/archivo/<int:pk>/", servir_archivo, name="ric_archivo"),
+    path("ric/archivo/<int:pk>/", vistas_visor.archivo_original, name="ric_archivo"),
+    path("ric/archivo/<int:pk>/pagina/<int:numero>.png", vistas_visor.archivo_pagina_png, name="ric_archivo_pagina"),
+    path("documentos/<int:pk>/visor/", vistas_visor.visor_documento, name="visor_documento"),
     path("ric/rdf/", exportar_rdf_completo, name="ric_exportar_rdf_completo"),
     path("ric/rdf/<str:tipo>/<int:pk>/", exportar_rdf, name="ric_exportar_rdf"),
     path("ric/grafo/<str:tipo>/<int:pk>/", grafo_html, name="ric_grafo"),

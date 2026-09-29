@@ -209,4 +209,8 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "ricora@localhost")
 
 # M1 (RF-M1-03): tamaño máximo de un archivo cargado.
-RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "50"))
+RICORA_TAMANO_MAXIMO_MB = int(os.environ.get("RICORA_TAMANO_MAXIMO_MB", "200"))
+# Archivos pesados: por encima de 2,5 MB Django escribe la carga a un archivo
+# temporal en disco en vez de tenerla en memoria; la huella se calcula por
+# bloques. Solo el cuerpo que NO es archivo tiene el límite de memoria.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440

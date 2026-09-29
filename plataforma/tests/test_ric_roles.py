@@ -80,6 +80,12 @@ class RolesTest(CasoModulos):
         self.assertContains(resp, 'class="activa">Preprocesamiento y OCR')
         self.assertContains(resp, ">Cargar documentos<")
 
-    def test_el_archivo_original_exige_sesion_pero_no_rol(self):
+    def test_el_archivo_original_respeta_la_visibilidad_del_rol(self):
+        # Módulo 1: antes cualquier sesión descargaba cualquier archivo por su id (RF-M8-04 lo prohíbe).
         self.client.force_login(self.consulta)
+        self.assertEqual(self.client.get(reverse("ric_archivo", args=[self.inst.pk])).status_code, 403)
+        self.record.publicado = True
+        self.record.save()
+        self.assertEqual(self.client.get(reverse("ric_archivo", args=[self.inst.pk])).status_code, 200)
+        self.client.force_login(self.revisor)
         self.assertEqual(self.client.get(reverse("ric_archivo", args=[self.inst.pk])).status_code, 200)

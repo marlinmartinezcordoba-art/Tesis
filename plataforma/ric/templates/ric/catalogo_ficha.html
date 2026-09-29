@@ -25,7 +25,8 @@
 </hgroup>
 
 <div class="acciones">
-  <a role="button" href="{% url 'ric_grafo' tipo entidad.pk %}">Ver en grafo</a>
+  {% if es_documento %}<a role="button" href="{% url 'visor_documento' entidad.pk %}">Ver documento</a>{% endif %}
+  <a role="button" {% if es_documento %}class="secundario"{% endif %} href="{% url 'ric_grafo' tipo entidad.pk %}">Ver en grafo</a>
   <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}">RDF (Turtle)</a>
   <a role="button" class="secundario" href="{% url 'ric_exportar_rdf' tipo entidad.pk %}?formato=json-ld">JSON-LD</a>
   {% if es_documento %}<a role="button" class="secundario" href="{% url 'exportar' %}?doc={{ entidad.pk }}">Exportar este documento</a>{% endif %}

@@ -25,7 +25,7 @@ class ValoracionTest(CasoModulos):
         e, _ = clasificacion.crear_expediente(serie, nombre, self.archivista, fecha_apertura=apertura)
         e.fecha_cierre = cierre
         e.save()
-        clasificacion.registrar_documentos(e, [SimpleUploadedFile(f"{nombre}.txt", b"texto")], self.archivista)
+        clasificacion.registrar_documentos(e, [SimpleUploadedFile(f"{nombre}.txt", f"texto de {nombre}".encode())], self.archivista)
         return e
 
     def test_fases_calculadas_desde_el_cierre_y_la_trd(self):

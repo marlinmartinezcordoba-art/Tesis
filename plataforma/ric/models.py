@@ -369,6 +369,7 @@ class Instantiation(Thing):
         "copia de preservación PDF/A generada desde el TIFF original), nunca una sustitución silenciosa del original.",
     )
     formato = models.CharField(max_length=20, blank=True, help_text="RF-M1-03: extensión detectada al cargar (pdf, docx, png...).")
+    tipo_mime = models.CharField(max_length=120, blank=True, help_text="Formato técnico (tipo MIME) verificado contra el contenido al cargar.")
     tamano_bytes = models.BigIntegerField(null=True, blank=True, help_text="RF-M1-03: tamaño del archivo al cargar.")
     idioma_detectado = models.CharField(max_length=8, blank=True, help_text="RF-M2-03: código del idioma detectado en el texto extraído.")
 
@@ -1336,6 +1337,7 @@ class RegistroAuditoria(models.Model):
         ELIMINAR = "eliminar", "Borrado lógico"
         RESTAURAR = "restaurar", "Restauración"
         SESIONES_CERRADAS = "sesiones_cerradas", "Sesiones revocadas"
+        CONSULTAR = "consultar", "Consulta de un documento en el visor"
 
     usuario = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="acciones_auditadas")
     usuario_nombre = models.CharField(max_length=150, blank=True)

@@ -99,10 +99,3 @@ def evaluacion_datos(request):
     return JsonResponse({"metricas": metricas.calcular_metricas()})
 
 
-@login_required
-def servir_archivo(request, pk):
-    """El original solo se entrega con sesión iniciada — nunca directo por
-    /media/ (que en producción, DEBUG=0, ni siquiera existe)."""
-    instanciacion = get_object_or_404(Instantiation, pk=pk)
-    nombre = instanciacion.archivo.name.rsplit("/", 1)[-1]
-    return FileResponse(instanciacion.archivo.open("rb"), filename=nombre)

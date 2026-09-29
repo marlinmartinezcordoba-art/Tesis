@@ -142,31 +142,19 @@ def registrar_documentos(expediente, archivos, usuario, un_solo_documento=False,
     """Los archivos cargados como documentos del expediente. Por defecto,
     cada archivo es un documento (Record) con su instanciación; con
     `un_solo_documento`, todos los archivos son partes (instanciaciones) de
-    un mismo documento, para escaneos partidos. Devuelve las instanciaciones."""
+    un mismo documento, para escaneos partidos. Cada archivo pasa por la
+    validación de ric.carga (formato, contenido, tamaño, duplicado).
+    Devuelve las instanciaciones."""
+    from .carga import registrar_archivo
+
     instanciaciones = []
     record = None
-    if un_solo_documento:
-        record = Record.objects.create(
-            nombre=nombre_documento or _nombre_documento(archivos[0]), record_set=expediente, creado_por=usuario,
-            serie_trd=expediente.serie_trd,
-        )
-        _relacion_manual(expediente, record, R_INCLUYE, usuario)
     for archivo in archivos:
-        if not un_solo_documento:
-            record = Record.objects.create(
-                nombre=_nombre_documento(archivo), record_set=expediente, creado_por=usuario, serie_trd=expediente.serie_trd,
-            )
-            _relacion_manual(expediente, record, R_INCLUYE, usuario)
-        instanciacion = Instantiation.objects.create(nombre=archivo.name, record_resource=record, archivo=archivo, creado_por=usuario)
-        # RF-M1-04: usuario, fecha y hora de cada carga, en la bitácora encadenada.
-        registrar_evento(
-            instanciacion, EventoRiC.Tipo.INGESTA, agente=usuario,
-            detalle={
-                "archivo": archivo.name, "formato": instanciacion.formato, "tamano_bytes": instanciacion.tamano_bytes,
-                "sha256": instanciacion.sha256, "expediente": expediente.nombre, "serie": expediente.serie_trd,
-            },
-        )
-        instanciaciones.append(instanciacion)
+        inst = registrar_archivo(archivo, usuario, expediente=expediente, record=record if un_solo_documento else None,
+                                 nombre_doc=nombre_documento if un_solo_documento else "")
+        if un_solo_documento and record is None:
+            record = Record.objects.get(pk=inst.record_resource_id)
+        instanciaciones.append(inst)
     return instanciaciones
 
 

@@ -41,15 +41,23 @@
   table.tabla td { padding: .55rem .6rem; border-bottom: 1px solid #f0efe9; vertical-align: middle; }
   table.tabla code { font-size: .75rem; }
   .boton-min { padding: .35rem .7rem; font-size: .78rem; margin: 0; width: auto; }
+  tr.error td { background: #fdf0ee; color: #7a1f1f; }
+  .barra { width: 140px; height: 7px; background: #eceae4; border-radius: 4px; overflow: hidden; display: inline-block; vertical-align: middle; }
+  .barra i { display: block; height: 100%; width: 0; background: var(--ricora-accent); transition: width .15s; }
+  .barra.ok i { background: #2f7d4f; }
+  .chip.error { background: #fde8e8; color: #7a1f1f; }
+  .quitar { background: none; border: 1px solid #d9b3ad; color: #7a1f1f; padding: .15rem .5rem; font-size: .74rem; width: auto; margin: 0; }
+  #enviar-preproceso[disabled] { opacity: .5; cursor: not-allowed; }
   .aviso-reemplazo { background: #fff2df; border: 1px solid #e0b566; border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1rem; font-size: .88rem; }
 {% endblock %}
 {% block contenido %}
 <hgroup>
   <h1>Captura y clasificación</h1>
   <p>Cada documento entra clasificado desde el primer momento: elija la serie o subserie de la Tabla de
-  Retención Documental, el expediente al que pertenece y los archivos. RICORA calcula la huella SHA-256,
-  registra quién cargó y cuándo, extrae el texto (o hace OCR), detecta el idioma y entrega el documento al
-  motor de análisis. El expediente hereda la retención y la disposición final de su serie.</p>
+  Retención Documental, el expediente al que pertenece y los archivos. Cada archivo se sube por separado,
+  con su barra de avance: RICORA verifica que su contenido corresponda a su formato, calcula la huella
+  SHA-256, rechaza duplicados y registra quién lo cargó y cuándo. Cuando no queda ninguna carga en curso,
+  «Enviar a preprocesamiento» extrae el texto (u OCR). El expediente hereda la retención de su serie.</p>
 </hgroup>
 
 {% for error in errores %}<p class="mensaje error">{{ error }}</p>{% endfor %}
@@ -57,7 +65,7 @@
 {% if reemplaza %}
 <div class="aviso-reemplazo">📎 Reescaneo pedido para <strong>{{ reemplaza.nombre }}</strong> (documento
 «{{ reemplaza.record_resource }}»). Cargue aquí el nuevo escaneo; el original queda conservado con su huella digital.</div>
-<form method="post" enctype="multipart/form-data" id="form-ingesta">
+<form method="post" enctype="multipart/form-data" id="form-ingesta" data-url="{% url 'ingesta_archivo' %}" data-max-mb="{{ tamano_maximo }}" data-extensiones="{{ extensiones }}">
   {% csrf_token %}
   <input type="hidden" name="reemplaza_id" value="{{ reemplaza.pk }}">
   <label class="zona" id="zona" for="id_archivos">
@@ -100,7 +108,7 @@
   </div>
 
   {% if actividad %}
-  <form method="post" enctype="multipart/form-data" id="form-ingesta">
+  <form method="post" enctype="multipart/form-data" id="form-ingesta" data-url="{% url 'ingesta_archivo' %}" data-max-mb="{{ tamano_maximo }}" data-extensiones="{{ extensiones }}">
     {% csrf_token %}
     <input type="hidden" name="serie_id" value="{{ actividad.pk }}">
     <div class="paso" style="margin-bottom:1rem">
@@ -142,92 +150,195 @@
       <label class="opcion"><input type="checkbox" name="un_solo_documento" value="1" id="id_un_solo"> Estos archivos son partes de un mismo documento (escaneo partido)</label>
       <input type="text" name="nombre_documento" id="id_nombre_documento" placeholder="Nombre del documento (si son partes de uno solo)" style="display:none">
       <p class="ayuda">Por defecto, cada archivo es un documento nuevo del expediente.</p>
-      <button type="submit" id="boton-cargar">Cargar y procesar</button>
+      <button type="submit" id="boton-cargar">Cargar</button>
     </div>
   </form>
   {% endif %}
 </div>
 {% endif %}
 
-{% if cargados or en_cola %}
+<div id="bloque-archivos" {% if not cargados and not en_cola %}style="display:none"{% endif %}>
 <h3 style="margin-top: 1.6rem;">Archivos cargados</h3>
 <form method="post" action="{% url 'preproceso_enviar' %}" id="form-preproceso">
   {% csrf_token %}
   <table class="tabla">
-    <thead><tr><th>Archivo</th><th>Documento</th><th>Expediente</th><th>Formato</th><th>Tamaño</th><th>Huella digital</th><th>Estado</th><th></th></tr></thead>
-    <tbody>
+    <thead><tr><th>Archivo</th><th>Documento</th><th>Expediente</th><th>Tamaño</th><th>Avance</th><th>Huella digital</th><th>Estado</th><th></th></tr></thead>
+    <tbody id="filas">
       {% for f in cargados %}
-      <tr>
-        <td>📄 {{ f.instanciacion.nombre }}</td>
-        <td>{% if f.record %}<a href="{% url 'analisis' f.record.pk %}">{{ f.record }}</a>{% else %}{{ f.instanciacion.record_resource }}{% endif %}</td>
-        <td>{{ f.record.record_set|default:"—" }}</td>
-        <td>{{ f.instanciacion.formato|upper }}</td>
-        <td>{% if f.instanciacion.tamano_bytes is not None %}{{ f.instanciacion.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
-        <td><code title="{{ f.instanciacion.sha256 }}">{{ f.instanciacion.sha256|truncatechars:18 }}</code></td>
-        <td><span class="chip ok">SHA-256 ✓</span> <span class="chip {{ f.estado }}">{% if f.estado == "listo" %}texto listo{% elif f.estado == "calidad_baja" %}calidad baja{% else %}sin texto{% endif %}</span></td>
-        <td>{% if f.estado != "listo" %}<a class="boton-min" role="button" href="{% url 'preproceso' %}">Ver en preprocesamiento</a>{% endif %}</td>
+      <tr data-estado="ok">
+        <td>📄 {{ f.nombre }}<input type="hidden" name="instanciacion" value="{{ f.instanciacion_id }}"></td>
+        <td><a href="{{ f.visor_url }}">{{ f.documento }}</a></td>
+        <td>{{ f.expediente|default:"—" }}</td>
+        <td>{{ f.tamano_bytes|filesizeformat }}</td>
+        <td><span class="barra ok"><i style="width:100%"></i></span></td>
+        <td><code title="{{ f.sha256 }}">{{ f.sha256|truncatechars:18 }}</code></td>
+        <td><span class="chip ok">SHA-256 ✓</span></td>
+        <td><a href="{{ f.visor_url }}">Ver</a></td>
       </tr>
       {% endfor %}
       {% for inst in en_cola %}
-      <tr>
-        <td>📄 {{ inst.nombre }}</td>
-        <td>{{ inst.record_resource }}</td>
+      <tr data-estado="ok">
+        <td>📄 {{ inst.nombre }}<input type="hidden" name="instanciacion" value="{{ inst.pk }}"></td>
+        <td><a href="{% url 'visor_documento' inst.record_resource_id %}?inst={{ inst.pk }}">{{ inst.record_resource }}</a></td>
         <td>—</td>
-        <td>{{ inst.formato|upper }}</td>
         <td>{% if inst.tamano_bytes is not None %}{{ inst.tamano_bytes|filesizeformat }}{% else %}—{% endif %}</td>
+        <td><span class="barra ok"><i style="width:100%"></i></span></td>
         <td><code title="{{ inst.sha256 }}">{{ inst.sha256|truncatechars:18 }}</code></td>
         <td><span class="chip ok">SHA-256 ✓</span> <span class="chip cola">en cola</span></td>
-        <td><button class="boton-min" type="submit" name="instanciacion" value="{{ inst.pk }}">Preprocesar</button></td>
+        <td><a href="{% url 'visor_documento' inst.record_resource_id %}?inst={{ inst.pk }}">Ver</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  <p style="margin-top:.8rem; display:flex; gap:.8rem; align-items:center">
+    <button type="submit" class="boton-min" id="enviar-preproceso">Enviar a preprocesamiento</button>
+    <small id="aviso-envio" style="color:#6b7280"></small>
+  </p>
 </form>
-{% endif %}
+</div>
 
 <script>
 (function () {
+  var form = document.getElementById("form-ingesta");
   var zona = document.getElementById("zona");
   var input = document.getElementById("id_archivos");
+  if (!form || !zona || !input) return;
   var carpeta = document.getElementById("id_carpeta");
-  var rutas = document.getElementById("rutas");
   var lista = document.getElementById("seleccionados");
-  var form = document.getElementById("form-ingesta");
   var unSolo = document.getElementById("id_un_solo");
   var nombreDoc = document.getElementById("id_nombre_documento");
-  if (!zona || !input || !form) return;
-  function pintar(archivos, estado) {
+  var filas = document.getElementById("filas");
+  var bloque = document.getElementById("bloque-archivos");
+  var botonEnviar = document.getElementById("enviar-preproceso");
+  var aviso = document.getElementById("aviso-envio");
+  var maxBytes = parseInt(form.dataset.maxMb, 10) * 1024 * 1024;
+  var extensiones = form.dataset.extensiones.split(",");
+  var csrf = form.querySelector("input[name=csrfmiddlewaretoken]").value;
+  var seleccion = [];   // [{archivo, ruta}]
+
+  function extension(nombre) { var i = nombre.lastIndexOf("."); return i < 0 ? "" : nombre.slice(i).toLowerCase(); }
+  function tamano(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
+  function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
+
+  // Historia de usuario M1: el botón queda deshabilitado mientras haya un archivo cargando.
+  function actualizarBoton() {
+    var cargando = filas.querySelectorAll("tr[data-estado=cargando]").length;
+    var listos = filas.querySelectorAll("tr[data-estado=ok]").length;
+    botonEnviar.disabled = cargando > 0 || listos === 0;
+    aviso.textContent = cargando > 0 ? cargando + " archivo(s) todavía cargando…" : (listos ? listos + " archivo(s) listos para preprocesar." : "");
+  }
+
+  function pintarSeleccion() {
     lista.innerHTML = "";
-    Array.prototype.forEach.call(archivos, function (f) {
+    seleccion.forEach(function (s) {
       var li = document.createElement("li");
-      var ruta = f.webkitRelativePath ? " (" + f.webkitRelativePath.split("/").slice(0, -1).join("/") + ")" : "";
-      li.innerHTML = "<span>📄 " + f.name + ruta + " · " + (f.size / 1024).toFixed(0) + " KB</span><span class='chip " + estado + "'>" + (estado === "cargando" ? "cargando y procesando" : "listo para cargar") + "</span>";
+      li.innerHTML = "<span>📄 " + esc(s.ruta || s.archivo.name) + " · " + tamano(s.archivo.size) + "</span><span class='chip cola'>listo para cargar</span>";
       lista.appendChild(li);
     });
   }
-  function usarCarpeta() {
-    // Opción C: los archivos de la carpeta pasan al campo real y sus rutas relativas viajan aparte.
-    var dt = new DataTransfer();
-    rutas.innerHTML = "";
-    Array.prototype.forEach.call(carpeta.files, function (f) {
-      dt.items.add(f);
-      var h = document.createElement("input"); h.type = "hidden"; h.name = "rutas"; h.value = f.webkitRelativePath || f.name; rutas.appendChild(h);
-    });
-    input.files = dt.files;
-    pintar(carpeta.files, "cola");
+  function elegir(archivos, conRuta) {
+    seleccion = Array.prototype.map.call(archivos, function (f) { return { archivo: f, ruta: conRuta ? (f.webkitRelativePath || "") : "" }; });
+    pintarSeleccion();
   }
-  input.addEventListener("change", function () { rutas.innerHTML = ""; pintar(input.files, "cola"); });
+  input.addEventListener("change", function () { elegir(input.files, false); });
   if (carpeta) {
-    carpeta.addEventListener("change", usarCarpeta);
-    document.getElementById("elegir-carpeta").addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); carpeta.click(); });
+    carpeta.addEventListener("change", function () { elegir(carpeta.files, true); });
+    var enlace = document.getElementById("elegir-carpeta");
+    if (enlace) enlace.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); carpeta.click(); });
   }
   ["dragenter", "dragover"].forEach(function (ev) { zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.add("activa"); }); });
   ["dragleave", "drop"].forEach(function (ev) { zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.remove("activa"); }); });
-  zona.addEventListener("drop", function (e) {
-    if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; rutas.innerHTML = ""; pintar(input.files, "cola"); }
-  });
+  zona.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files.length) elegir(e.dataTransfer.files, false); });
   if (unSolo) unSolo.addEventListener("change", function () { nombreDoc.style.display = unSolo.checked ? "block" : "none"; });
-  form.addEventListener("submit", function () { pintar(input.files, "cargando"); document.getElementById("boton-cargar").disabled = true; });
+
+  function fila(nombre, bytes) {
+    var tr = document.createElement("tr");
+    tr.dataset.estado = "cargando";
+    tr.innerHTML = "<td>📄 " + esc(nombre) + "</td><td class='doc'>—</td><td class='exp'>—</td><td>" + tamano(bytes) +
+      "</td><td><span class='barra'><i></i></span> <small class='pct'>0%</small></td><td class='hash'>—</td>" +
+      "<td class='estado'><span class='chip cargando'>cargando</span></td><td class='acc'></td>";
+    filas.appendChild(tr);
+    bloque.style.display = "";
+    return tr;
+  }
+  function marcarError(tr, mensaje) {
+    tr.dataset.estado = "error";
+    tr.classList.add("error");
+    tr.querySelector(".estado").innerHTML = "<span class='chip error'>" + esc(mensaje) + "</span>";
+    tr.querySelector(".pct").textContent = "";
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "quitar"; b.textContent = "Quitar";
+    b.addEventListener("click", function () { tr.remove(); actualizarBoton(); });
+    tr.querySelector(".acc").appendChild(b);
+    actualizarBoton();
+  }
+  function marcarOk(tr, r) {
+    tr.dataset.estado = "ok";
+    tr.querySelector(".barra").classList.add("ok");
+    tr.querySelector(".barra i").style.width = "100%";
+    tr.querySelector(".pct").textContent = "";
+    tr.querySelector(".doc").innerHTML = "<a href='" + r.visor_url + "'>" + esc(r.documento) + "</a>";
+    tr.querySelector(".exp").textContent = r.expediente || "—";
+    tr.querySelector(".hash").innerHTML = "<code title='" + r.sha256 + "'>" + r.sha256.slice(0, 16) + "…</code>";
+    tr.querySelector(".estado").innerHTML = "<span class='chip ok'>SHA-256 ✓</span>";
+    tr.querySelector(".acc").innerHTML = "<a href='" + r.visor_url + "'>Ver</a><input type='hidden' name='instanciacion' value='" + r.instanciacion_id + "'>";
+    actualizarBoton();
+  }
+
+  // Un archivo a la vez: el avance es real y un rechazo no bloquea a los demás.
+  function subir(tareas, contexto) {
+    if (!tareas.length) {
+      document.getElementById("boton-cargar").disabled = false;
+      seleccion = []; pintarSeleccion(); input.value = "";
+      return;
+    }
+    var t = tareas.shift();
+    var ext = extension(t.archivo.name);
+    if (extensiones.indexOf(ext) < 0) { marcarError(t.tr, "formato no soportado (" + (ext || "sin extensión") + ")"); return subir(tareas, contexto); }
+    if (t.archivo.size > maxBytes) { marcarError(t.tr, "supera el máximo de " + form.dataset.maxMb + " MB"); return subir(tareas, contexto); }
+    var datos = new FormData();
+    ["serie_id", "expediente_id", "expediente_nuevo", "expediente_codigo", "fecha_apertura", "reemplaza_id", "nombre_documento"].forEach(function (c) {
+      var el = form.querySelector("[name=" + c + "]"); if (el && el.value) datos.append(c, el.value);
+    });
+    if (contexto.expedienteId) { datos.set("expediente_id", contexto.expedienteId); datos.delete("expediente_nuevo"); }
+    if (unSolo && unSolo.checked) { datos.append("un_solo_documento", "1"); if (contexto.documentoId) datos.append("documento_id", contexto.documentoId); }
+    if (t.ruta) datos.append("ruta", t.ruta);
+    datos.append("archivo", t.archivo);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", form.dataset.url);
+    xhr.setRequestHeader("X-CSRFToken", csrf);
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.round(e.loaded / e.total * 100);
+      t.tr.querySelector(".barra i").style.width = pct + "%";
+      t.tr.querySelector(".pct").textContent = pct < 100 ? pct + "%" : "calculando huella…";
+    };
+    xhr.onload = function () {
+      var r = {};
+      try { r = JSON.parse(xhr.responseText); } catch (e) { r = { ok: false, error: "respuesta inesperada del servidor (" + xhr.status + ")" }; }
+      if (r.ok) {
+        marcarOk(t.tr, r);
+        if (!t.ruta && r.expediente_id) contexto.expedienteId = r.expediente_id;   // el expediente nuevo se crea una sola vez
+        if (unSolo && unSolo.checked && !contexto.documentoId) contexto.documentoId = r.documento_id;
+      } else {
+        marcarError(t.tr, r.error || "error al cargar");
+      }
+      subir(tareas, contexto);
+    };
+    xhr.onerror = function () { marcarError(t.tr, "se perdió la conexión durante la carga"); subir(tareas, contexto); };
+    xhr.send(datos);
+  }
+
+  form.addEventListener("submit", function (e) {
+    if (!seleccion.length && input.files.length) elegir(input.files, false);   // selección hecha antes de que cargara el script
+    if (!seleccion.length) return;   // sin archivos: que el servidor explique qué falta
+    e.preventDefault();
+    document.getElementById("boton-cargar").disabled = true;
+    var tareas = seleccion.map(function (s) { return { archivo: s.archivo, ruta: s.ruta, tr: fila(s.ruta || s.archivo.name, s.archivo.size) }; });
+    actualizarBoton();
+    subir(tareas, {});
+  });
+  if (botonEnviar) actualizarBoton();
 })();
 </script>
 {% endblock %}

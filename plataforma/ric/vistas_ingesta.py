@@ -7,30 +7,17 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from acervo.extraccion import EXT_DOCX, EXT_IMAGEN, EXT_TEXTO
 
-from . import clasificacion, flujo, roles
+from . import carga, clasificacion, flujo, roles
 from .idioma import nombre_idioma
 from .models import Activity, ConfiguracionSistema, EventoRiC, Instantiation, Record, RecordSet, registrar_evento
 
-FORMATOS_SOPORTADOS = sorted(EXT_TEXTO | EXT_IMAGEN | EXT_DOCX | {".pdf"})
+FORMATOS_SOPORTADOS = carga.FORMATOS_SOPORTADOS
 _EXT_IMAGEN_VISOR = {".jpg", ".jpeg", ".png"}
-
-
-def _validar_archivo(archivo):
-    """RF-M1-03: formato y tamaño se revisan antes de guardar nada."""
-    extension = Path(archivo.name).suffix.lower()
-    if extension not in FORMATOS_SOPORTADOS:
-        return (
-            f"«{archivo.name}»: formato {extension or 'sin extensión'} no soportado. "
-            f"Se aceptan {', '.join(FORMATOS_SOPORTADOS)}."
-        )
-    maximo = settings.RICORA_TAMANO_MAXIMO_MB
-    if archivo.size > maximo * 1024 * 1024:
-        return f"«{archivo.name}»: pesa {archivo.size / 1024 / 1024:.1f} MB y el máximo es {maximo} MB."
-    return None
 
 
 def _estado_preproceso(instanciacion):
@@ -50,17 +37,83 @@ def _fecha(valor):
         return None
 
 
-def _agrupar_por_carpeta(archivos, rutas):
-    """Opción C: al subir una carpeta, el nombre de la carpeta de primer
-    nivel de cada archivo es su expediente. {carpeta: [archivos]}; la
-    clave "" agrupa los archivos sueltos."""
-    grupos = {}
-    for i, archivo in enumerate(archivos):
-        ruta = rutas[i] if i < len(rutas) else ""
-        partes = [p for p in ruta.replace("\\", "/").split("/") if p]
-        carpeta = partes[-2] if len(partes) >= 2 else ""
-        grupos.setdefault(carpeta, []).append(archivo)
-    return grupos
+def _carpeta(ruta):
+    """Opción C: el nombre de la carpeta que contiene al archivo es su expediente."""
+    partes = [p for p in (ruta or "").replace("\\", "/").split("/") if p]
+    return partes[-2] if len(partes) >= 2 else ""
+
+
+def _actividad(valor):
+    return Activity.objects.filter(pk=valor, mandato__isnull=False).select_related("mandato").first() if str(valor).isdigit() else None
+
+
+def _expediente(valor):
+    return RecordSet.objects.filter(pk=valor, tipo_conjunto=RecordSet.Tipo.EXPEDIENTE).first() if str(valor).isdigit() else None
+
+
+def _resolver_expediente(post, actividad, usuario, ruta=""):
+    """Carpeta > expediente elegido > expediente nuevo. Devuelve (expediente, creado)."""
+    carpeta = _carpeta(ruta)
+    if carpeta:
+        return clasificacion.crear_expediente(actividad, carpeta, usuario, fecha_apertura=_fecha(post.get("fecha_apertura")))
+    elegido = _expediente(post.get("expediente_id", ""))
+    if elegido is not None:
+        return elegido, False
+    nombre = post.get("expediente_nuevo", "").strip()
+    if nombre:
+        return clasificacion.crear_expediente(
+            actividad, nombre, usuario, codigo=post.get("expediente_codigo", "").strip(), fecha_apertura=_fecha(post.get("fecha_apertura")),
+        )
+    return None, False
+
+
+def _fila(instanciacion):
+    record = _record_de(instanciacion)
+    expediente = record.record_set if record is not None else None
+    return {
+        "ok": True,
+        "instanciacion_id": instanciacion.pk, "nombre": instanciacion.nombre, "sha256": instanciacion.sha256,
+        "formato": instanciacion.formato, "tipo_mime": instanciacion.tipo_mime, "tamano_bytes": instanciacion.tamano_bytes,
+        "documento_id": record.pk if record else None, "documento": str(record) if record else "",
+        "expediente_id": expediente.pk if expediente else None, "expediente": str(expediente) if expediente else "",
+        "visor_url": reverse("visor_documento", args=[record.pk]) + f"?inst={instanciacion.pk}" if record else "",
+    }
+
+
+@roles.requiere_rol_api(roles.ARCHIVISTA)
+@require_POST
+def ingesta_archivo(request):
+    """Carga de UN archivo (RF-M1-01 a RF-M1-04), llamada por la pantalla
+    una vez por archivo con barra de avance: un archivo pesado o rechazado
+    no bloquea a los demás. Responde JSON con la fila de la tabla."""
+    archivo = request.FILES.get("archivo")
+    if archivo is None:
+        return JsonResponse({"ok": False, "error": "No llegó ningún archivo."}, status=400)
+    reemplaza = Instantiation.objects.filter(pk=request.POST.get("reemplaza_id")).first() if request.POST.get("reemplaza_id", "").isdigit() else None
+    record = None
+    if request.POST.get("documento_id", "").isdigit():  # parte de un mismo documento ya creado en esta carga
+        record = Record.objects.filter(pk=request.POST["documento_id"]).first()
+    try:
+        carga.validar(archivo)
+        expediente, creado = None, False
+        if reemplaza is None and record is None:
+            actividad = _actividad(request.POST.get("serie_id", ""))
+            if actividad is None:
+                raise carga.ArchivoRechazado("elija primero la serie o subserie de la TRD.")
+            expediente, creado = _resolver_expediente(request.POST, actividad, request.user, ruta=request.POST.get("ruta", ""))
+            if expediente is None:
+                raise carga.ArchivoRechazado("indique el expediente al que pertenece o escriba el nombre de uno nuevo.")
+        elif record is not None:
+            expediente = record.record_set
+        instanciacion = carga.registrar_archivo(
+            archivo, request.user, expediente=expediente, record=record, reemplaza=reemplaza,
+            nombre_doc=request.POST.get("nombre_documento", "").strip() if request.POST.get("un_solo_documento") == "1" else "",
+        )
+    except carga.ArchivoRechazado as e:
+        return JsonResponse({"ok": False, "error": f"«{archivo.name}»: {e}"}, status=400)
+    fila = _fila(instanciacion)
+    fila["expediente_creado"] = creado
+    return JsonResponse(fila, status=201)
 
 
 @roles.requiere_rol(roles.ARCHIVISTA)
@@ -68,74 +121,57 @@ def ingesta(request):
     """Captura y clasificación (opción A): 1) la serie o subserie de la TRD,
     2) el expediente de esa serie (existente o nuevo; o el nombre de la
     carpeta cargada), 3) los archivos, cada uno un documento salvo que sean
-    partes de un mismo documento. Al cargar, el preprocesamiento (texto u
-    OCR, idioma, calidad) corre solo y el documento pasa al motor."""
-    from .ingesta import preprocesar
-
+    partes de un mismo documento. La pantalla sube archivo por archivo a
+    `ingesta_archivo` con su barra de avance; este POST es el respaldo sin
+    JavaScript. Ninguno de los dos preprocesa: eso lo pide el archivista con
+    «Enviar a preprocesamiento» cuando no queda ninguna carga en curso."""
     errores, cargados = [], []
     reemplaza = None
     if request.GET.get("reemplaza") or request.POST.get("reemplaza_id"):
         reemplaza = Instantiation.objects.filter(pk=request.GET.get("reemplaza") or request.POST.get("reemplaza_id")).select_related("record_resource").first()
-
-    serie_id = request.POST.get("serie_id") or request.GET.get("serie", "")
-    actividad = Activity.objects.filter(pk=serie_id, mandato__isnull=False).select_related("mandato").first() if str(serie_id).isdigit() else None
-    expediente_id = request.POST.get("expediente_id") or request.GET.get("expediente", "")
-    expediente = RecordSet.objects.filter(pk=expediente_id, tipo_conjunto=RecordSet.Tipo.EXPEDIENTE).first() if str(expediente_id).isdigit() else None
+    actividad = _actividad(request.POST.get("serie_id") or request.GET.get("serie", ""))
+    expediente = _expediente(request.POST.get("expediente_id") or request.GET.get("expediente", ""))
 
     if request.method == "POST":
         archivos = request.FILES.getlist("archivos")
         rutas = request.POST.getlist("rutas")
-        nombre_nuevo = request.POST.get("expediente_nuevo", "").strip()
         un_solo = request.POST.get("un_solo_documento") == "1"
-        grupos = _agrupar_por_carpeta(archivos, rutas)
-        con_carpetas = any(grupos) and expediente is None
-
         if not archivos:
             errores.append("Seleccione al menos un archivo para cargar.")
-        for archivo in archivos:
-            error = _validar_archivo(archivo)
-            if error:
-                errores.append(error)
-        if reemplaza is None:
-            if actividad is None:
-                errores.append("Elija primero la serie o subserie de la TRD a la que pertenece el expediente.")
-            elif expediente is None and not nombre_nuevo and not con_carpetas:
-                errores.append("Indique a qué expediente pertenece el documento, o escriba el nombre de uno nuevo.")
-
-        if not errores:
-            nuevas = []
-            if reemplaza is not None:
-                record = _record_de(reemplaza)
-                for archivo in archivos:
-                    inst = Instantiation.objects.create(nombre=archivo.name, record_resource=record, archivo=archivo, creado_por=request.user, instanciacion_origen=reemplaza)
-                    registrar_evento(inst, EventoRiC.Tipo.INGESTA, agente=request.user, detalle={"archivo": archivo.name, "formato": inst.formato, "tamano_bytes": inst.tamano_bytes, "sha256": inst.sha256, "reescaneo_de": reemplaza.nombre})
-                    nuevas.append(inst)
+        if reemplaza is None and actividad is None:
+            errores.append("Elija primero la serie o subserie de la TRD a la que pertenece el expediente.")
+        elif reemplaza is None and not any(_carpeta(r) for r in rutas) and expediente is None and not request.POST.get("expediente_nuevo", "").strip():
+            errores.append("Indique a qué expediente pertenece el documento, o escriba el nombre de uno nuevo.")
+        # Primero se validan todos: un expediente nuevo no se crea si ningún archivo sirve.
+        faltan_datos = bool(errores)
+        validos = []
+        for i, archivo in enumerate(archivos):
+            try:
+                carga.validar(archivo)
+                validos.append((i, archivo))
+            except carga.ArchivoRechazado as e:
+                errores.append(f"«{archivo.name}»: {e}")
+        if validos and not faltan_datos:
+            record = None
+            for i, archivo in validos:
+                try:
+                    if reemplaza is not None:
+                        inst = carga.registrar_archivo(archivo, request.user, reemplaza=reemplaza)
+                    else:
+                        destino, creado = _resolver_expediente(request.POST, actividad, request.user, ruta=rutas[i] if i < len(rutas) else "")
+                        if creado:
+                            messages.success(request, f"Expediente «{destino.nombre}» creado en {destino.ruta_texto()}.")
+                        inst = carga.registrar_archivo(
+                            archivo, request.user, expediente=destino, record=record if un_solo else None,
+                            nombre_doc=request.POST.get("nombre_documento", "").strip() if un_solo else "",
+                        )
+                        if un_solo and record is None:
+                            record = _record_de(inst)
+                    cargados.append(inst)
+                except carga.ArchivoRechazado as e:
+                    errores.append(f"«{archivo.name}»: {e}")
+            if reemplaza is not None and cargados:
                 reemplaza = None
-            elif con_carpetas:
-                for carpeta, lista in grupos.items():
-                    destino = expediente
-                    if carpeta:
-                        destino, _ = clasificacion.crear_expediente(actividad, carpeta, request.user, fecha_apertura=_fecha(request.POST.get("fecha_apertura")))
-                    elif nombre_nuevo:
-                        destino, _ = clasificacion.crear_expediente(actividad, nombre_nuevo, request.user, codigo=request.POST.get("expediente_codigo", "").strip(), fecha_apertura=_fecha(request.POST.get("fecha_apertura")))
-                    if destino is None:
-                        errores.append(f"{len(lista)} archivo(s) sueltos sin expediente: póngalos en una carpeta o escriba el nombre de un expediente nuevo.")
-                        continue
-                    nuevas += clasificacion.registrar_documentos(destino, lista, request.user, un_solo_documento=un_solo, nombre_documento=request.POST.get("nombre_documento", "").strip())
-            else:
-                if expediente is None:
-                    expediente, creado = clasificacion.crear_expediente(
-                        actividad, nombre_nuevo, request.user, codigo=request.POST.get("expediente_codigo", "").strip(),
-                        fecha_apertura=_fecha(request.POST.get("fecha_apertura")),
-                    )
-                    if creado:
-                        messages.success(request, f"Expediente «{expediente.nombre}» creado en {expediente.ruta_texto()}.")
-                nuevas = clasificacion.registrar_documentos(expediente, archivos, request.user, un_solo_documento=un_solo, nombre_documento=request.POST.get("nombre_documento", "").strip())
-
-            for inst in nuevas:
-                resultado = preprocesar(inst, agente=request.user)
-                _informar_resultado(request, inst, resultado)
-                cargados.append(inst)
 
     en_cola = (
         Instantiation.objects.exclude(eventos__tipo=EventoRiC.Tipo.EXTRACCION)
@@ -153,10 +189,11 @@ def ingesta(request):
         "expedientes": clasificacion.expedientes_de(actividad) if actividad else [],
         "expediente": expediente,
         "errores": errores,
-        "cargados": [{"instanciacion": i, "estado": _estado_preproceso(i), "record": _record_de(i)} for i in cargados],
+        "cargados": [_fila(i) for i in cargados],
         "en_cola": en_cola,
         "reemplaza": reemplaza,
         "formatos": ", ".join(FORMATOS_SOPORTADOS),
+        "extensiones": ",".join(FORMATOS_SOPORTADOS),
         "tamano_maximo": settings.RICORA_TAMANO_MAXIMO_MB,
     })
 

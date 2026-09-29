@@ -105,3 +105,27 @@ def requiere_rol(*roles, mensaje=None):
         return envoltura
 
     return decorador
+
+
+def requiere_rol_api(*roles):
+    """Igual que `requiere_rol`, para puntos que responden JSON a la propia
+    pantalla: 401 sin sesión, 403 sin el rol (y queda en la auditoría)."""
+
+    def decorador(vista):
+        @wraps(vista)
+        def envoltura(request, *args, **kwargs):
+            from django.http import JsonResponse
+
+            if not request.user.is_authenticated:
+                return JsonResponse({"ok": False, "error": "La sesión expiró. Vuelva a iniciar sesión."}, status=401)
+            if not puede(request.user, *roles):
+                from .auditoria_acciones import registrar_accion
+
+                registrar_accion("acceso_denegado", usuario=request.user, exitoso=False,
+                                 detalle={"ruta": request.path, "rol": rol_de(request.user), "requiere": list(roles)})
+                return JsonResponse({"ok": False, "error": "Esta acción requiere el rol " + " o ".join(ETIQUETAS[r].lower() for r in roles) + "."}, status=403)
+            return vista(request, *args, **kwargs)
+
+        return envoltura
+
+    return decorador

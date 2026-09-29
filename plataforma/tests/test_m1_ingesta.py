@@ -1,6 +1,6 @@
 """Captura y clasificación (/ingesta): opción A — serie de la TRD, expediente
 existente o nuevo (o carpeta), archivos como documentos del expediente,
-huella, bitácora y preprocesamiento automático. RF-M1-01 a RF-M1-04."""
+huella y bitácora; el preprocesamiento lo pide el archivista. RF-M1-01 a RF-M1-04."""
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -27,7 +27,8 @@ class CasoCaptura(CasoModulos):
         self.serie = Activity.objects.get(identificador="TRD 1000-24")
 
     def _archivo(self, nombre="acta.txt", contenido=None):
-        return SimpleUploadedFile(nombre, (contenido or TEXTO).encode())
+        # contenido distinto por archivo: dos archivos idénticos son un duplicado y se rechazan
+        return SimpleUploadedFile(nombre, (contenido or f"{TEXTO}\n[{nombre}]").encode())
 
     def _cargar(self, **datos):
         base = {"serie_id": self.serie.pk, "archivos": [self._archivo()]}
@@ -96,10 +97,11 @@ class IngestaTest(CasoCaptura):
         self.assertEqual(evento.agente, "archivista")
         self.assertEqual(evento.detalle["expediente"], "Petición 2026-0412")
         self.assertTrue(RelacionRiC.objects.filter(relacion_id="R024", origen_object_id=expediente.pk, destino_object_id=documentos[0].pk).exists())
-        # el preprocesamiento corre solo al cargar
-        self.assertGreater(inst.paginas.count(), 0)
+        # la carga NO preprocesa (historia M1): eso lo pide el archivista con el botón
+        self.assertEqual(inst.paginas.count(), 0)
+        self.assertEqual(inst.tipo_mime, "text/plain")
         self.assertContains(resp, "SHA-256 ✓")
-        self.assertContains(resp, "texto listo")
+        self.assertContains(resp, "Enviar a preprocesamiento")
         self.assertContains(resp, "Expediente «Petición 2026-0412» creado")
 
     def test_cargar_a_un_expediente_existente_y_partes_de_un_mismo_documento(self):
