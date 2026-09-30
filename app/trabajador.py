@@ -3,7 +3,9 @@ Trabajador en segundo plano, proceso aparte del servidor web:
 - ingesta: toma, de a uno, los documentos en estado «procesando» y los
   procesa (huella, duplicados, formato, texto u OCR);
 - vocabularios: cada cierto tiempo (24 h por defecto) busca pares de
-  entidades parecidas y deja sugerencias de fusión, sin fusionar nada.
+  entidades parecidas y deja sugerencias de fusión, sin fusionar nada;
+- preservación: cada cierto tiempo (30 días por defecto) recalcula la
+  huella de todas las instanciaciones y alerta si alguna cambió.
 Si el OCR de un archivo pesado falla o consume memoria, el servidor web
 sigue respondiendo.
 
@@ -19,7 +21,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import procesamiento, vocabulario
+from app.servicios import preservacion, procesamiento, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -52,6 +54,10 @@ def main() -> None:
                 nuevas = vocabulario.deteccion_periodica(db)
                 if nuevas:
                     log.info("Vocabulario: %s sugerencia(s) de fusión nuevas.", nuevas)
+                # Preservación: verificación periódica de integridad.
+                verificadas = preservacion.verificacion_periodica(db)
+                if verificadas is not None:
+                    log.info("Preservación: %s instanciación(es) verificadas.", verificadas)
                 siguiente = procesamiento.tomar_siguiente(db)
                 if siguiente is not None:
                     log.info("Procesando %s", siguiente)

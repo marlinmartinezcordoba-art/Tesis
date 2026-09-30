@@ -4,7 +4,7 @@ import { ErrorAPI, descargar, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import {
-  etiquetaRelacion, type Ficha, type Indice as DatosIndice, type Inventario as DatosInventario, type Miga, type NivelCatalogo,
+  ESTADO_PRESERVACION, etiquetaRelacion, type Ficha, type Indice as DatosIndice, type Inventario as DatosInventario, type Miga, type NivelCatalogo,
 } from "@/lib/instrumentos";
 import { useSesion } from "@/lib/sesion";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
@@ -59,7 +59,10 @@ function PanelFicha({ id, cerrar, ir }: { id: string; cerrar: () => void; ir: (i
     </>
   );
 
-  const preservacion = ficha?.instanciaciones[0]?.preservacion;
+  const vePreservacion = tienePermiso(usuario, "preservacion");
+  // La insignia muestra el estado más delicado entre los archivos de la descripción.
+  const preservacion = ficha?.instanciaciones.map((i) => i.preservacion)
+    .sort((a, b) => ESTADO_PRESERVACION[a.estado].orden - ESTADO_PRESERVACION[b.estado].orden)[0];
   return (
     <div className="velo" onMouseDown={(e) => e.target === e.currentTarget && cerrar()}>
       <aside className="panel-ficha" role="dialog" aria-modal="true" aria-label="Ficha de la descripción">
@@ -77,9 +80,9 @@ function PanelFicha({ id, cerrar, ir }: { id: string; cerrar: () => void; ir: (i
                 <span className="insignia acento">{NIVEL_NOMBRE[ficha.nivel]}</span>
                 <h2>{ficha.titulo}</h2>
               </div>
-              {ficha.instanciaciones.length > 0 && (
-                <span className="insignia proceso" title="El módulo 5 (preservación) aún no evalúa este archivo">
-                  ● Preservación: sin evaluar
+              {preservacion && (
+                <span className={`insignia ${ESTADO_PRESERVACION[preservacion.estado].clase}`} title="Estado de preservación (módulo 5)">
+                  ● {ESTADO_PRESERVACION[preservacion.estado].texto}
                 </span>
               )}
             </div>
@@ -109,11 +112,12 @@ function PanelFicha({ id, cerrar, ir }: { id: string; cerrar: () => void; ir: (i
                   <dd>
                     {ficha.instanciaciones.map((i) => (
                       <div key={i.id} className="meta">
-                        {i.nombre} · {i.preservacion.formato || "formato sin identificar"}{i.preservacion.puid && ` (${i.preservacion.puid})`}
-                        {i.preservacion.huella && ` · ${i.preservacion.algoritmo_huella} ${i.preservacion.huella.slice(0, 12)}…`}
+                        {vePreservacion ? <Link to={`/preservacion/instanciacion/${i.id}`}>{i.nombre}</Link> : i.nombre}
+                        {i.preservacion.derivada_de && " (versión de conservación)"}
+                        {" · "}{i.preservacion.formato || "formato sin identificar"}{i.preservacion.puid && ` (${i.preservacion.puid})`}
+                        {" · "}{ESTADO_PRESERVACION[i.preservacion.estado].texto.toLowerCase()}
                       </div>
                     ))}
-                    {preservacion && <div className="meta">Estado: sin evaluar todavía (lo mantendrá el módulo de preservación digital).</div>}
                   </dd>
                 </>
               )}

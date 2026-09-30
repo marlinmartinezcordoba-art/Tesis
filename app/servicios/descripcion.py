@@ -108,6 +108,17 @@ def documentos_de(db: Session, trabajo: TrabajoDescripcion) -> list[Instanciacio
     return list(filas)
 
 
+def _derivadas(db: Session, ids: list[uuid.UUID]) -> list[Instanciacion]:
+    """Instanciaciones que salieron por migración de estas (y de sus
+    derivadas): se describen junto con su original."""
+    salida, pendientes = [], list(ids)
+    while pendientes:
+        hijas = db.scalars(select(Instanciacion).where(Instanciacion.derivada_de_id.in_(pendientes))).all()
+        salida.extend(hijas)
+        pendientes = [h.id for h in hijas]
+    return salida
+
+
 def _sin_descripcion():
     return ~exists().where(Relacion.destino_id == Instanciacion.id, Relacion.estado == "vigente",
                            Relacion.codigo_ric == "has_or_had_instantiation")
@@ -118,7 +129,10 @@ def cola(db: Session, fondo_id: uuid.UUID) -> list[tuple[Instanciacion, str | No
     nombre de quien las tiene en edición (si alguien)."""
     expirar(db)
     filas = db.scalars(select(Instanciacion).where(
-        Instanciacion.fondo_id == fondo_id, Instanciacion.estado == "listo_para_descripcion", _sin_descripcion())
+        Instanciacion.fondo_id == fondo_id, Instanciacion.estado == "listo_para_descripcion", _sin_descripcion(),
+        # Una instanciación que salió de una migración no se describe aparte:
+        # hereda la descripción de su original (módulo 5).
+        Instanciacion.derivada_de_id.is_(None))
         .order_by(Instanciacion.cargado_en)).all()
     en_edicion = dict(db.execute(
         select(TrabajoInstanciacion.instanciacion_id, Usuario.nombre)
@@ -141,7 +155,7 @@ def abrir(db: Session, *, usuario_id: uuid.UUID, instanciacion_ids: list[uuid.UU
     elif nivel not in NIVELES_CONJUNTO:
         raise ErrorDescripcion("Para describir varios documentos juntos, elija si son un expediente, una subserie o una serie.")
     documentos = db.scalars(select(Instanciacion).where(Instanciacion.id.in_(ids), _sin_descripcion())).all()
-    if len(documentos) != len(ids) or any(d.estado != "listo_para_descripcion" for d in documentos):
+    if len(documentos) != len(ids) or any(d.estado != "listo_para_descripcion" or d.derivada_de_id for d in documentos):
         raise ErrorDescripcion("Alguno de los documentos ya no está disponible para describir (quizá ya se describió).", 409)
     if len({d.fondo_id for d in documentos}) != 1:
         raise ErrorDescripcion("Todos los documentos de un conjunto deben ser del mismo fondo.")
@@ -323,7 +337,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
                     destino_id=recurso.id, tipo_relacion="inclusion", codigo_ric="includes_or_included",
                     origen="persona", confirmada_por_id=usuario_id))
-    for d in documentos:
+    for d in documentos + _derivadas(db, [d.id for d in documentos]):
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",
                         destino_id=d.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
                         origen="persona", confirmada_por_id=usuario_id))

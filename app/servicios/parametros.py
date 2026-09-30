@@ -33,7 +33,37 @@ DEFINICIONES: dict[str, Definicion] = {
     "fusion_max_conexiones": Definicion(10, _entero_entre(0, 10000),
                                         "Conexiones máximas de cada entidad para sugerir fusionarlas («pocas conexiones»)."),
     "fusion_horas_deteccion": Definicion(24, _entero_entre(1, 720), "Cada cuántas horas se buscan candidatos a fusión."),
+    "preservacion_frecuencia_dias": Definicion(30, _entero_entre(1, 365),
+                                               "Cada cuántos días se verifica la integridad de todo el fondo."),
+    "preservacion_formatos": Definicion(None, lambda v: _formatos(v), "Formatos soportados para migración automática."),
 }
+
+
+def _formatos(valor: Any) -> str | None:
+    """Tabla de formatos soportados: lista de filas {id, origen, origen_mime,
+    destino, conversor, activo}. El conversor debe existir en el código y
+    producir ese destino (ver servicios/preservacion.py)."""
+    from app.servicios.preservacion import CONVERSORES
+
+    if not isinstance(valor, list) or len(valor) > 50:
+        return "La tabla de formatos debe ser una lista (máximo 50 filas)."
+    for fila in valor:
+        if not isinstance(fila, dict):
+            return "Cada fila debe tener origen, tipos MIME, destino y conversor."
+        mimes = fila.get("origen_mime")
+        if not isinstance(fila.get("origen"), str) or not fila["origen"].strip() or len(fila["origen"]) > 80:
+            return "Cada fila necesita un nombre de origen (máximo 80 caracteres)."
+        if not isinstance(mimes, list) or not mimes or not all(isinstance(m, str) and 3 <= len(m) <= 100 and "/" in m
+                                                               for m in mimes):
+            return "Cada fila necesita al menos un tipo MIME de origen, como application/pdf o image/*."
+        conversor = CONVERSORES.get(fila.get("conversor"))
+        if conversor is None:
+            return f"Conversor desconocido: {fila.get('conversor')}."
+        if fila.get("destino") != conversor.destino:
+            return f"El conversor «{conversor.nombre}» produce {conversor.destino}, no {fila.get('destino')}."
+        if not isinstance(fila.get("activo"), bool):
+            return "Cada fila debe indicar si está activa."
+    return None
 
 
 def leer(db: Session, clave: str) -> Any:

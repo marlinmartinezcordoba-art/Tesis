@@ -66,6 +66,13 @@ class Instanciacion(Base):
     origen_texto = Column(Enum(*ORIGEN_TEXTO, name="origen_texto"), nullable=True)
     paginas = Column(Integer, nullable=True)
 
+    # Preservación (módulo 5): estado de la última verificación de
+    # integridad y, si esta instanciación salió de una migración, de cuál.
+    estado_integridad = Column(Enum("sin_verificar", "integra", "alterada", "ausente", name="estado_integridad"),
+                               nullable=False, default="sin_verificar", server_default="sin_verificar")
+    ultima_verificacion_en = Column(DateTime(timezone=True), nullable=True)
+    derivada_de_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id"), nullable=True, index=True)
+
     cargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     cargado_en = Column(DateTime(timezone=True), default=ahora, nullable=False, index=True)
     procesado_en = Column(DateTime(timezone=True), nullable=True)

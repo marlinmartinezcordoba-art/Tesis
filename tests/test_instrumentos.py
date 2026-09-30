@@ -167,7 +167,7 @@ def test_ficha_con_entidades_vivas_y_preservacion_sin_campos_internos(cliente, f
     assert ficha["forma_documental"]["nombre"] == "Oficio"
     assert [m["titulo"] for m in ficha["migas"]] == ["Correspondencia municipal", "Correspondencia", "Correspondencia 1948"]
     [inst] = ficha["instanciaciones"]
-    assert inst["preservacion"]["estado"] == "sin_evaluar" and inst["preservacion"]["puid"] == "fmt/18"
+    assert inst["preservacion"]["estado"] == "riesgo_obsolescencia" and inst["preservacion"]["puid"] == "fmt/18"
     assert ficha["control"]["caja"] == "1"
     assert cliente.get(f"/api/instrumentos/catalogo/{uuid.uuid4()}", headers=archivista).status_code == 404
 

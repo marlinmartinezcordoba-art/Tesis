@@ -11,6 +11,8 @@ SEVERIDAD = ("alta", "media", "baja")
 TIPO_ALERTA = (
     "formato_no_identificado",  # ingesta
     "inventario_campos_pendientes",  # instrumentos
+    "integridad_alterada",  # preservación
+    "riesgo_obsolescencia",  # preservación
 )
 
 

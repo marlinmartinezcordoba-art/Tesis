@@ -158,13 +158,26 @@ def nivel(db: Session, fondo: RecursoDocumental, nodo_id: uuid.UUID | None = Non
 
 
 def preservacion(db: Session, instanciacion_id: str) -> dict:
-    """Estado de preservación en solo lectura. El módulo 5 es quien lo
-    mantiene; mientras no exista, se muestra lo que dejó la ingesta."""
+    """Estado de preservación en solo lectura, tal como lo mantiene el
+    módulo 5: integridad, riesgo de formato y migraciones hechas."""
+    from app.servicios import preservacion as modulo
+
     inst = db.get(Instanciacion, uuid.UUID(instanciacion_id))
     if inst is None:
         return {"estado": "sin_evaluar"}
-    return {"estado": "sin_evaluar", "formato": inst.formato_nombre, "puid": inst.formato_puid,
-            "algoritmo_huella": inst.algoritmo_huella, "huella": inst.huella}
+    r = modulo.riesgo_de(db, inst)
+    if inst.estado_integridad in ("alterada", "ausente"):
+        estado = "alerta_integridad"
+    elif r["nivel"] != "bajo" and not r["mitigado_por"]:
+        estado = "riesgo_obsolescencia"
+    elif inst.estado_integridad == "sin_verificar":
+        estado = "sin_verificar"
+    else:
+        estado = "buen_estado"
+    return {"estado": estado, "integridad": inst.estado_integridad, "ultima_verificacion_en": inst.ultima_verificacion_en,
+            "riesgo": r["nivel"], "formato": inst.formato_nombre, "puid": inst.formato_puid,
+            "algoritmo_huella": inst.algoritmo_huella, "huella": inst.huella,
+            "derivada_de": str(inst.derivada_de_id) if inst.derivada_de_id else None}
 
 
 def ficha(db: Session, recurso: RecursoDocumental) -> dict:

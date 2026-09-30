@@ -353,7 +353,7 @@ tests/test_instrumentos.py
 
 - **Los datos de control hay que escribirlos a mano en cada unidad.** Hoy solo se pueden completar en «Corregir», después de publicar. Si en su flujo real la caja y la carpeta se conocen desde la ingesta (porque se digitaliza caja por caja), convendría pedirlos allí, o permitir completarlos en lote para varias unidades. Queda a su decisión.
 - **La redacción real de Gemini para la guía** se verá en el servidor. Aquí se probó con un motor de prueba.
-- **La preservación** dice «sin evaluar» hasta el módulo 5.
+- ~~**La preservación** dice «sin evaluar» hasta el módulo 5.~~ Resuelto en el módulo 5: la ficha muestra el estado real (integridad, riesgo, versión de conservación).
 
 ## 23. Evidencia concreta de aplicación de RiC
 

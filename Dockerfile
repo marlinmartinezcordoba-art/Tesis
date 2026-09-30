@@ -24,9 +24,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DIRECTORIO_ALMACENAMIENTO=/data/almacen \
     RICORA_SIEGFRIED=/usr/local/bin/sf \
     RICORA_SIEGFRIED_HOME=/opt/siegfried
-# OCR: Tesseract con el idioma español.
+# OCR: Tesseract con el idioma español. Preservación: Ghostscript (PDF → PDF/A).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa ghostscript \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=siegfried /go/bin/sf /usr/local/bin/sf
 COPY --from=siegfried /opt/siegfried /opt/siegfried

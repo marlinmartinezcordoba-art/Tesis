@@ -35,7 +35,10 @@ export interface EntidadFicha {
 }
 
 export interface Preservacion {
-  estado: "sin_evaluar" | string;
+  estado: "buen_estado" | "alerta_integridad" | "riesgo_obsolescencia" | "sin_verificar" | "sin_evaluar";
+  integridad?: string;
+  riesgo?: string;
+  derivada_de?: string | null;
   formato?: string | null;
   puid?: string | null;
   algoritmo_huella?: string;
@@ -89,3 +92,11 @@ export function etiquetaRelacion(e: EntidadFicha): string {
   if (e.rol === "mencionado") return "Menciona a";
   return "Agente";
 }
+
+export const ESTADO_PRESERVACION: Record<Preservacion["estado"], { texto: string; clase: string; orden: number }> = {
+  alerta_integridad: { texto: "Alerta de integridad", clase: "error", orden: 0 },
+  riesgo_obsolescencia: { texto: "Riesgo de obsolescencia", clase: "alerta", orden: 1 },
+  sin_verificar: { texto: "Sin verificar todavía", clase: "proceso", orden: 2 },
+  sin_evaluar: { texto: "Sin evaluar", clase: "proceso", orden: 3 },
+  buen_estado: { texto: "Buen estado", clase: "bien", orden: 4 },
+};

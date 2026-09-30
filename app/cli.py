@@ -3,6 +3,7 @@ Comandos de administración del servidor.
 
     python -m app.cli cuenta-administradora
     python -m app.cli probar-motor
+    python -m app.cli probar-preservacion
 
 Crea o restablece la cuenta administradora a partir de las variables
 RICORA_ADMIN_CORREO (o RICORA_ADMIN_USER), RICORA_ADMIN_PASSWORD y RICORA_ADMIN_NOMBRE (el
@@ -106,7 +107,36 @@ def probar_motor() -> int:
     return 0
 
 
-COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor}
+def probar_preservacion() -> int:
+    """Convierte un PDF generado en el momento a PDF/A-2b con Ghostscript y
+    lo identifica con Siegfried: confirma que la migración automática
+    funciona en este servidor (no toca ningún documento del fondo)."""
+    import io
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image
+
+    from app.servicios import formato, preservacion
+
+    with tempfile.TemporaryDirectory() as carpeta:
+        entrada, salida = Path(carpeta) / "prueba.pdf", Path(carpeta) / "prueba_pdfa.pdf"
+        buffer = io.BytesIO()
+        Image.new("RGB", (200, 100), (240, 235, 220)).save(buffer, format="PDF")
+        entrada.write_bytes(buffer.getvalue())
+        try:
+            herramienta = preservacion.CONVERSORES["ghostscript_pdfa"].ejecutar(entrada, salida)
+            f = formato.identificar(salida)
+        except Exception as exc:  # se informa, no se oculta
+            print(f"Preservación: la conversión a PDF/A NO funciona: {exc}")
+            return 1
+    ok = f.puid in preservacion.DESTINOS["pdfa_2b"].puids
+    print(f"Preservación: {herramienta} → {f.nombre} ({f.puid}) {'correcto' if ok else 'NO es PDF/A'}")
+    return 0 if ok else 1
+
+
+COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
+            "probar-preservacion": probar_preservacion}
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in COMANDOS:

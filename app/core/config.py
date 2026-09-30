@@ -39,6 +39,8 @@ class Settings:
     # con el archivo de firmas (default.sig).
     siegfried_binario: str = os.getenv("RICORA_SIEGFRIED", "sf")
     siegfried_home: str = os.getenv("RICORA_SIEGFRIED_HOME", "/opt/siegfried")
+    # Preservación: conversión a PDF/A.
+    ghostscript_binario: str = os.getenv("RICORA_GHOSTSCRIPT", "gs")
     # Idioma del reconocimiento óptico de caracteres (Tesseract).
     idioma_ocr: str = os.getenv("RICORA_IDIOMA_OCR", "spa")
     # Resolución a la que se pasa a imagen cada página de un PDF escaneado.

@@ -25,6 +25,8 @@ const MODULO: Record<string, string> = {
 const TIPO: Record<string, string> = {
   formato_no_identificado: "Formato no identificado",
   inventario_campos_pendientes: "Campos pendientes del inventario",
+  integridad_alterada: "Alerta de integridad",
+  riesgo_obsolescencia: "Riesgo de obsolescencia",
 };
 
 export function Alertas() {
