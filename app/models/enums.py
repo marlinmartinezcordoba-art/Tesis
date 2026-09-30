@@ -109,7 +109,24 @@ CODIGO_RELACION_RIC = (
     # -- espacial --
     "is_or_was_location_of",  # RiC-R075
     "is_or_was_jurisdiction_of",  # RiC-R076
+    # -- agregadas por la autora del proyecto al construir el módulo de
+    #    descripción (códigos oficiales de RiC-CM 1.0 / RiC-O 1.1) --
+    "has_or_had_instantiation",  # RiC-R025 — Record Resource → Instantiation
+    "documents",  # RiC-R033 — Record Resource → Activity que documenta
+    "has_or_had_subject",  # RiC-R019 — Record Resource → lo que se menciona o trata
 )
+
+# Rango de cada código: URI en RiC-O 1.1, para la exportación.
+URI_RICO = {
+    "has_creator": "rico:hasCreator",
+    "has_sender": "rico:hasSender",
+    "has_addressee": "rico:hasAddressee",
+    "includes_or_included": "rico:includesOrIncluded",
+    "is_creation_date_of": "rico:isCreationDateOf",
+    "has_or_had_instantiation": "rico:hasOrHadInstantiation",
+    "documents": "rico:documents",
+    "has_or_had_subject": "rico:hasOrHadSubject",
+}
 
 # Relación — de dónde salió la propuesta (CC-05, CC-08)
 ORIGEN_DECISION = ("propuesta_ia", "correccion_manual")

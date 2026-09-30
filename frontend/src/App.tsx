@@ -5,6 +5,9 @@ import type { Rol } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Alertas } from "@/pages/Alertas";
 import { DefinirContrasena } from "@/pages/DefinirContrasena";
+import { Descripcion } from "@/pages/Descripcion";
+import { EspacioTrabajo } from "@/pages/EspacioTrabajo";
+import { RegistroDescripcion } from "@/pages/Registro";
 import { Ingesta } from "@/pages/Ingesta";
 import { Ingreso } from "@/pages/Ingreso";
 import { Perfil } from "@/pages/Perfil";
@@ -35,6 +38,9 @@ export default function App() {
       <Route path="/recuperar" element={<SoloSinSesion><Recuperar /></SoloSinSesion>} />
       <Route path="/acceso/:token" element={<DefinirContrasena />} />
       <Route path="/ingesta" element={<Protegida roles={["administrador", "archivista", "revisor"]}><Ingesta /></Protegida>} />
+      <Route path="/descripcion" element={<Protegida roles={["administrador", "archivista", "revisor"]}><Descripcion /></Protegida>} />
+      <Route path="/descripcion/trabajo/:id" element={<Protegida roles={["administrador", "archivista"]}><EspacioTrabajo /></Protegida>} />
+      <Route path="/descripcion/registro/:id" element={<Protegida roles={["administrador", "archivista", "revisor"]}><RegistroDescripcion /></Protegida>} />
       <Route path="/alertas" element={<Protegida roles={VEN_ALERTAS}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida roles={["administrador"]}><Usuarios /></Protegida>} />

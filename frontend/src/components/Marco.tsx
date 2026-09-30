@@ -31,6 +31,7 @@ interface Entrada {
 // Auditoría, Usuarios.
 const ENTRADAS: Entrada[] = [
   { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", roles: ["administrador", "archivista", "revisor"] },
+  { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", roles: ["administrador", "archivista", "revisor"] },
   { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", roles: ["administrador"] },
 ];
 

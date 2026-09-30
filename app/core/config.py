@@ -46,6 +46,19 @@ class Settings:
     # Tiempo máximo por página de OCR o por identificación de formato.
     segundos_por_paso: int = _entero("RICORA_SEGUNDOS_POR_PASO", 300)
 
+    # --- Descripción ---
+    # Motor de análisis: Gemini (clave de Google AI Studio). Sin clave, la
+    # descripción funciona igual pero sin propuestas automáticas.
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    modelo_ia: str = os.getenv("RICORA_MODELO_IA", "gemini-3.5-flash")
+    segundos_motor: int = _entero("RICORA_SEGUNDOS_MOTOR", 90)
+    # Por debajo de esta confianza, una propuesta se marca «confianza baja».
+    umbral_confianza: float = float(os.getenv("UMBRAL_CONFIANZA_REVISION", "0.70"))
+    # Similitud por trigramas desde la cual el vocabulario sugiere «¿es la misma?».
+    umbral_similitud: float = float(os.getenv("UMBRAL_SIMILITUD_VOCABULARIO", "0.45"))
+    # Tiempo sin actividad tras el cual se libera la marca «en edición».
+    minutos_bloqueo_descripcion: int = _entero("MINUTOS_BLOQUEO_DESCRIPCION", 30)
+
     # Clave con la que se firman los tokens de sesión. Sin ella el sistema
     # no arranca en producción (ver app/main.py).
     secret_key: str = os.getenv("RICORA_SECRET_KEY", "")

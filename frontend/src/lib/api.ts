@@ -5,9 +5,11 @@
 
 export class ErrorAPI extends Error {
   status: number;
-  constructor(status: number, mensaje: string) {
+  datos?: any; // cuerpo completo de la respuesta de error, cuando trae más que el mensaje
+  constructor(status: number, mensaje: string, datos?: unknown) {
     super(mensaje);
     this.status = status;
+    this.datos = datos;
   }
 }
 
@@ -105,7 +107,7 @@ export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promis
   }
   if (r.status === 204) return undefined as T;
   const cuerpo = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status));
+  if (!r.ok) throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status), cuerpo);
   return cuerpo as T;
 }
 

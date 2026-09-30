@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base, ahora
@@ -32,3 +32,17 @@ class RecursoDocumental(Base):
     fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=True, index=True)
     creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+    # --- Descripción (módulo 2) ---
+    # Alcance y contenido (ISAD(G) 3.3.1; RiC-A38 Scope and content).
+    alcance_contenido = Column(Text, nullable=True)
+    # Forma documental (RiC-A13 Documentary form type), del vocabulario.
+    forma_documental_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
+    # Procedencia de los campos descriptivos, en columnas propias.
+    origen_titulo = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
+    origen_alcance = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
+    confianza_alcance = Column(Float, nullable=True)
+    motor = Column(String(120), nullable=True)
+    publicado_en = Column(DateTime(timezone=True), nullable=True)
+    publicado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    actualizado_en = Column(DateTime(timezone=True), nullable=True)

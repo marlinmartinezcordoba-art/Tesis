@@ -19,10 +19,8 @@ PyJWT==2.9.0
 pypdfium2==5.13.0
 pillow==12.3.0
 
-# Proveedores de inteligencia artificial para el motor de análisis
-# (módulo de descripción). Se activan cuando se construya ese módulo.
-# anthropic==0.34.2
-# openai==1.47.1
+# Motor de análisis de la descripción: Gemini por su API REST (sin SDK).
+httpx==0.28.1
 
 # Trabajos en segundo plano (OCR en ingesta, detección periódica en
 # vocabularios, verificación de integridad en preservación). Se activan

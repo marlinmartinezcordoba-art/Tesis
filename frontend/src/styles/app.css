@@ -211,3 +211,34 @@ h1 { font-size: 1.35rem; margin: 0 0 4px; }
   .barra { width: 100%; flex-basis: 100%; }
   .superior { justify-content: flex-start; }
 }
+
+/* ---- descripción: espacio de trabajo de dos columnas ---- */
+.espacio { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-items: start; }
+.panel-doc, .propuestas { max-height: calc(100vh - 250px); min-height: 320px; overflow-y: auto; }
+.panel-doc { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; position: sticky; top: 12px; }
+.doc + .doc { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+.docname { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 10px; }
+.texto-doc { font-size: .92rem; line-height: 1.8; white-space: pre-wrap; word-wrap: break-word; }
+mark { background: var(--accent-bg); color: var(--ink); border-radius: 3px; padding: 1px 3px; cursor: pointer; transition: background .2s; }
+mark.hl { background: var(--accent); color: var(--accent-ink); }
+.propuestas { display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+.tarjeta-prop { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+.tarjeta-prop.activa { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tarjeta-prop.descartada { opacity: .55; }
+.tarjeta-prop.descartada .prop-valor { text-decoration: line-through; }
+.tarjeta-prop textarea.entrada { resize: vertical; line-height: 1.5; }
+.prop-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.prop-valor { font-weight: 600; font-size: .92rem; margin-bottom: 4px; }
+.prop-frag { font-size: .78rem; color: var(--muted); font-style: italic; margin-bottom: 8px; }
+.vocab { background: var(--accent-bg); border-radius: 9px; padding: 10px 12px; margin-top: 8px; font-size: .8rem; }
+.vocab.resuelta { background: var(--ok-bg); color: var(--ok); }
+.vocab .q { margin-bottom: 8px; font-weight: 600; }
+.vocab-opcion { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
+.form-entidad .rejilla { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.barra-publicar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-size: .84rem; color: var(--muted); position: sticky; bottom: 10px; }
+.fila.tachada .nombre { text-decoration: line-through; opacity: .6; }
+@media (max-width: 900px) {
+  .espacio { grid-template-columns: 1fr; }
+  .panel-doc { position: static; max-height: 45vh; }
+  .propuestas { max-height: none; }
+}

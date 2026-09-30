@@ -2,6 +2,7 @@
 Comandos de administración del servidor.
 
     python -m app.cli cuenta-administradora
+    python -m app.cli probar-motor
 
 Crea o restablece la cuenta administradora a partir de las variables
 RICORA_ADMIN_CORREO (o RICORA_ADMIN_USER), RICORA_ADMIN_PASSWORD y RICORA_ADMIN_NOMBRE (el
@@ -86,7 +87,26 @@ def cuenta_administradora() -> int:
     return 0
 
 
-COMANDOS = {"cuenta-administradora": cuenta_administradora}
+def probar_motor() -> int:
+    """Consulta el motor de análisis con un texto corto de prueba e informa
+    si responde (nunca muestra la clave)."""
+    from app.servicios import motor
+
+    activo = motor.motor_activo()
+    if activo is None:
+        print("  Motor de análisis: no configurado (falta GEMINI_API_KEY). La descripción funciona a mano.")
+        return 0
+    prueba = motor.Documento(id=uuid.uuid4(), nombre="prueba.txt",
+                             texto="Acta del Concejo Municipal de Tunja, sesión del 20 de julio de 1948.")
+    propuesta = motor.proponer([prueba], "unidad_documental")
+    if propuesta.disponible:
+        print(f"  Motor de análisis: responde ({activo.nombre}), {len(propuesta.entidades)} entidad(es) en la prueba.")
+    else:
+        print(f"  Motor de análisis: NO responde ({activo.nombre}): {propuesta.aviso}")
+    return 0
+
+
+COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor}
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in COMANDOS:

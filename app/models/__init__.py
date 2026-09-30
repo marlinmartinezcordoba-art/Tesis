@@ -3,6 +3,9 @@
 from app.db.base import Base  # noqa: F401
 from app.models.alerta import Alerta  # noqa: F401
 from app.models.auditoria import RegistroAuditoria  # noqa: F401
+from app.models.descripcion import (  # noqa: F401
+    Actividad, EntidadVocabulario, Fecha, Relacion, TrabajoDescripcion, TrabajoInstanciacion,
+)
 from app.models.instanciacion import Instanciacion  # noqa: F401
 from app.models.parametro import Parametro  # noqa: F401
 from app.models.recurso_documental import RecursoDocumental  # noqa: F401
