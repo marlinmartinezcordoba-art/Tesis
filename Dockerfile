@@ -4,7 +4,7 @@
 
 # Siegfried (identificación de formato contra PRONOM), compilado desde su
 # código fuente, con el archivo de firmas de esa misma versión.
-FROM golang:1.24-bookworm AS siegfried
+FROM golang:1.26-bookworm AS siegfried
 ARG SIEGFRIED_VERSION=v1.11.9
 RUN CGO_ENABLED=0 go install github.com/richardlehane/siegfried/cmd/sf@${SIEGFRIED_VERSION} \
     && mkdir -p /opt/siegfried \
