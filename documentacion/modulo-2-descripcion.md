@@ -55,10 +55,10 @@ Describir un fondo histórico documento por documento, a mano, no es viable. Con
 
 | Entidad RiC-CM | Dónde vive | Qué es aquí |
 |---|---|---|
-| Record Resource (E02): Record en la unidad documental, Record Set en expediente, subserie y serie | `recursos_documentales` | Título, alcance y contenido (RiC-A38 / ISAD 3.3.1), nivel, forma documental (A13) |
+| Record Resource (E02): Record en la unidad documental, Record Set en expediente, subserie y serie | `recursos_documentales` | Título, alcance y contenido (RiC-A38 / ISAD 3.3.1), nivel, forma documental (A17) |
 | Agent (E07): Person, Corporate Body, Position (cargo), Family | `entidades_vocabulario`, clase agente | Registro único por fondo |
 | Place (E22) | `entidades_vocabulario`, clase lugar | Registro único por fondo |
-| Tipo de forma documental (A13) | `entidades_vocabulario`, clase forma_documental | Registro único por fondo |
+| Tipo de forma documental (A17) | `entidades_vocabulario`, clase forma_documental | Registro único por fondo |
 | Date (E18) | `fechas` | Expresión literal y fecha normalizada (solo si es exacta) |
 | Activity (E15) | `actividades` | Lo que el documento documenta |
 | Instantiation (E06) | `instanciaciones` (módulo 1) | El archivo técnico, ya existente |
@@ -338,7 +338,7 @@ Record «Oficio de la Alcaldía Municipal sobre el estado del archivo» (unidad 
   ─ rico:hasOrHadSubject ───→ Place «Boyacá»                                 [motor, 40 %: confianza baja]
   ─ rico:documents ─────────→ Activity «Conservación del archivo municipal»
   ─ rico:hasOrHadInstantiation → Instantiation «Oficio_114_1948.pdf» (fmt/18, SHA-256 …)
-  forma documental (RiC-A13): «Oficio»
+  forma documental (RiC-A17): «Oficio»
 ```
 
 - Las procedencias entre corchetes solo se ven en la vista interna. La ficha pública muestra el mismo grafo sin ellas.

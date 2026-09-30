@@ -106,7 +106,7 @@ export function renovar(): Promise<UsuarioBreve | null> {
   return renovando;
 }
 
-export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+async function conSesion(ruta: string, opciones: RequestInit): Promise<Response> {
   let r = await llamar(ruta, opciones, true);
   if (r.status === 401 && token) {
     const cuerpo = await r.clone().json().catch(() => ({}));
@@ -119,10 +119,35 @@ export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promis
       throw new ErrorAPI(401, "Su sesión se cerró. Ingrese de nuevo.");
     }
   }
+  return r;
+}
+
+export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+  const r = await conSesion(ruta, opciones);
   if (r.status === 204) return undefined as T;
   const cuerpo = await r.json().catch(() => ({}));
   if (!r.ok) throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status), cuerpo);
   return cuerpo as T;
+}
+
+// Descarga un archivo generado por el servidor (inventario, guía) y lo
+// entrega al navegador con el nombre que propone el servidor.
+export async function descargar(ruta: string, opciones: RequestInit = {}): Promise<Headers> {
+  const r = await conSesion(ruta, opciones);
+  if (!r.ok) {
+    const cuerpo = await r.json().catch(() => ({}));
+    throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status), cuerpo);
+  }
+  const nombre = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "")?.[1] || "archivo";
+  const url = URL.createObjectURL(await r.blob());
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return r.headers;
 }
 
 export async function ingresar(correo: string, contrasena: string): Promise<UsuarioBreve> {

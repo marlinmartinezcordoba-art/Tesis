@@ -28,6 +28,11 @@ def crear(db: Session, *, tipo: str, severidad: str, modulo: str, entidad_tipo: 
     return alerta
 
 
+def pendiente(db: Session, tipo: str, entidad_id) -> Alerta | None:
+    return db.scalar(select(Alerta).where(Alerta.tipo == tipo, Alerta.entidad_id == str(entidad_id),
+                                          Alerta.atendida_en.is_(None)))
+
+
 def atender(db: Session, alerta: Alerta, usuario_id: uuid.UUID | None, nota: str | None = None) -> None:
     if alerta.atendida_en is None:
         alerta.atendida_en = ahora()

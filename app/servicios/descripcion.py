@@ -15,7 +15,7 @@ Relaciones que crea (catálogo curado, códigos oficiales RiC-CM 1.0):
 | Inclusión en nivel superior  | includes_or_included (R024)            | superior → documento  |
 | Archivo técnico              | has_or_had_instantiation (R025)        | documento → archivo   |
 
-La forma documental no es una relación sino un atributo (RiC-A13), que
+La forma documental no es una relación sino un atributo (RiC-A17), que
 apunta a una entrada del vocabulario.
 """
 
@@ -386,12 +386,20 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "alcance_contenido": recurso.alcance_contenido, "fondo_id": str(recurso.fondo_id),
         "incluido_en": {"id": str(superior.id), "titulo": superior.titulo, "nivel": superior.nivel} if superior else None,
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
-        "entidades": entidades, "instanciaciones": instanciaciones,
+        "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),
         "origen_titulo": recurso.origen_titulo, "origen_alcance": recurso.origen_alcance,
         "confianza_alcance": recurso.confianza_alcance, "motor": recurso.motor,
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
         "actualizado_en": recurso.actualizado_en.isoformat() if recurso.actualizado_en else None,
     }
+
+
+# Datos de control del inventario (FUID), que escribe siempre una persona.
+CAMPOS_CONTROL = ("codigo_referencia", "caja", "carpeta", "folios", "soporte")
+
+
+def control_de(recurso: RecursoDocumental) -> dict:
+    return {c: getattr(recurso, c) for c in CAMPOS_CONTROL}
 
 
 def resumen(db: Session, recurso: RecursoDocumental) -> dict:
@@ -403,6 +411,7 @@ def resumen(db: Session, recurso: RecursoDocumental) -> dict:
         "forma_documental": d["forma_documental"]["nombre"] if d["forma_documental"] else None,
         "entidades": sorted(f"{e['tipo']}:{e['rol'] or ''}:{e['valor']} [{e['origen']}]" for e in d["entidades"]),
         "instanciaciones": sorted(i["nombre"] for i in d["instanciaciones"]),
+        **control_de(recurso),
     }
 
 
@@ -425,7 +434,8 @@ def reabrir(db: Session, recurso: RecursoDocumental, usuario_id: uuid.UUID) -> T
 
 def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
            titulo: str | None, alcance: str | None, incluido_en_id: uuid.UUID | None,
-           anular: list[uuid.UUID], quitar_forma: bool, agregar: list[EntidadConfirmada]) -> None:
+           anular: list[uuid.UUID], quitar_forma: bool, agregar: list[EntidadConfirmada],
+           control: dict | None = None) -> None:
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
     anterior = resumen(db, recurso)
@@ -456,6 +466,9 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         r.estado, r.anulada_en, r.anulada_por_id = "anulada", ahora(), usuario_id
     if quitar_forma:
         recurso.forma_documental_id = None
+    for campo, valor in (control or {}).items():
+        if campo in CAMPOS_CONTROL:
+            setattr(recurso, campo, (" ".join(valor.split()) or None) if isinstance(valor, str) else valor)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(

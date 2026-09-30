@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
@@ -39,7 +39,25 @@ interface Registro {
   origen_alcance: string | null;
   publicado_en: string | null;
   actualizado_en: string | null;
+  control: Control;
 }
+
+// Datos de control del inventario (FUID); los usa el módulo de instrumentos.
+interface Control {
+  codigo_referencia: string | null;
+  caja: string | null;
+  carpeta: string | null;
+  folios: number | null;
+  soporte: string | null;
+}
+
+const CAMPOS_CONTROL: { clave: keyof Control; nombre: string; pista?: string }[] = [
+  { clave: "codigo_referencia", nombre: "Código de referencia", pista: "p. ej. CO-AM-114" },
+  { clave: "caja", nombre: "Caja" },
+  { clave: "carpeta", nombre: "Carpeta" },
+  { clave: "folios", nombre: "N.º de folios" },
+  { clave: "soporte", nombre: "Soporte", pista: "Papel, electrónico…" },
+];
 
 interface Nueva extends EntidadManual {
   clave: string;
@@ -65,6 +83,8 @@ export function RegistroDescripcion() {
   const [agregando, setAgregando] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [control, setControl] = useState<Record<keyof Control, string>>(
+    { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "" });
 
   function cargar(r: Registro) {
     setRegistro(r);
@@ -74,6 +94,10 @@ export function RegistroDescripcion() {
     setQuitar([]);
     setQuitarForma(false);
     setNuevas([]);
+    setControl({
+      codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
+      folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
+    });
     nivelesSuperiores(r.fondo_id, r.nivel).then(setSuperiores).catch(() => undefined);
   }
 
@@ -120,6 +144,11 @@ export function RegistroDescripcion() {
             tipo: n.tipo, valor: n.valor, subtipo: n.subtipo, rol: n.rol, fecha_normalizada: n.fecha_normalizada,
             reutilizar_id: n.verif.reutilizarId || null, crear_nueva: !!n.verif.crearNueva,
           })),
+          control: {
+            codigo_referencia: control.codigo_referencia.trim() || null, caja: control.caja.trim() || null,
+            carpeta: control.carpeta.trim() || null, soporte: control.soporte.trim() || null,
+            folios: control.folios.trim() === "" ? null : Number(control.folios),
+          },
         }),
       });
       setTrabajo(null);
@@ -183,12 +212,39 @@ export function RegistroDescripcion() {
       </div>
 
       <div className="tarjeta">
+        <div className="tarjeta-cab">Datos de control para el inventario (FUID)</div>
+        <div className="tarjeta-cuerpo">
+          {editando ? (
+            <div className="rejilla">
+              {CAMPOS_CONTROL.map((c) => (
+                <div className="campo" key={c.clave} style={{ margin: 0 }}>
+                  <label htmlFor={`c-${c.clave}`}>{c.nombre}</label>
+                  <input id={`c-${c.clave}`} className="entrada" value={control[c.clave]} placeholder={c.pista}
+                         inputMode={c.clave === "folios" ? "numeric" : undefined}
+                         onChange={(e) => setControl({ ...control, [c.clave]: c.clave === "folios" ? e.target.value.replace(/\D/g, "") : e.target.value })} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <dl className="pares" style={{ margin: 0 }}>
+              {CAMPOS_CONTROL.map((c) => (
+                <Fragment key={c.clave}>
+                  <dt>{c.nombre}</dt>
+                  <dd>{registro.control[c.clave] ?? <span className="texto-alerta">Sin dato: saldrá pendiente en el inventario</span>}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          )}
+        </div>
+      </div>
+
+      <div className="tarjeta">
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>
         {registro.forma_documental && (
           <div className={`fila${quitarForma ? " tachada" : ""}`}>
             <span className="insignia bien">Forma documental</span>
             <div className="fila-principal"><div className="nombre">{registro.forma_documental.nombre}</div>
-              <div className="meta">Atributo RiC-A13 · {ORIGEN_NOMBRE[registro.forma_documental.origen]}</div></div>
+              <div className="meta">Atributo RiC-A17 · {ORIGEN_NOMBRE[registro.forma_documental.origen]}</div></div>
             {editando && <button type="button" className="boton chico" onClick={() => setQuitarForma(!quitarForma)}>{quitarForma ? "Deshacer" : "Quitar"}</button>}
           </div>
         )}

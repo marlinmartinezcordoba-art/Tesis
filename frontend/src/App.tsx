@@ -10,6 +10,7 @@ import { EspacioTrabajo } from "@/pages/EspacioTrabajo";
 import { RegistroDescripcion } from "@/pages/Registro";
 import { Ingesta } from "@/pages/Ingesta";
 import { Ingreso } from "@/pages/Ingreso";
+import { Instrumentos } from "@/pages/Instrumentos";
 import { Perfil } from "@/pages/Perfil";
 import { Recuperar } from "@/pages/Recuperar";
 import { Usuarios } from "@/pages/Usuarios";
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/descripcion/registro/:id" element={<Protegida modulo="descripcion"><RegistroDescripcion /></Protegida>} />
       <Route path="/vocabularios" element={<Protegida modulo="vocabularios"><Vocabularios /></Protegida>} />
       <Route path="/vocabularios/:id" element={<Protegida modulo="vocabularios"><EntidadVocabularioDetalle /></Protegida>} />
+      <Route path="/instrumentos" element={<Protegida modulo="catalogo"><Instrumentos /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />

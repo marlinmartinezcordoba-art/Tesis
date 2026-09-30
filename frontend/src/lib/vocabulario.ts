@@ -42,7 +42,7 @@ export const CLASE_NOMBRE_PLURAL: Record<ClaseVocabulario, string> = {
 export const CLASE_RIC: Record<ClaseVocabulario, string> = {
   agente: "RiC-E07 Agent",
   lugar: "RiC-E22 Place",
-  forma_documental: "RiC-A13 Documentary form type",
+  forma_documental: "RiC-A17 Documentary form type",
 };
 
 export const CLASE_INSIGNIA: Record<ClaseVocabulario, string> = {

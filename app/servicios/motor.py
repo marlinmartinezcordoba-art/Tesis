@@ -140,6 +140,21 @@ class MotorGemini:
             "contents": [{"role": "user", "parts": [{"text": pedido}]}],
             "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json", "responseSchema": ESQUEMA},
         }
+        try:
+            return json.loads(self._llamar(cuerpo))
+        except ValueError as exc:
+            raise MotorError("La respuesta del motor no se pudo leer.") from exc
+
+    def redactar(self, instruccion: str, pedido: str) -> str:
+        """Texto libre (p. ej. la nota de presentación de la guía)."""
+        cuerpo = {
+            "systemInstruction": {"parts": [{"text": instruccion}]},
+            "contents": [{"role": "user", "parts": [{"text": pedido}]}],
+            "generationConfig": {"temperature": 0.3},
+        }
+        return self._llamar(cuerpo).strip()
+
+    def _llamar(self, cuerpo: dict) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.modelo}:generateContent"
         try:
             r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": self.clave}, timeout=settings.segundos_motor)
@@ -149,8 +164,7 @@ class MotorGemini:
             log.warning("Gemini respondió %s: %s", r.status_code, r.text[:300])
             raise MotorError(f"El motor de análisis respondió con un error ({r.status_code}).")
         try:
-            texto = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(texto)
+            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, ValueError) as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
 

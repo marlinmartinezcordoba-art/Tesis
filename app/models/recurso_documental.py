@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base, ahora
@@ -36,7 +36,7 @@ class RecursoDocumental(Base):
     # --- Descripción (módulo 2) ---
     # Alcance y contenido (ISAD(G) 3.3.1; RiC-A38 Scope and content).
     alcance_contenido = Column(Text, nullable=True)
-    # Forma documental (RiC-A13 Documentary form type), del vocabulario.
+    # Forma documental (RiC-A17 Documentary form type), del vocabulario.
     forma_documental_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     # Procedencia de los campos descriptivos, en columnas propias.
     origen_titulo = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
@@ -46,3 +46,12 @@ class RecursoDocumental(Base):
     publicado_en = Column(DateTime(timezone=True), nullable=True)
     publicado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     actualizado_en = Column(DateTime(timezone=True), nullable=True)
+
+    # --- Datos de control para el inventario (módulo 4, FUID del AGN) ---
+    # Los escribe siempre una persona al describir o corregir; si faltan,
+    # el inventario los marca como pendientes, sin bloquear.
+    codigo_referencia = Column(String(60), nullable=True)  # ISAD(G) 3.1.1; RiC-A22 Identifier
+    caja = Column(String(30), nullable=True)  # unidad de conservación
+    carpeta = Column(String(30), nullable=True)
+    folios = Column(Integer, nullable=True)  # ISAD(G) 3.1.5 volumen; RiC-A35 Record Resource Extent
+    soporte = Column(String(40), nullable=True)  # ISAD(G) 3.1.5; RiC-A05 Carrier Type del original (papel…)

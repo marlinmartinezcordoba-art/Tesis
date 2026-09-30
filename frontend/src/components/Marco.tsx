@@ -33,6 +33,7 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", modulo: "ingesta" },
   { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion" },
   { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios" },
+  { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios" },
 ];
 

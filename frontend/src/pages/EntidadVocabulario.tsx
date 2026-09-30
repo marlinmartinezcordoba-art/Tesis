@@ -138,14 +138,16 @@ function FusionManual({ entidad, fondoId, alFusionar }: {
   );
 }
 
-function ListaDocumentos({ documentos, enlazar }: { documentos: Documento[]; enlazar: boolean }) {
+// Cada documento enlaza a su ficha en el catálogo (módulo 4); si el rol no
+// consulta el catálogo pero sí describe, a la descripción interna.
+function ListaDocumentos({ documentos, enlace }: { documentos: Documento[]; enlace: ((id: string) => string) | null }) {
   return (
     <>
       {documentos.map((d) => (
         <div className="fila" key={d.id}>
           <span className="insignia acento">{NIVEL_NOMBRE[d.nivel] || d.nivel}</span>
           <div className="fila-principal">
-            <div className="nombre">{enlazar ? <Link to={`/descripcion/registro/${d.id}`}>{d.titulo}</Link> : d.titulo}</div>
+            <div className="nombre">{enlace ? <Link to={enlace(d.id)}>{d.titulo}</Link> : d.titulo}</div>
           </div>
         </div>
       ))}
@@ -159,7 +161,8 @@ export function EntidadVocabularioDetalle() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
   const puede = tienePermiso(usuario, "vocabularios", "escribir");
-  const veDescripciones = tienePermiso(usuario, "descripcion");
+  const enlace = tienePermiso(usuario, "catalogo") ? (d: string) => `/instrumentos?ficha=${d}`
+    : tienePermiso(usuario, "descripcion") ? (d: string) => `/descripcion/registro/${d}` : null;
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -205,13 +208,13 @@ export function EntidadVocabularioDetalle() {
         {detalle.documentos.length === 0 && (
           <div className="vacio">{e.estado === "fusionada" ? "Sus documentos pasaron a la entidad definitiva." : "Ningún documento publicado la menciona."}</div>
         )}
-        <ListaDocumentos documentos={detalle.documentos} enlazar={veDescripciones} />
+        <ListaDocumentos documentos={detalle.documentos} enlace={enlace} />
       </div>
 
       {detalle.documentos_historicos.length > 0 && (
         <div className="tarjeta">
           <div className="tarjeta-cab">Documentos que la citaban antes de la fusión</div>
-          <ListaDocumentos documentos={detalle.documentos_historicos} enlazar={veDescripciones} />
+          <ListaDocumentos documentos={detalle.documentos_historicos} enlace={enlace} />
         </div>
       )}
 

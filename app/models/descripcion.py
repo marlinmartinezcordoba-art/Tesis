@@ -40,7 +40,7 @@ class _Procedencia:
 class EntidadVocabulario(_Procedencia, Base):
     """Registro único y reutilizable por fondo de Agent (RiC-E07: persona,
     entidad corporativa, cargo, familia), Place (RiC-E22) y forma
-    documental (tipo documental, RiC-A13). Lo administra el módulo de
+    documental (tipo documental, RiC-A17). Lo administra el módulo de
     vocabularios; aquí se crea cuando el archivista confirma una entidad."""
 
     __tablename__ = "entidades_vocabulario"

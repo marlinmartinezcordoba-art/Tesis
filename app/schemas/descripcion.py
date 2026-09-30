@@ -59,6 +59,15 @@ class PublicarIn(BaseModel):
     entidades: list[EntidadIn] = Field(default_factory=list, max_length=300)
 
 
+class ControlIn(BaseModel):
+    """Datos de control del inventario (FUID). Vacío = sin dato."""
+    codigo_referencia: str | None = Field(default=None, max_length=60)
+    caja: str | None = Field(default=None, max_length=30)
+    carpeta: str | None = Field(default=None, max_length=30)
+    folios: int | None = Field(default=None, ge=0, le=100000)
+    soporte: str | None = Field(default=None, max_length=40)
+
+
 class EditarIn(BaseModel):
     trabajo_id: uuid.UUID
     titulo: str | None = Field(default=None, max_length=300)
@@ -67,6 +76,7 @@ class EditarIn(BaseModel):
     anular_relaciones: list[uuid.UUID] = Field(default_factory=list)
     quitar_forma_documental: bool = False
     agregar_entidades: list[EntidadIn] = Field(default_factory=list, max_length=100)
+    control: ControlIn | None = None
 
 
 class NivelSuperiorOut(BaseModel):

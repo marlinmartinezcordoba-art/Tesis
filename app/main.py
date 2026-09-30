@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import alertas, auth, descripcion, fondos, ingesta, vocabulario
+from app.routers import alertas, auth, descripcion, fondos, ingesta, instrumentos, vocabulario
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,6 +41,7 @@ app.include_router(alertas.router)
 app.include_router(descripcion.router)
 app.include_router(descripcion.catalogo)
 app.include_router(vocabulario.router)
+app.include_router(instrumentos.router)
 
 # Rutas que no exigen sesión. La prueba de seguridad recorre todas las
 # demás y falla si alguna quedó sin la dependencia de autenticación.

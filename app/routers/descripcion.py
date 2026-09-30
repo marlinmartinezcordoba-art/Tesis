@@ -232,7 +232,8 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             db, recurso=recurso, trabajo=trabajo, usuario_id=actor.id, titulo=datos.titulo,
             alcance=datos.alcance_contenido, incluido_en_id=datos.incluido_en_id, anular=datos.anular_relaciones,
             quitar_forma=datos.quitar_forma_documental,
-            agregar=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.agregar_entidades])
+            agregar=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.agregar_entidades],
+            control=datos.control.model_dump() if datos.control else None)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

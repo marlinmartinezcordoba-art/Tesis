@@ -22,7 +22,10 @@ const MODULO: Record<string, string> = {
   ingesta: "Ingesta", descripcion: "Descripción", vocabularios: "Vocabularios",
   instrumentos: "Instrumentos", preservacion: "Preservación",
 };
-const TIPO: Record<string, string> = { formato_no_identificado: "Formato no identificado" };
+const TIPO: Record<string, string> = {
+  formato_no_identificado: "Formato no identificado",
+  inventario_campos_pendientes: "Campos pendientes del inventario",
+};
 
 export function Alertas() {
   const { usuario } = useSesion();
@@ -88,7 +91,7 @@ export function Alertas() {
                 <div className="meta" style={{ color: "var(--ink)", fontSize: ".86rem" }}>{a.mensaje}</div>
                 <div className="meta">
                   {MODULO[a.modulo] || a.modulo} · {fecha(a.creada_en)}
-                  {a.atendida_en && ` · atendida por ${a.atendida_por || "—"} el ${fecha(a.atendida_en)}`}
+                  {a.atendida_en && ` · atendida por ${a.atendida_por || "el sistema"} el ${fecha(a.atendida_en)}`}
                   {a.nota_atencion && ` · «${a.nota_atencion}»`}
                 </div>
               </div>

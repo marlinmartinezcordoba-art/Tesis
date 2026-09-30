@@ -10,6 +10,7 @@ SEVERIDAD = ("alta", "media", "baja")
 # Tipos de alerta del sistema. Cada módulo agrega los suyos.
 TIPO_ALERTA = (
     "formato_no_identificado",  # ingesta
+    "inventario_campos_pendientes",  # instrumentos
 )
 
 

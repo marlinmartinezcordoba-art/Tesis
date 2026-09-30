@@ -68,7 +68,7 @@ Los permisos salen de la tabla de roles del módulo de autenticación: módulo �
 |---|---|---|
 | Agente | RiC-E07 Agent | Persona (E08), Entidad corporativa (E11), Cargo (E12), Familia (E10) |
 | Lugar | RiC-E22 Place | — |
-| Forma documental | RiC-A13 Documentary form type (atributo del Record, gestionado como vocabulario controlado) | — |
+| Forma documental | RiC-A17 Documentary form type (atributo del Record, gestionado como vocabulario controlado) | — |
 
 La sugerencia de fusión no es una entidad RiC: es un registro de trabajo interno del sistema.
 
@@ -144,7 +144,7 @@ Entrada «Vocabularios» en la barra lateral, dentro de «Trabajo archivístico�
 - **Nada se fusiona con un solo clic accidental:** en la sugerencia hay que pulsar «Aprobar fusión». En la manual hay dos pasos (elegir y confirmar), con el selector de definitiva siempre visible.
 - **Consecuencia antes de decidir:** la tarjeta dice qué va a pasar, por ejemplo «Si aprueba, el documento de «X» pasa a «Y»».
 - **Lenguaje archivístico:** «queda como definitiva», «son distintas», «formas absorbidas».
-- Las referencias RiC (E07, E22, A13) aparecen discretas, para quien las quiera ver.
+- Las referencias RiC (E07, E22, A17) aparecen discretas, para quien las quiera ver.
 - En móvil las dos columnas se apilan y la similitud queda entre ellas. Se verificó que no hay desplazamiento horizontal a 390 px.
 
 ## 12. Modelo de datos
@@ -222,7 +222,7 @@ La tabla de auditoría es de solo anexar (disparador del módulo de autenticaci�
 ## 18. Normativa aplicable
 
 - **ISAAR(CPF)** (ICA): registro de autoridad único para instituciones, personas y familias. Este módulo es su aplicación práctica.
-- **RiC-CM 1.0:** Agent (E07) y subtipos, Place (E22), Documentary form type (A13).
+- **RiC-CM 1.0:** Agent (E07) y subtipos, Place (E22), Documentary form type (A17).
 - **ISAD(G), elemento 3.2.1:** el nombre del productor debe ser coherente en toda la descripción.
 - **NTC 4095** y el **Acuerdo 027 de 2006 (AGN)**, sobre puntos de acceso normalizados.
 - **Principio de no destructividad** del sistema: la absorbida nunca se borra.
@@ -329,7 +329,7 @@ tests/test_vocabularios.py
 **Pendiente honesto:**
 
 - El umbral de 60 % se eligió con ejemplos de prueba, no con el fondo real. Conviene revisarlo después de describir un lote real: si llegan demasiadas sugerencias falsas, subirlo; si se escapan duplicados, bajarlo.
-- El enlace «a su descripción en el catálogo» lleva hoy a la descripción interna. Cambiará cuando el módulo 4 tenga el catálogo.
+- ~~El enlace «a su descripción en el catálogo» lleva hoy a la descripción interna.~~ Resuelto en el módulo 4: ahora abre la ficha del catálogo.
 
 ## 23. Evidencia concreta de aplicación de RiC
 
