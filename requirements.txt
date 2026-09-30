@@ -1,0 +1,28 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+alembic==1.13.2
+pydantic==2.9.2
+email-validator==2.3.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# Autenticación (módulo transversal): contraseñas con bcrypt vía passlib y
+# tokens de sesión JWT. bcrypt se fija en 4.0.1 porque passlib 1.7.4 no
+# reconoce las versiones 4.1 y siguientes (falla al leer su versión).
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+PyJWT==2.9.0
+
+# Proveedores de inteligencia artificial para el motor de análisis
+# (módulo de descripción). Se activan cuando se construya ese módulo.
+# anthropic==0.34.2
+# openai==1.47.1
+
+# Trabajos en segundo plano (OCR en ingesta, detección periódica en
+# vocabularios, verificación de integridad en preservación). Se activan
+# en el primer módulo que los necesite.
+# celery==5.4.0
+# redis==5.0.8
+# pytesseract==0.3.13

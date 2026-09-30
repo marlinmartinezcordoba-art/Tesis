@@ -1,13 +1,7 @@
-# HTTPS de RICORA: Caddy obtiene y renueva solo el certificado gratuito de
-# Let's Encrypt para RICORA_DOMINIO y pasa las solicitudes a la aplicación.
-# Solo se usa en el servidor (perfil «https» de docker-compose).
-
+# HTTPS automático para el nombre de RICORA (variable RICORA_DOMINIO).
+# Caddy obtiene y renueva el certificado solo, y redirige http → https
+# para ese nombre. No se agrega ninguna redirección permanente adicional.
 {$RICORA_DOMINIO} {
 	encode gzip
 	reverse_proxy web:8000
-}
-
-# Quien entre por la dirección numérica llega al nombre con candado.
-http:// {
-	redir https://{$RICORA_DOMINIO}{uri} permanent
 }

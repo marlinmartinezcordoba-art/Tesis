@@ -1,0 +1,89 @@
+"""
+Configuración centralizada, leída de variables de entorno. Una instancia
+por entidad, variables en un archivo .env propio de cada despliegue (ver
+.env.example), nunca credenciales reales dentro del código.
+"""
+
+import os
+from pathlib import Path
+
+
+def _entero(nombre: str, defecto: int) -> int:
+    try:
+        return int(os.getenv(nombre, defecto))
+    except ValueError:
+        return defecto
+
+
+def _booleano(nombre: str, defecto: bool = False) -> bool:
+    valor = os.getenv(nombre)
+    if valor is None:
+        return defecto
+    return valor.strip().lower() in ("1", "true", "si", "sí", "yes")
+
+
+class Settings:
+    nombre_sistema: str = "RICORA"
+
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+psycopg2://ricora:ricora@localhost:5432/ricora",
+    )
+
+    # Carpeta donde se guardan los archivos ingestados. En producción es un
+    # volumen de Docker.
+    directorio_almacenamiento: Path = Path(os.getenv("DIRECTORIO_ALMACENAMIENTO", "/data/almacen"))
+
+    # Clave con la que se firman los tokens de sesión. Sin ella el sistema
+    # no arranca en producción (ver app/main.py).
+    secret_key: str = os.getenv("RICORA_SECRET_KEY", "")
+
+    # Dirección pública con la que se arman los enlaces que se envían por
+    # correo (invitación y recuperación). Se fija por configuración y no se
+    # toma del encabezado Host de la petición, para que nadie pueda hacer
+    # que el sistema envíe un enlace hacia otro servidor.
+    url_publica: str = os.getenv("RICORA_URL_PUBLICA", "http://localhost:8000").rstrip("/")
+
+    # --- Vigencias (ver documentacion/modulo-autenticacion.md, decisiones) ---
+    # Token de acceso: corto, se renueva solo mientras la persona trabaja.
+    minutos_token_acceso: int = _entero("MINUTOS_TOKEN_ACCESO", 15)
+    # Sesión: se cierra tras este tiempo sin ninguna actividad...
+    minutos_inactividad_sesion: int = _entero("MINUTOS_INACTIVIDAD_SESION", 60)
+    # ...y en todo caso tras este máximo desde que se abrió.
+    horas_maximas_sesion: int = _entero("HORAS_MAXIMAS_SESION", 10)
+    # Enlace de recuperación de contraseña.
+    minutos_token_recuperacion: int = _entero("MINUTOS_TOKEN_RECUPERACION", 30)
+    # Enlace de invitación a una cuenta nueva.
+    horas_token_invitacion: int = _entero("HORAS_TOKEN_INVITACION", 72)
+
+    # Bloqueo por intentos fallidos de inicio de sesión.
+    intentos_fallidos_maximos: int = _entero("INTENTOS_FALLIDOS_MAXIMOS", 5)
+    minutos_bloqueo: int = _entero("MINUTOS_BLOQUEO", 15)
+    # Solicitudes de recuperación por dirección IP y por hora.
+    recuperaciones_por_hora: int = _entero("RECUPERACIONES_POR_HORA", 5)
+
+    # La galleta de renovación solo viaja por HTTPS cuando esto está activo.
+    galleta_segura: bool = _booleano("RICORA_GALLETA_SEGURA", False)
+
+    # --- Correo transaccional (SMTP) ---
+    correo_servidor: str = os.getenv("EMAIL_HOST", "")
+    correo_puerto: int = _entero("EMAIL_PORT", 587)
+    correo_usuario: str = os.getenv("EMAIL_HOST_USER", "")
+    correo_contrasena: str = os.getenv("EMAIL_HOST_PASSWORD", "")
+    correo_remitente: str = os.getenv("EMAIL_REMITENTE", "")
+    correo_tiempo_espera: int = _entero("EMAIL_TIMEOUT", 20)
+
+    # Carpeta con la interfaz ya compilada (React). En desarrollo la sirve
+    # Vite; en producción la sirve el mismo backend.
+    directorio_interfaz: Path = Path(os.getenv("RICORA_DIRECTORIO_INTERFAZ", "/app/interfaz"))
+
+    @property
+    def correo_configurado(self) -> bool:
+        return bool(self.correo_servidor and self.correo_usuario and self.correo_contrasena)
+
+    @property
+    def remitente(self) -> str:
+        return self.correo_remitente or f"RICORA <{self.correo_usuario}>"
+
+
+settings = Settings()

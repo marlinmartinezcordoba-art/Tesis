@@ -1,68 +1,30 @@
-# Entorno de prueba local de RICORA. Levanta la aplicación con PostgreSQL,
-# igual que en producción, para probar aquí antes de montarla en DigitalOcean.
+# RICORA con Docker Compose: base de datos PostgreSQL y la aplicación
+# (API + interfaz). Una instancia por entidad, un .env por instancia.
 #
-# Uso:
-#   cp .env.example .env      # completa ANTHROPIC_API_KEY y una clave propia
+# Uso local:
+#   cp .env.example .env        # y complete los valores
 #   docker compose up --build
-#   abre http://localhost:8080/admin/
+#   abra http://localhost:8080
 #
-# Para crear el primer usuario administrador:
-#   docker compose exec web python manage.py createsuperuser
-#
-# Si el puerto 8080 ya está ocupado en tu máquina, cambia MAZUCA_PUERTO en .env
-# (por ejemplo MAZUCA_PUERTO=8081) y vuelve a entrar por ese puerto.
+# La base de datos usa un volumen propio («bd»). Los volúmenes de la
+# versión anterior de RICORA quedan intactos en el servidor: nada se
+# borra de forma irreversible.
 
 services:
-  db:
-    image: postgres:16-alpine
+  bd:
+    image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mazuca
-      POSTGRES_USER: mazuca
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mazuca}
+      POSTGRES_DB: ricora
+      POSTGRES_USER: ricora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - bd:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mazuca"]
+      test: ["CMD-SHELL", "pg_isready -U ricora -d ricora"]
       interval: 5s
       timeout: 5s
-      retries: 10
-
-  # M2: cola del preprocesamiento (OCR, idioma, motor). Con AOF el trabajo
-  # pendiente sobrevive a un reinicio del servidor.
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # IA local: modelo de lenguaje en el propio servidor (respaldo del motor
-  # de análisis cuando la IA en la nube no responde). Descarga el modelo la
-  # primera vez; libera la memoria tras 10 minutos sin uso. Sin puertos
-  # publicados: solo lo ven web y worker por la red interna.
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        ollama serve &
-        until ollama list >/dev/null 2>&1; do sleep 1; done
-        ollama pull "$${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}" || echo "No se pudo descargar el modelo; se reintenta al reiniciar."
-        wait
-    environment:
-      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
-      OLLAMA_NUM_PARALLEL: "1"
-      OLLAMA_MAX_LOADED_MODELS: "1"
-      OLLAMA_KEEP_ALIVE: "10m"
-    volumes:
-      - ollama_data:/root/.ollama
+      retries: 20
 
   web:
     build: .
@@ -70,51 +32,20 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
-      REDIS_URL: redis://redis:6379/0
-      OLLAMA_URL: http://ollama:11434
-      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
-      # 2 procesos web: deja memoria para el OCR y la IA local en 2 GB de RAM
-      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
-    # Con HTTPS (perfil «https») la web solo escucha dentro del servidor y
-    # Caddy la publica en los puertos 80 y 443.
+      DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
+      DIRECTORIO_ALMACENAMIENTO: /data/almacen
+    # Con HTTPS (perfil «https») la aplicación solo escucha dentro del
+    # servidor y Caddy la publica en los puertos 80 y 443.
     ports:
-      - "${RICORA_WEB_BIND:-0.0.0.0}:${MAZUCA_PUERTO:-8080}:8000"
+      - "${RICORA_WEB_BIND:-0.0.0.0}:${RICORA_PUERTO:-8080}:8000"
     volumes:
-      - media:/app/media
+      - almacen:/data/almacen
     depends_on:
-      db:
+      bd:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # M2: el trabajador que procesa la cola. Misma imagen y mismo volumen de
-  # archivos que web (lee los originales); no publica ningún puerto.
-  worker:
-    build: .
-    restart: unless-stopped
-    command: ["worker"]
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgres://mazuca:${POSTGRES_PASSWORD:-mazuca}@db:5432/mazuca
-      REDIS_URL: redis://redis:6379/0
-      OLLAMA_URL: http://ollama:11434
-      RICORA_MODELO_OLLAMA: ${RICORA_MODELO_OLLAMA:-qwen2.5:1.5b}
-    volumes:
-      - media:/app/media
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      web:
-        condition: service_started
 
   # HTTPS con certificado gratuito (Let's Encrypt) para RICORA_DOMINIO. Solo
-  # se levanta con COMPOSE_PROFILES=https (lo fija el despliegue cuando el
-  # nombre ya apunta al servidor); en local no hace falta.
+  # se levanta con COMPOSE_PROFILES=https.
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -132,9 +63,7 @@ services:
       - web
 
 volumes:
+  bd:
+  almacen:
   caddy_data:
   caddy_config:
-  ollama_data:
-  db_data:
-  media:
-  redis_data:

@@ -1,36 +1,71 @@
-name: Desplegar en el Droplet
+name: Probar y desplegar en el Droplet
 
-# Se dispara justo cuando llega un cambio a esta rama (no cada 5 minutos
-# como el cron de respaldo en deploy-ricora.sh) — así lo que se trabaja
-# aquí llega al servidor apenas se sube, sin esperar ni adivinar.
+# Cada cambio en esta rama primero pasa las pruebas automáticas; solo si
+# pasan se despliega en el servidor.
 #
-# Secretos opcionales que se escriben en el .env del servidor si existen
-# (Settings → Secrets and variables → Actions):
-#   GEMINI_API_KEY          clave de Gemini: al arrancar, RICORA registra y
-#                           activa el proveedor si la conexión funciona
-#   RICORA_ADMIN_USER       usuario superusuario a crear o restablecer
+# Secretos (Settings → Secrets and variables → Actions):
+#   DROPLET_HOST, DROPLET_USER, DROPLET_SSH_KEY   acceso al servidor
+#   RICORA_ADMIN_CORREO     correo de la cuenta administradora (con él se ingresa)
 #   RICORA_ADMIN_PASSWORD   su contraseña (se restablece en cada despliegue)
-#   EMAIL_HOST_USER         correo desde el que RICORA envía invitaciones y
-#                           restablecimientos (p. ej. una cuenta de Gmail)
+#   RICORA_ADMIN_NOMBRE     nombre que se muestra (opcional)
+#   RICORA_ADMIN_USER       usuario de la versión anterior; solo se usa si no
+#                           hay RICORA_ADMIN_CORREO (ingresa como <usuario>@ricora.local)
+#   EMAIL_HOST_USER         correo desde el que salen invitaciones y recuperaciones
 #   EMAIL_HOST_PASSWORD     su contraseña de aplicación (Gmail: 16 letras)
-#   EMAIL_HOST              servidor SMTP (por defecto smtp.gmail.com si hay EMAIL_HOST_USER)
+#   EMAIL_HOST              servidor SMTP (por defecto smtp.gmail.com)
+#   RICORA_DOMINIO          nombre propio para HTTPS (opcional)
 on:
   push:
     branches: [claude/plataforma-base]
   workflow_dispatch: {}
 
 jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ricora
+          POSTGRES_PASSWORD: ricora
+          POSTGRES_DB: ricora
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ricora" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Pruebas del backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://ricora:ricora@localhost:5432/ricora_pruebas
+        run: |
+          pip install -r requirements.txt pytest httpx
+          python -m pytest -q tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Compilación y tipos de la interfaz
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
   desplegar:
+    needs: pruebas
     runs-on: ubuntu-latest
     steps:
       - name: Actualizar y reconstruir en el Droplet
         uses: appleboy/ssh-action@v1
-        # `envs` solo reenvía variables que existan en el runner: hay que
-        # cargarlas desde los secretos aquí, o llegan vacías al servidor.
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RICORA_ADMIN_CORREO: ${{ secrets.RICORA_ADMIN_CORREO }}
           RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
           RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
+          RICORA_ADMIN_NOMBRE: ${{ secrets.RICORA_ADMIN_NOMBRE }}
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           RICORA_DOMINIO: ${{ secrets.RICORA_DOMINIO }}
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
@@ -40,164 +75,141 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,DROPLET_HOST,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD,RICORA_DOMINIO
+          envs: RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
           command_timeout: 25m
           script: |
             set -e
             cd /root/ricora
+            # El despliegue lo hace solo este flujo, después de las pruebas: se
+            # retira la revisión automática cada 5 minutos de la versión anterior.
+            if crontab -l 2>/dev/null | grep -q actualizar.sh; then
+              crontab -l | grep -v actualizar.sh | crontab - && echo "  revisión automática por cron retirada"
+            fi
             git fetch origin claude/plataforma-base
             git reset --hard origin/claude/plataforma-base
 
-            # Memoria de reserva (swap) de 2 GB en el disco: con 2 GB de RAM y
-            # el OCR en segundo plano, un lote grande pone el servidor lento
-            # en vez de cerrar procesos a la fuerza. Se crea una sola vez.
+            # Memoria de reserva (swap) de 2 GB; se crea una sola vez.
             if ! swapon --show | grep -q "/swapfile"; then
               if [ ! -f /swapfile ]; then
                 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile || echo "  aviso: no se pudo crear /swapfile"
               fi
-              swapon /swapfile && echo "  swap de 2 GB activo" || echo "  aviso: no se pudo activar el swap"
+              swapon /swapfile || echo "  aviso: no se pudo activar el swap"
               grep -q "^/swapfile " /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
             fi
 
-            # Escribe en .env (sin mostrar valores) solo los secretos definidos.
-            cambio=0
-            poner() {  # poner CLAVE VALOR -> reemplaza o agrega la línea CLAVE=VALOR
+            touch .env
+            poner() {  # poner CLAVE VALOR: reemplaza o agrega CLAVE=VALOR sin mostrar el valor
               if [ -n "$2" ]; then
-                if grep -qxF "$1=$2" .env; then
-                  echo "  .env: $1 sin cambios"
-                  return
-                fi
+                if grep -qxF "$1=$2" .env; then return; fi
                 grep -v "^$1=" .env > .env.tmp || true
                 mv .env.tmp .env
                 echo "$1=$2" >> .env
                 echo "  .env: $1 actualizado"
-                cambio=1
-              else
-                echo "  .env: $1 no definido como secreto de GitHub; se deja como está"
               fi
             }
             quitar() { grep -v "^$1=" .env > .env.tmp || true; mv .env.tmp .env; }
-            poner GEMINI_API_KEY "$GEMINI_API_KEY"
+            valor() { grep "^$1=" .env | tail -1 | cut -d= -f2-; }
+
+            # Clave de sesiones y de base de datos: se generan una sola vez.
+            [ -n "$(valor RICORA_SECRET_KEY)" ] || poner RICORA_SECRET_KEY "$(openssl rand -hex 32)"
+            [ -n "$(valor POSTGRES_PASSWORD)" ] || poner POSTGRES_PASSWORD "$(openssl rand -hex 16)"
+            # Puerto: se conserva el que ya usaba el servidor.
+            [ -n "$(valor RICORA_PUERTO)" ] || poner RICORA_PUERTO "$(grep -E '^[A-Z]+_PUERTO=' .env | head -1 | cut -d= -f2-)"
+            [ -n "$(valor RICORA_PUERTO)" ] || poner RICORA_PUERTO 80
+
+            poner RICORA_ADMIN_CORREO "$RICORA_ADMIN_CORREO"
             poner RICORA_ADMIN_USER "$RICORA_ADMIN_USER"
             poner RICORA_ADMIN_PASSWORD "$RICORA_ADMIN_PASSWORD"
-            # Correo (invitaciones y «¿Olvidó su contraseña?»): con Gmail basta
-            # el usuario y la contraseña de aplicación.
+            poner RICORA_ADMIN_NOMBRE "$RICORA_ADMIN_NOMBRE"
             if [ -n "$EMAIL_HOST_USER" ] && [ -z "$EMAIL_HOST" ]; then EMAIL_HOST=smtp.gmail.com; fi
             poner EMAIL_HOST "$EMAIL_HOST"
             poner EMAIL_HOST_USER "$EMAIL_HOST_USER"
             poner EMAIL_HOST_PASSWORD "$EMAIL_HOST_PASSWORD"
-            # El modelo antiguo dejó de estar disponible para claves nuevas.
-            if grep -q "^MAZUCA_MODELO_IA_GEMINI=gemini-2.5-pro$" .env; then
-              poner MAZUCA_MODELO_IA_GEMINI "gemini-3.5-flash"
-            fi
-            # La IP del servidor siempre debe estar entre los hosts permitidos.
-            if ! grep "^DJANGO_ALLOWED_HOSTS=" .env | grep -q "$DROPLET_HOST"; then
-              actual=$(grep "^DJANGO_ALLOWED_HOSTS=" .env | cut -d= -f2-)
-              poner DJANGO_ALLOWED_HOSTS "${DROPLET_HOST},${actual:-localhost,127.0.0.1}"
-            fi
 
-
-            # HTTPS con nombre (DuckDNS u otro): solo si el nombre ya apunta a
-            # este servidor; si no, se sigue por la dirección numérica sin tocar nada.
+            # HTTPS con nombre propio: solo si el nombre ya apunta a este servidor.
             https=0
             if [ -n "$RICORA_DOMINIO" ]; then
               resuelve=$(getent ahostsv4 "$RICORA_DOMINIO" | awk 'NR==1{print $1}')
-              if [ "$resuelve" = "$DROPLET_HOST" ]; then
-                https=1
-                poner RICORA_DOMINIO "$RICORA_DOMINIO"
-                poner COMPOSE_PROFILES https
-                poner MAZUCA_PUERTO 8081
-                poner RICORA_WEB_BIND 127.0.0.1
-                poner DJANGO_BEHIND_PROXY 1
-                poner DJANGO_CSRF_TRUSTED_ORIGINS "https://$RICORA_DOMINIO"
-                if ! grep "^DJANGO_ALLOWED_HOSTS=" .env | grep -q "$RICORA_DOMINIO"; then
-                  actual=$(grep "^DJANGO_ALLOWED_HOSTS=" .env | cut -d= -f2-)
-                  poner DJANGO_ALLOWED_HOSTS "${RICORA_DOMINIO},${actual}"
-                fi
-                if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; fi
-              else
+              if [ "$resuelve" = "$DROPLET_HOST" ]; then https=1; else
                 echo "  aviso: $RICORA_DOMINIO apunta a ${resuelve:-ninguna dirección}, no a este servidor; se sigue sin HTTPS."
               fi
             fi
-            # Sin nombre (o si el nombre dejó de apuntar aquí): se vuelve a servir
-            # por la dirección numérica, como antes de activar HTTPS.
-            if [ "$https" = 0 ] && grep -q "^COMPOSE_PROFILES=https" .env; then
-              echo "  HTTPS desactivado: RICORA vuelve a la dirección numérica."
-              docker compose --profile https stop caddy || true
-              docker compose --profile https rm -f caddy || true
-              quitar COMPOSE_PROFILES
-              quitar RICORA_DOMINIO
-              poner MAZUCA_PUERTO 80
-              poner RICORA_WEB_BIND 0.0.0.0
-              poner DJANGO_BEHIND_PROXY 0
-              cambio=1
-            fi
-
-            # Si cambió el .env, el contenedor debe recrearse para leerlo
-            # (y volver a correr configurar_inicial al arrancar).
-            if [ "$cambio" = 1 ]; then
-              docker compose up --build -d --force-recreate web worker
-            fi
-            docker compose up --build -d
-
             if [ "$https" = 1 ]; then
-              echo "== Comprobando HTTPS en https://$RICORA_DOMINIO =="
-              segura=0
-              for i in $(seq 1 24); do
-                c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$RICORA_DOMINIO/ric/entrar/" || true)
-                echo "  intento $i: $c"
-                if [ "$c" = "200" ]; then segura=1; break; fi
-                sleep 5
-              done
-              if [ "$segura" != 1 ]; then
-                echo "  HTTPS no respondió: se vuelve a la dirección numérica sin candado. Registro de Caddy:"
-                docker compose logs --tail 40 caddy || true
-                docker compose stop caddy || true
+              poner RICORA_DOMINIO "$RICORA_DOMINIO"
+              poner COMPOSE_PROFILES https
+              poner RICORA_PUERTO 8081
+              poner RICORA_WEB_BIND 127.0.0.1
+              poner RICORA_DETRAS_DE_PROXY 1
+              poner RICORA_GALLETA_SEGURA 1
+              poner RICORA_URL_PUBLICA "https://$RICORA_DOMINIO"
+            else
+              if grep -q "^COMPOSE_PROFILES=https" .env; then
+                docker compose --profile https rm -sf caddy || true
                 quitar COMPOSE_PROFILES
-                poner MAZUCA_PUERTO 80
-                poner RICORA_WEB_BIND 0.0.0.0
-                poner DJANGO_BEHIND_PROXY 0
-                docker compose up -d --force-recreate web worker
+                poner RICORA_PUERTO 80
               fi
+              quitar RICORA_DOMINIO
+              poner RICORA_WEB_BIND 0.0.0.0
+              poner RICORA_DETRAS_DE_PROXY 0
+              poner RICORA_GALLETA_SEGURA 0
+              puerto=$(valor RICORA_PUERTO)
+              if [ "$puerto" = "80" ]; then poner RICORA_URL_PUBLICA "http://$DROPLET_HOST"; else poner RICORA_URL_PUBLICA "http://$DROPLET_HOST:$puerto"; fi
             fi
 
-            # Diagnóstico y verificación: primero el estado del servidor y el
-            # registro de la web; luego el despliegue solo es exitoso si
-            # RICORA responde.
+            # Se retiran los contenedores de la versión anterior (Django,
+            # trabajador, Redis, Ollama). Sus volúmenes de datos se conservan.
+            docker compose up --build -d --remove-orphans
+            docker image prune -f >/dev/null || true
+
             echo "== Estado de los contenedores =="
             docker compose ps
             echo "== Memoria =="
             free -m || true
             docker stats --no-stream --format "{{.Name}}: CPU {{.CPUPerc}} · memoria {{.MemUsage}}" || true
-            echo "== Registro reciente de la web =="
-            docker compose logs --tail 80 web || true
+            echo "== Registro reciente de la aplicación =="
+            docker compose logs --tail 40 web || true
+
             echo "== Esperando a que RICORA responda =="
             ok=0
-            for i in $(seq 1 24); do
-              codigo=$(timeout 15 docker compose exec -T web python -c "import urllib.request as u, urllib.error as e
-            r=u.Request('http://127.0.0.1:8000/ric/entrar/', headers={'Host': '$DROPLET_HOST'})
+            for i in $(seq 1 30); do
+              codigo=$(timeout 15 docker compose exec -T web python -c "import urllib.request as u
             try:
-                print(u.urlopen(r, timeout=10).status)
-            except e.HTTPError as x:
-                print(x.code)
+                print(u.urlopen('http://127.0.0.1:8000/api/salud', timeout=10).status)
             except Exception as x:
                 print(type(x).__name__)" 2>&1 | tail -1 || true)
               echo "  intento $i: $codigo"
-              if [ "$codigo" = "200" ] || [ "$codigo" = "302" ]; then ok=1; break; fi
+              if [ "$codigo" = "200" ]; then ok=1; break; fi
               sleep 5
             done
             if [ "$ok" != 1 ]; then
-              echo "RICORA no responde. Registro de la web:"
+              echo "RICORA no responde. Registro de la aplicación:"
               docker compose logs --tail 150 web
               exit 1
             fi
 
-            # Siempre, aunque el contenedor no se haya reiniciado: la cuenta de
-            # RICORA_ADMIN_USER vuelve a ser administradora con la contraseña de
-            # RICORA_ADMIN_PASSWORD. Es la vía para recuperar el acceso si esa
-            # cuenta perdió el rol o la contraseña.
-            docker compose exec -T -e RICORA_ADMIN_USER -e RICORA_ADMIN_PASSWORD web python manage.py configurar_inicial || echo "  aviso: la configuración inicial falló"
+            if [ "$https" = 1 ]; then
+              echo "== Comprobando HTTPS en https://$RICORA_DOMINIO =="
+              segura=0
+              for i in $(seq 1 24); do
+                c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$RICORA_DOMINIO/api/salud" || true)
+                echo "  intento $i: $c"
+                if [ "$c" = "200" ]; then segura=1; break; fi
+                sleep 5
+              done
+              if [ "$segura" != 1 ]; then
+                echo "  HTTPS no respondió: se vuelve a la dirección numérica. Registro de Caddy:"
+                docker compose logs --tail 40 caddy || true
+                docker compose rm -sf caddy || true
+                quitar COMPOSE_PROFILES
+                poner RICORA_PUERTO 80
+                poner RICORA_WEB_BIND 0.0.0.0
+                poner RICORA_DETRAS_DE_PROXY 0
+                poner RICORA_GALLETA_SEGURA 0
+                poner RICORA_URL_PUBLICA "http://$DROPLET_HOST"
+                docker compose up -d --force-recreate web
+              fi
+            fi
 
-            # Conformidad del grafo real con la ontología RiC-O 1.1 (informativa).
-            echo "== Conformidad con RiC-O 1.1 =="
-            docker compose exec -T web python manage.py verificar_rico || echo "  aviso: el grafo tiene hallazgos de conformidad (ver arriba)"
+            # Siempre: la cuenta administradora vuelve a quedar activa, con rol
+            # administrador y la contraseña del secreto.
+            docker compose exec -T web python -m app.cli cuenta-administradora || echo "  aviso: no se pudo configurar la cuenta administradora"

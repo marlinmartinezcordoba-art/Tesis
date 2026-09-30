@@ -1,24 +1,17 @@
 #!/bin/bash
-# Instalación en un Droplet nuevo de DigitalOcean (Ubuntu 24.04): instala
-# Docker, descarga RICORA, lo levanta, y deja un cron que revisa cada 5
-# minutos si hay cambios nuevos en GitHub para actualizarse solo.
-#
-# Uso, desde la consola del Droplet (como root):
+# Instalación de RICORA en un servidor nuevo (Ubuntu 24.04, como root):
 #   curl -fsSL https://raw.githubusercontent.com/marlinmartinezcordoba-art/Tesis/claude/plataforma-base/deploy-ricora.sh | bash
+# Después, cada cambio en la rama se despliega con GitHub Actions
+# (.github/workflows/deploy.yml), que primero corre las pruebas.
 set -e
 
-echo "Instalando dependencias..."
 apt-get update -qq
 apt-get install -y -qq curl git openssl
-
-echo "Instalando Docker (script oficial de Docker: el paquete docker-compose-plugin no está en los repos de Ubuntu 24.04)..."
 curl -fsSL https://get.docker.com | sh
 systemctl enable --now docker
 
-IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
-echo "IP pública detectada: ${IP}"
+IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || hostname -I | awk '{print $1}')
 
-echo "Descargando RICORA..."
 mkdir -p /root/ricora
 cd /root/ricora
 if [ -d .git ]; then
@@ -29,37 +22,14 @@ else
 fi
 
 if [ ! -f .env ]; then
-  echo "Creando .env..."
   cat > .env <<ENVEOF
-DJANGO_SECRET_KEY=$(openssl rand -hex 32)
-DJANGO_DEBUG=0
-DJANGO_ALLOWED_HOSTS=${IP},localhost,127.0.0.1
-DJANGO_BEHIND_PROXY=0
-DJANGO_CSRF_TRUSTED_ORIGINS=
-GEMINI_API_KEY=
-MAZUCA_MODELO_IA_GEMINI=gemini-3.5-flash
-ANTHROPIC_API_KEY=
-MAZUCA_MODELO_IA=claude-opus-5
+RICORA_SECRET_KEY=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
-MAZUCA_PUERTO=80
+RICORA_PUERTO=80
+RICORA_URL_PUBLICA=http://${IP}
 ENVEOF
 fi
 
-echo "Levantando RICORA (puede tardar varios minutos la primera vez)..."
 docker compose up --build -d
-
-echo "Configurando actualización automática cada 5 minutos..."
-cat > /root/actualizar.sh <<'SHEOF'
-#!/bin/bash
-cd /root/ricora
-git fetch origin claude/plataforma-base
-if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/claude/plataforma-base)" ]; then
-  git reset --hard origin/claude/plataforma-base
-  docker compose up --build -d
-fi
-SHEOF
-chmod +x /root/actualizar.sh
-(crontab -l 2>/dev/null | grep -v actualizar.sh; echo "*/5 * * * * /root/actualizar.sh >> /root/actualizar.log 2>&1") | crontab -
-
-echo ""
-echo "Listo. Entra en unos minutos a: http://${IP}/ric/"
+echo "RICORA quedó en http://${IP}. Cree la cuenta administradora con:"
+echo "  RICORA_ADMIN_CORREO=... RICORA_ADMIN_PASSWORD=... docker compose exec -T -e RICORA_ADMIN_CORREO -e RICORA_ADMIN_PASSWORD web python -m app.cli cuenta-administradora"
