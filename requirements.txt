@@ -27,6 +27,10 @@ httpx==0.28.1
 openpyxl==3.1.5
 python-docx==1.1.2
 
+# Zona horaria (días y semanas del panel de auditoría) sin depender del
+# sistema operativo de la imagen.
+tzdata==2025.2
+
 # Trabajos en segundo plano (OCR en ingesta, detección periódica en
 # vocabularios, verificación de integridad en preservación). Se activan
 # en el primer módulo que los necesite.

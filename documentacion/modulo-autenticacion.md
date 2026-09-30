@@ -407,3 +407,25 @@ Este módulo no crea entidades RiC. Lo que aporta a RiC es verificable así:
 - se rechazan niveles inválidos y nombres repetidos;
 - no se desactiva un rol en uso;
 - solo el Administrador gestiona roles.
+
+---
+
+## Cierre transversal · con los siete módulos construidos
+
+Cuando se entregó este módulo solo existían ingesta y descripción. La matriz de permisos se había probado con rutas de ensayo, una de lectura y una de escritura por módulo. Ahora que existen los siete módulos, se agregaron pruebas **contra los endpoints reales** (`tests/test_permisos_reales.py`):
+
+- **Cada uno de los cuatro roles** contra un endpoint real de lectura y uno de escritura de cada módulo: ingesta, descripción, vocabularios, instrumentos, preservación, auditoría (propia y panel) y usuarios. Se exige exactamente esta tabla:
+
+| Rol | Trabajo (5 módulos) | Catálogo de instrumentos | Auditoría propia | Panel consolidado | Usuarios |
+|---|---|---|---|---|---|
+| Administrador | leer y escribir | ✓ | ✓ | ✓ | ✓ |
+| Archivista | leer y escribir | ✓ | ✓ | ✗ | ✗ |
+| Revisor (**provisional**) | solo leer | ✓ | ✓ | ✗ | ✗ |
+| Consulta | ✗ | ✓ (única puerta) | ✗ | ✗ | ✗ |
+
+- **El revisor contra todas las rutas que modifican algo** en la aplicación real, sin excepción. La prueba recorre la aplicación y encuentra más de 30 rutas POST, PUT, PATCH y DELETE de los siete módulos; todas le responden 403. Si un módulo futuro agrega una ruta de escritura sin la dependencia de permisos, esta prueba falla sola.
+- **Sin sesión**, todos los endpoints de los siete módulos responden 401.
+
+**Cierre por expiración sin intervención.** Antes, las sesiones vencidas se cerraban (con su evento) solo cuando alguien entraba o renovaba la sesión. Ahora, además, el trabajador en segundo plano las cierra cada minuto. Así el evento de cierre por expiración existe aunque nadie vuelva a entrar, y el panel consolidado de auditoría no muestra sesiones «en curso» que ya terminaron.
+
+**Sigue pendiente de su validación:** el alcance del rol **revisor** es **provisional**. Hoy tiene solo lectura en los cinco módulos de trabajo y su propia auditoría. No publica, no aprueba, no fusiona ni migra nada.

@@ -78,6 +78,8 @@ class Settings:
     minutos_inactividad_sesion: int = _entero("MINUTOS_INACTIVIDAD_SESION", 60)
     # ...y en todo caso tras este máximo desde que se abrió.
     horas_maximas_sesion: int = _entero("HORAS_MAXIMAS_SESION", 10)
+    # Zona horaria del equipo: define los días y las semanas del panel de auditoría.
+    zona_horaria: str = os.getenv("RICORA_ZONA_HORARIA", "America/Bogota")
     # Enlace de recuperación de contraseña.
     minutos_token_recuperacion: int = _entero("MINUTOS_TOKEN_RECUPERACION", 30)
     # Enlace de invitación a una cuenta nueva.

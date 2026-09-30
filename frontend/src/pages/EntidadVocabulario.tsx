@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { EnlaceHistoria } from "@/components/Historia";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
@@ -186,7 +187,10 @@ export function EntidadVocabularioDetalle() {
 
   return (
     <>
-      <button type="button" className="enlace" onClick={() => navegar("/vocabularios")}>← Volver a Vocabularios</button>
+      <div className="cabecera-nivel" style={{ marginBottom: 0 }}>
+        <button type="button" className="enlace" onClick={() => navegar("/vocabularios")}>← Volver a Vocabularios</button>
+        <EnlaceHistoria tipo="entidad_vocabulario" id={e.id} nombre={e.nombre} />
+      </div>
       <h1 style={{ marginTop: 10 }}>{e.nombre}</h1>
       <p className="sub">
         <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span>{" "}

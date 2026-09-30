@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { EnlaceHistoria } from "@/components/Historia";
 import { ErrorAPI, pedir, puede as tienePermiso, subir } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { fecha, peso } from "@/lib/formato";
@@ -176,6 +177,7 @@ export function InstanciacionPreservacion() {
           <h1 style={{ marginTop: 8 }}>{d.nombre}</h1>
         </div>
         <div className="insignias">
+          <EnlaceHistoria tipo="instanciacion" id={d.id} nombre={d.nombre} />
           <span className={`insignia ${integridad.clase}`}>{integridad.texto}</span>
           <span className={`insignia ${d.riesgo.mitigado_por ? "bien" : RIESGO[d.riesgo.nivel].clase}`}>
             {d.riesgo.mitigado_por ? "Riesgo mitigado" : RIESGO[d.riesgo.nivel].texto}

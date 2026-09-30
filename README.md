@@ -10,13 +10,13 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 
 | Módulo | Estado | Documento |
 |---|---|---|
-| Autenticación y autorización (transversal) | Entregado | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
+| Autenticación y autorización (transversal) | Entregado; cierre transversal con los siete módulos pendiente de validación (rol revisor provisional) | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
 | 1 · Ingesta y digitalización | Entregado | [documentacion/modulo-1-ingesta.md](documentacion/modulo-1-ingesta.md) |
 | 2 · Descripción multinivel asistida por IA | Entregado | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
 | 3 · Vocabularios y control de autoridad | Entregado | [documentacion/modulo-3-vocabularios.md](documentacion/modulo-3-vocabularios.md) |
 | 4 · Generación de instrumentos de descripción | Entregado | [documentacion/modulo-4-instrumentos.md](documentacion/modulo-4-instrumentos.md) |
-| 5 · Preservación digital | Entregado, pendiente de validación | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) |
-| Auditoría (transversal) | Registro base activo; pantallas pendientes | — |
+| 5 · Preservación digital | Entregado | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) |
+| Auditoría (transversal) | Entregado, pendiente de validación · incluye la prueba de extremo a extremo de los siete módulos | [documentacion/modulo-auditoria.md](documentacion/modulo-auditoria.md) |
 
 ## Arquitectura
 

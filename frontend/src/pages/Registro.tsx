@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { EnlaceHistoria } from "@/components/Historia";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -172,7 +173,10 @@ export function RegistroDescripcion() {
 
   return (
     <>
-      <button type="button" className="enlace" onClick={() => navegar("/descripcion")}>← Volver a Descripción</button>
+      <div className="cabecera-nivel" style={{ marginBottom: 0 }}>
+        <button type="button" className="enlace" onClick={() => navegar("/descripcion")}>← Volver a Descripción</button>
+        <EnlaceHistoria tipo="recurso_documental" id={registro.id} nombre={registro.titulo} />
+      </div>
       <h1 style={{ marginTop: 10 }}>{registro.titulo}</h1>
       <p className="sub">
         {NIVEL_NOMBRE[registro.nivel]} · publicada {fecha(registro.publicado_en)}

@@ -4,6 +4,7 @@ Trabajador en segundo plano, proceso aparte del servidor web:
   procesa (huella, duplicados, formato, texto u OCR);
 - vocabularios: cada cierto tiempo (24 h por defecto) busca pares de
   entidades parecidas y deja sugerencias de fusión, sin fusionar nada;
+- auditoría: cada minuto cierra las sesiones vencidas, con su evento;
 - preservación: cada cierto tiempo (30 días por defecto) recalcula la
   huella de todas las instanciaciones y alerta si alguna cambió.
 Si el OCR de un archivo pesado falla o consume memoria, el servidor web
@@ -21,7 +22,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import preservacion, procesamiento, vocabulario
+from app.servicios import preservacion, procesamiento, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -38,6 +39,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _al_detener)
     signal.signal(signal.SIGINT, _al_detener)
     liberado = False
+    ultima_revision_sesiones = float("-inf")
     log.info("Trabajador de ingesta en marcha.")
     while not _detener:
         try:
@@ -49,6 +51,12 @@ def main() -> None:
                                .values(tomado_en=None))
                     db.commit()
                     liberado = True
+                # Auditoría: las sesiones vencidas se cierran solas (con su
+                # evento de expiración) aunque nadie vuelva a entrar.
+                if time.monotonic() - ultima_revision_sesiones >= 60:
+                    if sesiones.cerrar_vencidas(db):
+                        db.commit()
+                    ultima_revision_sesiones = time.monotonic()
                 # Vocabularios: búsqueda periódica de candidatos a fusión
                 # (solo cuando toca según el intervalo configurado).
                 nuevas = vocabulario.deteccion_periodica(db)

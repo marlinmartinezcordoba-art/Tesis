@@ -322,3 +322,23 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 @media (max-width: 720px) {
   .resumen-preservacion { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Auditoría */
+.cambios { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.cambio { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: .8rem; }
+.campo-cambio { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .68rem; letter-spacing: .04em; min-width: 90px; }
+.cambio del { color: var(--danger); text-decoration: line-through; opacity: .8; overflow-wrap: anywhere; }
+.cambio ins { color: var(--ok); background: var(--ok-bg); text-decoration: none; padding: 0 5px; border-radius: 4px; font-weight: 600; overflow-wrap: anywhere; }
+.lado-derecho { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.punto-modulo { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: 0 0 10px; background: var(--muted); }
+.punto-modulo.m-ingesta { background: var(--proc); }
+.punto-modulo.m-descripcion { background: var(--accent); }
+.punto-modulo.m-vocabularios { background: var(--agent); }
+.punto-modulo.m-instrumentos { background: var(--ok); }
+.punto-modulo.m-preservacion { background: var(--warn); }
+.punto-modulo.m-autenticacion { background: var(--danger); }
+.numero { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabla-consolidado .fila-persona { cursor: pointer; }
+.tabla-consolidado .fila-persona:hover { background: var(--bg); }
+.tabla-consolidado .detalle-persona > td { background: var(--bg); padding: 10px 16px 16px 34px; }
+.filtros .pastilla input[type=date] { border: 0; background: transparent; font: inherit; color: inherit; }

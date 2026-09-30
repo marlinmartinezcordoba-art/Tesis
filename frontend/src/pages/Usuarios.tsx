@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { EnlaceHistoria } from "@/components/Historia";
 import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
 import { PanelRoles, type RolInfo } from "@/pages/Roles";
 import { fecha } from "@/lib/formato";
@@ -183,6 +184,7 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
       {!editando && (
         <div className="acciones">
           <button type="button" className="boton chico" onClick={() => setEditando(true)}>Editar</button>
+          <EnlaceHistoria tipo="usuario" id={u.id} nombre={u.nombre} />
           {!propio && u.activo && (
             <button type="button" className="boton chico" disabled={ocupado}
                     onClick={() => accion(async () => {
