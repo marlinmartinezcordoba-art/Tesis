@@ -21,6 +21,12 @@ else:
     raise SystemExit("La base de datos no respondió en 2 minutos.")
 EOF
 
+if [ "$1" = "trabajador" ]; then
+  # El trabajador no aplica migraciones (las aplica la web); si aún no
+  # están, espera y reintenta solo.
+  exec python -m app.trabajador
+fi
+
 echo "Aplicando migraciones..."
 alembic upgrade head
 

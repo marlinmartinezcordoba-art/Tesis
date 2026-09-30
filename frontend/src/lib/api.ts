@@ -62,7 +62,7 @@ function mensajeDe(cuerpo: unknown, status: number): string {
 
 async function llamar(ruta: string, opciones: RequestInit, conToken: boolean): Promise<Response> {
   const cabeceras = new Headers(opciones.headers);
-  if (opciones.body && !cabeceras.has("Content-Type")) cabeceras.set("Content-Type", "application/json");
+  if (typeof opciones.body === "string" && !cabeceras.has("Content-Type")) cabeceras.set("Content-Type", "application/json");
   if (conToken && token) cabeceras.set("Authorization", `Bearer ${token}`);
   try {
     return await fetch(ruta, { ...opciones, headers: cabeceras, credentials: "same-origin" });
@@ -136,3 +136,41 @@ export const publico = {
     return datos as T;
   },
 };
+
+// Subida de archivos con avance (fetch no informa el progreso de envío).
+// El servidor verifica la sesión antes de leer el archivo, así que basta
+// con renovar el token si ya venció antes de empezar.
+export function subir<T>(ruta: string, datos: FormData, alAvanzar: (fraccion: number) => void,
+                         señal?: AbortSignal): Promise<T> {
+  const intentar = (reintento: boolean): Promise<T> =>
+    new Promise<T>((resolver, rechazar) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", ruta);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => e.lengthComputable && alAvanzar(e.loaded / e.total);
+      xhr.onerror = () => rechazar(new ErrorAPI(0, "Se perdió la conexión durante la subida."));
+      xhr.onabort = () => rechazar(new ErrorAPI(0, "Subida cancelada."));
+      xhr.onload = async () => {
+        let cuerpo: unknown = {};
+        try { cuerpo = JSON.parse(xhr.responseText); } catch { /* respuesta vacía */ }
+        if (xhr.status === 401 && !reintento && (cuerpo as { detail?: string }).detail === "token_expirado" && (await renovar())) {
+          intentar(true).then(resolver, rechazar);
+          return;
+        }
+        if (xhr.status === 401) {
+          token = null;
+          alCerrar();
+          rechazar(new ErrorAPI(401, "Su sesión se cerró. Ingrese de nuevo."));
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          rechazar(new ErrorAPI(xhr.status, mensajeDe(cuerpo, xhr.status)));
+          return;
+        }
+        resolver(cuerpo as T);
+      };
+      señal?.addEventListener("abort", () => xhr.abort());
+      xhr.send(datos);
+    });
+  return intentar(false);
+}

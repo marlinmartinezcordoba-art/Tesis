@@ -15,6 +15,10 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 PyJWT==2.9.0
 
+# Ingesta: texto y páginas de PDF (sin programas externos) e imágenes.
+pypdfium2==5.13.0
+pillow==12.3.0
+
 # Proveedores de inteligencia artificial para el motor de análisis
 # (módulo de descripción). Se activan cuando se construya ese módulo.
 # anthropic==0.34.2
@@ -25,4 +29,3 @@ PyJWT==2.9.0
 # en el primer módulo que los necesite.
 # celery==5.4.0
 # redis==5.0.8
-# pytesseract==0.3.13

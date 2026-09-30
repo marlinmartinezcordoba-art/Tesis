@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import type { Rol } from "@/lib/api";
+import { pedir, type Rol } from "@/lib/api";
+import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -12,6 +13,7 @@ export const ICONOS: Record<string, ReactNode> = {
   instrumentos: <svg viewBox="0 0 24 24" {...trazo}><path d="M6 4h9l3 3v13H6z" /><path d="M9 12h6M9 15h6M9 9h3" /></svg>,
   preservacion: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 3l7 3v6c0 4.5-3 7-7 9-4-2-7-4.5-7-9V6z" /></svg>,
   auditoria: <svg viewBox="0 0 24 24" {...trazo}><path d="M4 19V5m5 14V9m5 10V12m5 7V6" /></svg>,
+  alerta: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17.5v.01" /></svg>,
   usuarios: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="8" r="3.2" /><path d="M5 20c1-4 4.5-6 7-6s6 2 7 6" /></svg>,
 };
 
@@ -28,6 +30,7 @@ interface Entrada {
 // Ingesta, Descripción, Vocabularios, Instrumentos, Preservación ·
 // Auditoría, Usuarios.
 const ENTRADAS: Entrada[] = [
+  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", roles: ["administrador", "archivista", "revisor"] },
   { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", roles: ["administrador"] },
 ];
 
@@ -84,8 +87,51 @@ function MenuPersona() {
   );
 }
 
+export const VEN_ALERTAS: Rol[] = ["administrador", "archivista", "revisor"];
+
+function SelectorFondo() {
+  const { fondos, fondo, elegir } = useFondo();
+  if (!fondos || fondos.length === 0) return <span />;
+  if (fondos.length === 1) return <span className="pastilla">📁 {fondo?.titulo}</span>;
+  return (
+    <label className="pastilla">
+      📁
+      <select aria-label="Fondo activo" value={fondo?.id} onChange={(e) => elegir(e.target.value)}>
+        {fondos.map((f) => <option key={f.id} value={f.id}>{f.titulo}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function AvisoAlertas() {
+  const { usuario } = useSesion();
+  const { fondo } = useFondo();
+  const [n, setN] = useState<number | null>(null);
+  const puede = !!usuario && VEN_ALERTAS.includes(usuario.rol);
+
+  useEffect(() => {
+    if (!puede || !fondo) return;
+    const cargar = () => pedir<unknown[]>(`/api/alertas?fondo_id=${fondo.id}`).then((a) => setN(a.length)).catch(() => undefined);
+    cargar();
+    const t = setInterval(cargar, 60000);
+    window.addEventListener("ricora:alertas", cargar);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("ricora:alertas", cargar);
+    };
+  }, [puede, fondo]);
+
+  if (!puede || !fondo) return null;
+  return (
+    <NavLink to="/alertas" className={`pastilla alertas${n ? " con-alertas" : ""}`} title="Panel de alertas">
+      {ICONOS.alerta} Alertas{n ? <span className="contador">{n}</span> : null}
+    </NavLink>
+  );
+}
+
 export function Marco({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
+  const { fondo } = useFondo();
   const visibles = ENTRADAS.filter((e) => usuario && e.roles.includes(usuario.rol));
   const grupos: [string, Entrada[]][] = [
     ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
@@ -110,10 +156,21 @@ export function Marco({ children }: { children: ReactNode }) {
             ) : null,
           )}
         </div>
+        {fondo && (
+          <div className="pie-lateral">
+            Fondo histórico activo<br />
+            <b>{fondo.titulo}</b>
+            {fondo.fechas_extremas && <><br />{fondo.fechas_extremas}</>}
+          </div>
+        )}
       </aside>
       <main className="contenido">
         <div className="superior">
-          <MenuPersona />
+          <SelectorFondo />
+          <div className="superior-derecha">
+            <AvisoAlertas />
+            <MenuPersona />
+          </div>
         </div>
         {children}
       </main>

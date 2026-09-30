@@ -44,6 +44,26 @@ services:
       bd:
         condition: service_healthy
 
+  # Trabajador de ingesta: procesa lo cargado (huella, duplicados, formato
+  # PRONOM, texto u OCR) en un proceso aparte de la web. Misma imagen y
+  # mismo volumen de archivos; no publica ningún puerto.
+  trabajador:
+    build: .
+    restart: unless-stopped
+    command: ["trabajador"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
+      DIRECTORIO_ALMACENAMIENTO: /data/almacen
+    volumes:
+      - almacen:/data/almacen
+    depends_on:
+      bd:
+        condition: service_healthy
+      web:
+        condition: service_started
+
   # HTTPS con certificado gratuito (Let's Encrypt) para RICORA_DOMINIO. Solo
   # se levanta con COMPOSE_PROFILES=https.
   caddy:

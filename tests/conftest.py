@@ -12,6 +12,17 @@ os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://ricora:ricora@local
 os.environ["RICORA_SECRET_KEY"] = "clave-de-pruebas-de-ricora-con-mas-de-32-caracteres"
 os.environ["RICORA_URL_PUBLICA"] = "http://ricora.prueba"
 os.environ["RICORA_DIRECTORIO_INTERFAZ"] = "/ruta/que/no/existe"
+import glob  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+os.environ["DIRECTORIO_ALMACENAMIENTO"] = tempfile.mkdtemp(prefix="ricora-almacen-")
+# Siegfried: el del sistema, o el instalado con «go install»; su archivo de
+# firmas PRONOM viene en el propio módulo de Go.
+os.environ.setdefault("RICORA_SIEGFRIED", shutil.which("sf") or os.path.expanduser("~/go/bin/sf"))
+if "RICORA_SIEGFRIED_HOME" not in os.environ:
+    firmas = sorted(glob.glob(os.path.expanduser("~/go/pkg/mod/github.com/richardlehane/siegfried@*/cmd/roy/data/default.sig")))
+    os.environ["RICORA_SIEGFRIED_HOME"] = os.path.dirname(firmas[-1]) if firmas else "/opt/siegfried"
 for variable in ("EMAIL_HOST", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD"):
     os.environ.pop(variable, None)
 

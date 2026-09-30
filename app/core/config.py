@@ -34,6 +34,18 @@ class Settings:
     # volumen de Docker.
     directorio_almacenamiento: Path = Path(os.getenv("DIRECTORIO_ALMACENAMIENTO", "/data/almacen"))
 
+    # --- Ingesta ---
+    # Identificador de formato contra PRONOM (Siegfried): binario y carpeta
+    # con el archivo de firmas (default.sig).
+    siegfried_binario: str = os.getenv("RICORA_SIEGFRIED", "sf")
+    siegfried_home: str = os.getenv("RICORA_SIEGFRIED_HOME", "/opt/siegfried")
+    # Idioma del reconocimiento óptico de caracteres (Tesseract).
+    idioma_ocr: str = os.getenv("RICORA_IDIOMA_OCR", "spa")
+    # Resolución a la que se pasa a imagen cada página de un PDF escaneado.
+    dpi_ocr: int = _entero("RICORA_DPI_OCR", 300)
+    # Tiempo máximo por página de OCR o por identificación de formato.
+    segundos_por_paso: int = _entero("RICORA_SEGUNDOS_POR_PASO", 300)
+
     # Clave con la que se firman los tokens de sesión. Sin ella el sistema
     # no arranca en producción (ver app/main.py).
     secret_key: str = os.getenv("RICORA_SECRET_KEY", "")

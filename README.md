@@ -10,8 +10,8 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 
 | Módulo | Estado | Documento |
 |---|---|---|
-| Autenticación y autorización (transversal) | Entregado, pendiente de validación | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
-| 1 · Ingesta y digitalización | Pendiente | — |
+| Autenticación y autorización (transversal) | Entregado | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
+| 1 · Ingesta y digitalización | Entregado, pendiente de validación | [documentacion/modulo-1-ingesta.md](documentacion/modulo-1-ingesta.md) |
 | 2 · Descripción multinivel asistida por IA | Pendiente | — |
 | 3 · Vocabularios y control de autoridad | Pendiente | — |
 | 4 · Generación de instrumentos de descripción | Pendiente | — |
