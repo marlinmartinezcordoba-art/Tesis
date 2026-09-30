@@ -1,8 +1,11 @@
 """
-Trabajador de ingesta: proceso aparte del servidor web que toma, de a uno,
-los documentos en estado «procesando» y los procesa (huella, duplicados,
-formato, texto u OCR). Si el OCR de un archivo pesado falla o consume
-memoria, el servidor web sigue respondiendo.
+Trabajador en segundo plano, proceso aparte del servidor web:
+- ingesta: toma, de a uno, los documentos en estado «procesando» y los
+  procesa (huella, duplicados, formato, texto u OCR);
+- vocabularios: cada cierto tiempo (24 h por defecto) busca pares de
+  entidades parecidas y deja sugerencias de fusión, sin fusionar nada.
+Si el OCR de un archivo pesado falla o consume memoria, el servidor web
+sigue respondiendo.
 
     python -m app.trabajador
 """
@@ -16,7 +19,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import procesamiento
+from app.servicios import procesamiento, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -44,6 +47,11 @@ def main() -> None:
                                .values(tomado_en=None))
                     db.commit()
                     liberado = True
+                # Vocabularios: búsqueda periódica de candidatos a fusión
+                # (solo cuando toca según el intervalo configurado).
+                nuevas = vocabulario.deteccion_periodica(db)
+                if nuevas:
+                    log.info("Vocabulario: %s sugerencia(s) de fusión nuevas.", nuevas)
                 siguiente = procesamiento.tomar_siguiente(db)
                 if siguiente is not None:
                     log.info("Procesando %s", siguiente)

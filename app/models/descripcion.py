@@ -112,6 +112,9 @@ class Relacion(_Procedencia, Base):
     fragmento_instanciacion_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id", ondelete="SET NULL"), nullable=True)
     fragmento_inicio = Column(Integer, nullable=True)
     estado = Column(Enum(*ESTADO_RELACION, name="estado_relacion"), nullable=False, default="vigente", index=True)
+    # Si la relación se redirigió al fusionar dos entidades del vocabulario,
+    # aquí queda a qué entidad apuntaba originalmente (trazabilidad).
+    destino_original_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     confirmada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     anulada_en = Column(DateTime(timezone=True), nullable=True)
@@ -159,3 +162,29 @@ class TrabajoInstanciacion(Base):
     __table_args__ = (
         Index("ux_instanciacion_en_edicion", "instanciacion_id", unique=True, postgresql_where=text("abierto")),
     )
+
+
+ESTADO_SUGERENCIA = ("pendiente", "aprobada", "descartada", "obsoleta")
+
+
+class SugerenciaFusion(Base):
+    """Par de entidades del vocabulario que la detección periódica cree que
+    son la misma. Nunca se fusiona sola: espera la decisión del archivista.
+    Un par ya decidido (aprobado o descartado) no se vuelve a sugerir."""
+
+    __tablename__ = "sugerencias_fusion"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=False, index=True)
+    clase = Column(Enum(*CLASE_VOCABULARIO, name="clase_vocabulario", create_type=False), nullable=False)
+    # Par ordenado (entidad_a_id < entidad_b_id) para no repetirlo al revés.
+    entidad_a_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False)
+    entidad_b_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False)
+    similitud = Column(Float, nullable=False)
+    estado = Column(Enum(*ESTADO_SUGERENCIA, name="estado_sugerencia"), nullable=False, default="pendiente", index=True)
+    creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+    resuelta_en = Column(DateTime(timezone=True), nullable=True)
+    resuelta_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    definitiva_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
+
+    __table_args__ = (Index("ux_sugerencia_par", "entidad_a_id", "entidad_b_id", unique=True),)

@@ -12,8 +12,8 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 |---|---|---|
 | Autenticación y autorización (transversal) | Entregado | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
 | 1 · Ingesta y digitalización | Entregado | [documentacion/modulo-1-ingesta.md](documentacion/modulo-1-ingesta.md) |
-| 2 · Descripción multinivel asistida por IA | Entregado, pendiente de validación | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
-| 3 · Vocabularios y control de autoridad | Pendiente | — |
+| 2 · Descripción multinivel asistida por IA | Entregado | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
+| 3 · Vocabularios y control de autoridad | Entregado, pendiente de validación | [documentacion/modulo-3-vocabularios.md](documentacion/modulo-3-vocabularios.md) |
 | 4 · Generación de instrumentos de descripción | Pendiente | — |
 | 5 · Preservación digital | Pendiente | — |
 | Auditoría (transversal) | Registro base activo; pantallas pendientes | — |

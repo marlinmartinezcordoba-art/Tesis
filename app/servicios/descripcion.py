@@ -361,6 +361,11 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         if nodo_tipo == "entidad_vocabulario":
             n = db.get(EntidadVocabulario, nodo_id)
             tipo, valor, subtipo, extra = n.clase, n.nombre, n.subtipo, {}
+            if r.destino_original_id and r.destino_original_id != n.id:
+                # La relación se redirigió al fusionar: se conserva a qué
+                # entidad citaba el documento originalmente (módulo 3).
+                antes = db.get(EntidadVocabulario, r.destino_original_id)
+                extra = {"antes_de_fusion": {"id": str(antes.id), "nombre": antes.nombre}} if antes else {}
         elif nodo_tipo == "fecha":
             n = db.get(Fecha, nodo_id)
             tipo, valor, subtipo = "fecha", n.expresion, None

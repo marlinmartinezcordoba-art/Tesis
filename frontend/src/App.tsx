@@ -13,6 +13,8 @@ import { Ingreso } from "@/pages/Ingreso";
 import { Perfil } from "@/pages/Perfil";
 import { Recuperar } from "@/pages/Recuperar";
 import { Usuarios } from "@/pages/Usuarios";
+import { Vocabularios } from "@/pages/Vocabularios";
+import { EntidadVocabularioDetalle } from "@/pages/EntidadVocabulario";
 
 // La interfaz solo oculta lo que un rol no puede usar; quien de verdad
 // decide es el backend, que valida sesión y rol en cada petición.
@@ -47,6 +49,8 @@ export default function App() {
       <Route path="/descripcion" element={<Protegida modulo="descripcion"><Descripcion /></Protegida>} />
       <Route path="/descripcion/trabajo/:id" element={<Protegida modulo="descripcion" tipo="escribir"><EspacioTrabajo /></Protegida>} />
       <Route path="/descripcion/registro/:id" element={<Protegida modulo="descripcion"><RegistroDescripcion /></Protegida>} />
+      <Route path="/vocabularios" element={<Protegida modulo="vocabularios"><Vocabularios /></Protegida>} />
+      <Route path="/vocabularios/:id" element={<Protegida modulo="vocabularios"><EntidadVocabularioDetalle /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />

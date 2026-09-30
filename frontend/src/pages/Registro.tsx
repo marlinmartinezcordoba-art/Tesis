@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -21,6 +21,8 @@ interface EntidadRegistrada {
   origen: string;
   confianza: number | null;
   fecha_normalizada?: string | null;
+  entidad_id?: string;
+  antes_de_fusion?: { id: string; nombre: string };
 }
 
 interface Registro {
@@ -50,6 +52,7 @@ export function RegistroDescripcion() {
   const navegar = useNavigate();
   const { usuario } = useSesion();
   const puede = tienePermiso(usuario, "descripcion", "escribir");
+  const veVocabulario = tienePermiso(usuario, "vocabularios");
   const [registro, setRegistro] = useState<Registro | null>(null);
   const [trabajo, setTrabajo] = useState<string | null>(null);
   const [titulo, setTitulo] = useState("");
@@ -195,7 +198,18 @@ export function RegistroDescripcion() {
               {TIPO_NOMBRE[e.tipo]}{e.rol && ROL_NOMBRE[e.rol] ? ` · ${ROL_NOMBRE[e.rol]}` : ""}
             </span>
             <div className="fila-principal">
-              <div className="nombre">{e.valor}{e.subtipo ? ` · ${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}` : ""}{e.fecha_normalizada ? ` (${e.fecha_normalizada})` : ""}</div>
+              <div className="nombre">
+                {veVocabulario && EN_VOCABULARIO.includes(e.tipo) && e.entidad_id
+                  ? <Link to={`/vocabularios/${e.entidad_id}`}>{e.valor}</Link> : e.valor}
+                {e.subtipo ? ` · ${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}` : ""}{e.fecha_normalizada ? ` (${e.fecha_normalizada})` : ""}
+              </div>
+              {e.antes_de_fusion && (
+                <div className="meta">
+                  Antes citaba a{" "}
+                  {veVocabulario ? <Link to={`/vocabularios/${e.antes_de_fusion.id}`}>«{e.antes_de_fusion.nombre}»</Link>
+                    : `«${e.antes_de_fusion.nombre}»`}, fusionada en esta entidad
+                </div>
+              )}
               <div className="meta">
                 {e.uri_rico || e.codigo_ric} · {ORIGEN_NOMBRE[e.origen]}{e.confianza !== null ? ` · confianza ${Math.round(e.confianza * 100)} %` : ""}
                 {e.fragmento && ` · «${e.fragmento}»`}

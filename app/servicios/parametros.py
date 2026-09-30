@@ -28,6 +28,11 @@ def _entero_entre(minimo: int, maximo: int) -> Callable[[Any], str | None]:
 
 DEFINICIONES: dict[str, Definicion] = {
     "ingesta_limite_mb": Definicion(500, _entero_entre(1, 20000), "Tamaño máximo por archivo en la ingesta, en megabytes."),
+    "fusion_similitud_pct": Definicion(60, _entero_entre(30, 100),
+                                       "Similitud mínima (%) entre dos entidades para sugerir fusionarlas."),
+    "fusion_max_conexiones": Definicion(10, _entero_entre(0, 10000),
+                                        "Conexiones máximas de cada entidad para sugerir fusionarlas («pocas conexiones»)."),
+    "fusion_horas_deteccion": Definicion(24, _entero_entre(1, 720), "Cada cuántas horas se buscan candidatos a fusión."),
 }
 
 
