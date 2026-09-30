@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { ICONOS } from "@/components/Marco";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
-import { ErrorAPI, pedir, subir } from "@/lib/api";
+import { ErrorAPI, pedir, puede, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { dia, fecha, peso } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
@@ -58,7 +58,7 @@ function IconoArchivo({ nombre, clase = "" }: { nombre: string; clase?: string }
 
 function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void }) {
   const { usuario } = useSesion();
-  const esAdmin = usuario?.rol === "administrador";
+  const esAdmin = !!usuario?.es_administrador;
   const [limite, setLimite] = useState<number | null>(null);
   const [expedientes, setExpedientes] = useState<{ id: string; titulo: string }[]>([]);
   const [expediente, setExpediente] = useState("");
@@ -407,7 +407,7 @@ function VistaCola({ cola, puedeDecidir, alCambiar }: { cola: Cola | null; puede
 export function Ingesta() {
   const { usuario } = useSesion();
   const { fondos, fondo } = useFondo();
-  const puedeCargar = usuario?.rol === "administrador" || usuario?.rol === "archivista";
+  const puedeCargar = puede(usuario, "ingesta", "escribir");
   const [pestana, setPestana] = useState<"cargar" | "cola">(puedeCargar ? "cargar" : "cola");
   const [cola, setCola] = useState<Cola | null>(null);
   const [mensaje, setMensaje] = useState("");
@@ -447,7 +447,7 @@ export function Ingesta() {
         <h1>Ingesta</h1>
         <div className="tarjeta">
           <div className="tarjeta-cab">Todavía no hay ningún fondo registrado</div>
-          {usuario?.rol === "administrador" ? (
+          {usuario?.es_administrador ? (
             <>
               <div className="tarjeta-cuerpo" style={{ paddingBottom: 0 }}>
                 <p className="sub" style={{ margin: 0 }}>
@@ -479,7 +479,7 @@ export function Ingesta() {
                 onClick={() => setPestana("cola")}>
           Cola de ingesta {pendientes > 0 && <span className="contador">{pendientes}</span>}
         </button>
-        {usuario?.rol === "administrador" && (
+        {usuario?.es_administrador && (
           <button type="button" className="pestana" style={{ marginLeft: "auto", marginRight: 0 }} onClick={() => setRegistrando(!registrando)}>
             + Registrar otro fondo
           </button>

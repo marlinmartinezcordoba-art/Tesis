@@ -23,10 +23,14 @@ Matriz de permisos (sección 2 del prompt de autenticación):
 
 El alcance del revisor es provisional: solo lectura en los módulos de
 trabajo hasta que la autora del proyecto confirme sus capacidades.
+
+Esta matriz es la de los cuatro roles base, que vienen creados en la
+tabla roles. La administradora puede crear otros roles y decidir, módulo
+por módulo, si tienen acceso nulo, de consulta o de trabajo (app/models/rol.py).
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -35,6 +39,7 @@ from sqlalchemy.orm import Session
 from app.core.seguridad import TokenInvalido, leer_token_acceso
 from app.db.session import get_db
 from app.models.sesion import Sesion
+from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.servicios import sesiones
 
@@ -42,29 +47,13 @@ ADMINISTRADOR = "administrador"
 ARCHIVISTA = "archivista"
 REVISOR = "revisor"
 CONSULTA = "consulta"
-ROLES = (ARCHIVISTA, REVISOR, CONSULTA, ADMINISTRADOR)
-
-NOMBRE_ROL = {
-    ADMINISTRADOR: "Administrador",
-    ARCHIVISTA: "Archivista",
-    REVISOR: "Revisor",
-    CONSULTA: "Consulta",
-}
+ROLES_BASE = (ARCHIVISTA, REVISOR, CONSULTA, ADMINISTRADOR)
 
 MODULOS_TRABAJO = ("ingesta", "descripcion", "vocabularios", "instrumentos", "preservacion")
-
-_TRABAJO = {"leer": {ADMINISTRADOR, ARCHIVISTA, REVISOR}, "escribir": {ADMINISTRADOR, ARCHIVISTA}}
-
-MATRIZ: dict[str, dict[str, set[str]]] = {
-    **{m: _TRABAJO for m in MODULOS_TRABAJO},
-    # En auditoría cada endpoint filtra además por persona (el archivista
-    # solo ve lo suyo); el panel consolidado exige administrador.
-    "auditoria": {"leer": {ADMINISTRADOR, ARCHIVISTA, REVISOR}, "escribir": set()},
-    "usuarios": {"leer": {ADMINISTRADOR}, "escribir": {ADMINISTRADOR}},
-}
-
-# Catálogo e índice de instrumentos: la única puerta del rol consulta.
-LECTURA_CATALOGO = {ADMINISTRADOR, ARCHIVISTA, REVISOR, CONSULTA}
+# Módulos cuyo acceso se decide por el rol. «usuarios» (y la configuración)
+# es siempre y solo del administrador, para que nadie pueda darse a sí
+# mismo más permisos; «auditoria» es solo lectura para todos.
+MODULOS = (*MODULOS_TRABAJO, "catalogo", "auditoria", "usuarios")
 
 _METODOS_LECTURA = {"GET", "HEAD", "OPTIONS"}
 
@@ -78,9 +67,28 @@ class Actor:
     def id(self) -> uuid.UUID:
         return self.usuario.id
 
+    permisos: dict[str, str] = field(default_factory=dict)
+
     @property
     def rol(self) -> str:
         return self.usuario.rol
+
+    @property
+    def es_administrador(self) -> bool:
+        return self.usuario.rol == ADMINISTRADOR
+
+    @property
+    def ve_toda_la_auditoria(self) -> bool:
+        return self.es_administrador or self.permisos.get("auditoria") == "todo"
+
+    def puede(self, modulo: str, tipo: str = "leer") -> bool:
+        if modulo == "usuarios":
+            return self.es_administrador
+        if modulo == "auditoria":
+            # Nadie escribe en la auditoría; «propia» o «todo» dan lectura.
+            return tipo == "leer" and self.permisos.get("auditoria") in ("propia", "todo")
+        nivel = self.permisos.get(modulo, "ninguno")
+        return nivel == "escribir" if tipo == "escribir" else nivel in ("leer", "escribir")
 
 
 _bearer = HTTPBearer(auto_error=False)
@@ -128,7 +136,8 @@ def usuario_actual(
         raise _no_autenticado("sesion_cerrada")
 
     sesiones.registrar_actividad(db, sesion)
-    actor = Actor(usuario=usuario, sesion=sesion)
+    rol = db.get(Rol, usuario.rol)
+    actor = Actor(usuario=usuario, sesion=sesion, permisos=dict(rol.permisos or {}) if rol and rol.activo else {})
     request.state.actor = actor
     return actor
 
@@ -146,14 +155,14 @@ def requiere_roles(*roles: str):
 
 def acceso_modulo(modulo: str):
     """Dependencia de router: lectura para GET, escritura para todo lo
-    demás, según MATRIZ. Por construcción, un rol sin escritura (revisor,
-    consulta) no puede ejecutar ninguna petición que modifique algo."""
-    if modulo not in MATRIZ:
+    demás, según los permisos del rol (tabla roles). Un rol sin escritura
+    en el módulo no puede ejecutar ninguna petición que modifique algo."""
+    if modulo not in MODULOS:
         raise ValueError(f"Módulo sin permisos definidos: {modulo}")
 
     def _dependencia(request: Request, actor: Actor = Depends(usuario_actual)) -> Actor:
         tipo = "leer" if request.method in _METODOS_LECTURA else "escribir"
-        if actor.rol not in MATRIZ[modulo][tipo]:
+        if not actor.puede(modulo, tipo):
             raise sin_permiso()
         return actor
 
@@ -161,5 +170,24 @@ def acceso_modulo(modulo: str):
     return _dependencia
 
 
+def _alguno(tipo: str):
+    """Acceso de `tipo` a al menos un módulo de trabajo (panel de alertas)."""
+
+    def _dependencia(actor: Actor = Depends(usuario_actual)) -> Actor:
+        if not any(actor.puede(m, tipo) for m in MODULOS_TRABAJO):
+            raise sin_permiso()
+        return actor
+
+    return _dependencia
+
+
+def _catalogo(actor: Actor = Depends(usuario_actual)) -> Actor:
+    if not actor.puede("catalogo"):
+        raise sin_permiso()
+    return actor
+
+
 solo_administrador = requiere_roles(ADMINISTRADOR)
-lectura_catalogo = requiere_roles(*LECTURA_CATALOGO)
+lectura_catalogo = _catalogo
+ve_alertas = _alguno("leer")
+atiende_alertas = _alguno("escribir")

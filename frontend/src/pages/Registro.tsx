@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
   EN_VOCABULARIO, NIVEL_NOMBRE, ORIGEN_NOMBRE, ROL_NOMBRE, SUBTIPO_NOMBRE, TIPO_CLASE, TIPO_NOMBRE, nivelesSuperiores,
   verificarVocabulario, type NivelSuperior, type TipoEntidad, type Verificacion,
@@ -49,7 +49,7 @@ export function RegistroDescripcion() {
   const { id = "" } = useParams();
   const navegar = useNavigate();
   const { usuario } = useSesion();
-  const puede = usuario?.rol === "administrador" || usuario?.rol === "archivista";
+  const puede = tienePermiso(usuario, "descripcion", "escribir");
   const [registro, setRegistro] = useState<Registro | null>(null);
   const [trabajo, setTrabajo] = useState<string | null>(null);
   const [titulo, setTitulo] = useState("");

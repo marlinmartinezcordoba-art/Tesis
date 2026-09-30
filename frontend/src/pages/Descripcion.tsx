@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { fecha, peso } from "@/lib/formato";
@@ -39,7 +39,7 @@ export function Descripcion() {
   const { fondo } = useFondo();
   const navegar = useNavigate();
   const ubicacion = useLocation();
-  const puede = usuario?.rol === "administrador" || usuario?.rol === "archivista";
+  const puede = tienePermiso(usuario, "descripcion", "escribir");
   const [pestana, setPestana] = useState<"cola" | "publicadas">("cola");
   const [cola, setCola] = useState<PorDescribir[] | null>(null);
   const [publicadas, setPublicadas] = useState<Publicada[] | null>(null);

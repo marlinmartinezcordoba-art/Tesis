@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CLASE_ROL, ErrorAPI, pedir, type Rol } from "@/lib/api";
+import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
+import { PanelRoles, type RolInfo } from "@/pages/Roles";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 
@@ -24,12 +25,6 @@ interface Entrega {
   enlace: string | null;
 }
 
-const ROLES: { valor: Rol; nombre: string; descripcion: string }[] = [
-  { valor: "archivista", nombre: "Archivista", descripcion: "Trabajo completo en ingesta, descripción, vocabularios, instrumentos y preservación." },
-  { valor: "revisor", nombre: "Revisor", descripcion: "Solo consulta de los módulos de trabajo (alcance provisional)." },
-  { valor: "consulta", nombre: "Consulta", descripcion: "Solo el catálogo de instrumentos, en modo lectura." },
-  { valor: "administrador", nombre: "Administrador", descripcion: "Acceso completo, gestión de usuarios y configuración." },
-];
 
 
 function Resultado({ entrega, alCerrar }: { entrega: Entrega; alCerrar: () => void }) {
@@ -66,7 +61,7 @@ function Resultado({ entrega, alCerrar }: { entrega: Entrega; alCerrar: () => vo
   );
 }
 
-function NuevoUsuario({ alCrear }: { alCrear: (e: Entrega) => void }) {
+function NuevoUsuario({ alCrear, roles }: { alCrear: (e: Entrega) => void; roles: RolInfo[] }) {
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [rol, setRol] = useState<Rol>("archivista");
@@ -105,11 +100,11 @@ function NuevoUsuario({ alCrear }: { alCrear: (e: Entrega) => void }) {
         <div className="campo">
           <label htmlFor="n-rol">Rol</label>
           <select id="n-rol" className="selector" value={rol} onChange={(e) => setRol(e.target.value as Rol)}>
-            {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.nombre}</option>)}
+            {roles.filter((r) => r.activo).map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
           </select>
         </div>
       </div>
-      <p className="pista" style={{ marginTop: 0 }}>{ROLES.find((r) => r.valor === rol)?.descripcion}</p>
+      <p className="pista" style={{ marginTop: 0 }}>{roles.find((r) => r.clave === rol)?.descripcion}</p>
       <button className="boton primario" type="submit" disabled={enviando}>
         {enviando ? "Creando…" : "Crear usuario y enviar invitación"}
       </button>
@@ -121,7 +116,8 @@ function NuevoUsuario({ alCrear }: { alCrear: (e: Entrega) => void }) {
   );
 }
 
-function FilaUsuario({ u, propio, alCambiar, alEntregar }: {
+function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
+  roles: RolInfo[];
   u: Usuario;
   propio: boolean;
   alCambiar: (mensaje: string) => void;
@@ -164,7 +160,7 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar }: {
             <input className="entrada" aria-label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
             <select className="selector" aria-label="Rol" value={rol} disabled={propio} onChange={(e) => setRol(e.target.value as Rol)}
                     title={propio ? "Nadie puede cambiar su propio rol" : undefined}>
-              {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.nombre}</option>)}
+              {roles.filter((r) => r.activo || r.clave === u.rol).map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
             </select>
             <div className="acciones">
               <button type="button" className="boton chico primario" disabled={ocupado}
@@ -179,7 +175,7 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar }: {
         )}
       </div>
       <div className="insignias">
-        <span className={`insignia ${CLASE_ROL[u.rol]}`}>{u.rol_nombre}</span>
+        <span className={`insignia ${claseRol(u.rol)}`}>{u.rol_nombre}</span>
         <span className={`insignia ${u.activo ? "bien" : "error"}`}>{u.activo ? "Activo" : "Inactivo"}</span>
         {u.invitacion_pendiente && u.activo && <span className="insignia acento">Invitación pendiente</span>}
         {u.recuperacion_solicitada && u.activo && <span className="insignia alerta">Pidió recuperar contraseña</span>}
@@ -237,6 +233,13 @@ export function Usuarios() {
   const [entrega, setEntrega] = useState<Entrega | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
+  const [pestana, setPestana] = useState<"usuarios" | "roles">("usuarios");
+  const [roles, setRoles] = useState<RolInfo[] | null>(null);
+
+  const cargarRoles = useCallback(() => {
+    pedir<RolInfo[]>("/api/auth/roles").then(setRoles).catch(() => setRoles([]));
+  }, []);
+  useEffect(cargarRoles, [cargarRoles]);
 
   const cargar = useCallback(async () => {
     const p = new URLSearchParams();
@@ -276,6 +279,20 @@ export function Usuarios() {
       <p className="sub">
         Solo visible para el rol administrador. Crear, reasignar rol o desactivar sin perder trazabilidad en auditoría.
       </p>
+      <div className="pestanas" role="tablist">
+        {(["usuarios", "roles"] as const).map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={pestana === t} className={`pestana${pestana === t ? " activa" : ""}`}
+                  onClick={() => setPestana(t)}>
+            {t === "usuarios" ? "Usuarios" : "Roles y permisos"}
+          </button>
+        ))}
+      </div>
+      {pestana === "roles" ? (
+        <>
+          {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
+          <PanelRoles roles={roles} alCambiar={(m) => { setMensaje(m); cargarRoles(); }} />
+        </>
+      ) : (<>
 
       {!correoConfigurado ? (
         <div className="aviso alerta">
@@ -296,7 +313,7 @@ export function Usuarios() {
                value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="selector" aria-label="Filtrar por rol" value={rol} onChange={(e) => setRol(e.target.value)}>
           <option value="">Todos los roles</option>
-          {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.nombre}</option>)}
+          {(roles || []).map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
         </select>
         <select className="selector" aria-label="Filtrar por estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Activos e inactivos</option>
@@ -312,17 +329,18 @@ export function Usuarios() {
             {nuevo ? "Cerrar" : "+ Nuevo usuario"}
           </button>
         </div>
-        {nuevo && <NuevoUsuario alCrear={(e) => { setNuevo(false); alEntregar(e); }} />}
+        {nuevo && <NuevoUsuario roles={roles || []} alCrear={(e) => { setNuevo(false); alEntregar(e); }} />}
         {usuarios === null ? (
           <div className="vacio">Cargando…</div>
         ) : usuarios.length === 0 ? (
           <div className="vacio">Ningún usuario coincide con los filtros.</div>
         ) : (
           usuarios.map((u) => (
-            <FilaUsuario key={u.id} u={u} propio={u.id === usuario?.id} alCambiar={alCambiar} alEntregar={alEntregar} />
+            <FilaUsuario key={u.id} roles={roles || []} u={u} propio={u.id === usuario?.id} alCambiar={alCambiar} alEntregar={alEntregar} />
           ))
         )}
       </div>
+      </>)}
     </>
   );
 }

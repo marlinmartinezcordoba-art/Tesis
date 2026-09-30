@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { pedir, type Rol } from "@/lib/api";
+import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 
@@ -22,7 +22,7 @@ interface Entrada {
   nombre: string;
   icono: string;
   grupo: "trabajo" | "sistema";
-  roles: Rol[];
+  modulo: Modulo | "usuarios";
 }
 
 // Solo aparecen los módulos ya construidos; cada módulo nuevo se agrega
@@ -30,9 +30,9 @@ interface Entrada {
 // Ingesta, Descripción, Vocabularios, Instrumentos, Preservación ·
 // Auditoría, Usuarios.
 const ENTRADAS: Entrada[] = [
-  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", roles: ["administrador", "archivista", "revisor"] },
-  { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", roles: ["administrador", "archivista", "revisor"] },
-  { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", roles: ["administrador"] },
+  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", modulo: "ingesta" },
+  { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion" },
+  { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios" },
 ];
 
 export function Marca() {
@@ -88,7 +88,13 @@ function MenuPersona() {
   );
 }
 
-export const VEN_ALERTAS: Rol[] = ["administrador", "archivista", "revisor"];
+export function veAlertas(u: UsuarioBreve | null): boolean {
+  return MODULOS_TRABAJO.some((m) => puede(u, m));
+}
+
+export function atiendeAlertas(u: UsuarioBreve | null): boolean {
+  return MODULOS_TRABAJO.some((m) => puede(u, m, "escribir"));
+}
 
 function SelectorFondo() {
   const { fondos, fondo, elegir } = useFondo();
@@ -108,10 +114,10 @@ function AvisoAlertas() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
   const [n, setN] = useState<number | null>(null);
-  const puede = !!usuario && VEN_ALERTAS.includes(usuario.rol);
+  const permitido = veAlertas(usuario);
 
   useEffect(() => {
-    if (!puede || !fondo) return;
+    if (!permitido || !fondo) return;
     const cargar = () => pedir<unknown[]>(`/api/alertas?fondo_id=${fondo.id}`).then((a) => setN(a.length)).catch(() => undefined);
     cargar();
     const t = setInterval(cargar, 60000);
@@ -120,9 +126,9 @@ function AvisoAlertas() {
       clearInterval(t);
       window.removeEventListener("ricora:alertas", cargar);
     };
-  }, [puede, fondo]);
+  }, [permitido, fondo]);
 
-  if (!puede || !fondo) return null;
+  if (!permitido || !fondo) return null;
   return (
     <NavLink to="/alertas" className={`pastilla alertas${n ? " con-alertas" : ""}`} title="Panel de alertas">
       {ICONOS.alerta} Alertas{n ? <span className="contador">{n}</span> : null}
@@ -133,7 +139,7 @@ function AvisoAlertas() {
 export function Marco({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
-  const visibles = ENTRADAS.filter((e) => usuario && e.roles.includes(usuario.rol));
+  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo));
   const grupos: [string, Entrada[]][] = [
     ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
     ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
@@ -180,7 +186,7 @@ export function Marco({ children }: { children: ReactNode }) {
 }
 
 // Primera pantalla de cada rol después de ingresar.
-export function inicioDe(rol: Rol): string {
-  const primera = ENTRADAS.find((e) => e.roles.includes(rol));
+export function inicioDe(usuario: UsuarioBreve): string {
+  const primera = ENTRADAS.find((e) => puede(usuario, e.modulo));
   return primera ? primera.ruta : "/perfil";
 }

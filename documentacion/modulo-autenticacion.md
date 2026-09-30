@@ -358,3 +358,52 @@ Este módulo no crea entidades RiC. Lo que aporta a RiC es verificable así:
 
 1. **Catálogo curado ya en el código:** 32 códigos RiC-R (`CODIGO_RELACION_RIC` en `app/models/enums.py`), con su número oficial (por ejemplo `has_creator` RiC-R027, `migrated_into` RiC-R015). Lo usarán los módulos siguientes.
 2. **Base de la procedencia del trabajo descriptivo:** cada acción deja, en un registro que la base de datos impide alterar, quién la hizo y los valores anteriores y nuevos. Cuando descripción publique un Record Resource, esa traza permitirá distinguir lo que propuso el motor (que en RiC-CM puede modelarse como `Mechanism`, RiC-E13) de lo que validó una persona.
+
+---
+
+## Ampliación · Roles configurables (a pedido de la autora)
+
+**Qué cambió.** Los roles ya no son una lista fija en el código: viven en la tabla `roles` (migración `0004_roles.py`), y la columna `usuarios.rol` apunta a ella. Ninguna cuenta perdió su rol en la migración.
+
+**Roles que vienen creados:**
+
+| Rol | Tipo | Referencia en sistemas archivísticos | Acceso |
+|---|---|---|---|
+| Administrador | Base, no se modifica | Administrador (AtoM, ArchivesSpace, Archivematica) | Todo, más usuarios, roles y configuración |
+| Archivista | Base, no se modifica | — (rol del diseño) | Trabaja en los cinco módulos; su auditoría |
+| Revisor | Base, no se modifica | — (provisional) | Consulta los cinco módulos; su auditoría |
+| Consulta | Base, no se modifica | Usuario autenticado / investigador (AtoM) | Solo el catálogo |
+| Coordinador de archivo | De referencia, ajustable | Repository manager (ArchivesSpace), Editor (AtoM) | Trabaja en todo; auditoría de todo el equipo; no administra usuarios |
+| Auxiliar de digitalización e ingesta | De referencia, ajustable | Captura/producción (Modelo SGDEA), Basic data entry (ArchivesSpace) | Trabaja en ingesta; consulta descripción |
+| Descriptor / catalogador | De referencia, ajustable | Contributor (AtoM), Advanced data entry (ArchivesSpace) | Trabaja en descripción, vocabularios e instrumentos; consulta ingesta y preservación |
+| Responsable de preservación digital | De referencia, ajustable | Manager (Archivematica); funciones OAIS de planeación de la preservación | Trabaja en preservación; consulta ingesta, descripción e instrumentos |
+| Auditor | De referencia, ajustable | Auditoría / control interno (Modelo de requisitos SGDEA) | Consulta todo; auditoría de todo el equipo |
+
+**Niveles de acceso por módulo:**
+
+- Ingesta, descripción, vocabularios, instrumentos y preservación: **sin acceso / consultar / trabajar**. Trabajar incluye consultar.
+- Catálogo: **sin acceso / consultar**.
+- Auditoría: **sin acceso / solo lo propio / todo el equipo**.
+
+**Reglas:**
+
+- La gestión de usuarios, roles y configuración es siempre y solo del Administrador. Así ningún rol creado puede darse a sí mismo más poder.
+- Los cuatro roles base no se modifican.
+- Un rol no se borra: se desactiva, y solo si ninguna cuenta activa lo tiene.
+- Un cambio de permisos rige desde la petición siguiente de cada persona.
+- Crear y editar roles queda en auditoría (`rol_creado`, `rol_editado`, con el valor anterior y el nuevo).
+
+**Decisión**
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Roles libres frente a los cuatro del documento | Solo los 4 del prompt; roles libres sin plantilla; **4 base fijos, perfiles archivísticos de referencia y roles propios** | La tercera | La autora pidió crear roles y que correspondan a los de los sistemas archivísticos. Los 4 del diseño siguen intactos | Una persona puede crear un rol con más acceso del debido: se mitiga porque solo el Administrador crea roles y todo queda auditado |
+
+**Pruebas:** 6 nuevas (101 en total):
+
+- vienen los roles base y los de referencia;
+- un rol creado rige sus permisos, incluso al cambiarlos;
+- los roles base no se modifican;
+- se rechazan niveles inválidos y nombres repetidos;
+- no se desactiva un rol en uso;
+- solo el Administrador gestiona roles.

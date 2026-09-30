@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
-from app.core.permisos import ADMINISTRADOR, ARCHIVISTA, REVISOR, Actor, requiere_roles
+from app.core.permisos import Actor, atiende_alertas, ve_alertas
 from app.db.session import get_db
 from app.models.alerta import Alerta
 from app.models.usuario import Usuario
@@ -31,7 +31,7 @@ def _out(a: Alerta, nombres: dict) -> AlertaOut:
 
 @router.get("", response_model=list[AlertaOut], summary="Alertas del fondo, las más graves primero")
 def listar(fondo_id: uuid.UUID | None = None, atendidas: bool = False,
-           _: Actor = Depends(requiere_roles(ADMINISTRADOR, ARCHIVISTA, REVISOR)), db: Session = Depends(get_db)):
+           _: Actor = Depends(ve_alertas), db: Session = Depends(get_db)):
     consulta = select(Alerta).where(Alerta.atendida_en.isnot(None) if atendidas else Alerta.atendida_en.is_(None))
     if fondo_id is not None:
         consulta = consulta.where(Alerta.fondo_id == fondo_id)
@@ -42,7 +42,7 @@ def listar(fondo_id: uuid.UUID | None = None, atendidas: bool = False,
 
 @router.post("/{alerta_id}/atender", response_model=AlertaOut, summary="Marcar una alerta como atendida")
 def atender(alerta_id: uuid.UUID, datos: AtenderIn, request: Request,
-            actor: Actor = Depends(requiere_roles(ADMINISTRADOR, ARCHIVISTA)), db: Session = Depends(get_db)):
+            actor: Actor = Depends(atiende_alertas), db: Session = Depends(get_db)):
     alerta = db.get(Alerta, alerta_id)
     if alerta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La alerta no existe.")

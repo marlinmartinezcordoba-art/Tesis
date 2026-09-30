@@ -13,15 +13,27 @@ export class ErrorAPI extends Error {
   }
 }
 
-export type Rol = "archivista" | "revisor" | "consulta" | "administrador";
+// Clave del rol: uno de los cuatro base o uno creado por la administradora.
+export type Rol = string;
 
 // Color de la insignia de cada rol (mismo criterio en todas las pantallas).
-export const CLASE_ROL: Record<Rol, string> = {
-  administrador: "agente",
-  archivista: "proceso",
-  revisor: "proceso",
-  consulta: "alerta",
-};
+const CLASES: Record<string, string> = { administrador: "agente", consulta: "alerta" };
+export function claseRol(rol: Rol): string {
+  return CLASES[rol] || "proceso";
+}
+
+export type Modulo = "ingesta" | "descripcion" | "vocabularios" | "instrumentos" | "preservacion" | "catalogo" | "auditoria";
+
+// La interfaz solo oculta lo que el rol no puede usar; decide el servidor.
+export function puede(u: UsuarioBreve | null, modulo: Modulo | "usuarios", tipo: "leer" | "escribir" = "leer"): boolean {
+  if (!u) return false;
+  if (modulo === "usuarios") return u.es_administrador;
+  const nivel = u.permisos?.[modulo] || "ninguno";
+  if (modulo === "auditoria") return tipo === "leer" && (nivel === "propia" || nivel === "todo");
+  return tipo === "escribir" ? nivel === "escribir" : nivel === "leer" || nivel === "escribir";
+}
+
+export const MODULOS_TRABAJO: Modulo[] = ["ingesta", "descripcion", "vocabularios", "instrumentos", "preservacion"];
 
 export interface UsuarioBreve {
   id: string;
@@ -30,6 +42,8 @@ export interface UsuarioBreve {
   rol: Rol;
   rol_nombre: string;
   iniciales: string;
+  es_administrador: boolean;
+  permisos: Record<string, string>;
 }
 
 interface RespuestaSesion {

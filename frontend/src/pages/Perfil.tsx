@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Reglas } from "@/components/Reglas";
-import { CLASE_ROL, ErrorAPI, pedir, type Rol } from "@/lib/api";
+import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
 import { reglasContrasena } from "@/lib/contrasena";
 import { fecha } from "@/lib/formato";
 
@@ -65,7 +65,7 @@ export function Perfil() {
               <dt>Correo</dt>
               <dd>{perfil.correo}</dd>
               <dt>Rol</dt>
-              <dd><span className={`insignia ${CLASE_ROL[perfil.rol]}`}>{perfil.rol_nombre}</span></dd>
+              <dd><span className={`insignia ${claseRol(perfil.rol)}`}>{perfil.rol_nombre}</span></dd>
               <dt>Contraseña</dt>
               <dd>Cambiada por última vez: {fecha(perfil.contrasena_cambiada_en)}</dd>
             </dl>

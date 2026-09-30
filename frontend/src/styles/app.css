@@ -242,3 +242,13 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
   .panel-doc { position: static; max-height: 45vh; }
   .propuestas { max-height: none; }
 }
+
+/* ---- roles: tabla de permisos por módulo ---- */
+.tabla-permisos { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: .86rem; }
+.tabla-permisos th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tabla-permisos td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.opciones { display: flex; gap: 6px; flex-wrap: wrap; }
+.opciones label { border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: .8rem; background: var(--surface); }
+.opciones label.elegida { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.opciones input { position: absolute; opacity: 0; pointer-events: none; }
+.opciones label:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }

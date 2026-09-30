@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-Rol = Literal["archivista", "revisor", "consulta", "administrador"]
+Rol = Annotated[str, Field(min_length=1, max_length=40)]
+Nivel = Literal["ninguno", "leer", "escribir", "propia", "todo"]
 
 
 def _limpiar_nombre(valor: str) -> str:
@@ -26,6 +27,8 @@ class UsuarioBreve(BaseModel):
     rol: Rol
     rol_nombre: str
     iniciales: str
+    es_administrador: bool = False
+    permisos: dict[str, str] = {}
 
 
 class SesionOut(BaseModel):
@@ -67,6 +70,7 @@ class PerfilOut(BaseModel):
     rol_nombre: str
     iniciales: str
     contrasena_cambiada_en: datetime | None
+    permisos: dict[str, str] = {}
 
 
 class UsuarioOut(BaseModel):
@@ -117,3 +121,33 @@ class EntregaOut(BaseModel):
 class UsuarioCreadoOut(BaseModel):
     usuario: UsuarioOut
     entrega: EntregaOut
+
+
+class RolOut(BaseModel):
+    clave: str
+    nombre: str
+    descripcion: str | None
+    base: bool
+    activo: bool
+    permisos: dict[str, str]
+    usuarios: int
+
+
+class RolIn(BaseModel):
+    nombre: str = Field(max_length=80)
+    descripcion: str | None = Field(default=None, max_length=300)
+    permisos: dict[str, Nivel] = {}
+
+    _nombre = field_validator("nombre")(_limpiar_nombre)
+
+
+class RolEdicionIn(BaseModel):
+    nombre: str | None = Field(default=None, max_length=80)
+    descripcion: str | None = Field(default=None, max_length=300)
+    permisos: dict[str, Nivel] | None = None
+    activo: bool | None = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre(cls, valor: str | None) -> str | None:
+        return None if valor is None else _limpiar_nombre(valor)

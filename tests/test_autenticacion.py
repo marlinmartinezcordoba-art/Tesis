@@ -537,3 +537,62 @@ def test_cuenta_administradora_sin_correo_usa_el_usuario_anterior(db, monkeypatc
     assert cli.cuenta_administradora() == 0
     u = db.scalar(select(Usuario).where(Usuario.correo == "marlin@ricora.local"))
     assert u is not None and u.rol == "administrador"
+
+
+# --- Roles configurables ----------------------------------------------------------------------
+
+
+class TestRoles:
+    def test_vienen_los_roles_base_y_los_de_referencia_archivistica(self, cliente, cabeceras_admin):
+        roles = {r["clave"]: r for r in cliente.get("/api/auth/roles", headers=cabeceras_admin).json()}
+        assert {"administrador", "archivista", "revisor", "consulta"} <= {c for c, r in roles.items() if r["base"]}
+        assert {"coordinador_archivo", "digitalizador", "descriptor", "preservacion_digital", "auditor"} <= set(roles)
+        assert roles["auditor"]["permisos"]["auditoria"] == "todo"
+        assert roles["digitalizador"]["permisos"]["ingesta"] == "escribir"
+        assert roles["digitalizador"]["permisos"]["descripcion"] == "leer"
+
+    def test_crear_un_rol_y_que_rija_sus_permisos(self, cliente, db, cabeceras_admin):
+        r = cliente.post("/api/auth/roles", headers=cabeceras_admin, json={
+            "nombre": "Apoyo de preservación", "permisos": {"preservacion": "escribir", "ingesta": "leer"}})
+        assert r.status_code == 201, r.text
+        rol = r.json()
+        assert rol["clave"] == "apoyo_de_preservacion" and rol["permisos"]["descripcion"] == "ninguno"
+        crear_usuario(db, "apoyo@correo.com", rol["clave"])
+        cabeceras = ingresar(cliente, "apoyo@correo.com")
+        assert cliente.get("/api/auth/perfil", headers=cabeceras).json()["rol_nombre"] == "Apoyo de preservación"
+        prueba = _aplicacion_con_modulos(db)
+        assert prueba.post("/preservacion/escribir", headers=cabeceras).status_code == 200
+        assert prueba.get("/ingesta/leer", headers=cabeceras).status_code == 200
+        assert prueba.post("/ingesta/escribir", headers=cabeceras).status_code == 403
+        assert prueba.get("/descripcion/leer", headers=cabeceras).status_code == 403
+        assert prueba.get("/usuarios/leer", headers=cabeceras).status_code == 403
+        # Cambiar los permisos del rol rige en la petición siguiente.
+        cliente.patch(f"/api/auth/roles/{rol['clave']}", headers=cabeceras_admin, json={"permisos": {"preservacion": "leer"}})
+        assert prueba.post("/preservacion/escribir", headers=cabeceras).status_code == 403
+        assert len(eventos(db, "rol_creado", entidad_id=rol["clave"])) == 1
+        editado = eventos(db, "rol_editado", entidad_id=rol["clave"])[-1]
+        assert editado.valor_anterior["permisos"]["preservacion"] == "escribir"
+
+    def test_los_roles_base_no_se_modifican(self, cliente, cabeceras_admin):
+        for clave in ("administrador", "archivista", "revisor", "consulta"):
+            r = cliente.patch(f"/api/auth/roles/{clave}", headers=cabeceras_admin, json={"permisos": {"ingesta": "ninguno"}})
+            assert r.status_code == 403
+
+    def test_niveles_invalidos_y_nombres_repetidos(self, cliente, cabeceras_admin):
+        mal = cliente.post("/api/auth/roles", headers=cabeceras_admin, json={"nombre": "Rol raro", "permisos": {"catalogo": "escribir"}})
+        assert mal.status_code == 422
+        assert cliente.post("/api/auth/roles", headers=cabeceras_admin, json={"nombre": "Auditor"}).status_code == 409
+
+    def test_no_se_desactiva_un_rol_en_uso(self, cliente, db, cabeceras_admin):
+        crear_usuario(db, "dig@correo.com", "digitalizador")
+        r = cliente.patch("/api/auth/roles/digitalizador", headers=cabeceras_admin, json={"activo": False})
+        assert r.status_code == 409
+        crear = cliente.post("/api/auth/usuarios", headers=cabeceras_admin,
+                             json={"nombre": "Persona Nueva", "correo": "nueva@correo.com", "rol": "no_existe"})
+        assert crear.status_code == 422
+
+    def test_solo_el_administrador_gestiona_roles(self, cliente, db):
+        crear_usuario(db, "coord@correo.com", "coordinador_archivo")
+        cabeceras = ingresar(cliente, "coord@correo.com")
+        assert cliente.get("/api/auth/roles", headers=cabeceras).status_code == 403
+        assert cliente.post("/api/auth/roles", headers=cabeceras, json={"nombre": "Mi rol"}).status_code == 403

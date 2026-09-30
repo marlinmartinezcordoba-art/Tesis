@@ -1,10 +1,10 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base, ahora
-from app.models.enums import ROL_USUARIO
 
 
 class Usuario(Base):
@@ -20,7 +20,9 @@ class Usuario(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(150), nullable=False)
     correo = Column(String(254), nullable=False, unique=True, index=True)  # siempre en minúsculas
-    rol = Column(Enum(*ROL_USUARIO, name="rol_usuario"), nullable=False, default="consulta")
+    # Uno de los roles de la tabla roles (base o creado por la administradora).
+    rol = Column(String(40), ForeignKey("roles.clave"), nullable=False, default="consulta")
+    rol_info = relationship("Rol", lazy="joined", foreign_keys=[rol])
     activo = Column(Boolean, nullable=False, default=True)
     contrasena_hash = Column(String(255), nullable=True)
     contrasena_cambiada_en = Column(DateTime(timezone=True), nullable=True)

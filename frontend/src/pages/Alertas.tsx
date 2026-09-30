@@ -3,6 +3,7 @@ import { ErrorAPI, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { atiendeAlertas } from "@/components/Marco";
 
 interface Alerta {
   id: string;
@@ -26,7 +27,7 @@ const TIPO: Record<string, string> = { formato_no_identificado: "Formato no iden
 export function Alertas() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
-  const puedeAtender = usuario?.rol === "administrador" || usuario?.rol === "archivista";
+  const puedeAtender = atiendeAlertas(usuario);
   const [vista, setVista] = useState<"pendientes" | "atendidas">("pendientes");
   const [alertas, setAlertas] = useState<Alerta[] | null>(null);
   const [error, setError] = useState("");

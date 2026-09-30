@@ -6,6 +6,7 @@ consultar un enlace y definir contraseña con él. Todo lo demás exige
 sesión, y la gestión de usuarios exige además el rol administrador.
 """
 
+import re
 import uuid
 from datetime import timedelta
 
@@ -18,7 +19,6 @@ from app.core import correo
 from app.core.config import settings
 from app.core.permisos import (
     ADMINISTRADOR,
-    NOMBRE_ROL,
     Actor,
     acceso_modulo,
     usuario_actual,
@@ -35,6 +35,7 @@ from app.db.session import get_db
 from app.models.auditoria import RegistroAuditoria
 from app.models.sesion import Sesion
 from app.models.token_acceso import TokenUnUso
+from app.models.rol import MODULOS_CONFIGURABLES, NIVELES_POR_MODULO, Rol
 from app.models.usuario import Usuario
 from app.schemas.auth import (
     CambiarContrasenaIn,
@@ -43,6 +44,9 @@ from app.schemas.auth import (
     EntregaOut,
     IngresoIn,
     MensajeOut,
+    RolEdicionIn,
+    RolIn,
+    RolOut,
     PerfilOut,
     RecuperarIn,
     SesionOut,
@@ -82,9 +86,23 @@ def _breve(usuario: Usuario) -> UsuarioBreve:
         nombre=usuario.nombre,
         correo=usuario.correo,
         rol=usuario.rol,
-        rol_nombre=NOMBRE_ROL[usuario.rol],
+        rol_nombre=usuario.rol_info.nombre,
         iniciales=usuario.iniciales,
+        es_administrador=usuario.rol == ADMINISTRADOR,
+        permisos=_permisos(usuario),
     )
+
+
+def _permisos(usuario: Usuario) -> dict[str, str]:
+    rol = usuario.rol_info
+    return dict(rol.permisos or {}) if rol is not None and rol.activo else {}
+
+
+def _rol_valido(db: Session, clave: str) -> Rol:
+    rol = db.get(Rol, clave)
+    if rol is None or not rol.activo:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="El rol elegido no existe o está desactivado.")
+    return rol
 
 
 def _poner_galleta(response: Response, valor: str) -> None:
@@ -154,7 +172,7 @@ def _usuario_out(db: Session, usuario: Usuario) -> UsuarioOut:
         nombre=usuario.nombre,
         correo=usuario.correo,
         rol=usuario.rol,
-        rol_nombre=NOMBRE_ROL[usuario.rol],
+        rol_nombre=usuario.rol_info.nombre,
         iniciales=usuario.iniciales,
         activo=usuario.activo,
         invitacion_pendiente=usuario.invitacion_pendiente,
@@ -308,8 +326,8 @@ def definir_contrasena(token: str, datos: DefinirContrasenaIn, request: Request,
 @router.get("/perfil", response_model=PerfilOut, summary="Datos de la cuenta con sesión abierta")
 def perfil(actor: Actor = Depends(usuario_actual)):
     u = actor.usuario
-    return PerfilOut(id=u.id, nombre=u.nombre, correo=u.correo, rol=u.rol, rol_nombre=NOMBRE_ROL[u.rol],
-                     iniciales=u.iniciales, contrasena_cambiada_en=u.contrasena_cambiada_en)
+    return PerfilOut(id=u.id, nombre=u.nombre, correo=u.correo, rol=u.rol, rol_nombre=u.rol_info.nombre,
+                     iniciales=u.iniciales, contrasena_cambiada_en=u.contrasena_cambiada_en, permisos=_permisos(u))
 
 
 @router.patch("/perfil/contrasena", response_model=MensajeOut, summary="Cambiar la propia contraseña")
@@ -359,6 +377,7 @@ def crear_usuario(datos: UsuarioNuevoIn, request: Request, actor: Actor = Depend
     correo_normalizado = _normalizar(str(datos.correo))
     if db.scalar(select(Usuario.id).where(Usuario.correo == correo_normalizado)):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un usuario con ese correo.")
+    _rol_valido(db, datos.rol)
     usuario = Usuario(id=uuid.uuid4(), nombre=datos.nombre, correo=correo_normalizado, rol=datos.rol,
                       activo=True, creado_por_id=actor.id)
     db.add(usuario)
@@ -393,6 +412,7 @@ def editar_usuario(usuario_id: uuid.UUID, datos: UsuarioEdicionIn, request: Requ
     ip = ip_de(request)
 
     if datos.rol is not None and datos.rol != usuario.rol:
+        _rol_valido(db, datos.rol)
         if es_propio:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Nadie puede cambiar su propio rol.")
         if usuario.rol == ADMINISTRADOR and usuario.activo and _administradores_activos(db) <= 1:
@@ -474,3 +494,89 @@ def probar_correo(actor: Actor = Depends(usuario_actual)):
         raise HTTPException(status.HTTP_502_BAD_GATEWAY,
                             detail=f"El servidor de correo rechazó el envío ({exc}). Revise usuario y contraseña de aplicación.")
     return MensajeOut(mensaje=f"Correo de prueba enviado a {actor.usuario.correo}.")
+
+
+# --- roles (solo administrador) ---------------------------------------------------------------
+
+def _permisos_limpios(permisos: dict[str, str]) -> dict[str, str]:
+    desconocidos = set(permisos) - set(MODULOS_CONFIGURABLES)
+    if desconocidos:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Módulos desconocidos: {', '.join(sorted(desconocidos))}.")
+    limpio = {m: permisos.get(m, "ninguno") for m in MODULOS_CONFIGURABLES}
+    for m, nivel in limpio.items():
+        if nivel not in NIVELES_POR_MODULO[m]:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"«{nivel}» no es un nivel válido para {m}: use {', '.join(NIVELES_POR_MODULO[m])}.")
+    return limpio
+
+
+def _rol_out(db: Session, rol: Rol) -> RolOut:
+    usuarios_activos = db.scalar(select(func.count(Usuario.id)).where(Usuario.rol == rol.clave, Usuario.activo.is_(True))) or 0
+    return RolOut(clave=rol.clave, nombre=rol.nombre, descripcion=rol.descripcion, base=rol.base, activo=rol.activo,
+                  permisos={m: (rol.permisos or {}).get(m, "ninguno") for m in MODULOS_CONFIGURABLES},
+                  usuarios=usuarios_activos)
+
+
+def _clave_para(db: Session, nombre: str) -> str:
+    from app.servicios.vocabulario import normalizar
+
+    base = re.sub(r"[^a-z0-9]+", "_", normalizar(nombre)).strip("_")[:30] or "rol"
+    clave, n = base, 2
+    while db.get(Rol, clave) is not None:
+        clave, n = f"{base}_{n}", n + 1
+    return clave
+
+
+@usuarios.get("/roles", response_model=list[RolOut], summary="Roles del sistema (base y creados)")
+def listar_roles(db: Session = Depends(get_db)):
+    filas = db.scalars(select(Rol).order_by(Rol.base.desc(), Rol.activo.desc(), Rol.nombre)).all()
+    return [_rol_out(db, r) for r in filas]
+
+
+@usuarios.post("/roles", response_model=RolOut, status_code=status.HTTP_201_CREATED, summary="Crear un rol")
+def crear_rol(datos: RolIn, request: Request, actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    if db.scalar(select(Rol.clave).where(func.lower(Rol.nombre) == datos.nombre.lower())):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un rol con ese nombre.")
+    rol = Rol(clave=_clave_para(db, datos.nombre), nombre=datos.nombre, descripcion=(datos.descripcion or "").strip() or None,
+              base=False, activo=True, permisos=_permisos_limpios(datos.permisos), creado_por_id=actor.id)
+    db.add(rol)
+    registrar(db, modulo="autenticacion", accion="rol_creado", usuario_id=actor.id, entidad_tipo="rol", entidad_id=rol.clave,
+              nuevo={"nombre": rol.nombre, "permisos": rol.permisos}, ip=ip_de(request))
+    db.commit()
+    return _rol_out(db, rol)
+
+
+@usuarios.patch("/roles/{clave}", response_model=RolOut, summary="Editar o desactivar un rol creado")
+def editar_rol(clave: str, datos: RolEdicionIn, request: Request, actor: Actor = Depends(usuario_actual),
+               db: Session = Depends(get_db)):
+    rol = db.get(Rol, clave)
+    if rol is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El rol no existe.")
+    if rol.base:
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            detail="Los cuatro roles base del diseño no se modifican. Cree un rol nuevo con el acceso que necesite.")
+    anterior = {"nombre": rol.nombre, "descripcion": rol.descripcion, "permisos": rol.permisos, "activo": rol.activo}
+    if datos.nombre is not None and datos.nombre != rol.nombre:
+        if db.scalar(select(Rol.clave).where(func.lower(Rol.nombre) == datos.nombre.lower(), Rol.clave != rol.clave)):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un rol con ese nombre.")
+        rol.nombre = datos.nombre
+    if datos.descripcion is not None:
+        rol.descripcion = datos.descripcion.strip() or None
+    if datos.permisos is not None:
+        rol.permisos = _permisos_limpios(datos.permisos)
+    if datos.activo is False and rol.activo:
+        en_uso = db.scalar(select(func.count(Usuario.id)).where(Usuario.rol == rol.clave, Usuario.activo.is_(True))) or 0
+        if en_uso:
+            raise HTTPException(status.HTTP_409_CONFLICT,
+                                detail=f"{en_uso} usuario(s) activo(s) tienen este rol: asígneles otro antes de desactivarlo.")
+        rol.activo = False
+    elif datos.activo is True:
+        rol.activo = True
+    nuevo = {"nombre": rol.nombre, "descripcion": rol.descripcion, "permisos": rol.permisos, "activo": rol.activo}
+    if nuevo != anterior:
+        rol.actualizado_en = ahora()
+        registrar(db, modulo="autenticacion", accion="rol_editado", usuario_id=actor.id, entidad_tipo="rol", entidad_id=rol.clave,
+                  anterior={k: v for k, v in anterior.items() if nuevo[k] != v},
+                  nuevo={k: v for k, v in nuevo.items() if anterior[k] != v}, ip=ip_de(request))
+    db.commit()
+    return _rol_out(db, rol)
