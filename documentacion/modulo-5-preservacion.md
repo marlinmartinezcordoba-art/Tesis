@@ -407,7 +407,7 @@ documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 - **La base de datos no tiene segunda copia.** Los metadatos viven en PostgreSQL. El AIP los lleva consigo, pero un respaldo periódico de la base sigue siendo política del Plan, fuera de este módulo.
 - **PDF/A sin validación formal con veraPDF** (como en la versión 1).
 - **Anexo generado en el entorno de desarrollo.** Tiene el mismo código, la misma versión de Siegfried y la misma estructura de carpetas que el servidor. Ghostscript es 10.02.1 aquí y 10.05.1 en el servidor. En el servidor se obtiene uno igual con un clic en «Exportar paquete de preservación».
-- **El esquema PREMIS oficial** no se pudo descargar en este entorno (loc.gov bloqueado por la red). Por eso la validación contra el XSD corre en GitHub Actions: este documento se actualizará con su resultado tras el despliegue.
+- **Validación contra el esquema PREMIS oficial: hecha.** En el entorno de desarrollo loc.gov está bloqueado, así que corre en GitHub Actions. En la ejecución del commit 40ea1e6, el PREMIS producido por las pruebas y el del anexo salieron **válidos** contra `premis-v3-0.xsd`. El despliegue confirmó Ghostscript 10.05.1 → `fmt/477` en el servidor.
 
 ## 23. Evidencia concreta de aplicación de RiC
 
