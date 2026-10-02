@@ -17,6 +17,8 @@ import shutil  # noqa: E402
 import tempfile  # noqa: E402
 
 os.environ["DIRECTORIO_ALMACENAMIENTO"] = tempfile.mkdtemp(prefix="ricora-almacen-")
+# Dos lugares para la segunda copia: el primero es el de por defecto.
+os.environ["RICORA_SEGUNDA_COPIA"] = os.pathsep.join(tempfile.mkdtemp(prefix=f"ricora-copia{n}-") for n in (1, 2))
 # Siegfried: el del sistema, o el instalado con «go install»; su archivo de
 # firmas PRONOM viene en el propio módulo de Go.
 os.environ.setdefault("RICORA_SIEGFRIED", shutil.which("sf") or os.path.expanduser("~/go/bin/sf"))

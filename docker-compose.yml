@@ -34,12 +34,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
+      RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
     # Con HTTPS (perfil «https») la aplicación solo escucha dentro del
     # servidor y Caddy la publica en los puertos 80 y 443.
     ports:
       - "${RICORA_WEB_BIND:-0.0.0.0}:${RICORA_PUERTO:-8080}:8000"
     volumes:
       - almacen:/data/almacen
+      - segunda_copia:/data/segunda_copia
     depends_on:
       bd:
         condition: service_healthy
@@ -56,8 +58,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
+      RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
     volumes:
       - almacen:/data/almacen
+      - segunda_copia:/data/segunda_copia
     depends_on:
       bd:
         condition: service_healthy
@@ -85,5 +89,10 @@ services:
 volumes:
   bd:
   almacen:
+  # Segunda copia de cada archivo (preservación). Volumen distinto del
+  # almacenamiento primario; en esta primera versión vive en el mismo disco
+  # del servidor. Para una copia de verdad independiente, monte aquí otro
+  # disco o un servidor de archivos (ver documentacion/modulo-5-preservacion.md).
+  segunda_copia:
   caddy_data:
   caddy_config:

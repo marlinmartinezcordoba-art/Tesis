@@ -36,7 +36,18 @@ DEFINICIONES: dict[str, Definicion] = {
     "preservacion_frecuencia_dias": Definicion(30, _entero_entre(1, 365),
                                                "Cada cuántos días se verifica la integridad de todo el fondo."),
     "preservacion_formatos": Definicion(None, lambda v: _formatos(v), "Formatos soportados para migración automática."),
+    "preservacion_segunda_ubicacion": Definicion(None, lambda v: _segunda_ubicacion(v),
+                                                 "Lugar donde se guarda la segunda copia de cada instanciación."),
 }
+
+
+def _segunda_ubicacion(valor: Any) -> str | None:
+    """Solo uno de los lugares que declaró quien opera el servidor."""
+    from app.servicios.segunda_copia import ubicaciones
+
+    if valor not in [str(u) for u in ubicaciones()]:
+        return "Elija uno de los lugares de almacenamiento declarados en el servidor."
+    return None
 
 
 def _formatos(valor: Any) -> str | None:

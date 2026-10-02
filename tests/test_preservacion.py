@@ -154,7 +154,8 @@ def test_riesgo_de_formato_con_razon_y_alerta_en_el_panel_central(cliente, db, f
     assert d["riesgo"]["nivel"] == "medio" and "PDF/A" in d["riesgo"]["razon"] and d["riesgo"]["destino_sugerido"] == "pdfa_2b"
     assert cliente.get(f"/api/preservacion/instanciacion/{png.id}", headers=archivista).json()["riesgo"]["nivel"] == "bajo"
     panel = cliente.get("/api/preservacion/panel", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
-    assert panel["resumen"] == {"total": 2, "alerta_integridad": 0, "riesgo_obsolescencia": 1, "buen_estado": 1}
+    assert panel["resumen"] == {"total": 2, "alerta_integridad": 0, "alerta_segunda_copia": 0, "riesgo_obsolescencia": 1,
+                                "buen_estado": 1}
     # Es el mismo panel central de alertas del sistema, no uno aparte.
     [alerta] = cliente.get("/api/alertas", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
     assert alerta["tipo"] == "riesgo_obsolescencia" and alerta["modulo"] == "preservacion"

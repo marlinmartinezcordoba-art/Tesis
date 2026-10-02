@@ -149,8 +149,40 @@ function FilaEntidad({ etiqueta, children }: { etiqueta: string; children: React
 
 // --- Catálogo -----------------------------------------------------------------------------------
 
+// Exportación del paquete de preservación (AIP) de un expediente completo:
+// la hace el módulo de preservación, con su permiso, desde aquí.
+function ExportarPaqueteExpediente({ id }: { id: string }) {
+  const [estado, setEstado] = useState<{ tipo: "bien" | "error"; texto: string } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function exportar() {
+    setOcupado(true);
+    setEstado(null);
+    try {
+      await descargar(`/api/preservacion/expediente/${id}/exportar-paquete`, { method: "POST" });
+      setEstado({ tipo: "bien", texto: "Paquete exportado con todas las instanciaciones del expediente." });
+    } catch (err) {
+      setEstado({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo exportar el paquete." });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="boton chico" disabled={ocupado} onClick={exportar}
+              title="Paquete de información de archivo (OAIS): BagIt con cada archivo, PREMIS y la PDI">
+        {ocupado ? "Armando el paquete…" : "Exportar paquete de preservación"}
+      </button>
+      {estado && <div className={`aviso ${estado.tipo}`} role="status" style={{ marginTop: 8 }}>{estado.texto}</div>}
+    </>
+  );
+}
+
 function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string | null) => void; abrir: (id: string) => void }) {
   const a = nivel.actual;
+  const { usuario } = useSesion();
+  const preserva = tienePermiso(usuario, "preservacion", "escribir");
   return (
     <>
       <Migas fondo={nivel.fondo.titulo} migas={nivel.migas}
@@ -163,7 +195,10 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
             {" · "}{a.unidades_documentales} unidad{a.unidades_documentales === 1 ? "" : "es"} documental{a.unidades_documentales === 1 ? "" : "es"}
           </p>
         </div>
-        {a.nivel !== "fondo" && <button type="button" className="boton chico" onClick={() => abrir(a.id)}>Ver ficha</button>}
+        <div className="acciones" style={{ marginTop: 0 }}>
+          {a.nivel === "expediente" && preserva && <ExportarPaqueteExpediente id={a.id} />}
+          {a.nivel !== "fondo" && <button type="button" className="boton chico" onClick={() => abrir(a.id)}>Ver ficha</button>}
+        </div>
       </div>
       <div className="tarjeta">
         <div className="tarjeta-cab">{nivel.hijos.length ? "Contiene" : "Sin niveles inferiores descritos"}</div>

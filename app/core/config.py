@@ -34,6 +34,14 @@ class Settings:
     # volumen de Docker.
     directorio_almacenamiento: Path = Path(os.getenv("DIRECTORIO_ALMACENAMIENTO", "/data/almacen"))
 
+    # Segunda copia (preservación, OAIS Almacenamiento de Archivo): lugares
+    # donde el administrador puede elegir guardarla, separados por «:». Los
+    # declara quien opera el servidor (no se escriben rutas desde la web);
+    # cada uno debe estar fuera de DIRECTORIO_ALMACENAMIENTO. En producción
+    # real conviene un disco o servidor distinto montado en una de ellas.
+    ubicaciones_segunda_copia: list[Path] = [Path(p) for p in os.getenv(
+        "RICORA_SEGUNDA_COPIA", "/data/segunda_copia").split(os.pathsep) if p.strip()]
+
     # --- Ingesta ---
     # Identificador de formato contra PRONOM (Siegfried): binario y carpeta
     # con el archivo de firmas (default.sig).

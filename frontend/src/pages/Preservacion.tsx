@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
-import { dia } from "@/lib/formato";
+import { dia, peso } from "@/lib/formato";
 import { FRECUENCIAS, TIPO_ATENCION, type Configuracion, type Panel } from "@/lib/preservacion";
 import { useSesion } from "@/lib/sesion";
 
@@ -61,9 +61,16 @@ export function PanelPreservacion() {
           <div className="resumen-preservacion">
             <div className="cifra bien"><strong>{panel.resumen.buen_estado}</strong><span>En buen estado</span></div>
             <div className="cifra error"><strong>{panel.resumen.alerta_integridad}</strong><span>Alerta de integridad</span></div>
+            <div className="cifra error"><strong>{panel.resumen.alerta_segunda_copia}</strong><span>Alerta de segunda copia</span></div>
             <div className="cifra alerta"><strong>{panel.resumen.riesgo_obsolescencia}</strong><span>Riesgo de obsolescencia</span></div>
             <div className="cifra"><strong>{panel.resumen.total}</strong><span>Total de archivos</span></div>
           </div>
+          {panel.sin_segunda_copia > 0 && (
+            <div className="aviso proceso" role="status">
+              {panel.sin_segunda_copia} archivo(s) todavía sin segunda copia en el lugar configurado: el sistema las crea solo,
+              de a poco, en segundo plano.
+            </div>
+          )}
           <div className="tarjeta">
             <div className="tarjeta-cab">Requieren atención · {panel.atencion.length}</div>
             {panel.atencion.length === 0 && (
@@ -100,9 +107,11 @@ export function ConfiguracionPreservacion() {
   const [nueva, setNueva] = useState({ origen: "", mimes: "", conversor: "" });
   const [agregando, setAgregando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "bien" | "error"; texto: string } | null>(null);
+  const [ubicacion, setUbicacion] = useState("");
 
   function aplicar(c: Configuracion) {
     setConf(c);
+    setUbicacion(c.segunda_copia.actual || "");
     setFrecuencia(c.frecuencia_dias);
     setFormatos(c.formatos);
     setNueva({ origen: "", mimes: "", conversor: c.conversores[0]?.clave || "" });
@@ -113,11 +122,11 @@ export function ConfiguracionPreservacion() {
       .catch((err) => setMensaje({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo cargar." }));
   }, []);
 
-  async function guardar(lista = formatos) {
+  async function guardar(lista = formatos, segunda: string | null = null) {
     setMensaje(null);
     try {
       aplicar(await pedir<Configuracion>("/api/preservacion/configuracion", {
-        method: "PUT", body: JSON.stringify({ frecuencia_dias: frecuencia, formatos: lista }),
+        method: "PUT", body: JSON.stringify({ frecuencia_dias: frecuencia, formatos: lista, segunda_ubicacion: segunda }),
       }));
       setAgregando(false);
       setMensaje({ tipo: "bien", texto: "Configuración guardada. Queda en auditoría con el valor anterior y el nuevo." });
@@ -218,6 +227,48 @@ export function ConfiguracionPreservacion() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Segundo lugar de almacenamiento (segunda copia)</div>
+        <div className="tarjeta-cuerpo">
+          <p className="meta" style={{ marginTop: 0 }}>
+            Cada archivo tiene una segunda copia, creada sola al ingresar o al migrar, y verificada junto con la primaria. La
+            copia primaria vive en <code>{conf.segunda_copia.primaria}</code>. Los lugares que se pueden elegir los declara quien
+            opera el servidor (variable RICORA_SEGUNDA_COPIA); desde aquí no se escriben rutas nuevas.
+          </p>
+          <div className="opciones opciones-columna" role="radiogroup" aria-label="Lugar de la segunda copia">
+            {conf.segunda_copia.ubicaciones.map((u) => (
+              <label key={u.ruta} className={ubicacion === u.ruta ? "elegida" : ""}>
+                <input type="radio" name="ubicacion" checked={ubicacion === u.ruta} disabled={!u.escribible}
+                       onChange={() => setUbicacion(u.ruta)} />
+                <span>
+                  <code>{u.ruta}</code>
+                  {u.ruta === conf.segunda_copia.actual && <span className="insignia bien" style={{ marginLeft: 8 }}>En uso</span>}
+                  <span className="meta" style={{ display: "block" }}>
+                    {!u.existe ? "No existe en el servidor" : !u.escribible ? "No se puede escribir" :
+                      `${u.libre_bytes !== null ? `${peso(u.libre_bytes)} libres` : ""}${u.mismo_disco_que_primaria
+                        ? " · mismo disco que la primaria: protege de borrados y daños de archivos, no de la falla del disco"
+                        : " · disco distinto de la primaria"}`}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {conf.segunda_copia.ubicaciones.length === 0 && (
+            <div className="aviso error">No hay ningún lugar declarado para la segunda copia.</div>
+          )}
+          {conf.segunda_copia.pendientes > 0 && (
+            <p className="meta">{conf.segunda_copia.pendientes} archivo(s) esperan su segunda copia en el lugar en uso; el sistema
+              las crea en segundo plano.</p>
+          )}
+          <div className="acciones" style={{ marginTop: 12 }}>
+            <button type="button" className="boton chico primario" disabled={!ubicacion || ubicacion === conf.segunda_copia.actual}
+                    onClick={() => guardar(formatos, ubicacion)}>Cambiar el lugar</button>
+          </div>
+          <p className="meta" style={{ marginBottom: 0 }}>Al cambiarlo, las copias nuevas se crean en el lugar elegido y las del
+            lugar anterior se conservan (nada se borra).</p>
+        </div>
       </div>
     </>
   );

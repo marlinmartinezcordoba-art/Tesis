@@ -1,390 +1,460 @@
 # Módulo 5 · Preservación digital
 
+**Versión:** 2 (actualizada según el prompt «Módulo 5, versión actualizada, profunda» y el Plan de Preservación Digital del sistema).
 **Estado:** entregado, pendiente de validación.
+
+**Qué cambió frente a la versión 1:**
+- segunda copia automática de cada archivo, verificada aparte, con su alerta propia;
+- restauración de la copia primaria desde la segunda copia (contingencia del plan);
+- declaración básica de derechos (PREMIS Derechos), heredable por niveles;
+- paquete de información de archivo (AIP) conforme a OAIS, en BagIt, con PREMIS 3.0 en XML y las cinco categorías de la PDI;
+- exportación del paquete por archivo o por expediente completo;
+- un AIP real conservado como anexo de la tesis.
 
 ---
 
 ## 1. Propósito
 
-Vigilar el estado técnico de cada archivo del fondo y actuar cuando haga falta, sin tocar nunca la descripción archivística. El módulo cubre tres tareas:
+Vigilar el estado técnico de cada archivo del fondo, actuar cuando haga falta y dejar evidencia exportable de todo, sin tocar nunca la descripción archivística. Concretamente, el módulo:
 
-- **Integridad:** recalcula la huella SHA-256 de cada archivo y la compara con la registrada en la ingesta. Lo hace sola, cada mes por defecto, y también cuando se le pide.
-- **Riesgo de obsolescencia:** clasifica cada formato como bajo, medio o alto, con la razón y una recomendación.
-- **Migración de formato:** siempre la aprueba una persona. Cada migración crea un archivo nuevo, enlazado al original, y el original no se toca.
+- **Vigila la integridad.** Recalcula la huella SHA-256 de la copia primaria **y de la segunda copia**, y las compara con la registrada en la ingesta. Lo hace solo (cada mes por defecto) y a pedido.
+- **Mantiene una segunda copia** de cada archivo en un segundo lugar de almacenamiento. Se crea sola al ingresar o al migrar.
+- **Clasifica el riesgo de obsolescencia** de cada formato.
+- **Migra formatos**, siempre con aprobación de una persona y sin tocar el original.
+- **Produce bajo demanda el paquete de información de archivo (AIP)** de un archivo o de un expediente, conforme a OAIS y con sus metadatos PREMIS completos.
 
 ## 2. Auditoría (qué se revisó antes de construirlo)
 
 **Documentos revisados:**
-- el prompt del módulo 5 (secciones 1 a 10);
-- el diseño consolidado, Parte 6: OAIS, PREMIS, clasificación de riesgo, verificación mensual y migración a PDF/A y TIFF;
-- lo que ya existía: huella SHA-256 y formato PRONOM con Siegfried desde la ingesta (módulo 1), el panel central de alertas y el catálogo del módulo 4, que ya mostraba «sin evaluar».
+- el prompt actualizado del módulo 5 (secciones 1 a 14), que reemplaza las dos versiones anteriores;
+- el *Plan de Preservación Digital del Sistema RiC* (docx): formatos, verificación mensual contra el valor de ingreso **y contra la segunda copia**, migración aprobada, segunda copia en ubicación independiente configurable, AIP con PDI y PREMIS, contingencia por restauración desde la segunda copia con auditoría, roles y revisión anual;
+- lo construido en la versión 1 de este módulo y en los módulos 1 a 4.
 
-**Hallazgos:**
+**Brechas encontradas en la versión 1** (son las que el prompt pide cerrar):
 
-1. **La herramienta de identificación ya se había decidido en el módulo 1** (Siegfried frente a DROID y FIDO), con su tabla completa. Este módulo la **reutiliza**: el prompt prohíbe identificar otra vez desde cero. La tabla se repite en §19, ampliada con el uso nuevo: comprobar que el resultado de una migración es de verdad el formato pedido.
-2. **La relación de migración ya estaba en el catálogo curado:** `migrated_into` (RiC-R015). Se verificó contra el catálogo oficial de RiC-CM 1.0.
-3. **Contradicción entre documentos.** El diseño consolidado dice que la clasificación de riesgo «la ejecuta la inteligencia artificial». El prompt del módulo 5, que es más reciente y más concreto, no lo pide. **Se decidió no usar IA para esto** (ver §14 y §19). Queda a su validación.
-4. **Faltaba dónde guardar el origen de una instanciación migrada.** Se agregó `instanciaciones.derivada_de_id`. Sin ese campo, el archivo convertido aparecería en «Por describir» como si fuera un documento nuevo.
+1. **No había segunda copia.** Un archivo alterado se detectaba, pero no había de dónde recuperarlo. El Plan (Parte 8) exige restaurar desde la segunda copia.
+2. **No se producía ningún paquete conforme a OAIS.** Los eventos PREMIS existían en tablas, pero no se exportaban.
+3. **No había entidad Derechos.**
+4. **La versión 1 documentó «PREMIS XML o METS» como mejora pendiente.** Ahora es obligatorio.
+
+**Una corrección de códigos RiC hecha durante este trabajo:** el expediente es **Record Set = RiC-E03**, no E04 (E04 es Record). Se verificó contra el PDF oficial de RiC-CM 1.0 antes de escribirlo en el paquete.
 
 ## 3. Problema que resuelve
 
-Un archivo digital se puede corromper sin que nadie lo note: fallas de disco, copias mal hechas, manipulación. Además, su formato puede quedar sin programas que lo lean. Un fondo histórico de valor permanente necesita saber, de forma verificable, que cada archivo sigue siendo el que ingresó, y tener una ruta para llevarlo a formatos de conservación.
+Un archivo digital se puede corromper o perder sin que nadie lo note. Saberlo no basta: hace falta poder **recuperarlo**, y poder **demostrar ante un tercero** qué se custodia, desde cuándo, qué se le hizo, quién lo hizo y con qué herramienta.
+
+Esa demostración no puede depender de que alguien abra el sistema. Tiene que viajar con el archivo, en un formato que cualquier archivo digital del mundo pueda leer. Eso es el paquete de información de archivo (AIP) con PREMIS.
 
 ## 4. Usuarios
 
 | Rol | Qué hace |
 |---|---|
-| Archivista, responsable de preservación digital, administrador | Ve el panel, verifica la integridad, aprueba migraciones y carga archivos convertidos |
-| Revisor, auditor, coordinador (solo lectura) | Ve el panel y las fichas técnicas |
-| Administrador | Además, configura la frecuencia y la tabla de formatos soportados |
-| Consulta | No accede al módulo. En el catálogo ve el estado de preservación como insignia de solo lectura |
+| Archivista, responsable de preservación digital, administrador | Ve el panel, verifica, aprueba migraciones, carga convertidos, restaura, rehace segundas copias, declara derechos y exporta paquetes |
+| Revisor, auditor, coordinador (solo lectura) | Ve el panel y las fichas técnicas. No exporta ni modifica |
+| Administrador | Además, configura la frecuencia, la tabla de formatos y **el lugar de la segunda copia** |
+| Consulta | No accede al módulo |
 
 ## 5. Casos de uso
 
-1. Ver el estado técnico del fondo: cuántos archivos están en buen estado, cuántos con alerta de integridad y cuántos con riesgo de formato.
-2. Revisar la lista de archivos que requieren atención, lo más grave primero.
-3. Abrir la ficha técnica de un archivo: formato PRONOM, tamaño, huella, ingreso, historial de verificaciones y de migraciones.
-4. Verificar la integridad de un archivo en el momento.
-5. Migrar un PDF a PDF/A-2b, o una imagen a TIFF, de forma automática, tras aprobarlo.
-6. Pedir una migración a un formato no soportado, convertir el archivo por fuera y cargarlo.
-7. (Administrador) Cambiar la frecuencia de verificación y ampliar la tabla de formatos soportados.
-8. Ver en el catálogo (módulo 4) el estado de preservación de los archivos de una descripción.
+1. Ver el estado técnico del fondo: buen estado, alerta de integridad, **alerta de segunda copia**, riesgo de formato.
+2. Abrir la ficha técnica de un archivo con todos los campos del Objeto PREMIS, incluida la fila de estado de la segunda copia.
+3. Verificar a mano la integridad de la primaria y de la segunda copia.
+4. Migrar un formato (automática o con carga manual).
+5. **Restaurar** la copia primaria alterada o perdida desde la segunda copia.
+6. **Rehacer** la segunda copia alterada o perdida desde la primaria.
+7. **Declarar derechos** sobre un archivo o sobre cualquier nivel (documento, expediente… fondo).
+8. **Exportar el paquete de preservación** de un archivo (desde su ficha) o de un expediente completo (desde el catálogo de Instrumentos).
+9. (Administrador) Cambiar la frecuencia, la tabla de formatos y el lugar de la segunda copia.
 
 ## 6. Entidades RiC involucradas
 
-Solo **Instantiation** (RiC-E06). El Record Resource no se lee para escribir, ni se modifica.
+Solo **Instantiation** (RiC-E06): toda la metadata de preservación es PREMIS anclada en ella.
 
-**Metadatos PREMIS anclados en la instanciación o en tablas relacionadas con ella:**
+El Record Resource se **lee** para dos cosas:
+- armar el **Contexto** del paquete: qué Record (RiC-E04) describe el archivo, en qué Record Set (RiC-E03) está y en qué fondo;
+- aplicar los **derechos** heredados.
 
-| PREMIS | Dónde |
-|---|---|
-| Formato (nombre, versión, registro PRONOM) | `instanciaciones.formato_*`, desde la ingesta |
-| Tamaño | `instanciaciones.tamano_bytes` |
-| Fixity (huella y algoritmo) | `instanciaciones.huella`, `algoritmo_huella` |
-| Evento *fixity check* | tabla `verificaciones_integridad` (una fila por verificación) |
-| Evento *migration* | tabla `migraciones` (aprobación, herramienta, resultado) |
-| Agente del evento (persona o software) | `usuario_id` / `aprobada_por_id` y `herramienta` (por ejemplo «Ghostscript 10.02.1 (pdfwrite, PDF/A-2b, perfil sRGB)») |
+Nunca se modifica.
+
+**Correspondencia PREMIS 3.0 ↔ sistema:**
+
+| Conjunto PREMIS | Unidad semántica | De dónde sale |
+|---|---|---|
+| **Objeto** | objectIdentifier | UUID de la instanciación |
+| | categoría | `premis:file` |
+| | fixity (algoritmo declarado y valor) | `instanciaciones.algoritmo_huella`, `huella` |
+| | size | `tamano_bytes` |
+| | format (nombre, versión, registro PRONOM) | `formato_*` (Siegfried, en la ingesta) |
+| | creatingApplication | la herramienta de la migración que lo produjo, si la hubo |
+| | originalName | `nombre_original` |
+| | storage ×2 | ruta de la copia primaria y de la segunda copia, con su estado |
+| | relationship | *derivation*: *has source* / *is source of* (migraciones) |
+| **Evento** | ingestion, message digest calculation, format identification | datos de la ingesta |
+| | replication | tabla `segundas_copias` |
+| | fixity check | `verificaciones_integridad` (primaria y segunda copia) |
+| | migration | `migraciones` |
+| | recovery | `restauraciones` |
+| | information package creation | registro de auditoría `paquete_exportado` |
+| **Agente** | person | el usuario que actuó |
+| | software | RICORA, Siegfried con su versión de firmas, Ghostscript, Pillow |
+| **Derechos** | rightsStatement | `declaraciones_derechos`: base, fundamento, actos permitidos o negados |
+
+Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprueba una migración o una restauración) y *executing program*. Así se lee en el registro **cuándo actuó una persona y cuándo el sistema solo**.
 
 ## 7. Relaciones RiC involucradas
 
-- **RiC-R015 *migrated into*** (`rico:migratedInto`): de la instanciación original a la nueva. Verificada en el catálogo oficial.
-- **RiC-R025 *has or had instantiation***: del Record Resource de la original a la nueva. La descripción queda asociada a las dos versiones, **sin duplicarse ni alterarse**.
-
-Si la original todavía no está descrita, la nueva queda enlazada solo por R015. Cuando se describa la original, **la publicación enlaza también sus versiones migradas** (ampliación en `servicios/descripcion.py`).
+- **RiC-R015 *migrated into*** (`rico:migratedInto`): original → migrada. Va en la PDI (Contexto) y en PREMIS (*derivation*).
+- **RiC-R025 *has or had instantiation*** (`rico:hasOrHadInstantiation`): Record → instanciación. Es la base del Contexto del paquete.
+- **RiC-R024 *includes*** (jerarquía `incluido_en_id`): fondo › serie › expediente › documento. Sirve para el Contexto y para heredar los derechos.
 
 ## 8. Funcionalidades
 
 **Panel:**
-- cuatro cifras (buen estado, alerta de integridad, riesgo de obsolescencia, total);
-- lista «Requieren atención» con ícono de archivo, nombre, contexto archivístico, formato e insignia por tipo de riesgo, **ordenada por severidad**;
-- fecha de la última verificación periódica y frecuencia vigente.
+- cinco cifras: buen estado, alerta de integridad, **alerta de segunda copia**, riesgo de obsolescencia y total;
+- lista «Requieren atención», lo más grave primero;
+- aviso de cuántos archivos esperan todavía su segunda copia.
 
-**Ficha técnica:**
-- migas de pan hasta el Record Resource, que llevan al catálogo;
-- pares clave–valor PREMIS;
-- tarjeta de riesgo con razón y recomendación, o «mitigado» con enlace a la versión de conservación;
-- tabla de verificaciones (fecha, resultado, periódica o manual y quién);
-- historial de migraciones con enlace a cada resultado;
-- botones «Verificar integridad ahora» y «Migrar formato».
+**Ficha técnica (PREMIS · Objeto):**
+- identificador, categoría, nombre original, formato PRONOM, tipo MIME, herramienta de identificación, tamaño, huella;
+- **aplicación creadora**;
+- **ruta de la copia primaria**;
+- **fila de la segunda copia** con insignia (sincronizada, alterada, perdida o pendiente), ruta y fecha de su última verificación;
+- **historial de verificaciones con dos columnas**: copia primaria y segunda copia;
+- **tarjeta Derechos**: declaración vigente, de dónde se hereda, y formulario para declarar una nueva;
+- **tarjeta de contingencia** (solo cuando aplica): «Restaurar desde la segunda copia» o «Rehacer la segunda copia», con un segundo clic de aprobación;
+- historial de restauraciones y de migraciones;
+- botones **Verificar integridad ahora**, **Exportar paquete de preservación** y **Migrar formato**.
 
-**Migración:**
-- selector de formato destino que muestra en vivo un panel **verde** (automática: qué herramienta, que se comprueba con PRONOM, que la original no se toca) o **ámbar** (solo se registra la solicitud);
-- en el caso ámbar, después de aprobar aparece una zona de carga para el archivo convertido.
+**Catálogo de Instrumentos:** en un expediente, botón **«Exportar paquete de preservación»**. Solo lo ve quien tiene permiso de trabajar en Preservación.
 
-**Configuración (administrador):**
-- frecuencia (semanal, quincenal, **mensual por defecto**, trimestral, semestral, anual);
-- tabla de formatos soportados (origen, tipos MIME, destino, herramienta, activo o inactivo);
-- «Agregar formato».
+**Configuración (administrador), tres tarjetas:**
+- frecuencia de verificación;
+- formatos soportados;
+- **segundo lugar de almacenamiento**: lugares declarados en el servidor, espacio libre, si comparte disco con la primaria, el que está en uso y el botón «Cambiar el lugar».
 
-**Verificación periódica:** la hace el trabajador en segundo plano que ya existía.
-
-**Autocomprobación en cada despliegue:** `python -m app.cli probar-preservacion` convierte un PDF de prueba a PDF/A y lo identifica. El registro de GitHub Actions dice si funciona en el servidor.
+**Trabajador en segundo plano:**
+- cada minuto crea las segundas copias que falten, de a 20: archivos anteriores a esta versión, o un cambio del lugar configurado;
+- cada mes, la verificación periódica de las dos copias.
 
 ## 9. Flujos
 
-**Verificación periódica:**
-1. En cada vuelta, el trabajador revisa si ya pasó la frecuencia configurada.
-2. Si pasó, marca el inicio y recalcula la huella de cada instanciación.
-3. Registra cada resultado en el historial y en la auditoría.
-4. Si una huella no coincide o falta el archivo, crea una **alerta de severidad alta** en el panel central.
-5. No corrige nada por su cuenta.
+**Ingesta → segunda copia (automática):**
+1. Al terminar el procesamiento (huella, PRONOM, texto), el sistema copia el archivo al segundo lugar.
+2. La copia se escribe con un nombre temporal y se le calcula la huella.
+3. **Solo si la huella coincide con la de la ingesta**, recibe su nombre definitivo. Queda el evento *replication*.
+4. Si no se puede crear, queda la alerta «segunda copia» y la ingesta termina igual.
 
-**Migración automática (formato en la tabla):**
-1. Ficha → «Migrar formato».
-2. Se elige el destino y se ve el panel verde.
-3. Se pulsa **«Aprobar migración»**, lo que queda en la auditoría como `migracion_aprobada`.
-4. El sistema convierte **una copia** del archivo.
-5. Siegfried comprueba que el resultado sea el formato pedido (por ejemplo `fmt/477`, PDF/A-2b).
-6. Se crea la instanciación nueva, con sus enlaces R015 y R025.
-7. Se registra `migracion_completada` y la alerta de riesgo de la original se cierra sola.
+**Migración → segunda copia de la nueva:** la instanciación nueva recibe su propia segunda copia de la misma forma. La de la original no cambia.
 
-Si la conversión falla o el resultado no es el formato pedido, se registra `migracion_fallida` con el motivo. No queda ningún archivo a medias y la original sigue igual.
+**Verificación (periódica o manual):**
+1. El sistema recalcula la huella de la primaria y la de la segunda copia, y compara las dos con la de la ingesta (y, por tanto, entre sí).
+2. Según lo que encuentre:
 
-**Migración manual (formato no soportado):**
-1. Se aprueba la migración, que queda registrada como «esperando el archivo convertido».
-2. **No se crea ninguna instanciación todavía.**
-3. La archivista convierte el archivo por fuera y lo sube en el historial.
-4. Se identifica con PRONOM y se crea la instanciación enlazada.
+| Copia primaria | Segunda copia | Alerta | Acción disponible |
+|---|---|---|---|
+| íntegra | íntegra | ninguna | — |
+| alterada o ausente | íntegra | **integridad_alterada** (alta), que dice que se puede restaurar | Restaurar |
+| íntegra | alterada o ausente | **segunda_copia_alterada** (alta), distinta de la anterior | Rehacer la segunda copia |
+| alterada | alterada | las dos | Ninguna automática: hay que acudir a un respaldo externo |
+
+3. Si aún no hay segunda copia y la primaria está íntegra, la crea en ese momento.
+4. No corrige nada sin una persona.
+
+**Restauración (contingencia, Plan Parte 8):**
+1. La tarjeta roja ofrece «Restaurar desde la segunda copia». Pide un segundo clic: «Sí, apruebo…».
+2. El servidor vuelve a comprobar que la segunda copia esté íntegra.
+3. **Aparta** el archivo dañado a `.cuarentena/` (no lo borra).
+4. Copia la segunda copia a la ruta primaria y comprueba la huella.
+5. Registra el evento *recovery* y la auditoría `copia_primaria_restaurada`.
+6. Verifica de nuevo y cierra la alerta.
+
+**Rehacer la segunda copia:** la copia dañada queda «reemplazada», con su archivo intacto. Se crea una nueva desde la primaria íntegra y se cierra la alerta.
+
+**Exportación del paquete:**
+1. Se registra la auditoría `paquete_exportado`. Ese registro se convierte en el evento PREMIS *information package creation* **dentro del mismo paquete**.
+2. Se copia el archivo a una carpeta de trabajo y **se comprueba su huella**. Un archivo alterado no se empaqueta: el sistema responde 409 y pide restaurarlo primero.
+3. Se escriben `premis.xml`, `pdi.json` y `LEEME.txt`, más los manifiestos BagIt.
+4. Se comprime y se entrega. Al terminar la descarga, la carpeta temporal se borra.
+5. **Expediente:** una carpeta por instanciación (de todos sus documentos, a cualquier profundidad, más las migraciones de cada uno) y un `expediente.json` de índice.
 
 ## 10. Pantallas
 
 | Pantalla | Ruta |
 |---|---|
 | Panel de preservación | `/preservacion` |
-| Ficha técnica y migración | `/preservacion/instanciacion/:id` |
-| Configuración (solo administrador) | `/preservacion/configuracion` |
-| Insignia en la ficha del catálogo (módulo 4) | `/instrumentos?ficha=…` |
+| Ficha técnica, contingencia, derechos, migración y exportación | `/preservacion/instanciacion/:id` |
+| Configuración (tres tarjetas, solo administrador) | `/preservacion/configuracion` |
+| Exportación por expediente | `/instrumentos?nodo=<expediente>` |
 
 ## 11. UX/UI
 
-- **Colores con significado:**
-  - verde: correcto o conversión automática;
-  - ámbar: riesgo o solicitud manual;
-  - rojo: alerta de integridad;
-  - azul grisáceo: sin verificar.
-- Las cifras del panel usan la tipografía serif.
-- **Aprobar es un botón aparte y explícito.** Antes de pulsarlo, el panel dice qué va a pasar y repite que la original no cambia.
-- **No se puede migrar un archivo con alerta de integridad:** el botón se desactiva y el servidor lo rechaza. Así no se «preserva» una versión corrupta.
-- La huella se muestra completa, en letra de ancho fijo, para compararla a mano si hace falta.
-- En móvil las cifras quedan en dos columnas y no hay desplazamiento horizontal (verificado a 390 px).
+- **Verde** íntegra o sincronizada; **ámbar** riesgo o pendiente; **rojo** alerta de integridad o de segunda copia; azul grisáceo sin verificar o reemplazada.
+- **Las dos alertas no se confunden.** Tienen textos distintos («Alerta de integridad» y «Alerta de segunda copia»), cifras separadas en el panel y una explicación distinta en la ficha.
+- **Las acciones irreversibles piden dos clics**: el botón y luego «Sí, apruebo…». Antes de pulsar, la tarjeta dice qué pasará con el archivo dañado: se aparta, no se borra.
+- **El aviso de una verificación cambia de color** si la segunda copia falló aunque la primaria esté bien.
+- **La configuración no permite escribir rutas.** Solo se elige entre los lugares declarados en el servidor, y se dice con claridad si un lugar comparte disco con la primaria.
+- Verificado en navegador real a 1280 px y a 390 px de ancho, sin desplazamiento horizontal.
 
 ## 12. Modelo de datos
 
-**Migración 0007:**
+**Migración 0008** (reversible; probada subir, bajar y subir otra vez):
 
-- Tabla `verificaciones_integridad`:
-  - `instanciacion_id`, `fecha`;
-  - `resultado`: íntegra / alterada / ausente;
-  - `algoritmo`, `huella_registrada`, `huella_calculada`;
-  - `origen`: periódica / manual;
-  - `usuario_id`.
-- Tabla `migraciones`:
-  - `instanciacion_origen_id`, `destino`, `destino_nombre`;
-  - `modo`: automática / manual;
-  - `estado`: en curso / completada / fallida / esperando archivo;
-  - `herramienta`, `mensaje`;
-  - `aprobada_por_id`, `aprobada_en`, `terminada_en`;
-  - `instanciacion_resultado_id`.
-- En `instanciaciones`:
-  - `estado_integridad`: sin verificar / íntegra / alterada / ausente;
-  - `ultima_verificacion_en`;
-  - `derivada_de_id`.
-- En `parametros`:
-  - `preservacion_frecuencia_dias` (30);
-  - `preservacion_formatos` (la tabla de formatos soportados, validada);
-  - `preservacion_ultima_verificacion` (uso interno).
+- Tabla `segundas_copias`:
+  - `instanciacion_id`, `ubicacion` (raíz en el momento de crearla), `ruta`;
+  - `algoritmo`, `huella` (calculada sobre la copia ya escrita), `tamano_bytes`;
+  - `motivo`: ingesta / migración / reposición / cambio de ubicación / pendiente;
+  - `estado`: sincronizada / alterada / ausente / reemplazada;
+  - `creada_en`, `creada_por_id` (vacío: la creó el sistema), `ultima_verificacion_en`, `reemplazada_en`.
+- Tabla `restauraciones`:
+  - `instanciacion_id`, `segunda_copia_id`, `fecha`, `usuario_id`;
+  - `estado_previo`, `huella_previa`, `ruta_cuarentena`.
+- Tabla `declaraciones_derechos`:
+  - `fondo_id`, `entidad_tipo` (instanciación o Record Resource), `entidad_id`;
+  - `base`: estatuto / licencia / derecho de autor / política institucional / otra;
+  - `acceso`: público / clasificado / reservado (Ley 1712 de 2014, arts. 18 y 19);
+  - `reproduccion`: permitida / condicionada / no permitida;
+  - `fundamento`, `nota`, `vigente_hasta`;
+  - `vigente`, `creada_en`, `creada_por_id`, `reemplazada_en`.
+- En `verificaciones_integridad`: `segunda_copia_id`, `segunda_copia_resultado` (íntegra / alterada / ausente / sin copia), `segunda_copia_huella`.
+- En `parametros`: `preservacion_segunda_ubicacion`, validado contra los lugares declarados.
+- Tipo de alerta nuevo: `segunda_copia_alterada`.
 
-**Nada se borra.** No hay ninguna ruta que elimine instanciaciones, verificaciones ni migraciones.
+**Nada se borra:**
+- una segunda copia reemplazada conserva su archivo;
+- una declaración de derechos reemplazada queda con `vigente = false`;
+- un archivo primario dañado se aparta a la cuarentena.
 
 ## 13. API
 
 | Método y ruta | Permiso | Qué hace |
 |---|---|---|
-| `GET /api/preservacion/panel?fondo_id` | preservación: consultar | Resumen por riesgo y lista de atención |
-| `GET /api/preservacion/instanciacion/{id}` | preservación: consultar | Ficha técnica, verificaciones, migraciones y destinos posibles |
-| `POST /api/preservacion/instanciacion/{id}/verificar` | preservación: trabajar | Verificación manual |
-| `POST /api/preservacion/instanciacion/{id}/migrar` | preservación: trabajar | `{destino, aprobada: true}`. Automática: devuelve la nueva instanciación. Manual: registra la solicitud |
-| `POST /api/preservacion/instanciacion/{id}/migrar/cargar` | preservación: trabajar | Multipart `{migracion_id, archivo}` |
-| `GET` / `PUT /api/preservacion/configuracion` | solo administrador | Frecuencia y tabla de formatos |
-
-`aprobada: true` es obligatorio. Sin esa marca, la API responde 422 y no crea nada.
+| `GET /api/preservacion/panel?fondo_id` | preservación: consultar | Resumen (con alerta de segunda copia) y lista de atención |
+| `GET /api/preservacion/instanciacion/{id}` | preservación: consultar | Ficha PREMIS, **estado de la segunda copia**, derechos, verificaciones, restauraciones y migraciones |
+| `POST …/instanciacion/{id}/verificar` | preservación: trabajar | Verifica la primaria y la segunda copia; devuelve los dos resultados |
+| `POST …/instanciacion/{id}/migrar` | preservación: trabajar | Sin cambios de contrato. Ahora la nueva instanciación también recibe su segunda copia |
+| `POST …/instanciacion/{id}/migrar/cargar` | preservación: trabajar | Sin cambios de contrato |
+| `POST …/instanciacion/{id}/restaurar` | preservación: trabajar | `{aprobada: true}`. Restaura la primaria desde la segunda copia |
+| `POST …/instanciacion/{id}/segunda-copia/reponer` | preservación: trabajar | `{aprobada: true}`. Rehace la segunda copia |
+| `PUT /api/preservacion/derechos` | preservación: trabajar | Declara derechos sobre una instanciación o un Record Resource |
+| **`POST …/instanciacion/{id}/exportar-paquete`** | preservación: trabajar | AIP de una instanciación (`.zip` con la bolsa BagIt) |
+| **`POST /api/preservacion/expediente/{record_resource_id}/exportar-paquete`** | preservación: trabajar | AIP consolidado del expediente. 422 si no es un expediente, 404 si no existe o no tiene archivos |
+| `GET` / `PUT /api/preservacion/configuracion` | **solo administrador** | Ahora también `segunda_copia` (lugar en uso, lugares declarados, espacio, pendientes) y `segunda_ubicacion` en el PUT |
 
 ## 14. Uso de IA
 
-**Ninguno.** La clasificación de riesgo es una **tabla de reglas** sobre el PUID y el tipo MIME (`servicios/riesgo.py`). Cada formato tiene su nivel, su razón escrita en lenguaje natural y su recomendación.
-
-**Por qué no IA, aunque el diseño consolidado la menciona:**
-- una clasificación de riesgo de conservación tiene que ser **reproducible y auditable**: el mismo formato debe dar siempre el mismo resultado, con una razón que se pueda citar;
-- un modelo de lenguaje puede variar entre consultas y **no conoce mejor que PRONOM** el estado de un formato;
-- además, enviar a un servicio externo la lista de archivos de un fondo no aporta nada.
-
-La razón «legible, nunca una etiqueta sin argumento» que pide el diseño se cumple con el texto de la tabla. Si usted quiere la redacción por IA, se puede agregar encima **como explicación**, sin que decida el nivel.
+**Ninguno en este módulo.** El riesgo se clasifica con la tabla de reglas de la versión 1. El paquete se arma con datos que el sistema ya registró. No se envía nada a ningún servicio externo.
 
 ## 15. Seguridad
 
-- **Ninguna migración sin aprobación explícita.** El servidor exige `aprobada: true`, el usuario con permiso de escritura y su registro en la auditoría. La verificación periódica y el panel nunca migran nada (hay prueba de ello).
-- **La original no se modifica ni se borra:**
-  - se convierte una **copia** en una carpeta temporal;
-  - después de migrar, el servidor comprueba que la huella de la original no cambió;
-  - la prueba explícita compara la original **byte a byte** antes y después, incluso cuando la migración falla.
-- **El resultado se comprueba:** si el conversor produce algo que Siegfried no reconoce como el formato pedido, la migración se marca fallida y el archivo se descarta. Lo mismo aplica a la carga manual.
-- **Ghostscript con `-dSAFER`:** el PDF no puede leer ni escribir archivos del servidor, salvo el perfil de color permitido.
-- El archivo cargado a mano pasa por el mismo almacenamiento seguro de la ingesta: nombre propio, sin rutas externas y límite de tamaño.
-- La configuración es solo del administrador y cada cambio queda en la auditoría con el antes y el después.
+- **Nada sin aprobación.** Migrar, restaurar y rehacer exigen `aprobada: true`, permiso de escritura y quedan en la auditoría. La verificación periódica y el trabajador no restauran ni rehacen nada.
+- **Nunca se replica un archivo alterado.** La segunda copia solo se acepta si su huella coincide con la de la ingesta.
+- **Nunca se empaqueta un archivo alterado.** La huella se comprueba sobre la copia que entra al paquete. Si no coincide: 409 y ningún evento de exportación.
+- **El administrador no puede escribir rutas desde la web.** Elige entre los lugares que declaró quien opera el servidor (`RICORA_SEGUNDA_COPIA`). Los que caen dentro del almacenamiento primario se descartan, porque no serían una segunda copia. Así nadie puede usar la configuración para escribir en cualquier parte del disco.
+- **Las rutas de las copias se validan** para que no salgan de su raíz, igual que en la ingesta.
+- **El ZIP no lleva rutas absolutas ni `..`** (lo comprueba una prueba). Los nombres de archivo se sanean.
+- **Los temporales del paquete se borran** al terminar la descarga (lo comprueba una prueba).
+- **El paquete incluye el archivo completo.** Es una exportación para custodia, no para consulta pública, y por eso exige permiso de trabajar en Preservación. Hay que tenerlo en cuenta con documentos clasificados o reservados.
+- **Se mantiene la advertencia general:** no cargar documentos con reserva legal mientras el servidor no tenga HTTPS.
 
 ## 16. Auditoría (qué queda registrado)
 
-Todo se registra en el mismo registro de auditoría del sistema, que es de solo anexar.
-
 | Acción | Qué guarda |
 |---|---|
-| `integridad_verificada` | Instanciación, resultado, periódica o manual, quién (o el sistema) |
-| `migracion_aprobada` | Quién, cuándo, destino, modo e id de la migración |
-| `migracion_completada` | Resultado, herramienta y formato PRONOM obtenido |
-| `migracion_fallida` | Motivo |
-| `parametro_cambiado` | Frecuencia o tabla de formatos, antes y después |
-| Alertas `integridad_alterada` (alta) y `riesgo_obsolescencia` (media/baja) | En el panel central, el mismo del resto del sistema |
+| `integridad_verificada` | Resultado de la primaria **y de la segunda copia**, periódica o manual, quién |
+| `segunda_copia_creada` | Lugar, motivo, a cuál reemplaza. Vacío en `usuario_id` cuando la creó el sistema |
+| `copia_primaria_restaurada` | Antes (estado y huella del dañado) y después (de qué copia, dónde quedó la cuarentena) |
+| `derechos_declarados` | Antes y después (acceso y fundamento) |
+| `paquete_exportado` | Alcance (instanciación o expediente), convención y versión PREMIS. Uno por cada instanciación incluida |
+| `migracion_aprobada`, `migracion_completada`, `migracion_fallida` | Como en la versión 1 |
+| `parametro_cambiado` | Frecuencia, tabla de formatos o lugar de la segunda copia, antes y después |
+
+Las acciones nuevas tienen nombre legible en el panel de Auditoría. Dos de ellas suman grupos nuevos al consolidado semanal: «Restauraciones» y «Paquetes de preservación».
 
 ## 17. Interoperabilidad
 
-- **PRONOM** (PUID) para formato origen y destino: lo entienden Archivematica, Preservica y DROID.
-- **Destinos de conservación reconocidos:**
-  - PDF/A-2b (ISO 19005-2);
-  - TIFF sin pérdida;
-  - PNG;
-  - JPEG 2000;
-  - ODT;
-  - texto plano, CSV y XML.
-- **La estructura sigue PREMIS** (objetos, eventos, agentes). La exportación en PREMIS XML o METS no la pide este prompt y queda como mejora.
+- **BagIt 1.0 (RFC 8493).** Cualquier herramienta lo valida. Las pruebas usan el validador de la Library of Congress (`bagit-python`). Archivematica, Preservica, APTrust y DPN aceptan bolsas BagIt.
+- **PREMIS 3.0 en XML**, con el espacio de nombres oficial. **La integración continua valida en cada cambio el PREMIS producido, y el del anexo, contra el esquema oficial de la Library of Congress** (`scripts/validar_premis.py`, que descarga `premis-v3-0.xsd`).
+- **PRONOM** (PUID) con enlace a su ficha en el registro, como Información de Representación.
+- **RiC-O** en la PDI (`rico:hasOrHadInstantiation`, `rico:migratedInto`, `rico:RecordSet`). La exportación RDF completa sigue fuera de este módulo, como dice el prompt (§11).
 
 ## 18. Normativa aplicable
 
-- **ISO 14721 (OAIS).** Este módulo cubre la Planificación de la Preservación (riesgo y migración) y la Gestión de Datos (historial de eventos). Se apoya en la Ingesta y el Almacenamiento del módulo 1.
-- **PREMIS 3.0:** eventos *fixity check* y *migration*, con su agente.
-- **ISO 19005-2 (PDF/A-2).**
-- **Acuerdo 006 de 2014 del AGN** (Sistema Integrado de Conservación, componente de preservación digital) e **ISO 14641** (archivo electrónico).
-- **Principio de no destructividad** del sistema.
+**ISO 14721:2012 (OAIS).** Así cubre el sistema completo sus seis entidades funcionales (prompt §2):
+
+| Entidad funcional OAIS | Dónde la cubre el sistema |
+|---|---|
+| **Ingesta** | Módulo 1: recepción, primer registro del formato (PRONOM), primera huella; aquí se suma la segunda copia |
+| **Almacenamiento de Archivo** | Este módulo: copia primaria + **segunda copia** verificadas, restauración, AIP |
+| **Gestión de Datos** | La base de datos completa: descripción y vocabularios (módulos 2 y 3) y metadatos técnicos PREMIS (este módulo) |
+| **Administración** | Autenticación y autorización, configuración de este módulo y del de instrumentos, auditoría |
+| **Planificación de la Preservación** | Tabla de formatos soportados y tabla de riesgo de este módulo; fuera del sistema, el Plan de Preservación Digital como política |
+| **Acceso** | Módulo 4 (instrumentos, catálogo, grafo) y, en el futuro, la exportación RDF |
+
+**Otras normas:**
+- **PREMIS 3.0:** los cuatro conjuntos de información.
+- **BagIt (RFC 8493).**
+- **Ley 594 de 2000** (art. 27, acceso a documentos) y **Ley 1712 de 2014** (arts. 18 y 19, información clasificada y reservada): base del acceso en la declaración de derechos.
+- **Acuerdo 006 de 2014 del AGN** (Sistema Integrado de Conservación, componente de preservación digital).
 
 ## 19. Arquitectura
 
-- **Servicios:**
-  - `servicios/preservacion.py`: integridad, riesgo en alertas, panel, detalle y migración;
-  - `servicios/riesgo.py`: tabla de riesgo.
-- **Conversores en el código:** Ghostscript (PDF → PDF/A-2b con perfil sRGB incrustado) y Pillow (imagen → TIFF LZW sin pérdida).
-- **Tabla de formatos en la base de datos:** qué origen se convierte con qué herramienta. Así se amplía sin tocar código.
-- **Periodicidad:** el trabajador en segundo plano existente, igual que la detección del módulo 3.
+- `servicios/segunda_copia.py`: lugares, copia con verificación previa, estado.
+- `servicios/preservacion.py`: verificación dual, restauración, reposición, copias pendientes.
+- `servicios/derechos.py`: declaración y herencia.
+- `servicios/paquete.py`: eventos y agentes, PREMIS XML, PDI, BagIt, exportación individual y por expediente.
 
 ### Decisiones
 
 | Decisión | Alternativas | Selección | Justificación | Riesgo |
 |---|---|---|---|---|
-| **Herramienta de identificación de formato** (exigida por el prompt, §4; tomada en el módulo 1 y **reutilizada** aquí) | **DROID** 6.x (TNA, Java); **Siegfried** (Go, mismas firmas PRONOM, incluidas las de contenedor); FIDO (Python) | **Siegfried 1.11.9**, firmas DROID V125 | Mismo resultado PRONOM que DROID sin exigir Java (200–400 MB de memoria en un servidor de 2 GB). Un binario de 12 MB con salida JSON, fácil de invocar desde Python. Aquí además **valida el resultado de cada migración** (por ejemplo, que el PDF/A salga como `fmt/477`) | Es un binario externo, no una librería de Python: si falta, la migración falla con un mensaje claro y la ingesta deja el documento en error. Las firmas quedan fijas en la versión de la imagen |
-| Conversión texto → PDF/A | **Ghostscript**; LibreOffice sin pantalla; ocrmypdf; conversor propio | **Ghostscript 10 (pdfwrite, PDF/A-2b, sRGB)** | Herramienta madura de código abierto, ~30 MB. El resultado se identifica como PDF/A-2b (`fmt/477`). LibreOffice suma ~500 MB a la imagen. El prompt pide no construir un conversor propio | Solo convierte PDF y PostScript. Los .doc o .docx a PDF/A van por la ruta manual. Ghostscript no valida PDF/A formalmente como veraPDF: la comprobación es la identificación PRONOM |
-| Conversión imagen → TIFF | **Pillow**; ImageMagick; libvips | **Pillow** (ya instalado para el OCR) | Cero dependencias nuevas. TIFF con compresión LZW sin pérdida, todas las páginas, conservando la resolución | Formatos raros de cámara (RAW) no los lee; van por la ruta manual |
-| Mecanismo periódico | Celery + Redis; cron; **trabajador existente** | **Trabajador existente**, marca de tiempo en `parametros` | La misma razón del módulo 3: no hace falta sumar Redis para una tarea mensual. Sobrevive a reinicios (la marca se guarda antes de recorrer) | Si el trabajador está detenido, no se verifica. Se nota porque la ingesta tampoco avanza, y el panel muestra la fecha de la última verificación |
-| Clasificación de riesgo | IA (según el diseño consolidado); **tabla de reglas** | **Tabla de reglas** por PUID y MIME | Reproducible, auditable y con razón escrita. Ver §14 | Un formato nuevo sin regla sale «medio» con la razón «sin evaluación en la tabla». Se agrega en `riesgo.py` |
-| Alertas de riesgo | Tabla propia; **panel central de alertas** | **Panel central** (el mismo de los módulos 1 y 4, como pide el prompt) | Un solo lugar para todo lo que requiere revisión humana. Se cierran solas cuando el riesgo queda mitigado | Un fondo con muchos PDF comunes genera muchas alertas de severidad baja. Es real: son archivos que conviene migrar |
-| Archivo migrado de un documento aún sin describir | Mostrarlo en «Por describir»; **ocultarlo y enlazarlo al describir la original** | **`derivada_de_id`**: no aparece en la cola y hereda la descripción de su original | No se describen dos veces el mismo documento en dos formatos | Ninguno relevante |
+| **Herramienta de identificación de formato** (prompt §5, primera) | **DROID** 6.x (The National Archives, Java, interfaz gráfica y línea de órdenes); **Siegfried** (Go, mismas firmas PRONOM de DROID, incluidas las de contenedor); FIDO (Python, firmas propias derivadas de PRONOM) | **Siegfried 1.11.9**, firmas DROID V125 y de contenedor 2026-01 | Da el **mismo resultado PRONOM que DROID**, porque usa sus mismos archivos de firmas. No exige una máquina Java, que pesa 200–400 MB de memoria en un servidor de 2 GB. Es un binario de 12 MB con salida JSON, fácil de invocar desde Python y de fijar en la imagen. Deja en cada identificación su versión y la de las firmas: es el agente *software* del evento PREMIS *format identification*. Además **valida el resultado de cada migración** (por ejemplo, que el PDF/A salga como `fmt/477`). DROID es la referencia institucional, pero su peso no se justifica en un sistema académico de un solo fondo | Es un binario externo: si falta, la ingesta deja el documento en error con un mensaje claro y la migración falla sin tocar nada. Las firmas quedan fijas en la versión de la imagen y se actualizan al reconstruirla. Siegfried no tiene interfaz gráfica, pero aquí no hace falta |
+| **Empaquetado del AIP** (prompt §5, segunda) | **BagIt 1.0** (RFC 8493): carpeta `data/` + manifiestos de huellas + `bag-info.txt`; **METS** (Library of Congress): un XML que describe la estructura, con PREMIS embebido en `amdSec`; METS dentro de BagIt (como hace Archivematica) | **BagIt 1.0**, con PREMIS 3.0 en XML y la PDI en JSON dentro de `data/metadatos/` | Para **un solo fondo académico**, BagIt da lo esencial: fijeza verificable de cada archivo con cualquier validador, estándar IETF, implementación de unas 40 líneas sin dependencias nuevas y validación automática en las pruebas con la herramienta de la Library of Congress. METS es más expresivo (mapas estructurales, varias representaciones, perfiles), pero su valor aparece con objetos complejos (libros digitalizados página a página, colecciones de miles de objetos) y exige elegir o redactar un perfil, más un validador de esquema y de perfil. Aquí cada instanciación es un solo archivo: METS describiría con mucha más complejidad lo mismo que el manifiesto BagIt. La estructura OAIS (Información de Contenido + PDI con sus cinco categorías) se respeta explícitamente en las carpetas y en `pdi.json` | Un sistema de destino que exija METS (por ejemplo, un archivo nacional con perfil propio) necesitaría una transformación. La mitigación natural es la de Archivematica: un `METS.xml` dentro de la misma bolsa. Es aditivo y no rompe lo que hay |
+| **Segundo lugar de almacenamiento** (prompt §8 y §14) | Otra carpeta del mismo volumen; **volumen Docker propio** en el mismo servidor; un Volume de bloques de DigitalOcean (pago); almacenamiento de objetos S3 o Spaces (pago); un segundo servidor | **Volumen Docker propio `segunda_copia`** montado en `/data/segunda_copia`, declarado con `RICORA_SEGUNDA_COPIA` y elegido por el administrador entre los lugares declarados | Sin costo, como exige el proyecto. Separa la segunda copia del almacenamiento primario a nivel de volumen: protege de **borrados accidentales, corrupción de archivos y errores de software** sobre la carpeta primaria, que son los incidentes más comunes. Queda **configurable**: en producción se monta otro disco o un servidor de archivos (NFS, SMB) en una ruta, se declara en `RICORA_SEGUNDA_COPIA` y se elige en la pantalla. Las copias se crean solas en el lugar nuevo y las del anterior se conservan | **En esta primera versión vive en el mismo disco físico del Droplet.** No protege de la pérdida del disco ni del servidor. La pantalla de configuración lo dice («mismo disco que la primaria»). El Plan de Preservación debe exigir, para producción real, un lugar en otro equipo, más un respaldo externo periódico de la base de datos |
+| Serialización de la PDI | XML propio; PREMIS para todo; **JSON con las cinco categorías como claves** | **JSON** (`pdi.json`) junto a `premis.xml` | La PDI de OAIS no tiene esquema normativo propio: es un modelo de información. Lo verificable de procedencia y fijeza ya va en PREMIS XML validado. El JSON hace explícitas las cinco categorías con sus nombres (lo pide el prompt §7), es legible por personas y por programas, y lleva el contexto RiC (jerarquía, R025, R015) que PREMIS no modela | No es un estándar de intercambio. Si un destino lo exige, el contexto RiC saldrá de la exportación RDF (fuera de este módulo) |
+| Alcance de los derechos | Solo por instanciación; solo por fondo; **por instanciación o por cualquier nivel, heredado hacia abajo** | **Herencia por niveles**: aplica la declaración propia o la del nivel más cercano hacia arriba | Es como trabaja el archivista: el acceso se decide por fondo o por serie y se exceptúa un expediente o un documento. Con una declaración en el fondo, todos los paquetes tienen su entidad Derechos | No es un gestor de derechos de autor (el prompt §11 lo excluye). Las fechas de vigencia se registran pero no se hacen cumplir solas |
+| Restauración | Automática al detectar la alteración; **con aprobación de una persona** | **Con aprobación** y cuarentena del dañado | Coherente con «no corrige nada sola». Una alteración puede ser legítima (por ejemplo, una restauración externa) y merece una mirada humana. El dañado se conserva como evidencia | Entre la alerta y la aprobación, la primaria sigue alterada. Mitigación: la alerta es de severidad alta y aparece primera en el panel |
+| Momento del AIP | Generarlo y guardarlo en cada cambio; **bajo demanda**; exportación periódica programada | **Bajo demanda** (por archivo o expediente), siempre desde el estado actual | Un AIP guardado en el servidor quedaría viejo en el siguiente evento y duplicaría el almacenamiento. Generado al pedirlo, siempre está al día y lleva su propio evento de creación | El Plan (Parte 8) puede fijar como política una **exportación periódica** a un medio externo. Se haría con el mismo código, y se deja como mejora |
+| Validación de PREMIS | Ninguna; comprobación estructural propia; **esquema oficial XSD** | **Las dos**: estructural en las pruebas (sin red) y **XSD oficial en la integración continua** | El entorno de desarrollo no tiene acceso a loc.gov; GitHub Actions sí. Así cada cambio que llega al servidor produce un PREMIS válido según la Library of Congress | Si loc.gov no responde, ese paso falla y detiene el despliegue. Es preferible a desplegar sin validar |
 
 ## 20. Código (dónde vive, cómo se organiza)
 
 ```
-alembic/versions/0007_preservacion.py          tablas y columnas nuevas
-app/models/preservacion.py                     VerificacionIntegridad, Migracion
-app/models/instanciacion.py                    estado_integridad, ultima_verificacion_en, derivada_de_id
-app/servicios/riesgo.py                        tabla de riesgo de obsolescencia
-app/servicios/preservacion.py                  integridad, periodicidad, alertas, panel, detalle, migración
-app/servicios/parametros.py                    frecuencia y tabla de formatos (validada)
-app/servicios/descripcion.py                   cola sin derivadas; publicar enlaza derivadas
-app/servicios/instrumentos.py                  estado real de preservación en la ficha del catálogo
-app/routers/preservacion.py                    /api/preservacion
-app/trabajador.py                              verificación periódica
-app/cli.py                                     probar-preservacion
-frontend/src/pages/Preservacion.tsx            panel y configuración
-frontend/src/pages/InstanciacionPreservacion.tsx   ficha técnica y migración
-Dockerfile, .github/workflows/deploy.yml       Ghostscript en la imagen y en las pruebas
-tests/test_preservacion.py
+alembic/versions/0008_preservacion_oais.py      segundas copias, restauraciones, derechos
+app/models/preservacion.py                      + SegundaCopia, Restauracion, DeclaracionDerechos
+app/servicios/segunda_copia.py                  lugares, copia verificada, estado
+app/servicios/preservacion.py                   verificación dual, restaurar, reponer, pendientes
+app/servicios/derechos.py                       declaración y herencia
+app/servicios/paquete.py                        PREMIS XML, PDI, BagIt, exportaciones
+app/servicios/procesamiento.py                  segunda copia al terminar la ingesta
+app/servicios/parametros.py                     preservacion_segunda_ubicacion (validado)
+app/servicios/trazabilidad.py                   nombres de las acciones nuevas
+app/routers/preservacion.py                     restaurar, reponer, derechos, exportar, configuración
+app/trabajador.py                               segundas copias pendientes cada minuto
+frontend/src/pages/InstanciacionPreservacion.tsx   ficha PREMIS, contingencia, derechos, exportar
+frontend/src/pages/Preservacion.tsx             panel (cinco cifras) y tercera tarjeta de configuración
+frontend/src/pages/Instrumentos.tsx             exportar paquete del expediente
+Dockerfile, docker-compose.yml                  volumen segunda_copia
+scripts/validar_premis.py                       PREMIS contra el XSD oficial (integración continua)
+scripts/generar_anexo_aip.py                    produce el anexo de la tesis
+tests/test_preservacion_oais.py                 11 pruebas nuevas
+documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 ```
 
 ## 21. Pruebas
 
-11 pruebas en `tests/test_preservacion.py` (132 en total en el proyecto, todas pasan). Usan **archivos reales pasados por la ingesta de verdad**, con Siegfried, Ghostscript y Pillow reales. Si falta una herramienta, las pruebas fallan: no se saltan.
+**158 pruebas en el proyecto, todas pasan.** Son 11 nuevas en `tests/test_preservacion_oais.py` y las 11 de la versión 1 siguen pasando. Usan archivos reales, la ingesta real (Siegfried), migraciones reales (Ghostscript) y el validador BagIt de la Library of Congress.
 
-- **Íntegra:** resultado íntegra, sin alerta, en el historial con quién la hizo.
-- **Alterada:**
-  - se agregan bytes al archivo en el disco y el resultado sale alterado, con las dos huellas distintas;
-  - queda en el historial;
-  - crea una alerta de severidad **alta**, primera en la lista del panel;
-  - un archivo borrado sale como «ausente».
-- **Periodicidad:**
-  - corre la primera vez;
-  - no corre si se acaba de hacer, ni a los 29 días y 23 horas con la frecuencia mensual;
-  - sí corre a los 30 días y 1 minuto;
-  - con frecuencia semanal no corre a los 6 días y sí a los 8.
-- **Riesgo:**
-  - un PDF 1.4 sale medio, con razón y destino sugerido;
-  - un PNG sale bajo;
-  - las cifras del panel son correctas;
-  - la alerta aparece en `/api/alertas`, el mismo mecanismo del sistema.
-- **Migración soportada (PDF → PDF/A-2b):**
-  - el resultado es `fmt/477` según Siegfried;
-  - está enlazado por R015 a la original y por R025 al mismo Record Resource, cuyo título no cambia;
-  - la original sigue **igual byte a byte**;
-  - el historial y el «riesgo mitigado» se ven;
-  - la versión nueva no aparece en «Por describir»;
-  - la alerta de riesgo se cierra sola.
-- **Imagen → TIFF:** resultado TIFF y original intacta.
-- **Migración no soportada:**
-  - solo registra la solicitud, sin crear instanciación;
-  - al cargar el archivo, se crea enlazada por R015 y R025;
-  - la original está intacta;
-  - una segunda carga para la misma solicitud responde 409.
-- **Migración fallida** (conversor que produce algo que no es PDF/A):
-  - estado fallida con motivo;
-  - la original intacta;
-  - ninguna instanciación nueva;
-  - **ningún archivo huérfano** en el almacenamiento.
-- **Sin aprobación, nada:**
-  - `aprobada: false` responde 422 y no deja ninguna migración;
-  - la verificación periódica y el panel no migran;
-  - con aprobación, quedan en la auditoría `migracion_aprobada` (con el mismo usuario que la migración) y `migracion_completada`.
-- **Configuración:**
-  - archivista y revisor reciben 403 en GET y PUT;
-  - el administrador cambia la frecuencia y agrega un formato;
-  - un conversor que no produce ese destino se rechaza (422);
-  - al desactivar PDF → PDF/A, esa migración pasa a ser manual.
-- **Permisos:** sin sesión, 401; consulta, 403 en el panel; el revisor ve el panel pero recibe 403 al verificar y al migrar.
+**Prueba por prueba, según el prompt §13:**
 
-**Pruebas de mutación:**
-- al quitar la exigencia de aprobación, falla la prueba de aprobación;
-- al hacer que la conversión escriba sobre el archivo original, fallan tres pruebas.
+| Prueba | Qué comprueba |
+|---|---|
+| La segunda copia se crea sola en la ingesta | Está en el lugar configurado, fuera del almacenamiento primario, es igual byte a byte, tiene su evento y fue creada por el sistema |
+| Verificación íntegra en las dos copias | Ninguna alerta |
+| Alteración solo de la segunda copia | Primaria íntegra; segunda alterada; **solo** la alerta `segunda_copia_alterada`; cifra propia en el panel. Rehacer sin aprobación responde 422; con aprobación la copia dañada queda reemplazada y conservada, y la alerta se cierra. Una segunda copia borrada sale «ausente» con su alerta |
+| Alteración de la primaria | Alerta `integridad_alterada` que ofrece restaurar, y ninguna de segunda copia. Restaurar sin aprobación responde 422; con aprobación la primaria vuelve byte a byte y **el dañado está en la cuarentena con su contenido alterado**. Alerta cerrada, auditoría registrada. Restaurar sin alerta responde 409 |
+| La migración crea la segunda copia de la nueva | La de la original no cambia |
+| Cambio del lugar | Rechaza `/tmp` y la carpeta primaria (422). El trabajador crea la copia en el lugar nuevo; la anterior queda reemplazada **y su archivo existe** |
+| Derechos | Herencia del fondo; prevalece el expediente; la declaración propia prevalece sobre todas; la reemplazada no se borra; una entidad inexistente da 404 |
+| **Paquete de una instanciación** | **BagIt válido según `bagit-python`**. Contenido igual byte a byte. PREMIS en el orden objeto → eventos → agentes → derechos. Objeto con identificador, SHA-256, tamaño, PUID, nombre original, **dos almacenamientos** y relación de derivación. Siete tipos de evento, cada uno con fecha, resultado, agente y objeto; la migración con *authorizer* (persona) y *executing program* (software) y con los objetos *source* y *outcome*. Los eventos enlazados por el objeto son exactamente los presentes. Agentes persona y software (Siegfried, Ghostscript). Derechos *Statute* con su cita y sus actos. PDI con las **cinco categorías en orden**, jerarquía fondo → serie → expediente → documento, R025, migrada a, procedencia igual a los eventos PREMIS, fijeza con la segunda copia. **Un byte cambiado invalida la bolsa**, y no quedan temporales |
+| Paquete del expediente | Incluye las instanciaciones de sus documentos **y la migración aún no publicada**, pero no la de otro expediente. Cada carpeta tiene contenido, PREMIS y PDI; la huella de cada archivo coincide con el índice; un evento de auditoría por instanciación. Un fondo responde 422 y un id inexistente 404 |
+| No se empaqueta un archivo alterado | 409 y ningún evento de exportación |
+| Permisos de las acciones nuevas | El revisor recibe 403 en exportar (las dos), restaurar, reponer y derechos; sin sesión, 401. La configuración del lugar da 403 al archivista |
+
+**Pruebas de mutación** (se rompe el código a propósito y se comprueba que alguna prueba falle):
+
+| Mutación | Resultado |
+|---|---|
+| No crear la segunda copia en la ingesta | Detectada |
+| No alertar la segunda copia alterada | Detectada |
+| No crear la segunda copia en la migración | Detectada |
+| Omitir los Derechos en PREMIS | Detectada |
+| Omitir una instanciación del expediente | Detectada |
+| Borrar el archivo dañado al restaurar (en vez de apartarlo) | Detectada |
 
 **Verificación visual** en navegador real:
-- panel;
-- ficha;
-- verificación manual;
-- panel verde y ámbar;
-- migración real a PDF/A;
-- migración manual en espera con su zona de carga;
-- configuración;
-- insignia en el catálogo;
-- móvil a 390 px;
-- sin errores de JavaScript.
+- ficha con la segunda copia alterada: insignia roja, aviso rojo, tarjeta de contingencia;
+- «Rehacer» con doble clic: la insignia vuelve a «sincronizada»;
+- descarga del paquete individual y del expediente desde el catálogo;
+- configuración con la tercera tarjeta;
+- móvil a 390 px sin desplazamiento horizontal.
 
 ## 22. Criterios de aceptación
 
-| Criterio (prompt §9–10) | Cumple |
+| Criterio (prompt §13–14) | Cumple |
 |---|---|
 | Verificación sin alteración: íntegra y sin alerta | ✓ |
-| Alterada: queda en el historial y genera alerta de severidad alta | ✓ |
-| La periódica corre según la frecuencia y no con otra | ✓ |
-| Migración soportada: convierte, crea la nueva enlazada por migración y al mismo Record Resource, sin tocar la original | ✓ |
-| No soportada: solo registra; sin instanciación hasta la carga; al cargar, bien enlazada | ✓ |
-| Ninguna migración sin aprobación explícita registrada en la auditoría | ✓ |
-| Los dos endpoints de configuración: error de permisos a quien no es administrador | ✓ |
-| Prueba explícita de que ninguna original queda eliminada o modificada, cualquiera que sea el resultado | ✓ (byte a byte, también en migración fallida) |
-| La decisión de §4 documentada con tabla completa | ✓ (§19) |
+| Primaria alterada: su alerta. Solo la segunda copia alterada: alerta distinta y específica | ✓ |
+| Segunda copia automática al registrar una instanciación, por ingesta y por migración | ✓ |
+| Migración soportada: conversión, nueva enlazada, su propia segunda copia, original intacta | ✓ |
+| No soportada: solo registra hasta la carga | ✓ (sin cambios, sigue pasando) |
+| Ninguna migración sin aprobación registrada en la auditoría | ✓ |
+| AIP de una instanciación válido según la convención, con el original, los 4 conjuntos PREMIS y las 5 categorías de la PDI | ✓ |
+| AIP del expediente con todas sus instanciaciones, sin omitir ninguna | ✓ |
+| Configuración: error de permisos a quien no es administrador | ✓ |
+| Las dos decisiones de §5 documentadas con tabla completa | ✓ (§19) |
+| Segundo lugar de almacenamiento documentado en la Definición de Terminado | ✓ (§19 y abajo) |
+| Un AIP real del fondo de prueba conservado como anexo | ✓ (§23) |
+
+**Definición de Terminado: el segundo lugar de almacenamiento.** En esta primera versión es el **volumen Docker `segunda_copia`**, montado en `/data/segunda_copia` en los contenedores `web` y `trabajador`. Está separado del volumen `almacen` de la copia primaria, pero en el mismo disco del servidor. Es configurable sin tocar código:
+1. quien opera el servidor monta otro disco o un servidor de archivos;
+2. lo declara en `RICORA_SEGUNDA_COPIA` (varios lugares, separados por «:»);
+3. el administrador lo elige en Preservación › Configuración;
+4. el trabajador crea allí las copias de todo el fondo.
 
 **Pendiente honesto:**
 
-- **PDF/A sin validación formal.** El resultado se comprueba con la identificación PRONOM, no con un validador PDF/A como veraPDF, que es Java y pesado. Para la tesis, conviene validar con veraPDF una muestra de los PDF/A generados.
-- **Archivos recién ingresados.** Quedan «sin verificar» hasta la siguiente pasada periódica, que puede tardar hasta un mes. La huella de referencia ya existe desde la ingesta. Se pueden verificar a mano en cualquier momento.
-- **Ghostscript en el servidor.** Se instala en la imagen Docker. El despliegue imprime su versión y ejecuta `probar-preservacion`. Aquí se comprobó fuera de Docker.
+- **La segunda copia no es todavía independiente del disco.** Para la sustentación, conviene decirlo así: «protege de la alteración y del borrado de archivos, no de la pérdida del servidor». La independencia física es una decisión de infraestructura, con costo, que el sistema ya soporta.
+- **La base de datos no tiene segunda copia.** Los metadatos viven en PostgreSQL. El AIP los lleva consigo, pero un respaldo periódico de la base sigue siendo política del Plan, fuera de este módulo.
+- **PDF/A sin validación formal con veraPDF** (como en la versión 1).
+- **Anexo generado en el entorno de desarrollo.** Tiene el mismo código, la misma versión de Siegfried y la misma estructura de carpetas que el servidor. Ghostscript es 10.02.1 aquí y 10.05.1 en el servidor. En el servidor se obtiene uno igual con un clic en «Exportar paquete de preservación».
+- **El esquema PREMIS oficial** no se pudo descargar en este entorno (loc.gov bloqueado por la red). Por eso la validación contra el XSD corre en GitHub Actions: este documento se actualizará con su resultado tras el despliegue.
 
 ## 23. Evidencia concreta de aplicación de RiC
 
-Migración real hecha en la verificación visual:
+**El anexo** está en `documentacion/anexos/aip-ejemplo/`. Contiene el `.zip` tal como lo entrega el sistema y la carpeta descomprimida para leerlo en GitHub. Lo produjo `scripts/generar_anexo_aip.py` sobre el fondo de prueba, recorriendo el ciclo completo:
+
+1. ingesta real (SHA-256, Siegfried/PRONOM y texto);
+2. segunda copia automática;
+3. descripción: fondo › serie › expediente › documento;
+4. derechos declarados en el fondo;
+5. verificación manual;
+6. migración aprobada a PDF/A-2b con Ghostscript;
+7. verificación periódica;
+8. exportación.
+
+Estructura del paquete:
 
 ```
-Record «Oficio 114 de 1948 sobre el archivo municipal» (unidad documental)
-  ─ rico:hasOrHadInstantiation (R025) → Instantiation «Oficio_114_1948.pdf»
-  │      fmt/18 Acrobat PDF 1.4 · SHA-256 6b4cac35…450ecb · íntegra · riesgo medio (mitigado)
-  │      ─ rico:migratedInto (R015) ↓
-  └ rico:hasOrHadInstantiation (R025) → Instantiation «Oficio_114_1948 (PDF/A-2b).pdf»
-         fmt/477 Acrobat PDF/A-2b · riesgo bajo · derivada_de = la original
-
-Evento PREMIS (tabla migraciones): migración automática aprobada por Marlín Martínez,
-  agente de software «Ghostscript 10.02.1 (pdfwrite, PDF/A-2b, perfil sRGB)», resultado completada.
+ricora-aip-<uuid>/                                  BagIt 1.0 válido (bagit-python, Library of Congress)
+├── bagit.txt · bag-info.txt (Payload-Oxum, External-Identifier urn:uuid:…)
+├── manifest-sha256.txt · tagmanifest-sha256.txt
+└── data/
+    ├── LEEME.txt
+    ├── contenido/Oficio 114 de 1948.pdf             Información de Contenido (fmt/18, SHA-256 6b4cac35…450ecb)
+    └── metadatos/
+        ├── premis.xml                               1 Objeto · 8 Eventos · 4 Agentes · 1 Derechos
+        └── pdi.json                                 Referencia · Contexto · Procedencia · Fijeza · Derechos de acceso
 ```
 
-La descripción del Record no cambió: ni una columna ni una relación suya se tocó. La original sigue en su lugar, con su huella intacta, y ahora tiene una versión de conservación enlazada. Eso es el principio de no destructividad aplicado a la preservación.
+**Lo que dicen los metadatos del anexo:**
+
+```
+Objeto      urn:uuid:…  premis:file  fmt/18 «Acrobat PDF 1.4»  71 071 bytes  SHA-256 6b4cac35…450ecb
+            storage: copia primaria /data/almacen/…  ·  segunda copia /data/segunda_copia/… (sincronizada)
+            relationship: derivation / is source of → la versión PDF/A-2b (fmt/477)
+Eventos     ingestion → message digest calculation → format identification → replication
+            → fixity check (manual: primaria íntegra, segunda copia íntegra) → migration (authorizer: persona;
+              executing program: Ghostscript; source → outcome) → fixity check (periódica) → information package creation
+Agentes     person «Archivista del fondo de prueba» · software RICORA · software siegfried 1.11.9 (firmas V125)
+            · software Ghostscript (pdfwrite, PDF/A-2b, perfil sRGB)
+Derechos    Statute · co · «Ley 594 de 2000, art. 27; Ley 1712 de 2014, art. 4» · disseminate Allow · replicate Allow
+Contexto    Fondo CO.AM › Serie CO.AM.01 › Expediente CO.AM.01.003 (Record Set, RiC-E03)
+            › Documento CO.AM.01.003.114 (Record, RiC-E04) ─ rico:hasOrHadInstantiation (R025) → esta Instantiation (RiC-E06)
+            ─ rico:migratedInto (R015) → «Oficio 114 de 1948 (PDF/A-2b).pdf»
+```
+
+**Cómo usarlo en la sustentación:**
+- se puede validar en vivo con `bagit.py --validate` sobre la carpeta;
+- se puede abrir `premis.xml` y seguir la cadena de custodia de un archivo, desde su ingreso hasta su paquete, sin abrir el sistema.
+
+Ese es el argumento de conformidad OAIS: **la evidencia viaja con el objeto**.

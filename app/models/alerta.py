@@ -13,6 +13,7 @@ TIPO_ALERTA = (
     "inventario_campos_pendientes",  # instrumentos
     "integridad_alterada",  # preservación
     "riesgo_obsolescencia",  # preservación
+    "segunda_copia_alterada",  # preservación: la segunda copia cambió, falta o no se pudo crear
 )
 
 

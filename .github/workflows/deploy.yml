@@ -54,9 +54,14 @@ jobs:
       - name: Pruebas del backend
         env:
           DATABASE_URL: postgresql+psycopg2://ricora:ricora@localhost:5432/ricora_pruebas
+          RICORA_PREMIS_MUESTRA: ${{ runner.temp }}/premis-muestra.xml
         run: |
-          pip install -r requirements.txt pytest httpx
+          pip install -r requirements.txt pytest httpx bagit==1.8.1
           python -m pytest -q tests
+      - name: PREMIS contra el esquema oficial de la Library of Congress
+        run: |
+          pip install xmlschema==3.4.3
+          python scripts/validar_premis.py "${{ runner.temp }}/premis-muestra.xml" documentacion/anexos/aip-ejemplo/*/data/metadatos/premis.xml
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

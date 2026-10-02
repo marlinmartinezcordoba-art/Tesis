@@ -6,7 +6,9 @@ Trabajador en segundo plano, proceso aparte del servidor web:
   entidades parecidas y deja sugerencias de fusión, sin fusionar nada;
 - auditoría: cada minuto cierra las sesiones vencidas, con su evento;
 - preservación: cada cierto tiempo (30 días por defecto) recalcula la
-  huella de todas las instanciaciones y alerta si alguna cambió.
+  huella de todas las instanciaciones, primaria y segunda copia, y alerta
+  si alguna cambió; cada minuto crea las segundas copias que falten
+  (fondos anteriores o cambio del lugar configurado).
 Si el OCR de un archivo pesado falla o consume memoria, el servidor web
 sigue respondiendo.
 
@@ -39,7 +41,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _al_detener)
     signal.signal(signal.SIGINT, _al_detener)
     liberado = False
-    ultima_revision_sesiones = float("-inf")
+    ultima_revision_sesiones = ultima_replica = float("-inf")
     log.info("Trabajador de ingesta en marcha.")
     while not _detener:
         try:
@@ -66,6 +68,11 @@ def main() -> None:
                 verificadas = preservacion.verificacion_periodica(db)
                 if verificadas is not None:
                     log.info("Preservación: %s instanciación(es) verificadas.", verificadas)
+                if time.monotonic() - ultima_replica >= 60:
+                    replicadas = preservacion.replicar_pendientes(db)
+                    if replicadas:
+                        log.info("Preservación: %s segunda(s) copia(s) creadas.", replicadas)
+                    ultima_replica = time.monotonic()
                 siguiente = procesamiento.tomar_siguiente(db)
                 if siguiente is not None:
                     log.info("Procesando %s", siguiente)

@@ -74,6 +74,10 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "migracion_aprobada": ("Aprobó una migración", "Migraciones"),
     "migracion_completada": ("Migración completada", None),
     "migracion_fallida": ("Migración fallida", None),
+    "segunda_copia_creada": ("Creó una segunda copia", None),
+    "copia_primaria_restaurada": ("Restauró la copia primaria desde la segunda copia", "Restauraciones"),
+    "derechos_declarados": ("Declaró derechos", "Declaraciones de derechos"),
+    "paquete_exportado": ("Exportó un paquete de preservación (AIP)", "Paquetes de preservación"),
 }
 
 

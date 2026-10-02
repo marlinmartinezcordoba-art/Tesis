@@ -1,0 +1,24 @@
+PAQUETE DE INFORMACIÓN DE ARCHIVO (AIP) · RICORA
+
+Modelo: OAIS (ISO 14721:2012). Convención de empaquetado: BagIt 1.0 (RFC 8493).
+Metadatos de preservación: PREMIS 3.0 (Library of Congress).
+Generado el 2026-10-02T23:31:31+00:00 por Archivista del fondo de prueba.
+
+Contenido:
+  contenido/Oficio 114 de 1948.pdf
+      Información de Contenido: el objeto de datos tal como se custodia.
+  metadatos/premis.xml
+      PREMIS: Objeto (identificador, formato PRONOM, tamaño, huella,
+      ubicaciones primaria y segunda copia), Eventos (ingreso, huella,
+      identificación de formato, segunda copia, verificaciones, migraciones,
+      restauraciones, exportaciones), Agentes (personas y software) y
+      Derechos (cuando hay una declaración).
+  metadatos/pdi.json
+      Información de Descripción de Preservación en sus cinco categorías:
+      referencia, contexto, procedencia, fijeza y derechos de acceso, más la
+      información de representación del contenido (formato PRONOM).
+
+Cómo comprobar que nada cambió: cada archivo de data/ tiene su huella SHA-256
+en manifest-sha256.txt. Cualquier validador BagIt (por ejemplo bagit-python
+de la Library of Congress: «bagit.py --validate <carpeta>») recalcula las
+huellas y avisa si alguna no coincide.

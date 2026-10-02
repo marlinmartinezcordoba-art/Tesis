@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import alertas, almacen, formato, texto
+from app.servicios import alertas, almacen, formato, segunda_copia, texto
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -150,6 +150,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         inst.mensaje_error = None
         inst.tomado_en = None
         inst.procesado_en = ahora()
+        # Segunda copia en el lugar configurado, sin acción manual (si no
+        # se puede, queda su alerta y la ingesta termina igual).
+        segunda_copia.asegurar(db, inst, "ingesta")
         if inst.formato_no_identificado:
             alertas.crear(
                 db, tipo="formato_no_identificado", severidad="media", modulo="ingesta",

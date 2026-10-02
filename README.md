@@ -15,7 +15,7 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 | 2 · Descripción multinivel asistida por IA | Entregado | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
 | 3 · Vocabularios y control de autoridad | Entregado | [documentacion/modulo-3-vocabularios.md](documentacion/modulo-3-vocabularios.md) |
 | 4 · Generación de instrumentos de descripción | Entregado | [documentacion/modulo-4-instrumentos.md](documentacion/modulo-4-instrumentos.md) |
-| 5 · Preservación digital | Entregado | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) |
+| 5 · Preservación digital (v2: segunda copia, PREMIS, AIP BagIt) | Entregado, pendiente de validación | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) · anexo: [AIP de ejemplo](documentacion/anexos/aip-ejemplo/) |
 | Auditoría (transversal) | Entregado, pendiente de validación · incluye la prueba de extremo a extremo de los siete módulos | [documentacion/modulo-auditoria.md](documentacion/modulo-auditoria.md) |
 
 ## Arquitectura

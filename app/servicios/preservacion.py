@@ -14,6 +14,13 @@ Resource. Tres piezas:
   espera el archivo convertido por fuera. En los dos casos se crea una
   Instantiation nueva enlazada por RiC-R015 migrated into; la original no
   se modifica ni se borra nunca.
+- segunda copia (servicios/segunda_copia.py): cada verificación compara
+  también la segunda copia; su alteración o pérdida tiene alerta propia.
+  Si la primaria se daña, se puede restaurar desde la segunda copia, con
+  aprobación y sin borrar el archivo dañado (queda en cuarentena).
+
+El paquete de información de archivo (AIP) con PREMIS está en
+servicios/paquete.py.
 """
 
 import fnmatch
@@ -37,14 +44,15 @@ from app.models.alerta import Alerta
 from app.models.descripcion import Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.parametro import Parametro
-from app.models.preservacion import Migracion, VerificacionIntegridad
+from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import alertas, almacen, formato, parametros, riesgo
+from app.servicios import alertas, almacen, derechos, formato, parametros, riesgo, segunda_copia
 from app.servicios.auditoria import registrar
 
 log = logging.getLogger("ricora.preservacion")
 
-TIPOS_ALERTA = ("integridad_alterada", "riesgo_obsolescencia", "formato_no_identificado")
+TIPOS_ALERTA = ("integridad_alterada", "segunda_copia_alterada", "riesgo_obsolescencia", "formato_no_identificado")
+TIPOS_INTEGRIDAD = ("integridad_alterada", "segunda_copia_alterada")
 
 
 class ErrorPreservacion(Exception):
@@ -208,28 +216,50 @@ def huella_de(ruta: Path) -> str:
 
 def verificar(db: Session, inst: Instanciacion, *, origen: str, usuario_id: uuid.UUID | None = None,
               ip: str | None = None) -> VerificacionIntegridad:
-    """Recalcula la huella y la compara con la registrada en la ingesta.
-    Alterada o ausente → alerta de severidad alta. No corrige nada sola."""
+    """Recalcula la huella de la copia primaria y de la segunda copia y las
+    compara con la registrada en la ingesta (y, por tanto, entre sí).
+    Primaria alterada o ausente → alerta «integridad_alterada»; segunda copia
+    alterada o ausente → alerta «segunda_copia_alterada». No corrige nada
+    sola. Si aún no hay segunda copia y la primaria está íntegra, la crea."""
     try:
         calculada = huella_de(almacen.ruta_absoluta(inst.ruta))
         resultado = "integra" if calculada == inst.huella else "alterada"
     except (FileNotFoundError, ValueError):
         calculada, resultado = None, "ausente"
+    copia = segunda_copia.vigente(db, inst.id)
+    res_copia, huella_copia = segunda_copia.comprobar(copia, inst.huella)
+    if res_copia == "sin_copia" and resultado == "integra":
+        copia = segunda_copia.asegurar(db, inst, "pendiente")
+        res_copia, huella_copia = segunda_copia.comprobar(copia, inst.huella)
     v = VerificacionIntegridad(instanciacion_id=inst.id, resultado=resultado, algoritmo=inst.algoritmo_huella,
                                huella_registrada=inst.huella, huella_calculada=calculada, origen=origen,
-                               usuario_id=usuario_id)
+                               usuario_id=usuario_id, segunda_copia_id=copia.id if copia else None,
+                               segunda_copia_resultado=res_copia, segunda_copia_huella=huella_copia)
     db.add(v)
     inst.estado_integridad, inst.ultima_verificacion_en = resultado, ahora()
     if resultado != "integra":
         mensaje = (f"«{inst.nombre_original}»: la huella digital ya no coincide con la registrada en la ingesta "
                    "(el archivo cambió)." if resultado == "alterada" else
                    f"«{inst.nombre_original}»: el archivo no está en el almacenamiento.")
+        if res_copia == "integra":
+            mensaje += " La segunda copia está íntegra: se puede restaurar desde ella."
         alertas.crear(db, tipo="integridad_alterada", severidad="alta", modulo="preservacion",
                       entidad_tipo="instanciacion", entidad_id=inst.id, fondo_id=inst.fondo_id, mensaje=mensaje,
-                      detalle={"resultado": resultado, "huella_registrada": inst.huella, "huella_calculada": calculada})
+                      detalle={"resultado": resultado, "huella_registrada": inst.huella, "huella_calculada": calculada,
+                               "segunda_copia": res_copia})
+    if copia is not None:
+        copia.ultima_verificacion_en = ahora()
+        copia.estado = "sincronizada" if res_copia == "integra" else res_copia
+    if res_copia in ("alterada", "ausente"):
+        mensaje = (f"«{inst.nombre_original}»: la segunda copia ya no coincide con la huella de la ingesta."
+                   if res_copia == "alterada" else f"«{inst.nombre_original}»: la segunda copia no está en su lugar.")
+        alertas.crear(db, tipo="segunda_copia_alterada", severidad="alta", modulo="preservacion",
+                      entidad_tipo="instanciacion", entidad_id=inst.id, fondo_id=inst.fondo_id, mensaje=mensaje,
+                      detalle={"resultado": res_copia, "ubicacion": copia.ubicacion, "huella_registrada": inst.huella,
+                               "huella_calculada": huella_copia})
     registrar(db, modulo="preservacion", accion="integridad_verificada", usuario_id=usuario_id,
               entidad_tipo="instanciacion", entidad_id=inst.id, ip=ip,
-              nuevo={"resultado": resultado, "origen": origen}, detalle=inst.nombre_original)
+              nuevo={"resultado": resultado, "segunda_copia": res_copia, "origen": origen}, detalle=inst.nombre_original)
     db.flush()
     return v
 
@@ -333,7 +363,8 @@ def panel(db: Session, fondo_id: uuid.UUID) -> dict:
     pendientes = db.scalars(select(Alerta).where(Alerta.fondo_id == fondo_id, Alerta.atendida_en.is_(None),
                                                  Alerta.tipo.in_(TIPOS_ALERTA))).all()
     con_integridad = {a.entidad_id for a in pendientes if a.tipo == "integridad_alterada"}
-    con_riesgo = {a.entidad_id for a in pendientes if a.tipo != "integridad_alterada"}
+    con_copia = {a.entidad_id for a in pendientes if a.tipo == "segunda_copia_alterada"}
+    con_riesgo = {a.entidad_id for a in pendientes if a.tipo not in TIPOS_INTEGRIDAD}
     atencion = []
     for a in sorted(pendientes, key=lambda a: (ORDEN_SEVERIDAD[a.severidad], a.creada_en)):
         inst = db.get(Instanciacion, uuid.UUID(a.entidad_id))
@@ -344,12 +375,14 @@ def panel(db: Session, fondo_id: uuid.UUID) -> dict:
                                            "formato": inst.formato_nombre, "puid": inst.formato_puid},
                          "contexto": _contexto(db, inst.derivada_de_id or inst.id)})
     return {
-        "resumen": {"total": total, "alerta_integridad": len(con_integridad), "riesgo_obsolescencia": len(con_riesgo),
-                    "buen_estado": max(0, total - len(con_integridad | con_riesgo))},
+        "resumen": {"total": total, "alerta_integridad": len(con_integridad), "alerta_segunda_copia": len(con_copia),
+                    "riesgo_obsolescencia": len(con_riesgo),
+                    "buen_estado": max(0, total - len(con_integridad | con_copia | con_riesgo))},
         "atencion": atencion,
         "frecuencia_dias": int(parametros.leer(db, "preservacion_frecuencia_dias")),
         "ultima_verificacion": (db.get(Parametro, CLAVE_ULTIMA_VERIFICACION).valor
                                 if db.get(Parametro, CLAVE_ULTIMA_VERIFICACION) else None),
+        "sin_segunda_copia": len(sin_segunda_copia(db, fondo_id)),
     }
 
 
@@ -374,6 +407,9 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
     migraciones = db.scalars(select(Migracion).where(Migracion.instanciacion_origen_id == inst.id)
                              .order_by(Migracion.aprobada_en.desc())).all()
     origen_migracion = db.scalar(select(Migracion).where(Migracion.instanciacion_resultado_id == inst.id))
+    copia = segunda_copia.vigente(db, inst.id)
+    restauraciones = db.scalars(select(Restauracion).where(Restauracion.instanciacion_id == inst.id)
+                                .order_by(Restauracion.fecha.desc())).all()
     return {
         "id": str(inst.id), "nombre": inst.nombre_original, "fondo_id": str(inst.fondo_id),
         "formato": {"puid": inst.formato_puid, "nombre": inst.formato_nombre, "version": inst.formato_version,
@@ -389,7 +425,18 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
         "migrada_desde": {"herramienta": origen_migracion.herramienta, "modo": origen_migracion.modo}
         if origen_migracion else None,
         "verificaciones": [{"fecha": v.fecha, "resultado": v.resultado, "origen": v.origen,
+                            "segunda_copia": v.segunda_copia_resultado,
                             "por": nombres.get(v.usuario_id)} for v in verificaciones],
+        "almacenamiento": {"primaria": {"ubicacion": str(almacen.raiz()), "ruta": inst.ruta},
+                           "segunda_copia": _copia_out(copia)},
+        "restauraciones": [{"fecha": r.fecha, "por": nombres.get(r.usuario_id), "estado_previo": r.estado_previo,
+                            "cuarentena": r.ruta_cuarentena} for r in restauraciones],
+        "acciones": {"restaurar": inst.estado_integridad in ("alterada", "ausente")
+                     and copia is not None and copia.estado == "sincronizada",
+                     "reponer_segunda_copia": inst.estado_integridad == "integra"
+                     and (copia is None or copia.estado in ("alterada", "ausente"))},
+        "derechos": derechos.aplicable(db, inst),
+        "aplicacion_creadora": aplicacion_creadora(db, inst),
         "migraciones": [{"id": str(m.id), "destino": m.destino, "destino_nombre": m.destino_nombre, "modo": m.modo,
                          "estado": m.estado, "herramienta": m.herramienta, "mensaje": m.mensaje,
                          "aprobada_por": nombres.get(m.aprobada_por_id), "aprobada_en": m.aprobada_en,
@@ -398,6 +445,21 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
                          if m.instanciacion_resultado_id else None} for m in migraciones],
         "destinos": destinos_para(db, inst),
     }
+
+
+def _copia_out(copia: SegundaCopia | None) -> dict:
+    if copia is None:
+        return {"estado": "sin_copia"}
+    return {"id": str(copia.id), "estado": copia.estado, "ubicacion": copia.ubicacion, "ruta": copia.ruta,
+            "huella": copia.huella, "motivo": copia.motivo, "creada_en": copia.creada_en,
+            "ultima_verificacion_en": copia.ultima_verificacion_en}
+
+
+def aplicacion_creadora(db: Session, inst: Instanciacion) -> str | None:
+    """PREMIS creatingApplication: se conoce cuando el archivo lo produjo
+    una migración del sistema; de lo que llega en la ingesta, no."""
+    m = db.scalar(select(Migracion).where(Migracion.instanciacion_resultado_id == inst.id))
+    return m.herramienta if m else None
 
 
 # --- Migración ----------------------------------------------------------------------------------
@@ -442,6 +504,7 @@ def _crear_derivada(db: Session, original: Instanciacion, archivo: BinaryIO, nom
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso_id, destino_tipo="instanciacion",
                         destino_id=nueva.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
                         origen="persona", confirmada_por_id=usuario_id))
+    segunda_copia.asegurar(db, nueva, "migracion")  # su propia segunda copia, sin acción manual
     return nueva
 
 
@@ -517,6 +580,115 @@ def cargar_convertido(db: Session, m: Migracion, archivo: BinaryIO, nombre: str,
                      "formato": nueva.formato_puid, "nombre": nombre})
     evaluar_riesgos(db, original.fondo_id)
     return nueva
+
+
+# --- Segunda copia: restauración, reposición y copias pendientes ----------------------------------
+
+
+def restaurar(db: Session, inst: Instanciacion, usuario_id: uuid.UUID, ip: str | None = None) -> Restauracion:
+    """Contingencia del plan de preservación: la copia primaria alterada o
+    perdida se repone desde la segunda copia íntegra. El archivo dañado no
+    se borra, se aparta a la cuarentena. Siempre por aprobación explícita."""
+    if inst.estado_integridad not in ("alterada", "ausente"):
+        raise ErrorPreservacion("La copia primaria no tiene alerta de integridad: no hay nada que restaurar.", 409)
+    copia = segunda_copia.vigente(db, inst.id)
+    resultado, _ = segunda_copia.comprobar(copia, inst.huella)
+    if resultado != "integra":
+        raise ErrorPreservacion("La segunda copia no está íntegra: no se puede restaurar desde ella.", 409)
+    primaria = almacen.ruta_absoluta(inst.ruta)
+    huella_previa, cuarentena = None, None
+    if primaria.exists():
+        huella_previa = huella_de(primaria)
+        cuarentena = f".cuarentena/{inst.id}-{ahora():%Y%m%dT%H%M%S}{almacen.extension_segura(inst.ruta)}"
+        destino_cuarentena = almacen.ruta_absoluta(cuarentena)
+        destino_cuarentena.parent.mkdir(parents=True, exist_ok=True)
+        primaria.replace(destino_cuarentena)
+    primaria.parent.mkdir(parents=True, exist_ok=True)
+    temporal = primaria.with_name(primaria.name + ".restaurando")
+    shutil.copyfile(segunda_copia.ruta_absoluta(copia), temporal)
+    if huella_de(temporal) != inst.huella:
+        temporal.unlink(missing_ok=True)
+        raise ErrorPreservacion("La copia restaurada no tiene la huella de la ingesta; no se completó.", 500)
+    temporal.replace(primaria)
+    r = Restauracion(instanciacion_id=inst.id, segunda_copia_id=copia.id, usuario_id=usuario_id,
+                     estado_previo=inst.estado_integridad, huella_previa=huella_previa, ruta_cuarentena=cuarentena)
+    db.add(r)
+    registrar(db, modulo="preservacion", accion="copia_primaria_restaurada", usuario_id=usuario_id,
+              entidad_tipo="instanciacion", entidad_id=inst.id, ip=ip, detalle=inst.nombre_original,
+              anterior={"estado_integridad": inst.estado_integridad, "huella": huella_previa},
+              nuevo={"desde_segunda_copia": str(copia.id), "cuarentena": cuarentena})
+    db.flush()
+    verificar(db, inst, origen="manual", usuario_id=usuario_id, ip=ip)
+    existente = alertas.pendiente(db, "integridad_alterada", inst.id)
+    if existente is not None and inst.estado_integridad == "integra":
+        alertas.atender(db, existente, usuario_id, "Resuelta: copia primaria restaurada desde la segunda copia.")
+    db.flush()
+    return r
+
+
+def reponer_segunda_copia(db: Session, inst: Instanciacion, usuario_id: uuid.UUID,
+                          ip: str | None = None) -> SegundaCopia:
+    """La segunda copia alterada o perdida se rehace desde la primaria
+    íntegra. La copia dañada no se borra: queda «reemplazada»."""
+    try:
+        calculada = huella_de(almacen.ruta_absoluta(inst.ruta))
+    except (FileNotFoundError, ValueError):
+        calculada = None
+    if calculada != inst.huella:
+        raise ErrorPreservacion("La copia primaria no está íntegra: primero restáurela.", 409)
+    try:
+        copia = segunda_copia.crear(db, inst, "reposicion", usuario_id, ip)
+    except (segunda_copia.ErrorSegundaCopia, OSError) as exc:
+        raise ErrorPreservacion(f"No se pudo rehacer la segunda copia: {exc}", 503) from exc
+    existente = alertas.pendiente(db, "segunda_copia_alterada", inst.id)
+    if existente is not None:
+        alertas.atender(db, existente, usuario_id, "Resuelta: segunda copia rehecha desde la primaria.")
+    db.flush()
+    return copia
+
+
+def sin_segunda_copia(db: Session, fondo_id: uuid.UUID | None = None, limite: int | None = None) -> list[uuid.UUID]:
+    """Instanciaciones íntegras sin segunda copia vigente en el lugar
+    configurado (fondos anteriores a esta versión, o cambio de lugar)."""
+    try:
+        ubicacion = str(segunda_copia.ubicacion_actual(db))
+    except segunda_copia.ErrorSegundaCopia:
+        return []
+    con_copia = select(SegundaCopia.instanciacion_id).where(SegundaCopia.estado != "reemplazada",
+                                                            SegundaCopia.ubicacion == ubicacion)
+    consulta = (_verificables(db).with_only_columns(Instanciacion.id)
+                .where(Instanciacion.estado_integridad.in_(("sin_verificar", "integra")),
+                       Instanciacion.id.not_in(con_copia)).order_by(Instanciacion.cargado_en))
+    if fondo_id is not None:
+        consulta = consulta.where(Instanciacion.fondo_id == fondo_id)
+    if limite is not None:
+        consulta = consulta.limit(limite)
+    return list(db.scalars(consulta).all())
+
+
+def replicar_pendientes(db: Session, limite: int = 20) -> int:
+    """La llama el trabajador: crea, de a pocas, las segundas copias que
+    falten. Si la primaria ya no tiene su huella, no la replica: la verifica
+    (y queda su alerta de integridad)."""
+    n = 0
+    for inst_id in sin_segunda_copia(db, limite=limite):
+        inst = db.get(Instanciacion, inst_id)
+        try:
+            actual = segunda_copia.vigente(db, inst.id)
+            segunda_copia.crear(db, inst, "pendiente" if actual is None else "cambio_de_ubicacion")
+            n += 1
+        except segunda_copia.ErrorSegundaCopia:
+            verificar(db, inst, origen="periodica")
+        except OSError as exc:  # el lugar no existe o no se puede escribir: se avisa una vez
+            db.rollback()
+            alertas.crear(db, tipo="segunda_copia_alterada", severidad="alta", modulo="preservacion",
+                          entidad_tipo="parametro", entidad_id="preservacion_segunda_ubicacion",
+                          mensaje=f"No se puede escribir en el lugar de la segunda copia: {exc}",
+                          detalle={"resultado": "no_creada", "motivo": str(exc)[:300]})
+            db.commit()
+            return n
+        db.commit()
+    return n
 
 
 def _temporal() -> Path:

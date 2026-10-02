@@ -22,6 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     RICORA_DIRECTORIO_INTERFAZ=/app/interfaz \
     DIRECTORIO_ALMACENAMIENTO=/data/almacen \
+    RICORA_SEGUNDA_COPIA=/data/segunda_copia \
     RICORA_SIEGFRIED=/usr/local/bin/sf \
     RICORA_SIEGFRIED_HOME=/opt/siegfried
 # OCR: Tesseract con el idioma español. Preservación: Ghostscript (PDF → PDF/A).
@@ -38,7 +39,7 @@ COPY alembic ./alembic
 COPY app ./app
 COPY --from=interfaz /interfaz/dist ./interfaz
 RUN useradd --create-home --uid 1000 ricora \
-    && mkdir -p /data/almacen \
+    && mkdir -p /data/almacen /data/segunda_copia \
     && chown -R ricora:ricora /data \
     && chmod +x docker-entrypoint.sh
 USER ricora

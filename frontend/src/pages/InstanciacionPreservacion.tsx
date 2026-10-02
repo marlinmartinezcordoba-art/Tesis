@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
-import { ErrorAPI, pedir, puede as tienePermiso, subir } from "@/lib/api";
+import { ErrorAPI, descargar, pedir, puede as tienePermiso, subir } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { fecha, peso } from "@/lib/formato";
-import { INTEGRIDAD, RIESGO, type Detalle, type MigracionHist } from "@/lib/preservacion";
+import {
+  ACCESOS, BASES_DERECHOS, INTEGRIDAD, REPRODUCCIONES, RIESGO, SEGUNDA_COPIA, type Detalle, type MigracionHist,
+  type ResultadoCopia,
+} from "@/lib/preservacion";
 import { useSesion } from "@/lib/sesion";
 
 const ESTADO_MIGRACION: Record<MigracionHist["estado"], { texto: string; clase: string }> = {
@@ -44,6 +47,115 @@ function CargaConvertido({ instId, migracion, alTerminar }: { instId: string; mi
       <div className="zona-sub">Se identificará con PRONOM y quedará enlazado a la original. La original no cambia.</div>
       {error && <div className="aviso error" style={{ marginTop: 10 }}>{error}</div>}
       <input ref={entrada} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) enviar(f); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+const RESULTADO_COPIA: Record<ResultadoCopia, { texto: string; clase: string }> = {
+  integra: { texto: "Íntegra", clase: "bien" },
+  alterada: { texto: "Alterada", clase: "error" },
+  ausente: { texto: "No está", clase: "error" },
+  sin_copia: { texto: "Sin copia", clase: "alerta" },
+};
+
+// Derechos (PREMIS): la declaración que rige el archivo, heredada o propia,
+// y el formulario para declarar una nueva en este archivo o en un nivel.
+function TarjetaDerechos({ d, puede, alTerminar }: { d: Detalle; puede: boolean; alTerminar: (texto: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const niveles = [{ tipo: "instanciacion", id: d.id, nombre: `Solo este archivo (${d.nombre})` },
+    ...[...d.contexto].reverse().map((c) => ({ tipo: "recurso_documental", id: c.id,
+      nombre: `${NIVEL_NOMBRE[c.nivel] || c.nivel}: ${c.titulo} (y todo lo que contiene)` }))];
+  const [form, setForm] = useState({ destino: 0, base: "estatuto", acceso: "publico", reproduccion: "permitida",
+    fundamento: "", nota: "", vigente_hasta: "" });
+  const [error, setError] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const r = d.derechos;
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setOcupado(true);
+    setError("");
+    const n = niveles[form.destino];
+    try {
+      await pedir("/api/preservacion/derechos", { method: "PUT", body: JSON.stringify({
+        entidad_tipo: n.tipo, entidad_id: n.id, base: form.base, acceso: form.acceso, reproduccion: form.reproduccion,
+        fundamento: form.fundamento, nota: form.nota || null, vigente_hasta: form.vigente_hasta || null }) });
+      setAbierto(false);
+      alTerminar("Declaración de derechos guardada. La anterior, si había, queda en el historial como reemplazada.");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar la declaración.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Derechos (PREMIS)</div>
+      <div className="tarjeta-cuerpo">
+        {!r ? <p className="meta" style={{ marginTop: 0 }}>No hay una declaración de derechos para este archivo ni para los niveles
+          que lo contienen. El paquete de preservación lo dirá así.</p> : (
+          <dl className="pares" style={{ margin: 0 }}>
+            <dt>Acceso</dt><dd><span className={`insignia ${r.acceso === "publico" ? "bien" : "alerta"}`}>{r.acceso_nombre}</span></dd>
+            <dt>Reproducción</dt><dd>{r.reproduccion_nombre}</dd>
+            <dt>Base</dt><dd>{r.base_nombre}</dd>
+            <dt>Fundamento</dt><dd>{r.fundamento}{r.nota && <span className="meta"> · {r.nota}</span>}</dd>
+            {r.vigente_hasta && <><dt>Vigente hasta</dt><dd>{r.vigente_hasta}</dd></>}
+            <dt>Declarada en</dt>
+            <dd className="meta">{r.heredada ? `Heredada de ${NIVEL_NOMBRE[r.nivel || ""] || r.nivel}: ${r.titulo}` : "Este archivo"}</dd>
+          </dl>
+        )}
+        {puede && !abierto && (
+          <div className="acciones"><button type="button" className="boton chico" onClick={() => setAbierto(true)}>Declarar derechos</button></div>
+        )}
+        {abierto && (
+          <form onSubmit={guardar} style={{ marginTop: 12 }}>
+            <div className="campo">
+              <label htmlFor="d-destino">Aplica a</label>
+              <select id="d-destino" className="selector" value={form.destino} onChange={(e) => setForm({ ...form, destino: Number(e.target.value) })}>
+                {niveles.map((n, i) => <option key={n.id} value={i}>{n.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="d-acceso">Acceso</label>
+              <select id="d-acceso" className="selector" value={form.acceso} onChange={(e) => setForm({ ...form, acceso: e.target.value })}>
+                {ACCESOS.map((a) => <option key={a.clave} value={a.clave}>{a.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="d-repro">Reproducción</label>
+              <select id="d-repro" className="selector" value={form.reproduccion} onChange={(e) => setForm({ ...form, reproduccion: e.target.value })}>
+                {REPRODUCCIONES.map((a) => <option key={a.clave} value={a.clave}>{a.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="d-base">Base</label>
+              <select id="d-base" className="selector" value={form.base} onChange={(e) => setForm({ ...form, base: e.target.value })}>
+                {BASES_DERECHOS.map((a) => <option key={a.clave} value={a.clave}>{a.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="d-fund">Fundamento</label>
+              <input id="d-fund" required minLength={3} maxLength={500} value={form.fundamento}
+                     placeholder="p. ej. Ley 594 de 2000, art. 27; Ley 1712 de 2014, art. 4"
+                     onChange={(e) => setForm({ ...form, fundamento: e.target.value })} />
+            </div>
+            <div className="campo">
+              <label htmlFor="d-nota">Nota (opcional)</label>
+              <input id="d-nota" maxLength={500} value={form.nota} onChange={(e) => setForm({ ...form, nota: e.target.value })} />
+            </div>
+            <div className="campo">
+              <label htmlFor="d-hasta">Vigente hasta (opcional)</label>
+              <input id="d-hasta" type="date" value={form.vigente_hasta} onChange={(e) => setForm({ ...form, vigente_hasta: e.target.value })} />
+            </div>
+            {error && <div className="aviso error" role="alert">{error}</div>}
+            <div className="acciones">
+              <button type="button" className="boton" onClick={() => setAbierto(false)}>Cancelar</button>
+              <button type="submit" className="boton primario" disabled={ocupado}>{ocupado ? "Guardando…" : "Guardar declaración"}</button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
@@ -115,8 +227,11 @@ export function InstanciacionPreservacion() {
   const [d, setD] = useState<Detalle | null>(null);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
+  const [avisoTipo, setAvisoTipo] = useState<"bien" | "error">("bien");
   const [verificando, setVerificando] = useState(false);
   const [migrando, setMigrando] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [confirmar, setConfirmar] = useState<"restaurar" | "reponer" | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -138,9 +253,14 @@ export function InstanciacionPreservacion() {
     setVerificando(true);
     setError("");
     try {
-      const r = await pedir<{ resultado: string }>(`/api/preservacion/instanciacion/${id}/verificar`, { method: "POST" });
-      setAviso(r.resultado === "integra" ? "Verificación hecha: el archivo está íntegro (la huella coincide)."
-        : "¡Atención! La verificación encontró el archivo alterado o ausente. Se generó una alerta de severidad alta.");
+      const r = await pedir<{ resultado: string; segunda_copia: ResultadoCopia }>(`/api/preservacion/instanciacion/${id}/verificar`,
+        { method: "POST" });
+      const copiaBien = r.segunda_copia === "integra";
+      setAvisoTipo(r.resultado === "integra" && copiaBien ? "bien" : "error");
+      setAviso(r.resultado !== "integra"
+        ? "¡Atención! La verificación encontró la copia primaria alterada o ausente. Se generó una alerta de severidad alta."
+        : copiaBien ? "Verificación hecha: la copia primaria y la segunda copia están íntegras (las huellas coinciden)."
+          : "La copia primaria está íntegra, pero la segunda copia no: se generó su alerta propia.");
       window.dispatchEvent(new Event("ricora:alertas"));
       cargar();
     } catch (err) {
@@ -150,7 +270,37 @@ export function InstanciacionPreservacion() {
     }
   }
 
+  async function exportar() {
+    setExportando(true);
+    setError("");
+    try {
+      await descargar(`/api/preservacion/instanciacion/${id}/exportar-paquete`, { method: "POST" });
+      setAvisoTipo("bien");
+      setAviso("Paquete de preservación exportado (BagIt con PREMIS y las cinco categorías de la PDI). Quedó registrado en la auditoría.");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo exportar el paquete.");
+    } finally {
+      setExportando(false);
+    }
+  }
+
+  async function contingencia(accion: "restaurar" | "reponer") {
+    setError("");
+    try {
+      await pedir(`/api/preservacion/instanciacion/${id}/${accion === "restaurar" ? "restaurar" : "segunda-copia/reponer"}`,
+        { method: "POST", body: JSON.stringify({ aprobada: true }) });
+      terminar(accion === "restaurar"
+        ? "Copia primaria restaurada desde la segunda copia. El archivo dañado quedó apartado en cuarentena, sin borrarse."
+        : "Segunda copia rehecha desde la primaria. La copia dañada se conserva como «reemplazada».");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo completar la acción.");
+    } finally {
+      setConfirmar(null);
+    }
+  }
+
   const terminar = (texto: string) => {
+    setAvisoTipo("bien");
     setAviso(texto);
     setMigrando(false);
     window.dispatchEvent(new Event("ricora:alertas"));
@@ -159,6 +309,7 @@ export function InstanciacionPreservacion() {
 
   if (!d) return error ? <div className="aviso error">{error}</div> : <div className="cargando">Cargando…</div>;
   const integridad = INTEGRIDAD[d.estado_integridad];
+  const copia = d.almacenamiento.segunda_copia;
   const recurso = d.contexto[d.contexto.length - 1];
 
   return (
@@ -179,18 +330,24 @@ export function InstanciacionPreservacion() {
         <div className="insignias">
           <EnlaceHistoria tipo="instanciacion" id={d.id} nombre={d.nombre} />
           <span className={`insignia ${integridad.clase}`}>{integridad.texto}</span>
+          <span className={`insignia ${SEGUNDA_COPIA[copia.estado].clase}`}>
+            Segunda copia {copia.estado === "sin_copia" ? "pendiente" : copia.estado === "ausente" ? "perdida" : copia.estado}
+          </span>
           <span className={`insignia ${d.riesgo.mitigado_por ? "bien" : RIESGO[d.riesgo.nivel].clase}`}>
             {d.riesgo.mitigado_por ? "Riesgo mitigado" : RIESGO[d.riesgo.nivel].texto}
           </span>
         </div>
       </div>
-      {aviso && <div className="aviso bien" role="status">{aviso}</div>}
+      {aviso && <div className={`aviso ${avisoTipo}`} role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
       <div className="tarjeta">
-        <div className="tarjeta-cab">Ficha técnica (PREMIS)</div>
+        <div className="tarjeta-cab">Ficha técnica (PREMIS · Objeto)</div>
         <div className="tarjeta-cuerpo">
           <dl className="pares" style={{ margin: 0 }}>
+            <dt>Identificador</dt><dd><code className="huella">urn:uuid:{d.id}</code></dd>
+            <dt>Categoría</dt><dd>Archivo (PREMIS file) · Instantiation, RiC-E06</dd>
+            <dt>Nombre original</dt><dd>{d.nombre}</dd>
             <dt>Formato</dt>
             <dd>{d.formato.nombre || "No identificado"}{d.formato.version && ` · versión ${d.formato.version}`}
               {d.formato.puid && <span className="meta"> · PRONOM {d.formato.puid}</span>}</dd>
@@ -198,6 +355,15 @@ export function InstanciacionPreservacion() {
             <dt>Identificado con</dt><dd className="meta">{d.formato.herramienta || "—"}</dd>
             <dt>Tamaño</dt><dd>{peso(d.tamano_bytes)}{d.paginas ? ` · ${d.paginas} página(s)` : ""}</dd>
             <dt>Huella digital</dt><dd><code className="huella">{d.algoritmo_huella} {d.huella}</code></dd>
+            <dt>Aplicación creadora</dt><dd className="meta">{d.aplicacion_creadora || "Desconocida (el archivo llegó por la ingesta)"}</dd>
+            <dt>Copia primaria</dt><dd className="meta">{d.almacenamiento.primaria.ubicacion}/{d.almacenamiento.primaria.ruta}</dd>
+            <dt>Segunda copia</dt>
+            <dd>
+              <span className={`insignia ${SEGUNDA_COPIA[copia.estado].clase}`}>{SEGUNDA_COPIA[copia.estado].texto}</span>
+              {copia.ubicacion && <span className="meta"> · {copia.ubicacion}/{copia.ruta}</span>}
+              {copia.ultima_verificacion_en && <span className="meta"> · verificada {fecha(copia.ultima_verificacion_en)}</span>}
+              {copia.estado === "sin_copia" && <span className="meta"> · el sistema la crea en el próximo minuto</span>}
+            </dd>
             <dt>Ingreso</dt><dd>{fecha(d.cargado_en)}</dd>
             <dt>Última verificación</dt><dd>{d.ultima_verificacion_en ? fecha(d.ultima_verificacion_en) : "Todavía no"}</dd>
             {d.derivada_de && (
@@ -226,12 +392,14 @@ export function InstanciacionPreservacion() {
         {d.verificaciones.length === 0 ? <div className="vacio">Todavía no se ha verificado.</div> : (
           <div className="tabla-desplazable">
             <table className="tabla-permisos">
-              <thead><tr><th>Fecha</th><th>Resultado</th><th>Cómo</th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Copia primaria</th><th>Segunda copia</th><th>Cómo</th></tr></thead>
               <tbody>
                 {d.verificaciones.map((v, i) => (
                   <tr key={i}>
                     <td>{fecha(v.fecha)}</td>
                     <td><span className={`insignia ${INTEGRIDAD[v.resultado].clase}`}>{INTEGRIDAD[v.resultado].texto}</span></td>
+                    <td>{v.segunda_copia ? <span className={`insignia ${RESULTADO_COPIA[v.segunda_copia].clase}`}>{RESULTADO_COPIA[v.segunda_copia].texto}</span>
+                      : <span className="meta">No se verificaba</span>}</td>
                     <td className="meta">{v.origen === "periodica" ? "Verificación periódica automática" : `Manual${v.por ? ` · ${v.por}` : ""}`}</td>
                   </tr>
                 ))}
@@ -240,6 +408,48 @@ export function InstanciacionPreservacion() {
           </div>
         )}
       </div>
+
+      {(d.acciones.restaurar || d.acciones.reponer_segunda_copia) && puede && (
+        <div className="aviso error" role="alert">
+          {d.acciones.restaurar ? (
+            <><strong>La copia primaria está {d.estado_integridad === "ausente" ? "perdida" : "alterada"} y la segunda copia está íntegra.</strong>{" "}
+              Puede restaurarla: el archivo dañado no se borra, se aparta a la cuarentena, y todo queda en la auditoría.</>
+          ) : (
+            <><strong>La segunda copia {copia.estado === "ausente" ? "no está en su lugar" : "está alterada"}.</strong>{" "}
+              La copia primaria está íntegra: puede rehacer la segunda copia desde ella. La dañada se conserva.</>
+          )}
+          <div className="acciones">
+            {confirmar ? (
+              <>
+                <button type="button" className="boton" onClick={() => setConfirmar(null)}>Cancelar</button>
+                <button type="button" className="boton primario" onClick={() => contingencia(confirmar)}>
+                  Sí, apruebo {confirmar === "restaurar" ? "restaurar la copia primaria" : "rehacer la segunda copia"}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="boton primario" onClick={() => setConfirmar(d.acciones.restaurar ? "restaurar" : "reponer")}>
+                {d.acciones.restaurar ? "Restaurar desde la segunda copia" : "Rehacer la segunda copia"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {d.restauraciones.length > 0 && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Restauraciones (contingencia)</div>
+          {d.restauraciones.map((r, i) => (
+            <div key={i} className="fila">
+              <div className="fila-principal">
+                <div className="nombre">Copia primaria {r.estado_previo} restaurada desde la segunda copia</div>
+                <div className="meta">{fecha(r.fecha)} · {r.por || "—"}{r.cuarentena && ` · archivo dañado en ${r.cuarentena}`}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <TarjetaDerechos d={d} puede={puede} alTerminar={terminar} />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Historial de migraciones</div>
@@ -272,6 +482,9 @@ export function InstanciacionPreservacion() {
             <button type="button" className="boton" disabled={verificando} onClick={verificar}>
               {verificando ? "Verificando…" : "Verificar integridad ahora"}
             </button>
+            <button type="button" className="boton" disabled={exportando || d.estado_integridad === "alterada" || d.estado_integridad === "ausente"}
+                    title="Paquete de información de archivo (OAIS): BagIt con el archivo, PREMIS y la PDI"
+                    onClick={exportar}>{exportando ? "Armando el paquete…" : "Exportar paquete de preservación"}</button>
             {!migrando && (
               <button type="button" className="boton primario" disabled={d.estado_integridad === "alterada" || d.estado_integridad === "ausente"}
                       title={d.estado_integridad === "alterada" ? "Resuelva primero la alerta de integridad" : undefined}
