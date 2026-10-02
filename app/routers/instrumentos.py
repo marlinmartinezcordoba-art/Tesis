@@ -84,6 +84,22 @@ def ficha(recurso_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Sessi
         raise _error(exc) from exc
 
 
+@router.get("/grafo", summary="Vecindario de un nodo del grafo RiC, para dibujarlo (solo lectura)")
+def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, _: Actor = Depends(lectura_catalogo),
+          db: Session = Depends(get_db)):
+    tipo, nodo_id = None, None
+    if centro:
+        try:
+            tipo, valor = centro.split(":", 1)
+            nodo_id = uuid.UUID(valor)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nodo central no válido.") from exc
+    try:
+        return instrumentos.grafo(db, fondo_o_404(db, fondo_id), tipo, nodo_id, profundidad)
+    except instrumentos.ErrorInstrumento as exc:
+        raise _error(exc) from exc
+
+
 @router.get("/indice", summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
 def indice(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     return instrumentos.indice(db, fondo_o_404(db, fondo_id))

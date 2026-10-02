@@ -380,3 +380,51 @@ Record Set «Correspondencia 1948» (expediente, CO-48)
 **Alerta:** «Inventario de «Correspondencia 1948»: 2 campos obligatorios del FUID sin dato.»
 
 El índice es el vocabulario consolidado del módulo 3, sin copias. Por ejemplo, «Alcaldía Municipal de Tunja · 4 documentos» ya incluye los que venían de la forma «Alcaldia Mpal. de Tunja» fusionada.
+
+
+---
+
+## Ampliación · Grafo visual (a pedido de la autora)
+
+**Por qué.** La autora no encontraba el grafo en el sistema. Lo había: cada publicación lo guarda en la base de datos, y la ficha lo recorre por enlaces. Pero no había un dibujo.
+
+La Especificación funcional y las Historias de usuario piden un «lienzo de grafo interactivo, navegable con arrastre y zoom» y un botón «Ver en grafo». El diseño consolidado y los prompts por módulo no lo piden. Esa contradicción no se le consultó a tiempo; ahora queda resuelta a su favor.
+
+**Dónde está.**
+- **Instrumentos › pestaña «Grafo»**, junto a Catálogo, Inventario, Guía e Índice. Es un lugar visible para todos los roles que consultan el catálogo, incluido el rol consulta.
+- **Botón «Ver en grafo»** en la ficha de cada documento del catálogo y en el detalle de cada entidad del vocabulario.
+- No se hizo un módulo nuevo en la barra lateral, por dos razones: el grafo es una forma de consultar el fondo (como el catálogo), y así no se rompe la estructura de los siete módulos.
+
+**Qué hace.**
+- Dibuja el vecindario de un nodo central:
+  - por defecto, el fondo con su jerarquía hasta 3 saltos;
+  - desde un documento, sus agentes, lugares, fechas, actividades, forma documental, archivos y el expediente que lo incluye;
+  - desde una entidad, todos los documentos que la comparten.
+- **Navegación:**
+  - arrastrar nodos y fondo;
+  - zoom con la rueda o con los botones;
+  - «Reencuadrar» ajusta todo a la pantalla;
+  - clic en un nodo: panel con sus relaciones (con su URI de RiC-O, por ejemplo `rico:hasCreator`) y acciones «Centrar aquí», «Abrir ficha», «Ver en vocabulario» y «Ver en preservación».
+- **Colores por tipo de entidad RiC**, con leyenda: documento o agrupación (Record / Record Set), agente, lugar, forma documental, fecha, actividad, archivo (Instantiation).
+- **Accesible:** los nodos se pueden recorrer con el teclado, y el panel lista en texto las mismas relaciones del dibujo.
+- **Solo lectura:** no edita nada.
+
+**Datos.** `GET /api/instrumentos/grafo?fondo_id&centro=tipo:id&profundidad=1..3`, con permiso de consulta del catálogo.
+- Lee las mismas relaciones RiC vigentes que guardó la descripción, más la forma documental (RiC-A17) y la jerarquía del árbol.
+- **Nunca muestra:** borradores, entidades fusionadas, ni campos de procedencia (origen, confianza, motor). Pasa por la misma comprobación final `sin_campos_internos()`, que de hecho detectó durante el desarrollo una clave mal nombrada.
+- **Límite:** 150 nodos por vista, con aviso si se corta.
+
+**Librería.** `d3-force` (~30 kB, solo calcula posiciones). El dibujo es SVG propio, con los colores del sistema en claro y oscuro.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Librería del lienzo | Cytoscape.js (completa, ~400 kB); vis-network; **d3-force + SVG propio** | **d3-force + SVG** | Liviana, sin estilos ajenos: usa la paleta y la tipografía de RICORA. Solo hace falta ubicar nodos; el resto es SVG simple y accesible | Funciones avanzadas (agrupar, exportar imagen) habría que hacerlas a mano |
+| Ubicación | Módulo nuevo en la barra lateral; **pestaña en Instrumentos + botones «Ver en grafo»** | **Pestaña + botones** | El grafo es una forma de consultar el fondo, como el catálogo. Queda a la vista sin romper la estructura de siete módulos | Quien no entra a Instrumentos no lo ve. Por eso también está el botón en el vocabulario |
+
+**Pruebas** (2 nuevas en `tests/test_instrumentos.py`):
+- el grafo de un documento trae sus relaciones RiC con su URI y ningún dato interno;
+- desde una entidad aparecen solo los documentos publicados que la comparten;
+- por defecto se dibuja el fondo;
+- sin sesión, 401; nodo inexistente, 404.
+
+Verificación visual en navegador real, también en móvil.

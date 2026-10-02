@@ -189,7 +189,12 @@ export function EntidadVocabularioDetalle() {
     <>
       <div className="cabecera-nivel" style={{ marginBottom: 0 }}>
         <button type="button" className="enlace" onClick={() => navegar("/vocabularios")}>← Volver a Vocabularios</button>
-        <EnlaceHistoria tipo="entidad_vocabulario" id={e.id} nombre={e.nombre} />
+        <div className="acciones">
+          {e.estado === "activa" && tienePermiso(usuario, "catalogo") && (
+            <Link className="boton chico primario" to={`/instrumentos?vista=grafo&centro=entidad_vocabulario:${e.id}`}>Ver en grafo</Link>
+          )}
+          <EnlaceHistoria tipo="entidad_vocabulario" id={e.id} nombre={e.nombre} />
+        </div>
       </div>
       <h1 style={{ marginTop: 10 }}>{e.nombre}</h1>
       <p className="sub">

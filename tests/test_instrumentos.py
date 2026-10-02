@@ -329,3 +329,45 @@ def test_generar_exige_rol_y_consultar_no(cliente, db, fondo_descrito):
         assert cliente.get(f"/api/instrumentos/catalogo/{f['o114'].id}", headers=quien).status_code == 200
         assert cliente.get("/api/instrumentos/indice", headers=quien, params={"fondo_id": str(f["fondo"].id)}).status_code == 200
     assert cliente.get("/api/instrumentos/catalogo", params={"fondo_id": str(f["fondo"].id)}).status_code == 401
+
+
+# --- Grafo visual --------------------------------------------------------------------------------
+
+
+def test_grafo_de_un_documento_con_sus_relaciones_ric_y_sin_datos_internos(cliente, fondo_descrito, archivista):
+    f = fondo_descrito
+    r = cliente.get("/api/instrumentos/grafo", headers=archivista,
+                    params={"fondo_id": str(f["fondo"].id), "centro": f"recurso_documental:{f['o114'].id}"})
+    assert r.status_code == 200
+    g = r.json()
+    _sin_nada_interno(g)
+    etiquetas = {n["etiqueta"] for n in g["nodos"]}
+    assert {"Oficio N.º 114", "Alcaldía Municipal", "Gobernador del Departamento", "Boyacá", "Oficio",
+            "Oficio_114_1948.pdf", "1948-03-15", "Correspondencia 1948"} <= etiquetas
+    relaciones = {(a["desde"].split(":")[0], a["hacia"].split(":")[0], a["codigo_ric"]) for a in g["aristas"]}
+    assert ("recurso_documental", "entidad_vocabulario", "has_creator") in relaciones
+    assert ("recurso_documental", "instanciacion", "has_or_had_instantiation") in relaciones
+    assert ("fecha", "recurso_documental", "is_creation_date_of") in relaciones
+    assert ("recurso_documental", "recurso_documental", "includes_or_included") in relaciones
+    assert any(a["uri_rico"] == "rico:hasCreator" and a["etiqueta"] == "producido por" for a in g["aristas"])
+    # Toda arista une nodos presentes.
+    claves = {n["clave"] for n in g["nodos"]}
+    assert all(a["desde"] in claves and a["hacia"] in claves for a in g["aristas"])
+
+
+def test_grafo_desde_una_entidad_muestra_los_documentos_que_la_comparten(cliente, fondo_descrito, archivista):
+    f = fondo_descrito
+    g = cliente.get("/api/instrumentos/grafo", headers=archivista,
+                    params={"fondo_id": str(f["fondo"].id), "centro": f"entidad_vocabulario:{f['alcaldia'].id}"}).json()
+    documentos = {n["etiqueta"] for n in g["nodos"] if n["tipo"] == "recurso_documental"}
+    assert documentos == {"Oficio N.º 114", "Oficio N.º 115", "Correspondencia 1949"}  # el borrador no aparece
+    assert next(n for n in g["nodos"] if n["etiqueta"] == "Alcaldía Municipal")["documentos"] == 3
+    # Por defecto, el fondo; con dos saltos llega a los expedientes.
+    raiz = cliente.get("/api/instrumentos/grafo", headers=archivista,
+                       params={"fondo_id": str(f["fondo"].id), "profundidad": 2}).json()
+    assert {"Correspondencia", "Correspondencia 1948", "Correspondencia 1949"} <= {n["etiqueta"] for n in raiz["nodos"]}
+    # El rol consulta también lo ve (es consulta del catálogo); sin sesión, no.
+    assert cliente.get("/api/instrumentos/grafo", params={"fondo_id": str(f["fondo"].id)}).status_code == 401
+    otro = cliente.get("/api/instrumentos/grafo", headers=archivista,
+                       params={"fondo_id": str(f["fondo"].id), "centro": f"recurso_documental:{uuid.uuid4()}"})
+    assert otro.status_code == 404

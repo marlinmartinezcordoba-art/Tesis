@@ -507,3 +507,114 @@ def indice(db: Session, fondo: RecursoDocumental) -> dict:
         grupos.append({"clase": clase, "total": len(entidades),
                        "letras": [{"letra": k, "entidades": v} for k, v in sorted(letras.items())]})
     return sin_campos_internos({"fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "grupos": grupos})
+
+
+# --- Grafo (vista visual de solo lectura) ---------------------------------------------------------
+
+ETIQUETA_RELACION = {
+    "has_creator": "producido por", "has_sender": "remitido por", "has_addressee": "dirigido a",
+    "has_or_had_subject": "trata de", "is_creation_date_of": "fecha de creación de", "documents": "documenta",
+    "includes_or_included": "incluye", "has_or_had_instantiation": "tiene instanciación",
+    "migrated_into": "migrada a", "forma_documental": "forma documental",
+}
+MAX_NODOS_GRAFO = 150
+TIPOS_NODO_GRAFO = ("recurso_documental", "entidad_vocabulario", "fecha", "actividad", "instanciacion")
+
+
+def _nodo_grafo(db: Session, tipo: str, nodo_id: uuid.UUID, fondo_id: uuid.UUID) -> dict | None:
+    """Datos públicos de un nodo (lista cerrada; nada de procedencia).
+    None si no pertenece al fondo o no es visible (borrador, fusionada)."""
+    from app.models.descripcion import Actividad
+
+    if tipo == "recurso_documental":
+        r = db.get(RecursoDocumental, nodo_id)
+        if r is None or (r.fondo_id or r.id) != fondo_id or (r.nivel != "fondo" and r.publicado_en is None):
+            return None
+        return {"tipo": tipo, "clase": r.nivel, "etiqueta": r.titulo, "subtitulo": NIVEL_NOMBRE[r.nivel]}
+    if tipo == "entidad_vocabulario":
+        e = db.get(EntidadVocabulario, nodo_id)
+        if e is None or e.fondo_id != fondo_id or e.estado != "activa":
+            return None
+        return {"tipo": tipo, "clase": e.clase, "etiqueta": e.nombre, "subtitulo": e.subtipo}
+    if tipo == "fecha":
+        f = db.get(Fecha, nodo_id)
+        return {"tipo": tipo, "clase": "fecha", "etiqueta": f.expresion,
+                "subtitulo": f.normalizada.isoformat() if f.normalizada else None} if f else None
+    if tipo == "actividad":
+        a = db.get(Actividad, nodo_id)
+        return {"tipo": tipo, "clase": "actividad", "etiqueta": a.nombre, "subtitulo": None} \
+            if a and a.fondo_id == fondo_id else None
+    if tipo == "instanciacion":
+        i = db.get(Instanciacion, nodo_id)
+        if i is None or i.fondo_id != fondo_id or i.estado != "listo_para_descripcion":
+            return None
+        return {"tipo": tipo, "clase": "instanciacion", "etiqueta": i.nombre_original, "subtitulo": i.formato_puid}
+    return None
+
+
+def grafo(db: Session, fondo: RecursoDocumental, centro_tipo: str | None, centro_id: uuid.UUID | None,
+          profundidad: int = 1) -> dict:
+    """Vecindario de un nodo hasta `profundidad` saltos, leído de las mismas
+    relaciones RiC que guardó la descripción. Por defecto, el fondo."""
+    from app.models.enums import URI_RICO
+
+    centro_tipo, centro_id = (centro_tipo, centro_id) if centro_id else ("recurso_documental", fondo.id)
+    if centro_tipo not in TIPOS_NODO_GRAFO:
+        raise ErrorInstrumento("Tipo de nodo desconocido.")
+    inicial = _nodo_grafo(db, centro_tipo, centro_id, fondo.id)
+    if inicial is None:
+        raise ErrorInstrumento("Ese nodo no existe en el fondo o no es visible.", 404)
+    nodos = {f"{centro_tipo}:{centro_id}": {**inicial, "id": str(centro_id)}}
+    aristas: dict[tuple, dict] = {}
+    frontera, truncado = [(centro_tipo, centro_id)], False
+    for _ in range(max(1, min(profundidad, 3))):
+        siguiente = []
+        ids = [i for _, i in frontera]
+        relaciones = db.scalars(select(Relacion).where(
+            Relacion.estado == "vigente", (Relacion.origen_id.in_(ids)) | (Relacion.destino_id.in_(ids)))).all()
+        vecinos = [(r.origen_tipo, r.origen_id, r.destino_tipo, r.destino_id, r.codigo_ric) for r in relaciones]
+        # La forma documental es un atributo (RiC-A17) que se dibuja como arista.
+        for t, i in frontera:
+            if t == "recurso_documental":
+                r = db.get(RecursoDocumental, i)
+                if r is not None and r.forma_documental_id:
+                    vecinos.append((t, i, "entidad_vocabulario", r.forma_documental_id, "forma_documental"))
+                # La jerarquía también desde el árbol (incluido_en), como la recorre el catálogo.
+                if r is not None and r.incluido_en_id and r.id != fondo.id:
+                    vecinos.append((t, r.incluido_en_id, t, i, "includes_or_included"))
+                for hijo in db.scalars(select(RecursoDocumental.id).where(RecursoDocumental.incluido_en_id == i,
+                                                                          RecursoDocumental.id != i)):
+                    vecinos.append((t, i, t, hijo, "includes_or_included"))
+            if t == "entidad_vocabulario":
+                for rid in db.scalars(select(RecursoDocumental.id).where(RecursoDocumental.forma_documental_id == i)):
+                    vecinos.append(("recurso_documental", rid, t, i, "forma_documental"))
+        for ot, oi, dt, di, codigo in vecinos:
+            claves = []
+            for t, i in ((ot, oi), (dt, di)):
+                clave = f"{t}:{i}"
+                if clave not in nodos:
+                    if len(nodos) >= MAX_NODOS_GRAFO:
+                        truncado = True
+                        break
+                    datos = _nodo_grafo(db, t, i, fondo.id)
+                    if datos is None:
+                        break
+                    nodos[clave] = {**datos, "id": str(i)}
+                    siguiente.append((t, i))
+                claves.append(clave)
+            if len(claves) == 2:
+                aristas[(claves[0], claves[1], codigo)] = {
+                    "desde": claves[0], "hacia": claves[1], "codigo_ric": codigo,
+                    "uri_rico": URI_RICO.get(codigo) or ("rico:hasOrHadDocumentaryFormType" if codigo == "forma_documental" else None),
+                    "etiqueta": ETIQUETA_RELACION.get(codigo, codigo.replace("_", " "))}
+        frontera = siguiente
+        if not frontera:
+            break
+    conexiones = vocabulario.conexiones_de(db, [uuid.UUID(n["id"]) for n in nodos.values() if n["tipo"] == "entidad_vocabulario"])
+    for clave, n in nodos.items():
+        n["clave"] = clave
+        if n["tipo"] == "entidad_vocabulario":
+            n["documentos"] = conexiones.get(uuid.UUID(n["id"]), 0)
+    return sin_campos_internos({"fondo": {"id": str(fondo.id), "titulo": fondo.titulo},
+                                "centro": f"{centro_tipo}:{centro_id}", "nodos": list(nodos.values()),
+                                "aristas": list(aristas.values()), "truncado": truncado})

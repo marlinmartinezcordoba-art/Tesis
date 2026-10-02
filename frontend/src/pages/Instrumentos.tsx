@@ -7,11 +7,13 @@ import {
   ESTADO_PRESERVACION, etiquetaRelacion, type Ficha, type Indice as DatosIndice, type Inventario as DatosInventario, type Miga, type NivelCatalogo,
 } from "@/lib/instrumentos";
 import { useSesion } from "@/lib/sesion";
+import { PestanaGrafo } from "@/pages/GrafoFondo";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 
-type Pestana = "catalogo" | "inventario" | "guia" | "indice";
+type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice";
 const PESTANAS: { clave: Pestana; nombre: string }[] = [
   { clave: "catalogo", nombre: "Catálogo" },
+  { clave: "grafo", nombre: "Grafo" },
   { clave: "inventario", nombre: "Inventario" },
   { clave: "guia", nombre: "Guía" },
   { clave: "indice", nombre: "Índice" },
@@ -34,7 +36,9 @@ function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; act
 
 // --- Ficha (panel superpuesto) ------------------------------------------------------------------
 
-function PanelFicha({ id, cerrar, ir }: { id: string; cerrar: () => void; ir: (id: string | null) => void }) {
+function PanelFicha({ id, cerrar, ir, verGrafo }: {
+  id: string; cerrar: () => void; ir: (id: string | null) => void; verGrafo: (centro: string) => void;
+}) {
   const { usuario } = useSesion();
   const veVocabulario = tienePermiso(usuario, "vocabularios");
   const [ficha, setFicha] = useState<Ficha | null>(null);
@@ -122,11 +126,16 @@ function PanelFicha({ id, cerrar, ir }: { id: string; cerrar: () => void; ir: (i
                 </>
               )}
             </dl>
-            {ficha.hijos > 0 && (
-              <button type="button" className="boton chico" style={{ marginTop: 16 }} onClick={() => { cerrar(); ir(ficha.id); }}>
-                Ver lo que contiene ({ficha.hijos})
+            <div className="acciones" style={{ marginTop: 16 }}>
+              <button type="button" className="boton chico primario" onClick={() => verGrafo(`recurso_documental:${ficha.id}`)}>
+                Ver en grafo
               </button>
-            )}
+              {ficha.hijos > 0 && (
+                <button type="button" className="boton chico" onClick={() => { cerrar(); ir(ficha.id); }}>
+                  Ver lo que contiene ({ficha.hijos})
+                </button>
+              )}
+            </div>
           </div>
         )}
       </aside>
@@ -469,11 +478,16 @@ export function Instrumentos() {
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
           {pestana === "indice" && <Indice fondo={nivel.fondo} />}
+          {pestana === "grafo" && (
+            <PestanaGrafo fondo={nivel.fondo} centro={parametros.get("centro")}
+                          centrar={(c) => cambiar({ centro: c })} abrirFicha={(id) => cambiar({ ficha: id })} />
+          )}
         </>
       )}
       {fichaAbierta && (
         <PanelFicha id={fichaAbierta} cerrar={() => cambiar({ ficha: null })}
-                    ir={(id) => cambiar({ nodo: id, vista: null })} />
+                    ir={(id) => cambiar({ nodo: id, vista: null })}
+                    verGrafo={(centro) => cambiar({ vista: "grafo", centro, ficha: null })} />
       )}
     </>
   );

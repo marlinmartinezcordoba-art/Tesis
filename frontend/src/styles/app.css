@@ -342,3 +342,46 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .tabla-consolidado .fila-persona:hover { background: var(--bg); }
 .tabla-consolidado .detalle-persona > td { background: var(--bg); padding: 10px 16px 16px 34px; }
 .filtros .pastilla input[type=date] { border: 0; background: transparent; font: inherit; color: inherit; }
+
+/* Grafo RiC (Instrumentos › Grafo) */
+.grafo-y-panel { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.lienzo-grafo { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.svg-grafo { display: block; width: 100%; height: 560px; cursor: grab; touch-action: none; user-select: none; }
+.svg-grafo:active { cursor: grabbing; }
+.controles-grafo { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 1; }
+.arista line { stroke: var(--muted); stroke-opacity: .45; stroke-width: 1.4; }
+.arista text { fill: var(--muted); font-size: 10px; pointer-events: none; }
+.arista.resaltada line { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2; }
+.arista.resaltada text { fill: var(--accent); font-weight: 600; }
+.arista.tenue { opacity: .25; }
+.punta { fill: var(--muted); }
+.nodo { cursor: pointer; }
+.nodo circle, .nodo rect { stroke: var(--surface); stroke-width: 2; }
+.nodo text { fill: var(--ink); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; pointer-events: none; }
+.nodo.tenue { opacity: .3; }
+.nodo.elegido circle, .nodo.elegido rect { stroke: var(--ink); stroke-width: 3; }
+.nodo.central text { font-weight: 700; }
+.nodo:focus-visible { outline: none; }
+.nodo:focus-visible circle, .nodo:focus-visible rect { stroke: var(--accent); stroke-width: 3; }
+.n-documento circle, i.n-documento, .muestra-insignia.n-documento { fill: var(--accent); background: var(--accent); }
+.n-agente circle, i.n-agente, .muestra-insignia.n-agente { fill: var(--agent); background: var(--agent); }
+.n-lugar circle, i.n-lugar, .muestra-insignia.n-lugar { fill: var(--warn); background: var(--warn); }
+.n-forma_documental circle, i.n-forma_documental, .muestra-insignia.n-forma_documental { fill: var(--ok); background: var(--ok); }
+.n-fecha circle, i.n-fecha, .muestra-insignia.n-fecha { fill: var(--proc); background: var(--proc); }
+.n-actividad circle, i.n-actividad, .muestra-insignia.n-actividad { fill: #8a6fb0; background: #8a6fb0; }
+.n-instanciacion rect, i.n-instanciacion, .muestra-insignia.n-instanciacion { fill: var(--muted); background: var(--muted); }
+.muestra-insignia { color: #fff; }
+.leyenda-grafo { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .78rem; color: var(--muted); }
+.leyenda-grafo span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda-grafo em { font-style: normal; opacity: .75; }
+.leyenda-grafo i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.leyenda-grafo i.n-instanciacion { border-radius: 2px; }
+.panel-nodo { position: sticky; top: 12px; }
+.titulo-nodo { font-size: 1.1rem; margin: 8px 0 4px; overflow-wrap: anywhere; }
+.lista-relaciones { list-style: none; padding: 0; margin: 14px 0 0; font-size: .84rem; display: flex; flex-direction: column; gap: 7px; }
+.lista-relaciones .enlace { font-weight: 500; text-align: left; }
+@media (max-width: 900px) {
+  .grafo-y-panel { grid-template-columns: 1fr; }
+  .svg-grafo { height: 420px; }
+  .panel-nodo { position: static; }
+}
