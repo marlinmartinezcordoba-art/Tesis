@@ -1,13 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero, type ReactNode, type WheelEvent } from "react";
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
+
+export type Familia =
+  | "RecordSet" | "Record" | "RecordPart" | "Agent" | "Place" | "Activity" | "Date" | "Instantiation"
+  | "DocumentaryFormType" | "ActivityType" | "Mandate";
 
 export interface NodoGrafo {
   clave: string;
   id: string;
   tipo: string;
   clase: string;
+  familia: Familia;
   etiqueta: string;
   subtitulo: string | null;
+  estado: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  salto: number;
   documentos?: number;
 }
 
@@ -17,38 +26,74 @@ export interface AristaGrafo {
   codigo_ric: string;
   uri_rico: string | null;
   etiqueta: string;
+  dirigida: boolean;
 }
 
 export interface DatosGrafo {
   fondo: { id: string; titulo: string };
   centro: string;
+  saltos: number;
   nodos: NodoGrafo[];
   aristas: AristaGrafo[];
   truncado: boolean;
+  maximo_nodos: number;
+  filtros_activos: number;
 }
 
-// Cómo se dibuja cada clase de nodo (color por CSS y nombre para la leyenda).
-export const CLASES_NODO: { clase: string; nombre: string; ric: string }[] = [
-  { clase: "documento", nombre: "Documento, agrupación o parte", ric: "Record / Record Set / Record Part" },
-  { clase: "agente", nombre: "Agente", ric: "Agent" },
-  { clase: "lugar", nombre: "Lugar", ric: "Place" },
-  { clase: "forma_documental", nombre: "Forma documental", ric: "Documentary form type" },
-  { clase: "fecha", nombre: "Fecha", ric: "Date" },
-  { clase: "actividad", nombre: "Actividad", ric: "Activity" },
-  { clase: "tipo_actividad", nombre: "Tipo de actividad", ric: "Activity type" },
-  { clase: "mandato", nombre: "Mandato o norma", ric: "Mandate" },
-  { clase: "instanciacion", nombre: "Archivo (instanciación)", ric: "Instantiation" },
+const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+// Iconos de trazo delgado, del mismo estilo que los de la barra lateral.
+// El color nunca es la única señal: icono y etiqueta de texto dicen lo mismo.
+export const ICONO_FAMILIA: Record<Familia, ReactNode> = {
+  RecordSet: <g {...trazo}><path d="M8 4h8l3 3v10H8z" /><path d="M5 7v13h11" /></g>,
+  Record: <g {...trazo}><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></g>,
+  RecordPart: <g {...trazo}><path d="M6 3h12v18H6z" /><path d="M9 13h6v5H9z" /></g>,
+  Agent: <g {...trazo}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="10" r="3" /><path d="M6.6 18.4c1.3-2.3 3.2-3.4 5.4-3.4s4.1 1.1 5.4 3.4" /></g>,
+  Place: <g {...trazo}><path d="M12 21s-6-5.8-6-11a6 6 0 0 1 12 0c0 5.2-6 11-6 11z" /><circle cx="12" cy="10" r="2.2" /></g>,
+  Activity: <g {...trazo}><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></g>,
+  Date: <g {...trazo}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M8 3v4M16 3v4" /></g>,
+  Instantiation: <g {...trazo}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></g>,
+  DocumentaryFormType: <g {...trazo}><path d="M3.5 12.5l9-9H20v7.5l-9 9z" /><circle cx="16" cy="8" r="1.4" /></g>,
+  ActivityType: <g {...trazo}><path d="M5 4h6v6H5zM13 14h6v6h-6z" /><path d="M8 10v7h5" /></g>,
+  Mandate: <g {...trazo}><path d="M12 4v16M8 20h8M5 7h14" /><path d="M5 7l-2.5 6h5zM19 7l-2.5 6h5z" /></g>,
+};
+
+// Los siete tipos de la leyenda principal y los demás tipos RiC que el
+// sistema ya modela (aparecen en la leyenda solo si están en pantalla).
+export const FAMILIAS: { clave: Familia; nombre: string; ric: string; principal: boolean }[] = [
+  { clave: "RecordSet", nombre: "Agrupación documental", ric: "Record Set", principal: true },
+  { clave: "Record", nombre: "Documento", ric: "Record", principal: true },
+  { clave: "Agent", nombre: "Agente", ric: "Agent", principal: true },
+  { clave: "Place", nombre: "Lugar", ric: "Place", principal: true },
+  { clave: "Activity", nombre: "Actividad", ric: "Activity", principal: true },
+  { clave: "Date", nombre: "Fecha", ric: "Date", principal: true },
+  { clave: "Instantiation", nombre: "Archivo", ric: "Instantiation", principal: true },
+  { clave: "RecordPart", nombre: "Parte documental", ric: "Record Part", principal: false },
+  { clave: "DocumentaryFormType", nombre: "Forma documental", ric: "Documentary Form Type", principal: false },
+  { clave: "ActivityType", nombre: "Tipo de actividad", ric: "Activity Type", principal: false },
+  { clave: "Mandate", nombre: "Mandato o norma", ric: "Mandate", principal: false },
 ];
+export const NOMBRE_FAMILIA = Object.fromEntries(FAMILIAS.map((f) => [f.clave, f.nombre])) as Record<Familia, string>;
 
-export function claseVisual(n: NodoGrafo): string {
-  if (n.tipo === "recurso_documental") return "documento";
-  return n.clase === "tipo_parte" ? "forma_documental" : n.clase; // el tipo de parte es un tipo documental
+export function MuestraFamilia({ familia, tamano = 18 }: { familia: Familia; tamano?: number }) {
+  return (
+    <svg className={`muestra-familia f-${familia}`} width={tamano} height={tamano} viewBox="-12 -12 24 24" aria-hidden="true">
+      <circle r="12" />
+      <g transform="translate(-7.2 -7.2) scale(.6)" className="icono-nodo">{ICONO_FAMILIA[familia]}</g>
+    </svg>
+  );
 }
 
-function radio(n: NodoGrafo): number {
-  if (n.tipo === "recurso_documental") return n.clase === "fondo" ? 22 : n.clase === "parte_documental" ? 11 : n.clase === "unidad_documental" ? 14 : 18;
-  if (n.tipo === "entidad_vocabulario") return 10 + Math.min(10, Math.sqrt(n.documentos || 1) * 2.5);
-  return 9;
+function radio(n: NodoGrafo, raiz: boolean): number {
+  if (raiz) return 27;
+  switch (n.familia) {
+    case "RecordSet": return n.clase === "fondo" ? 22 : 18;
+    case "Record": return 15;
+    case "RecordPart": return 12;
+    case "Date": return 12;
+    case "Instantiation": return 13;
+    default: return 13 + Math.min(8, Math.sqrt(n.documentos || 1) * 2);
+  }
 }
 
 function corto(texto: string, n = 26): string {
@@ -57,10 +102,12 @@ function corto(texto: string, n = 26): string {
 
 type Punto = SimulationNodeDatum & { clave: string };
 
-export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
+export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
   datos: DatosGrafo;
   seleccion: string | null;
-  alSeleccionar: (clave: string) => void;
+  alSeleccionar: (clave: string | null) => void;
+  // Nodo que la búsqueda pide centrar (el número cambia en cada búsqueda).
+  enfoque: { clave: string; vez: number } | null;
 }) {
   const lienzo = useRef<SVGSVGElement>(null);
   const [posiciones, setPosiciones] = useState<Record<string, { x: number; y: number }>>({});
@@ -70,10 +117,8 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
   const puntos = useRef<Map<string, Punto>>(new Map());
   const simulacion = useRef<ReturnType<typeof forceSimulation<Punto>> | null>(null);
   const arrastre = useRef<{ tipo: "fondo" | "nodo"; clave?: string; x: number; y: number; movido: boolean } | null>(null);
-
   const tamanoRef = useRef({ ancho: 800, alto: 560 });
 
-  // Ajusta el zoom para que todo el grafo quepa en el recuadro.
   function encuadrar() {
     const lista = [...puntos.current.values()];
     if (!lista.length) return;
@@ -81,18 +126,20 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
     const ys = lista.map((p) => p.y || 0);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const { ancho, alto } = tamanoRef.current;
-    const k = Math.min(1.4, Math.max(0.25, Math.min(ancho / (x1 - x0 + 160), alto / (y1 - y0 + 120))));
+    const k = Math.min(1.4, Math.max(0.2, Math.min(ancho / (x1 - x0 + 180), alto / (y1 - y0 + 140))));
     setVista({ k, x: -((x0 + x1) / 2) * k, y: -((y0 + y1) / 2) * k });
   }
 
   const porClave = useMemo(() => new Map(datos.nodos.map((n) => [n.clave, n])), [datos]);
 
-  // Simulación de fuerzas: los nodos se acomodan solos; el central queda fijo al medio.
+  // Disposición por fuerzas: los nodos se repelen y las relaciones actúan
+  // como resortes. Los nodos que ya estaban conservan su lugar, así un
+  // cambio de filtro o de saltos es una transición y no un parpadeo.
   useEffect(() => {
     const anteriores = puntos.current;
     const nodos: Punto[] = datos.nodos.map((n) => {
       const p = anteriores.get(n.clave);
-      return { clave: n.clave, x: p?.x ?? (Math.random() - 0.5) * 200, y: p?.y ?? (Math.random() - 0.5) * 200 };
+      return { clave: n.clave, x: p?.x ?? (Math.random() - 0.5) * 240, y: p?.y ?? (Math.random() - 0.5) * 240 };
     });
     const centro = nodos.find((n) => n.clave === datos.centro);
     if (centro) {
@@ -100,13 +147,22 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
       centro.fy = 0;
     }
     puntos.current = new Map(nodos.map((n) => [n.clave, n]));
-    const enlaces = datos.aristas.map((a) => ({ source: a.desde, target: a.hacia }));
+    const grado = new Map<string, number>();
+    for (const a of datos.aristas) for (const c of [a.desde, a.hacia]) grado.set(c, (grado.get(c) || 0) + 1);
+    // Cuanto más relaciones comparten los extremos, más corto el resorte: los
+    // grupos muy relacionados quedan juntos sin acomodarlos a mano.
+    const enlaces = datos.aristas.map((a) => ({
+      source: a.desde, target: a.hacia,
+      largo: 100 + 60 / Math.sqrt(Math.min(grado.get(a.desde) || 1, grado.get(a.hacia) || 1)),
+    }));
     let cuadro = 0;
     const sim = forceSimulation<Punto>(nodos)
-      .force("enlaces", forceLink<Punto, { source: string; target: string }>(enlaces).id((n) => n.clave).distance(110))
-      .force("carga", forceManyBody().strength(-420))
-      .force("choque", forceCollide<Punto>().radius((n) => radio(porClave.get(n.clave)!) + 26))
+      .force("enlaces", forceLink<Punto, { source: string; target: string; largo: number }>(enlaces).id((n) => n.clave)
+        .distance((l) => l.largo))
+      .force("carga", forceManyBody().strength(-380))
+      .force("choque", forceCollide<Punto>().radius((n) => radio(porClave.get(n.clave)!, n.clave === datos.centro) + 24))
       .force("centro", forceCenter(0, 0).strength(0.04))
+      .alpha(anteriores.size ? 0.6 : 1)
       .on("end", () => encuadrar())
       .on("tick", () => {
         if (cuadro) return;
@@ -116,7 +172,7 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
         });
       });
     simulacion.current = sim;
-    setVista({ x: 0, y: 0, k: datos.nodos.length > 40 ? 0.6 : 1 });
+    if (!anteriores.size) setVista({ x: 0, y: 0, k: datos.nodos.length > 40 ? 0.6 : 1 });
     const primerEncuadre = window.setTimeout(encuadrar, 900);
     return () => {
       sim.stop();
@@ -125,7 +181,17 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
     };
   }, [datos, porClave]);
 
-  // El origen (0, 0) queda en el centro del lienzo, mida lo que mida.
+  // La búsqueda centra el nodo encontrado sin tocar los filtros.
+  useEffect(() => {
+    if (!enfoque) return;
+    const p = puntos.current.get(enfoque.clave);
+    if (!p) return;
+    setVista((v) => {
+      const k = Math.max(v.k, 1);
+      return { k, x: -(p.x || 0) * k, y: -(p.y || 0) * k };
+    });
+  }, [enfoque]);
+
   useEffect(() => {
     const el = lienzo.current;
     if (!el) return;
@@ -179,32 +245,53 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
     if (a?.tipo === "nodo" && a.clave) {
       simulacion.current?.alphaTarget(0);
       if (!a.movido) alSeleccionar(a.clave);
+    } else if (a?.tipo === "fondo" && !a.movido) {
+      alSeleccionar(null); // tocar el lienzo vacío cierra el panel
     }
   }
 
   function rueda(e: WheelEvent<SVGSVGElement>) {
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.25, v.k * factor)) }));
+    setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
   }
 
-  const zoom = (factor: number) => setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.25, v.k * factor)) }));
-  // Resaltar: las relaciones del nodo elegido. Atenuar el resto: solo al
-  // pasar el cursor, para no esconder nodos que el usuario no ha mirado.
+  const zoom = (factor: number) => setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
   const activo = encima || seleccion;
   const atenuar = encima;
-  // Las etiquetas de las flechas solo aparecen al pasar el cursor sobre un
-  // nodo (o en grafos pequeños): así no se amontonan. El panel las lista todas.
-  const mostrarEtiquetasAristas = datos.aristas.length <= 6;
+  // Etiquetas de las relaciones: siempre, mientras se puedan leer; en un
+  // grafo muy denso o muy alejado, solo las del nodo señalado.
+  const etiquetasLegibles = datos.aristas.length <= 60 && vista.k >= 0.7;
+  const familiasPresentes = new Set(datos.nodos.map((n) => n.familia));
+  // Varias relaciones entre los mismos dos nodos: cada etiqueta a una distancia distinta de la línea.
+  const desplazamiento = useMemo(() => {
+    const vistos = new Map<string, number>();
+    return new Map(datos.aristas.map((a) => {
+      const par = [a.desde, a.hacia].sort().join("|");
+      const n = vistos.get(par) || 0;
+      vistos.set(par, n + 1);
+      return [`${a.desde}-${a.hacia}-${a.codigo_ric}`, (n % 2 ? -1 : 1) * (9 + Math.floor(n / 2) * 13)];
+    }));
+  }, [datos]);
 
   return (
     <div className="lienzo-grafo">
-      <div className="controles-grafo" role="group" aria-label="Zoom del grafo">
-        <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar">+</button>
-        <button type="button" className="boton chico" onClick={() => zoom(0.8)} aria-label="Alejar">−</button>
-        <button type="button" className="boton chico" onClick={encuadrar}>Reencuadrar</button>
+      <div className="leyenda-grafo" aria-label="Leyenda: tipos de entidad">
+        {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => (
+          <span key={f.clave} title={`rico:${f.ric.replace(/ /g, "")}`}>
+            <MuestraFamilia familia={f.clave} />{f.nombre}
+          </span>
+        ))}
+      </div>
+      <div className="controles-grafo" role="group" aria-label="Acercamiento del grafo">
+        <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
+        <button type="button" className="boton chico" onClick={() => zoom(0.8)} aria-label="Alejar" title="Alejar">−</button>
+        <button type="button" className="boton chico" onClick={encuadrar} aria-label="Ajustar a la ventana" title="Ajustar a la ventana">
+          <svg viewBox="0 0 24 24" width="14" height="14" {...trazo}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        </button>
       </div>
       <svg ref={lienzo} className="svg-grafo" role="img"
-           viewBox={`${-tamano.ancho / 2} ${-tamano.alto / 2} ${tamano.ancho} ${tamano.alto}`} aria-label={`Grafo con ${datos.nodos.length} nodos y ${datos.aristas.length} relaciones`}
+           viewBox={`${-tamano.ancho / 2} ${-tamano.alto / 2} ${tamano.ancho} ${tamano.alto}`}
+           aria-label={`Grafo con ${datos.nodos.length} entidades y ${datos.aristas.length} relaciones`}
            onPointerDown={(e) => bajar(e)} onPointerMove={mover} onPointerUp={soltar} onPointerLeave={soltar} onWheel={rueda}>
         <defs>
           <marker id="flecha" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -221,13 +308,24 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
               const dx = q.x - p.x;
               const dy = q.y - p.y;
               const largo = Math.hypot(dx, dy) || 1;
-              const fin = { x: q.x - (dx / largo) * (radio(nq) + 3), y: q.y - (dy / largo) * (radio(nq) + 3) };
+              const r = radio(nq, a.hacia === datos.centro) + 3;
+              const fin = { x: q.x - (dx / largo) * r, y: q.y - (dy / largo) * r };
               const resaltada = activo === a.desde || activo === a.hacia;
+              const ver = etiquetasLegibles || resaltada;
+              // La etiqueta va al lado de la línea (no encima), girada con ella si es legible.
+              const nx = -dy / largo, ny = dx / largo;
+              const d = desplazamiento.get(`${a.desde}-${a.hacia}-${a.codigo_ric}`) || 9;
+              const mx = (p.x + q.x) / 2 + nx * d, my = (p.y + q.y) / 2 + ny * d;
+              let angulo = (Math.atan2(dy, dx) * 180) / Math.PI;
+              if (angulo > 90 || angulo < -90) angulo += 180;
               return (
                 <g key={`${a.desde}-${a.hacia}-${a.codigo_ric}`} className={`arista${resaltada ? " resaltada" : ""}${atenuar && atenuar !== a.desde && atenuar !== a.hacia ? " tenue" : ""}`}>
-                  <line x1={p.x} y1={p.y} x2={fin.x} y2={fin.y} markerEnd="url(#flecha)" />
-                  {(mostrarEtiquetasAristas || encima === a.desde || encima === a.hacia) && (
-                    <text x={(p.x + q.x) / 2} y={(p.y + q.y) / 2 - 4} textAnchor="middle">{a.etiqueta}</text>
+                  <line x1={p.x} y1={p.y} x2={fin.x} y2={fin.y} markerEnd={a.dirigida ? "url(#flecha)" : undefined} />
+                  {ver && (
+                    <text x={mx} y={my} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${angulo} ${mx} ${my})`}>
+                      <title>{a.uri_rico ? `${a.etiqueta} · ${a.uri_rico}` : a.etiqueta}</title>
+                      {a.etiqueta}
+                    </text>
                   )}
                 </g>
               );
@@ -235,16 +333,20 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar }: {
             {datos.nodos.map((n) => {
               const p = posiciones[n.clave];
               if (!p) return null;
-              const r = radio(n);
+              const raiz = n.clave === datos.centro;
+              const r = radio(n, raiz);
               const conectado = !atenuar || atenuar === n.clave || datos.aristas.some(
                 (a) => (a.desde === atenuar && a.hacia === n.clave) || (a.hacia === atenuar && a.desde === n.clave));
+              const escala = (r * 1.15) / 24;
               return (
                 <g key={n.clave} transform={`translate(${p.x} ${p.y})`}
-                   className={`nodo n-${claseVisual(n)}${seleccion === n.clave ? " elegido" : ""}${n.clave === datos.centro ? " central" : ""}${conectado ? "" : " tenue"}`}
-                   tabIndex={0} role="button" aria-label={`${n.etiqueta}${n.subtitulo ? `, ${n.subtitulo}` : ""}`}
+                   className={`nodo f-${n.familia}${seleccion === n.clave ? " elegido" : ""}${raiz ? " central" : ""}${conectado ? "" : " tenue"}`}
+                   tabIndex={0} role="button"
+                   aria-label={`${NOMBRE_FAMILIA[n.familia]}: ${n.etiqueta}${raiz ? " (entidad raíz)" : ""}`}
                    onPointerDown={(e) => bajar(e, n.clave)} onPointerEnter={() => setEncima(n.clave)} onPointerLeave={() => setEncima(null)}
                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && alSeleccionar(n.clave)}>
-                  {n.tipo === "instanciacion" ? <rect x={-r} y={-r} width={r * 2} height={r * 2} rx={3} /> : <circle r={r} />}
+                  <circle r={r} />
+                  <g className="icono-nodo" transform={`translate(${-12 * escala} ${-12 * escala}) scale(${escala})`}>{ICONO_FAMILIA[n.familia]}</g>
                   <text y={r + 13} textAnchor="middle">{corto(n.etiqueta)}</text>
                 </g>
               );

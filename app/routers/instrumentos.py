@@ -84,10 +84,13 @@ def ficha(recurso_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Sessi
         raise _error(exc) from exc
 
 
-@router.get("/grafo", summary="Vecindario de un nodo del grafo RiC, para dibujarlo (solo lectura)")
-def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, _: Actor = Depends(lectura_catalogo),
+@router.get("/grafo", summary="Vecindario de un nodo del grafo RiC (alias de /api/grafo, sin filtros)")
+def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, actor: Actor = Depends(lectura_catalogo),
           db: Session = Depends(get_db)):
-    tipo, nodo_id = None, None
+    from app.servicios import grafo as servicio_grafo
+
+    fondo = fondo_o_404(db, fondo_id)
+    tipo, nodo_id = "recurso_documental", fondo.id
     if centro:
         try:
             tipo, valor = centro.split(":", 1)
@@ -95,9 +98,44 @@ def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, 
         except ValueError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nodo central no válido.") from exc
     try:
-        return instrumentos.grafo(db, fondo_o_404(db, fondo_id), tipo, nodo_id, profundidad)
+        return servicio_grafo.subgrafo(db, fondo, tipo, nodo_id, profundidad,
+                                       ver_restringidos=actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
+
+
+@router.get("/previsualizar/{instanciacion_id}", summary="Visor de la ficha: páginas que se pueden mostrar (sin descarga)")
+def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import previsualizacion
+
+    try:
+        _documento_publicado(db, instanciacion_id)
+        return previsualizacion.info(db, actor, instanciacion_id)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+
+
+@router.get("/previsualizar/{instanciacion_id}/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(lectura_catalogo),
+                         db: Session = Depends(get_db)):
+    from app.servicios import previsualizacion
+
+    try:
+        _documento_publicado(db, instanciacion_id)
+        contenido = previsualizacion.pagina(db, actor, instanciacion_id, pagina)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    return Response(contenido, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
+def _documento_publicado(db: Session, instanciacion_id: uuid.UUID) -> None:
+    """En el catálogo solo se ve el archivo de una descripción publicada."""
+    from app.models.instanciacion import Instanciacion
+    from app.servicios import derechos, previsualizacion
+
+    inst = db.get(Instanciacion, instanciacion_id)
+    if inst is None or not any(r.publicado_en for r in derechos.recursos_de(db, inst)):
+        raise previsualizacion.ErrorPrevisualizacion("El documento no existe en el catálogo.", 404)
 
 
 @router.get("/indice", summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")

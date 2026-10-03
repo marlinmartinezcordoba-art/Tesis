@@ -84,6 +84,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
     "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
+    "grafo_exportado": ("Exportó un fragmento del grafo del fondo en RiC-O (RDF)", "Instrumentos generados"),
     "hallazgo_creado": ("Registró un hallazgo de conformidad", "Hallazgos de conformidad"),
     "evaluacion_creada": ("Creó una evaluación ciega", "Evaluación"),
     "documentos_agregados": ("Agregó documentos a una evaluación", "Evaluación"),
@@ -192,8 +193,8 @@ def entidad(db: Session, entidad_tipo: str, entidad_id: str, *, solo_de: uuid.UU
     return [evento_out(e, nombres) for e in filas]
 
 
-def propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, modulo: str | None = None,
-           desde: date | None = None, hasta: date | None = None, limite: int = 200, antes_de: int | None = None) -> dict:
+def _consulta_propia(usuario_id: uuid.UUID, accion: str | None, modulo: str | None, desde: date | None,
+                     hasta: date | None):
     consulta = select(RegistroAuditoria).where(RegistroAuditoria.usuario_id == usuario_id)
     if accion:
         consulta = consulta.where(RegistroAuditoria.accion == accion)
@@ -203,12 +204,80 @@ def propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, mod
         consulta = consulta.where(RegistroAuditoria.fecha >= _inicio_local(desde))
     if hasta:
         consulta = consulta.where(RegistroAuditoria.fecha < _inicio_local(hasta + timedelta(days=1)))
+    return consulta
+
+
+def propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, modulo: str | None = None,
+           desde: date | None = None, hasta: date | None = None, limite: int = 200, antes_de: int | None = None) -> dict:
+    from sqlalchemy import func
+
+    total = db.scalar(select(func.count()).select_from(
+        _consulta_propia(usuario_id, accion, modulo, desde, hasta).subquery()))
+    consulta = _consulta_propia(usuario_id, accion, modulo, desde, hasta)
     if antes_de:
         consulta = consulta.where(RegistroAuditoria.id < antes_de)
     filas = db.scalars(consulta.order_by(RegistroAuditoria.id.desc()).limit(limite + 1)).all()
     nombres = _nombres(db)
-    return {"eventos": [evento_out(e, nombres) for e in filas[:limite]],
+    return {"eventos": [evento_out(e, nombres) for e in filas[:limite]], "total": total,
             "siguiente": filas[limite - 1].id if len(filas) > limite else None}
+
+
+# --- Exportación completa a Excel (patrón «historial reciente») -------------------------------------
+
+
+def _mecanismo(e: RegistroAuditoria) -> str | None:
+    """El agente mecanismo (el motor y su versión) cuando el evento lo cita."""
+    for v in (e.valor_nuevo, e.valor_anterior):
+        if isinstance(v, dict) and (v.get("modelo") or v.get("motor")):
+            return " · ".join(str(x) for x in (v.get("modelo") or v.get("motor"), v.get("version_prompt")) if x)
+    return None
+
+
+def _texto_cambios(cambios: list[dict]) -> str:
+    return "; ".join(f"{c['campo']}: {c['antes']} → {c['despues']}" for c in cambios)
+
+
+def hoja_propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, modulo: str | None = None,
+                desde: date | None = None, hasta: date | None = None) -> bytes:
+    """Toda la trazabilidad propia que cumple los filtros, no solo la visible."""
+    from app.servicios.hoja import libro
+
+    filas = db.scalars(_consulta_propia(usuario_id, accion, modulo, desde, hasta)
+                       .order_by(RegistroAuditoria.id.desc())).all()
+    nombres = _nombres(db)
+    datos = []
+    for e in filas:
+        o = evento_out(e, nombres)
+        prop = o["propiedad_rico"] or {}
+        datos.append([e.id, e.fecha, o["usuario"], e.modulo, o["etiqueta"], e.accion, e.entidad_tipo, e.entidad_id,
+                      e.detalle, prop.get("nombre"), _texto_cambios(o["cambios"]), _mecanismo(e)])
+    return libro([("Trazabilidad", ["Identificador del evento", "Fecha (hora de Bogotá)", "Persona", "Módulo", "Acción",
+                                    "Código de la acción", "Tipo de entidad", "Identificador de la entidad", "Detalle",
+                                    "Propiedad RiC-O", "Cambios (antes → después)", "Agente mecanismo (motor)"], datos)])
+
+
+def hoja_consolidado(db: Session, dia: date) -> bytes:
+    """La semana completa: una fila por persona y, en otra hoja, cada sesión."""
+    from app.servicios.hoja import libro
+
+    datos = consolidado(db, dia)
+    grupos = sorted({g for f in datos["filas"] for g in f["acciones"]})
+    personas = [[f["nombre"], f["rol_nombre"], "sí" if f["activo"] else "no", f["dias_habiles_trabajados"], f["dias_habiles"],
+                 f["dias_fin_de_semana"], round(f["segundos_conectado"] / 3600, 2), f["sesiones"],
+                 *[f["acciones"].get(g, 0) for g in grupos], f["usuario_id"]] for f in datos["filas"]]
+    sesiones = []
+    for f in datos["filas"]:
+        usuario = db.get(Usuario, uuid.UUID(f["usuario_id"]))
+        for s in desglose(db, usuario, dia)["sesiones"]:
+            sesiones.append([f["nombre"], s["inicio"], s["fin"], round(s["segundos"] / 60, 1), s["motivo"],
+                             "sí" if s["en_curso"] else "no", "; ".join(f"{k}: {v}" for k, v in sorted(s["acciones"].items())),
+                             s["sesion_id"]])
+    return libro([
+        (f"Semana {datos['semana']['lunes']}", ["Persona", "Rol", "Activa", "Días hábiles trabajados", "Días hábiles de la semana",
+                                                "Días de fin de semana", "Horas conectada", "Sesiones",
+                                                *[f"Acciones · {g}" for g in grupos], "Identificador de la persona"], personas),
+        ("Sesiones", ["Persona", "Inicio", "Fin", "Minutos", "Cómo terminó", "En curso", "Acciones durante la sesión",
+                      "Identificador de la sesión"], sesiones)])
 
 
 def acciones_de(db: Session, usuario_id: uuid.UUID | None) -> list[dict]:
