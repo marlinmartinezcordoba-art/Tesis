@@ -277,6 +277,33 @@ def pagina(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, pagina: int,
     return Response(contenido, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
 
 
+# --- Previsualización (visor sin descarga), el mismo de la cola de ingesta --------------------------------------------------------
+
+
+@router.get("/{instanciacion_id}/previsualizar", summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
+def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.servicios import previsualizacion
+
+    try:
+        return previsualizacion.info(db, actor, instanciacion_id)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+
+
+@router.get("/{instanciacion_id}/previsualizar/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(acceso_modulo("descripcion")),
+                         db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+
+    from app.servicios import previsualizacion
+
+    try:
+        contenido = previsualizacion.pagina(db, actor, instanciacion_id, pagina)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    return Response(contenido, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
 # --- Descripciones publicadas: consulta interna y corrección ------------------------------------------
 
 
@@ -303,6 +330,46 @@ def publicadas(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     return [PublicadaOut(id=r.id, titulo=r.titulo, nivel=r.nivel, documentos=documentos.get(r.id, 0),
                          publicado_en=r.publicado_en, actualizado_en=r.actualizado_en,
                          en_edicion_por=editores.get(r.id)) for r in filas]
+
+
+@router.get("/publicadas/exportar", summary="Todas las descripciones publicadas del fondo, en Excel (más recientes primero)")
+def publicadas_xlsx(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+
+    from app.servicios.hoja import libro
+
+    fondo_o_404(db, fondo_id)
+    filas = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
+                                                       RecursoDocumental.publicado_en.isnot(None))
+                       .order_by(RecursoDocumental.publicado_en.desc())).all()
+    documentos = dict(db.execute(select(Relacion.origen_id, func.count(Relacion.id)).where(
+        Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente").group_by(Relacion.origen_id)).all())
+    contenido = libro([("Descritas", ["Título", "Nivel", "Código de referencia", "Documentos", "Publicada el",
+                                      "Actualizada el", "Identificador interno"],
+                        [[r.titulo, r.nivel.replace("_", " "), r.codigo_referencia, documentos.get(r.id, 0), r.publicado_en,
+                          r.actualizado_en, str(r.id)] for r in filas])])
+    return Response(contenido, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="descripciones-publicadas.xlsx"'})
+
+
+@router.get("/productividad", summary="Lo descrito hoy por quien consulta y el total del fondo (dato del panel consolidado)")
+def productividad(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from datetime import timedelta
+
+    from app.db.base import ahora
+    from app.models.auditoria import RegistroAuditoria
+    from app.servicios import trazabilidad
+
+    fondo_o_404(db, fondo_id)
+    hoy = ahora().astimezone(trazabilidad._zona()).date()
+    acciones = [a for a in trazabilidad.ACCIONES if trazabilidad.grupo(a) == "Descripciones validadas"]
+    por_mi = db.scalar(select(func.count(RegistroAuditoria.id)).where(
+        RegistroAuditoria.usuario_id == actor.id, RegistroAuditoria.accion.in_(acciones),
+        RegistroAuditoria.fecha >= trazabilidad._inicio_local(hoy),
+        RegistroAuditoria.fecha < trazabilidad._inicio_local(hoy + timedelta(days=1))))
+    total = db.scalar(select(func.count(RecursoDocumental.id)).where(
+        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel != "fondo", RecursoDocumental.publicado_en.isnot(None)))
+    return {"hoy_por_mi": por_mi, "total_fondo": total}
 
 
 @router.get("/registros/{recurso_id}", summary="Descripción publicada, vista interna (con origen y confianza)")

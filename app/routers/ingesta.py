@@ -254,3 +254,69 @@ def reintentar(instanciacion_id: uuid.UUID, request: Request, actor: Actor = Dep
               entidad_id=inst.id, anterior=anterior, nuevo={"estado": "procesando"}, request=request)
     db.commit()
     return _elemento(db, inst, {})
+
+
+# --- Previsualización (visor sin descarga) --------------------------------------------------------
+
+
+@router.get("/{instanciacion_id}/previsualizar", summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
+def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
+    from app.servicios import previsualizacion
+
+    try:
+        return previsualizacion.info(db, actor, instanciacion_id)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+
+
+@router.get("/{instanciacion_id}/previsualizar/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(acceso_modulo("ingesta")),
+                         db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+
+    from app.servicios import previsualizacion
+
+    try:
+        contenido = previsualizacion.pagina(db, actor, instanciacion_id, pagina)
+    except previsualizacion.ErrorPrevisualizacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    return Response(contenido, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
+# --- Contenido de apoyo de las vistas (actividad reciente y resumen) -----------------------------------
+
+
+@router.get("/recientes", summary="Los últimos archivos cargados al fondo, con su destino (tarjeta de actividad reciente)")
+def recientes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.servicios import derechos
+
+    fondo_o_404(db, fondo_id)
+    filas = db.scalars(select(Instanciacion).where(Instanciacion.fondo_id == fondo_id, Instanciacion.derivada_de_id.is_(None))
+                       .order_by(Instanciacion.cargado_en.desc()).limit(5)).all()
+    salida = []
+    for i in filas:
+        descrito = next((r for r in derechos.recursos_de(db, i) if r.publicado_en), None)
+        expediente = db.get(RecursoDocumental, i.expediente_destino_id) if i.expediente_destino_id else None
+        salida.append({"id": str(i.id), "nombre": i.nombre_original, "tamano_bytes": i.tamano_bytes,
+                       "formato": i.formato_nombre, "estado": i.estado, "cargado_en": i.cargado_en,
+                       "expediente": expediente.titulo if expediente else None,
+                       "descrito_en": descrito.titulo if descrito else None})
+    return salida
+
+
+@router.get("/resumen", summary="Estado general de la ingesta del fondo (mismos datos que el panel de preservación)")
+def resumen(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.servicios import preservacion
+
+    fondo_o_404(db, fondo_id)
+    listos = select(Instanciacion).where(Instanciacion.fondo_id == fondo_id, Instanciacion.derivada_de_id.is_(None),
+                                         Instanciacion.estado == "listo_para_descripcion")
+    con_texto = db.scalar(select(func.count()).select_from(
+        listos.where(Instanciacion.origen_texto.in_(("capa_de_texto", "ocr"))).subquery()))
+    total = db.scalar(select(func.count()).select_from(listos.subquery()))
+    panel = preservacion.panel(db, fondo_id)["resumen"]
+    db.commit()  # el panel actualiza las alertas de riesgo, como en preservación
+    return {"documentos": total, "con_texto": con_texto,
+            "en_riesgo": panel["alerta_integridad"] + panel["alerta_segunda_copia"] + panel["riesgo_obsolescencia"],
+            "riesgo_integridad": panel["alerta_integridad"] + panel["alerta_segunda_copia"],
+            "riesgo_obsolescencia": panel["riesgo_obsolescencia"]}

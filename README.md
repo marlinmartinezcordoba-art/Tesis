@@ -18,6 +18,8 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 | 5 · Preservación digital (v2.2: segunda copia, PREMIS, AIP BagIt, agentes mecanismo) | Entregado, pendiente de validación | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) · anexo: [AIP de ejemplo](documentacion/anexos/aip-ejemplo/) |
 | Auditoría (transversal, v7: hallazgos de conformidad, propiedad RiC-O, versión de la instrucción) | Entregado, pendiente de validación · incluye la prueba de extremo a extremo | [documentacion/modulo-auditoria.md](documentacion/modulo-auditoria.md) |
 | Evaluación ciega (objetivo 3 de la tesis) | Entregado; el método lo debe validar la autora | [documentacion/modulo-evaluacion.md](documentacion/modulo-evaluacion.md) |
+| Grafo de contexto del fondo (Instrumentos › Grafo, v2: filtros, ficha de entidad, exportación del fragmento) | Entregado, pendiente de validación | [documentacion/grafo-contexto.md](documentacion/grafo-contexto.md) · anexo: [capturas](documentacion/anexos/grafo-contexto/) |
+| Rediseño de navegación (árbol de submódulos, historial reciente con Excel, visor sin descarga, estados vacíos) | Entregado, pendiente de validación | [documentacion/rediseno-navegacion.md](documentacion/rediseno-navegacion.md) · anexo: [capturas](documentacion/anexos/rediseno-navegacion/) |
 
 **Conformidad con RiC-O 1.1:** todo nombre de clase y de propiedad sale de un único mapeo (`app/servicios/ric_o.py`), verificado contra el OWL oficial incluido en el repositorio (`app/recursos/ric-o/`). La verificación es una prueba automática. El detalle de cada decisión está en [documentacion/anexos/verificacion-ric-o-1-1.md](documentacion/anexos/verificacion-ric-o-1-1.md).
 
@@ -40,10 +42,11 @@ export DATABASE_URL=postgresql+psycopg2://ricora:ricora@localhost:5432/ricora RI
 cd frontend && npm install && npm run dev        # interfaz en :5173
 ```
 
-Para las pruebas (282) se necesita PostgreSQL con un usuario que pueda crear bases de datos, y Siegfried, Tesseract y Ghostscript instalados (las pruebas usan las herramientas reales):
+Para las pruebas del servidor (304) se necesita PostgreSQL con un usuario que pueda crear bases de datos, y Siegfried, Tesseract y Ghostscript instalados (las pruebas usan las herramientas reales):
 
 ```bash
 .venv/bin/python -m pytest tests
+cd frontend && npm test   # pruebas de la interfaz (árbol de navegación), sin servidor
 ```
 
 ## Despliegue

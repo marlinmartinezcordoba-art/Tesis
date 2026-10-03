@@ -58,11 +58,28 @@ def acciones(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_d
 
 @router.get("/mi-trazabilidad", summary="Acciones del usuario autenticado, filtrables por tipo, módulo y fechas")
 def mi_trazabilidad(accion: str | None = None, modulo: str | None = None, desde: date | None = None,
-                    hasta: date | None = None, antes_de: int | None = None,
+                    hasta: date | None = None, antes_de: int | None = None, limite: int = Query(200, ge=1, le=500),
                     actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
     if desde and hasta and desde > hasta:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La fecha inicial es posterior a la final.")
-    return trazabilidad.propia(db, actor.id, accion=accion, modulo=modulo, desde=desde, hasta=hasta, antes_de=antes_de)
+    return trazabilidad.propia(db, actor.id, accion=accion, modulo=modulo, desde=desde, hasta=hasta, antes_de=antes_de,
+                               limite=limite)
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx(contenido: bytes, nombre: str) -> Response:
+    return Response(contenido, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+@router.get("/trazabilidad/exportar", summary="Toda la trazabilidad propia que cumple los filtros, en Excel")
+def mi_trazabilidad_xlsx(accion: str | None = None, modulo: str | None = None, desde: date | None = None,
+                         hasta: date | None = None, actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    if desde and hasta and desde > hasta:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La fecha inicial es posterior a la final.")
+    return _xlsx(trazabilidad.hoja_propia(db, actor.id, accion=accion, modulo=modulo, desde=desde, hasta=hasta),
+                 "mi-trazabilidad.xlsx")
 
 
 @router.get("/entidad/{entidad_id}", summary="Historial de auditoría de una entidad")
@@ -85,6 +102,12 @@ def _dia(semana: date | None) -> date:
 @router.get("/consolidado", summary="Panel semanal por persona: días, horas conectadas y acciones")
 def consolidado(semana: date | None = None, _: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
     return trazabilidad.consolidado(db, _dia(semana))
+
+
+@router.get("/panel-consolidado/exportar", summary="La semana seleccionada completa (personas y sesiones), en Excel")
+def consolidado_xlsx(semana: date | None = None, _: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
+    dia = _dia(semana)
+    return _xlsx(trazabilidad.hoja_consolidado(db, dia), f"panel-consolidado-{trazabilidad.lunes_de(dia).isoformat()}.xlsx")
 
 
 @router.get("/consolidado/{usuario_id}", summary="Desglose sesión por sesión de una persona en la semana")
@@ -111,11 +134,12 @@ def _filtros(tipo, decision, desde, hasta, fondo_id) -> dict:
 
 @router.get("/decisiones-ia", summary="Cada propuesta del motor frente a lo que quedó confirmado")
 def decisiones(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
-               hasta: date | None = None, fondo_id: uuid.UUID | None = None,
+               hasta: date | None = None, fondo_id: uuid.UUID | None = None, limite: int = Query(500, ge=1, le=500),
                _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
-    return decisiones_ia.consultar(db, **_filtros(tipo, decision, desde, hasta, fondo_id))
+    return decisiones_ia.consultar(db, limite=limite, **_filtros(tipo, decision, desde, hasta, fondo_id))
 
 
+@router.get("/decisiones-ia/exportar", summary="Todas las decisiones que cumplen los filtros, con los conteos, en Excel")
 @router.get("/decisiones-ia/hoja-de-calculo", summary="Las mismas decisiones en una hoja de cálculo (evaluación)")
 def decisiones_xlsx(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
                     hasta: date | None = None, fondo_id: uuid.UUID | None = None,

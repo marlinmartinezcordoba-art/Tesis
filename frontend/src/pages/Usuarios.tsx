@@ -4,6 +4,7 @@ import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
 import { PanelRoles, type RolInfo } from "@/pages/Roles";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { useVista } from "@/components/Marco";
 
 interface Usuario {
   id: string;
@@ -224,10 +225,23 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
   );
 }
 
+const CLAVE_AVISO_CORREO = "ricora:aviso-correo-leido";
+
 export function Usuarios() {
   const { usuario } = useSesion();
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [correoConfigurado, setCorreoConfigurado] = useState(true);
+  // Preferencia de quien mira (solo en su navegador): el aviso de correo ya leído.
+  const [avisoCerrado, setAvisoCerrado] = useState(() => {
+    try { return localStorage.getItem(CLAVE_AVISO_CORREO) === "1"; } catch { return false; }
+  });
+  const recordarAviso = (cerrado: boolean) => {
+    setAvisoCerrado(cerrado);
+    try {
+      if (cerrado) localStorage.setItem(CLAVE_AVISO_CORREO, "1");
+      else localStorage.removeItem(CLAVE_AVISO_CORREO);
+    } catch { /* sin almacenamiento: el aviso vuelve a verse completo, nada se rompe */ }
+  };
   const [q, setQ] = useState("");
   const [rol, setRol] = useState("");
   const [estado, setEstado] = useState("");
@@ -235,7 +249,7 @@ export function Usuarios() {
   const [entrega, setEntrega] = useState<Entrega | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-  const [pestana, setPestana] = useState<"usuarios" | "roles">("usuarios");
+  const pestana = useVista<"usuarios" | "roles">("/usuarios");
   const [roles, setRoles] = useState<RolInfo[] | null>(null);
 
   const cargarRoles = useCallback(() => {
@@ -277,18 +291,10 @@ export function Usuarios() {
 
   return (
     <>
-      <h1>Gestión de usuarios</h1>
+      <h1>{pestana === "roles" ? "Roles y permisos" : "Usuarios"}</h1>
       <p className="sub">
         Solo visible para el rol administrador. Crear, reasignar rol o desactivar sin perder trazabilidad en auditoría.
       </p>
-      <div className="pestanas" role="tablist">
-        {(["usuarios", "roles"] as const).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={pestana === t} className={`pestana${pestana === t ? " activa" : ""}`}
-                  onClick={() => setPestana(t)}>
-            {t === "usuarios" ? "Usuarios" : "Roles y permisos"}
-          </button>
-        ))}
-      </div>
       {pestana === "roles" ? (
         <>
           {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
@@ -297,10 +303,20 @@ export function Usuarios() {
       ) : (<>
 
       {!correoConfigurado ? (
-        <div className="aviso alerta">
-          El envío de correo aún no está configurado en el servidor. Mientras tanto, al crear un usuario o enviarle un
-          enlace, el sistema le muestra el enlace a usted una sola vez para que se lo haga llegar a la persona.
-        </div>
+        avisoCerrado ? (
+          // Leído: queda un aviso discreto mientras el correo siga sin configurar.
+          <div className="aviso-discreto" role="status">
+            ⚠ Correo sin configurar: los enlaces se muestran en pantalla.
+            <button type="button" className="enlace" onClick={() => recordarAviso(false)}>Ver detalle</button>
+          </div>
+        ) : (
+          <div className="aviso alerta">
+            <button type="button" className="cerrar-aviso" aria-label="Cerrar el aviso (queda una versión breve)"
+                    onClick={() => recordarAviso(true)}>×</button>
+            El envío de correo aún no está configurado en el servidor. Mientras tanto, al crear un usuario o enviarle un
+            enlace, el sistema le muestra el enlace a usted una sola vez para que se lo haga llegar a la persona.
+          </div>
+        )
       ) : (
         <div className="filtros" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="boton chico" onClick={probarCorreo}>Enviar correo de prueba a mi cuenta</button>

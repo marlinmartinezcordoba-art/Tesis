@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
@@ -19,6 +19,13 @@ export const ICONOS: Record<string, ReactNode> = {
   usuarios: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="8" r="3.2" /><path d="M5 20c1-4 4.5-6 7-6s6 2 7 6" /></svg>,
 };
 
+interface Vista {
+  vista: string;
+  nombre: string;
+  ruta?: string; // una vista con ruta propia (p. ej. la configuración de preservación)
+  permitir?: (u: UsuarioBreve) => boolean;
+}
+
 interface Entrada {
   ruta: string;
   nombre: string;
@@ -26,23 +33,136 @@ interface Entrada {
   grupo: "trabajo" | "sistema";
   modulo: Modulo | "usuarios";
   tipo?: "leer" | "escribir";
+  vistas?: Vista[];
 }
+
+const veTodaAuditoria = (u: UsuarioBreve) => u.es_administrador || u.permisos?.auditoria === "todo";
 
 // Solo aparecen los módulos ya construidos; cada módulo nuevo se agrega
 // aquí cuando se entrega, en el orden de la barra del diseño consolidado:
 // Ingesta, Descripción, Vocabularios, Instrumentos, Preservación ·
 // Auditoría, Usuarios.
 const ENTRADAS: Entrada[] = [
-  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", modulo: "ingesta" },
-  { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion" },
-  { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios" },
-  { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo" },
-  { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion" },
-  { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria" },
-  // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración.
+  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
+    { vista: "cargar", nombre: "Cargar documentos", permitir: (u) => puede(u, "ingesta", "escribir") },
+    { vista: "cola", nombre: "Cola de ingesta" }] },
+  { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion", vistas: [
+    { vista: "cola", nombre: "Por describir" }, { vista: "publicadas", nombre: "Descritas" }] },
+  { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
+    { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" }] },
+  { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
+    { vista: "catalogo", nombre: "Catálogo" }, { vista: "grafo", nombre: "Grafo" }, { vista: "inventario", nombre: "Inventario" },
+    { vista: "guia", nombre: "Guía" }, { vista: "indice", nombre: "Índice" }, { vista: "rico", nombre: "RiC-O" }] },
+  { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
+    { vista: "panel", nombre: "Panel" },
+    { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
+  { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria", vistas: [
+    { vista: "propia", nombre: "Mi trazabilidad" },
+    { vista: "consolidado", nombre: "Panel consolidado", permitir: veTodaAuditoria },
+    { vista: "decisiones", nombre: "Decisiones de IA", permitir: (u) => u.es_administrador },
+    { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
+  // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
-  { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios" },
+  { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
+    { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" }] },
 ];
+
+/** Vistas de un módulo que el usuario puede ver, en orden. */
+export function vistasDe(ruta: string, u: UsuarioBreve | null): Vista[] {
+  const e = ENTRADAS.find((x) => x.ruta === ruta);
+  return (e?.vistas || []).filter((v) => !v.permitir || (u && v.permitir(u)));
+}
+
+/** La vista activa de un módulo, leída de ?vista= (la primera permitida si no hay o no vale). */
+export function useVista<T extends string>(ruta: string): T {
+  const { usuario } = useSesion();
+  const [parametros] = useSearchParams();
+  const vistas = vistasDe(ruta, usuario).filter((v) => !v.ruta);
+  const pedida = parametros.get("vista");
+  return (vistas.find((v) => v.vista === pedida) || vistas[0])?.vista as T;
+}
+
+function hrefDe(e: Entrada, v: Vista, primera: boolean): string {
+  if (v.ruta) return v.ruta;
+  return primera ? e.ruta : `${e.ruta}?vista=${v.vista}`;
+}
+
+export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
+  const { usuario } = useSesion();
+  const { pathname } = useLocation();
+  const [parametros] = useSearchParams();
+  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo));
+  const actual = visibles.find((e) => pathname === e.ruta || pathname.startsWith(`${e.ruta}/`));
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set(actual ? [actual.ruta] : []));
+  // El módulo de la vista activa siempre queda expandido al llegar a él.
+  useEffect(() => {
+    if (actual) setAbiertos((a) => (a.has(actual.ruta) ? a : new Set([...a, actual.ruta])));
+  }, [actual]);
+
+  const grupos: [string, Entrada[]][] = [
+    ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
+    ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
+  ];
+  const alternar = (ruta: string) => setAbiertos((a) => {
+    const n = new Set(a);
+    if (n.has(ruta)) n.delete(ruta);
+    else n.add(ruta);
+    return n;
+  });
+
+  return (
+    <nav className="navegacion" aria-label="Módulos">
+      {grupos.map(([titulo, entradas]) =>
+        entradas.length ? (
+          <div key={titulo} style={{ display: "contents" }}>
+            <div className="grupo">{titulo}</div>
+            {entradas.map((e) => {
+              const vistas = vistasDe(e.ruta, usuario);
+              const enModulo = actual?.ruta === e.ruta;
+              if (vistas.length < 2) {
+                return (
+                  <NavLink key={e.ruta} to={e.ruta} onClick={alNavegar}>
+                    {ICONOS[e.icono]}
+                    {e.nombre}
+                  </NavLink>
+                );
+              }
+              const abierto = abiertos.has(e.ruta);
+              const internas = vistas.filter((v) => !v.ruta);
+              const pedida = parametros.get("vista");
+              const activaInterna = internas.find((v) => v.vista === pedida) || internas[0];
+              const idLista = `submodulos-${e.ruta.slice(1)}`;
+              return (
+                <div key={e.ruta} className={`rama${enModulo ? " en-modulo" : ""}`}>
+                  <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista}
+                          onClick={() => alternar(e.ruta)}>
+                    {ICONOS[e.icono]}
+                    <span>{e.nombre}</span>
+                    <svg className="flecha-rama" viewBox="0 0 24 24" aria-hidden="true" {...trazo}><path d="M9 6l6 6-6 6" /></svg>
+                  </button>
+                  {abierto && (
+                    <ul id={idLista} className="subvistas">
+                      {vistas.map((v, i) => {
+                        const activa = v.ruta ? pathname === v.ruta
+                          : enModulo && pathname === e.ruta && activaInterna?.vista === v.vista;
+                        return (
+                          <li key={v.vista}>
+                            <Link to={hrefDe(e, v, i === 0)} className={activa ? "active" : undefined}
+                                  aria-current={activa ? "page" : undefined} onClick={alNavegar}>{v.nombre}</Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : null,
+      )}
+    </nav>
+  );
+}
 
 export function Marca() {
   return (
@@ -146,31 +266,24 @@ function AvisoAlertas() {
 }
 
 export function Marco({ children }: { children: ReactNode }) {
-  const { usuario } = useSesion();
   const { fondo } = useFondo();
-  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo));
-  const grupos: [string, Entrada[]][] = [
-    ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
-    ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
-  ];
+  // En pantallas angostas el árbol se vuelve un menú desplegable.
+  const [menu, setMenu] = useState(false);
   return (
     <div className="app">
       <aside className="lateral">
-        <Marca />
-        <div className="navegacion" role="navigation" aria-label="Módulos">
-          {grupos.map(([titulo, entradas]) =>
-            entradas.length ? (
-              <div key={titulo} style={{ display: "contents" }}>
-                <div className="grupo">{titulo}</div>
-                {entradas.map((e) => (
-                  <NavLink key={e.ruta} to={e.ruta}>
-                    {ICONOS[e.icono]}
-                    {e.nombre}
-                  </NavLink>
-                ))}
-              </div>
-            ) : null,
-          )}
+        <div className="lateral-cab">
+          <Marca />
+          <button type="button" className="boton-menu" aria-expanded={menu} aria-controls="menu-lateral"
+                  onClick={() => setMenu(!menu)}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...trazo}>
+              {menu ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+            </svg>
+            Menú
+          </button>
+        </div>
+        <div id="menu-lateral" className={`menu-lateral${menu ? " abierto" : ""}`}>
+          <ArbolNavegacion alNavegar={() => setMenu(false)} />
         </div>
         {fondo && (
           <div className="pie-lateral">

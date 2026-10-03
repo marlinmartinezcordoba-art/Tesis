@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { ErrorAPI, descargar, pedir } from "@/lib/api";
+import { ErrorAPI, pedir } from "@/lib/api";
+import { ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
 
 // Hallazgos de conformidad con RiC (prompt de auditoría v7, §5bis): un
@@ -29,6 +30,7 @@ export function Hallazgos() {
   const [componente, setComponente] = useState("");
   const [datos, setDatos] = useState<Datos | null>(null);
   const [nuevo, setNuevo] = useState(false);
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
 
   const consulta = useCallback(() => {
@@ -60,8 +62,7 @@ export function Hallazgos() {
           <option value="">Todos los componentes</option>
           {COMPONENTES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <button type="button" className="boton chico" onClick={() => descargar(`/api/auditoria/hallazgos/hoja-de-calculo?${consulta()}`)
-          .catch(() => undefined)}>Descargar hoja de cálculo</button>
+        <ExportarExcel ruta={`/api/auditoria/hallazgos/hoja-de-calculo?${consulta()}`} deshabilitado={!datos?.hallazgos.length} />
         <button type="button" className="boton chico primario" onClick={() => setNuevo(true)}>Registrar hallazgo</button>
       </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
@@ -76,12 +77,25 @@ export function Hallazgos() {
       {nuevo && <NuevoHallazgo cerrar={() => setNuevo(false)} creado={() => { setNuevo(false); cargar(); }} />}
       {!datos ? <div className="cargando">Cargando…</div> : datos.hallazgos.length === 0
         ? <div className="vacio">Ningún hallazgo con estos filtros.</div>
-        : datos.hallazgos.map((h) => <Tarjeta key={h.id} h={h} cambiado={cargar} />)}
+        : (
+          <>
+            <div className="acciones-vista">
+              <button type="button" className="enlace" onClick={() => setAbiertos(new Set(datos.hallazgos.map((h) => h.id)))}>Expandir todos</button>
+              <button type="button" className="enlace" onClick={() => setAbiertos(new Set())}>Contraer todos</button>
+            </div>
+            {datos.hallazgos.map((h) => (
+              <Tarjeta key={h.id} h={h} cambiado={cargar} abierta={abiertos.has(h.id)}
+                       alternar={() => setAbiertos((a) => { const n = new Set(a); if (n.has(h.id)) n.delete(h.id); else n.add(h.id); return n; })} />
+            ))}
+          </>
+        )}
     </>
   );
 }
 
-function Tarjeta({ h, cambiado }: { h: Hallazgo; cambiado: () => void }) {
+// Cada hallazgo se contrae a su título y su estado: con quince párrafos largos
+// la vista general se recorre de un vistazo, y se expande al tocarlo.
+function Tarjeta({ h, cambiado, abierta, alternar }: { h: Hallazgo; cambiado: () => void; abierta: boolean; alternar: () => void }) {
   const [editando, setEditando] = useState(false);
   const [estado, setEstado] = useState<Estado>(h.estado);
   const [accion, setAccion] = useState(h.accion || "");
@@ -100,13 +114,17 @@ function Tarjeta({ h, cambiado }: { h: Hallazgo; cambiado: () => void }) {
   }
 
   return (
-    <div className="tarjeta">
-      <div className="tarjeta-cab" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span>Hallazgo {h.numero}</span>
+    <div className={`tarjeta hallazgo${abierta ? " abierta" : ""}`}>
+      <button type="button" className="tarjeta-cab cab-contraible" aria-expanded={abierta} aria-controls={`hallazgo-${h.id}`}
+              onClick={alternar}>
+        <svg className="flecha-rama" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor"
+             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+        <span className="numero-hallazgo">Hallazgo {h.numero}</span>
+        <span className="titulo-hallazgo">{h.titulo}</span>
         <span className={`insignia ${ESTADO[h.estado].clase}`}>{ESTADO[h.estado].texto}</span>
-      </div>
-      <div className="tarjeta-cuerpo">
-        <h3 style={{ marginTop: 0 }}>{h.titulo}</h3>
+      </button>
+      {abierta && (
+      <div className="tarjeta-cuerpo" id={`hallazgo-${h.id}`}>
         <p className="meta">
           {h.componentes.map((c) => NOMBRE_COMPONENTE[c] || c).join(" · ")} · abierto el {dia(h.abierto_en)}
           {h.cerrado_en && ` · cerrado el ${dia(h.cerrado_en)}`}
@@ -135,6 +153,7 @@ function Tarjeta({ h, cambiado }: { h: Hallazgo; cambiado: () => void }) {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

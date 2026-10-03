@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
-import { ICONOS } from "@/components/Marco";
+import { Link } from "react-router-dom";
+import { ICONOS, useVista } from "@/components/Marco";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
+import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { ErrorAPI, pedir, puede, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { dia, fecha, peso } from "@/lib/formato";
@@ -316,6 +318,10 @@ function FilaCola({ e, puedeDecidir, alCambiar }: { e: ElementoCola; puedeDecidi
           </div>
           {error && <div className="aviso error" style={{ margin: "8px 0 0" }}>{error}</div>}
         </div>
+        <div className="acciones">
+          <BotonPrevisualizar base={`/api/ingesta/${e.id}/previsualizar`} nombre={e.nombre} />
+          {e.duplicado_de && <BotonPrevisualizar base={`/api/ingesta/${e.duplicado_de.id}/previsualizar`} nombre={e.duplicado_de.nombre} etiqueta="Ver el que ya existe" />}
+        </div>
         {puedeDecidir && (
           <div className="acciones">
             <button type="button" className="boton chico" disabled={ocupado}
@@ -342,6 +348,7 @@ function FilaCola({ e, puedeDecidir, alCambiar }: { e: ElementoCola; puedeDecidi
         <div className="meta">{meta} · cargado {fecha(e.cargado_en)}</div>
         {error && <div className="aviso error" style={{ margin: "8px 0 0" }}>{error}</div>}
       </div>
+      <div className="acciones"><BotonPrevisualizar base={`/api/ingesta/${e.id}/previsualizar`} nombre={e.nombre} /></div>
       {puedeDecidir && (
         <div className="acciones">
           <button type="button" className="boton chico" disabled={ocupado}
@@ -403,16 +410,91 @@ function VistaCola({ cola, puedeDecidir, alCambiar }: { cola: Cola | null; puede
   );
 }
 
+// --- Contenido de apoyo: actividad reciente y resumen del fondo ----------------------------------------
+
+interface Reciente {
+  id: string; nombre: string; tamano_bytes: number; formato: string | null; estado: string; cargado_en: string;
+  expediente: string | null; descrito_en: string | null;
+}
+
+// Debajo del área de carga: los últimos cinco archivos y dónde quedaron.
+// Si el fondo aún no tiene nada, una guía de tres pasos para empezar.
+function ActividadReciente({ fondo, version }: { fondo: Fondo; version: number }) {
+  const [filas, setFilas] = useState<Reciente[] | null>(null);
+  useEffect(() => {
+    pedir<Reciente[]>(`/api/ingesta/recientes?fondo_id=${fondo.id}`).then(setFilas).catch(() => setFilas([]));
+  }, [fondo.id, version]);
+  if (filas === null) return null;
+  if (filas.length === 0) {
+    return (
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Cómo empezar</div>
+        <ol className="pasos-inicio">
+          <li><strong>Arrastre o seleccione los archivos.</strong> Cualquier formato: el sistema calcula su huella digital y reconoce el formato.</li>
+          <li><strong>Si ya lo sabe, elija el expediente de destino.</strong> Es opcional: también se decide al describir.</li>
+          <li><strong>Revise el resultado en la cola de ingesta.</strong> Allí aparece lo que necesita su decisión (duplicados, errores).</li>
+        </ol>
+      </div>
+    );
+  }
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>Actividad reciente de ingesta</span>
+        <Link to="/ingesta?vista=cola" className="enlace">Ver la cola de ingesta</Link>
+      </div>
+      {filas.map((f) => (
+        <div className="fila" key={f.id}>
+          <IconoArchivo nombre={f.nombre} />
+          <div className="fila-principal">
+            <div className="nombre">{f.nombre}</div>
+            <div className="meta">{peso(f.tamano_bytes)}{f.formato && ` · ${f.formato}`} · cargado {fecha(f.cargado_en)}</div>
+          </div>
+          <span title={f.descrito_en || f.expediente || undefined} className={`insignia recortada ${f.descrito_en ? "bien" : f.estado === "listo_para_descripcion" ? (f.expediente ? "proceso" : "neutra-borde") : f.estado === "error" ? "error" : "alerta"}`}>
+            {f.descrito_en ? `Descrito en «${f.descrito_en}»` : f.estado === "listo_para_descripcion"
+              ? (f.expediente ? `Asignado a «${f.expediente}»` : "Pendiente de asignar")
+              : ESTADO_CORTO[f.estado] || f.estado}
+          </span>
+          <BotonPrevisualizar base={`/api/ingesta/${f.id}/previsualizar`} nombre={f.nombre} />
+        </div>
+      ))}
+    </div>
+  );
+}
+const ESTADO_CORTO: Record<string, string> = { procesando: "En proceso", duplicado_pendiente: "Posible duplicado", error: "Con error" };
+
+// Debajo de una cola corta: el estado general del fondo, con los mismos
+// datos del panel de preservación (no un cálculo propio de esta pantalla).
+function ResumenIngesta({ fondo }: { fondo: Fondo }) {
+  const [r, setR] = useState<{ documentos: number; con_texto: number; en_riesgo: number; riesgo_integridad: number; riesgo_obsolescencia: number } | null>(null);
+  useEffect(() => {
+    pedir<typeof r>(`/api/ingesta/resumen?fondo_id=${fondo.id}`).then(setR).catch(() => setR(null));
+  }, [fondo.id]);
+  if (!r) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Estado general de la ingesta del fondo</div>
+      <div className="resumen-preservacion compacto">
+        <div className="cifra"><strong>{r.documentos}</strong><span>Documentos ingresados</span></div>
+        <div className="cifra bien"><strong>{r.con_texto}</strong><span>Con texto reconocido</span></div>
+        <div className={`cifra${r.en_riesgo ? " alerta" : ""}`}><strong>{r.en_riesgo}</strong>
+          <span>En riesgo · {r.riesgo_integridad} de integridad, {r.riesgo_obsolescencia} de obsolescencia (<Link to="/preservacion">ver en Preservación</Link>)</span></div>
+      </div>
+    </div>
+  );
+}
+
 // --- Pantalla -----------------------------------------------------------------------
 
 export function Ingesta() {
   const { usuario } = useSesion();
   const { fondos, fondo } = useFondo();
   const puedeCargar = puede(usuario, "ingesta", "escribir");
-  const [pestana, setPestana] = useState<"cargar" | "cola">(puedeCargar ? "cargar" : "cola");
+  const pestana = useVista<"cargar" | "cola">("/ingesta");
   const [cola, setCola] = useState<Cola | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [registrando, setRegistrando] = useState(false);
+  const [version, setVersion] = useState(0);
   const procesandoAntes = useRef(0);
 
   const cargarCola = useCallback(async () => {
@@ -465,36 +547,28 @@ export function Ingesta() {
     );
   }
 
-  const pendientes = cola ? cola.procesando.length + cola.duplicados.length + cola.errores.length : 0;
-
   return (
     <>
-      <div className="pestanas" role="tablist">
-        {puedeCargar && (
-          <button type="button" role="tab" aria-selected={pestana === "cargar"} className={`pestana${pestana === "cargar" ? " activa" : ""}`}
-                  onClick={() => setPestana("cargar")}>
-            Cargar documentos
-          </button>
-        )}
-        <button type="button" role="tab" aria-selected={pestana === "cola"} className={`pestana${pestana === "cola" ? " activa" : ""}`}
-                onClick={() => setPestana("cola")}>
-          Cola de ingesta {pendientes > 0 && <span className="contador">{pendientes}</span>}
-        </button>
-        {usuario?.es_administrador && (
-          <button type="button" className="pestana" style={{ marginLeft: "auto", marginRight: 0 }} onClick={() => setRegistrando(!registrando)}>
-            + Registrar otro fondo
-          </button>
-        )}
-      </div>
+      {usuario?.es_administrador && (
+        <div className="acciones-vista">
+          <button type="button" className="enlace" onClick={() => setRegistrando(!registrando)}>+ Registrar otro fondo</button>
+        </div>
+      )}
       {registrando && (
         <div className="tarjeta"><RegistrarFondo alTerminar={() => setRegistrando(false)} /></div>
       )}
       {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
       {pestana === "cargar" && puedeCargar ? (
-        <Cargar fondo={fondo} alTerminar={cargarCola} />
+        <>
+          <Cargar fondo={fondo} alTerminar={() => { cargarCola(); setVersion((v) => v + 1); }} />
+          <ActividadReciente fondo={fondo} version={version} />
+        </>
       ) : (
-        <VistaCola cola={cola} puedeDecidir={puedeCargar}
-                   alCambiar={(m) => { setMensaje(m); cargarCola(); }} />
+        <>
+          <VistaCola cola={cola} puedeDecidir={puedeCargar}
+                     alCambiar={(m) => { setMensaje(m); cargarCola(); }} />
+          {cola && cola.procesando.length + cola.duplicados.length + cola.errores.length < 5 && <ResumenIngesta fondo={fondo} />}
+        </>
       )}
     </>
   );

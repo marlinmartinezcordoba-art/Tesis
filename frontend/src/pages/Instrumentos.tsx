@@ -12,16 +12,10 @@ import { CadenaActividad } from "@/components/ContextoActividad";
 import { IDIOMAS } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 import { ExportacionRico } from "@/components/ExportacionRico";
+import { useVista } from "@/components/Marco";
+import { BotonPrevisualizar } from "@/components/VisorDocumento";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
-const PESTANAS: { clave: Pestana; nombre: string }[] = [
-  { clave: "catalogo", nombre: "Catálogo" },
-  { clave: "grafo", nombre: "Grafo" },
-  { clave: "inventario", nombre: "Inventario" },
-  { clave: "guia", nombre: "Guía" },
-  { clave: "indice", nombre: "Índice" },
-  { clave: "rico", nombre: "RiC-O" },
-];
 const AGRUPACIONES = ["fondo", "seccion", "serie", "subserie", "expediente"];
 
 function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; actual?: Miga; ir: (id: string | null) => void }) {
@@ -141,6 +135,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
                   <dd>
                     {ficha.instanciaciones.map((i) => (
                       <div key={i.id} className="meta">
+                        <BotonPrevisualizar base={`/api/instrumentos/previsualizar/${i.id}`} nombre={i.nombre} etiqueta="Ver" />{" "}
                         {vePreservacion ? <Link to={`/preservacion/instanciacion/${i.id}`}>{i.nombre}</Link> : i.nombre}
                         {i.preservacion.derivada_de && " (versión de conservación)"}
                         {" · "}{i.preservacion.formato || "formato sin identificar"}{i.preservacion.puid && ` (${i.preservacion.puid})`}
@@ -483,11 +478,55 @@ function Indice({ fondo }: { fondo: { id: string; titulo: string } }) {
 
 // --- Página -------------------------------------------------------------------------------------
 
+// --- Contenido de apoyo: accesos a las otras vistas y propósito de cada instrumento -------------------
+
+const trazoAtajo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const ATAJOS: { vista: Pestana; nombre: string; frase: string; icono: JSX.Element }[] = [
+  { vista: "grafo", nombre: "Grafo", frase: "El fondo como red de entidades y relaciones RiC, para recorrer su contexto.",
+    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><circle cx="12" cy="6" r="2.2" /><circle cx="6" cy="17" r="2.2" /><circle cx="18" cy="17" r="2.2" /><path d="M10.5 7.5L7.5 15M13.5 7.5l3 7.5M8.2 17h7.6" /></svg> },
+  { vista: "inventario", nombre: "Inventario", frase: "El inventario documental (FUID) para el control interno.",
+    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 10h16M4 15h16M10 4v16" /></svg> },
+  { vista: "guia", nombre: "Guía", frase: "Una presentación del fondo en prosa, para un lector externo.",
+    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M5 5h6a2 2 0 012 2v12a2 2 0 00-2-2H5zM19 5h-6a2 2 0 00-2 2v12a2 2 0 012-2h6z" /></svg> },
+  { vista: "indice", nombre: "Índice", frase: "Agentes, lugares y formas documentales en orden alfabético.",
+    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg> },
+  { vista: "rico", nombre: "RiC-O", frase: "El fondo en datos enlazados (Turtle o JSON-LD), validado contra la ontología.",
+    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M9 7l-5 5 5 5M15 7l5 5-5 5" /></svg> },
+];
+
+function AtajosInstrumentos() {
+  return (
+    <nav className="tarjetas-atajo" aria-label="Otras vistas de Instrumentos">
+      {ATAJOS.map((a) => (
+        <Link key={a.vista} to={`/instrumentos?vista=${a.vista}`} className="tarjeta-atajo">
+          {a.icono}
+          <div><strong>{a.nombre}</strong><span>{a.frase}</span></div>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+// Para qué sirve cada instrumento y para quién: la vista enseña su
+// propósito aunque el fondo todavía tenga poco contenido.
+const PROPOSITO: Partial<Record<Pestana, [string, string]>> = {
+  inventario: ["Para control interno.", "El inventario documental (FUID) dice qué hay, dónde está físicamente (caja, carpeta, folios) y en qué soporte: es la herramienta de quien custodia el fondo."],
+  guia: ["Para un lector externo.", "La guía presenta el fondo en prosa a quien no lo conoce: su productor, su contenido y cómo se organiza, sin detalle unidad por unidad."],
+  indice: ["Para buscar rápido por nombre.", "El índice reúne los agentes, lugares y formas documentales del vocabulario del fondo, en orden alfabético, con cuántos documentos los citan."],
+  rico: ["Para verificar la correspondencia con la ontología.", "La vista RiC-O entrega el fondo como datos enlazados y comprueba que cada clase y propiedad exista en RiC-O 1.1: es la evidencia técnica de conformidad."],
+};
+
+function Proposito({ vista }: { vista: Pestana }) {
+  const p = PROPOSITO[vista];
+  if (!p) return null;
+  return <aside className="proposito"><strong>{p[0]}</strong>{p[1]}</aside>;
+}
+
 export function Instrumentos() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
   const [parametros, setParametros] = useSearchParams();
-  const pestana = (parametros.get("vista") as Pestana) || "catalogo";
+  const pestana = useVista<Pestana>("/instrumentos");
   const nodo = parametros.get("nodo");
   const fichaAbierta = parametros.get("ficha");
   const puede = tienePermiso(usuario, "instrumentos", "escribir");
@@ -520,25 +559,20 @@ export function Instrumentos() {
 
   return (
     <>
-      <div className="pestanas" role="tablist">
-        {PESTANAS.map((p) => (
-          <button key={p.clave} type="button" role="tab" aria-selected={pestana === p.clave}
-                  className={`pestana${pestana === p.clave ? " activa" : ""}`}
-                  onClick={() => cambiar({ vista: p.clave === "catalogo" ? null : p.clave })}>
-            {p.nombre}
-          </button>
-        ))}
-      </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!nivel ? <div className="cargando">Cargando…</div> : (
         <>
           {pestana === "catalogo" && (
-            <Catalogo nivel={nivel} ir={(id) => cambiar({ nodo: id })} abrir={(id) => cambiar({ ficha: id })} />
+            <>
+              <Catalogo nivel={nivel} ir={(id) => cambiar({ nodo: id })} abrir={(id) => cambiar({ ficha: id })} />
+              {nivel.hijos.length < 6 && <AtajosInstrumentos />}
+            </>
           )}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
           {pestana === "indice" && <Indice fondo={nivel.fondo} />}
           {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
+          <Proposito vista={pestana} />
           {pestana === "grafo" && (
             <PestanaGrafo fondo={nivel.fondo} centro={parametros.get("centro")}
                           centrar={(c) => cambiar({ centro: c })} abrirFicha={(id) => cambiar({ ficha: id })} />

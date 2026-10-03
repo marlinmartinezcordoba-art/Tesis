@@ -5,7 +5,6 @@ import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { dia, peso } from "@/lib/formato";
 import { FRECUENCIAS, TIPO_ATENCION, type Configuracion, type Panel } from "@/lib/preservacion";
-import { useSesion } from "@/lib/sesion";
 
 function extension(nombre: string) {
   const p = nombre.split(".");
@@ -20,7 +19,6 @@ export function contextoTexto(contexto: { nivel: string; titulo: string }[]): st
 // --- Panel -------------------------------------------------------------------------------------
 
 export function PanelPreservacion() {
-  const { usuario } = useSesion();
   const { fondo } = useFondo();
   const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState("");
@@ -53,7 +51,6 @@ export function PanelPreservacion() {
             Nada se migra sin su aprobación.
           </p>
         </div>
-        {usuario?.es_administrador && <Link className="boton chico" to="/preservacion/configuracion">Configuración</Link>}
       </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!panel ? <div className="cargando">Cargando…</div> : (
@@ -92,11 +89,69 @@ export function PanelPreservacion() {
               </Link>
             ))}
           </div>
+          <LineaTiempo fondoId={fondo.id} />
         </>
       )}
     </>
   );
 }
+
+// --- Línea de tiempo de los últimos eventos de preservación -----------------------------------------
+
+interface Eventos {
+  verificacion: { fecha: string; resultados: Record<string, number> } | null;
+  migracion: { fecha: string; estado: string; destino: string; archivo: string } | null;
+  restauracion: { fecha: string; estado_previo: string; archivo: string } | null;
+  simulacro_base_de_datos: null;
+}
+
+const ICONO_EVENTO = {
+  bien: <path d="M5 12.5l4.5 4.5L19 7.5" />, alerta: <path d="M12 6v7M12 17.5v.01" />, error: <path d="M7 7l10 10M17 7L7 17" />,
+  neutro: <circle cx="12" cy="12" r="3" />,
+};
+
+function Evento({ estado, titulo, children }: { estado: keyof typeof ICONO_EVENTO; titulo: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <span className={`marca-evento ${estado === "neutro" ? "" : estado}`} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">{ICONO_EVENTO[estado]}</svg>
+      </span>
+      <div><strong>{titulo}</strong><div className="meta">{children}</div></div>
+    </li>
+  );
+}
+
+function LineaTiempo({ fondoId }: { fondoId: string }) {
+  const [e, setE] = useState<Eventos | null>(null);
+  useEffect(() => {
+    pedir<Eventos>(`/api/preservacion/eventos-recientes?fondo_id=${fondoId}`).then(setE).catch(() => setE(null));
+  }, [fondoId]);
+  if (!e) return null;
+  const v = e.verificacion;
+  const fallas = v ? (v.resultados.alterada || 0) + (v.resultados.ausente || 0) : 0;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Últimos eventos de preservación</div>
+      <ol className="cronologia">
+        <Evento estado={!v ? "neutro" : fallas ? "error" : "bien"} titulo="Última verificación de integridad">
+          {v ? <>{dia(v.fecha)} · {v.resultados.integra || 0} íntegro(s){fallas ? `, ${fallas} con problema` : ""}</> : "Todavía no se ha verificado ningún archivo."}
+        </Evento>
+        <Evento estado={!e.migracion ? "neutro" : e.migracion.estado === "completada" ? "bien" : e.migracion.estado === "fallida" ? "error" : "alerta"}
+                titulo="Última migración de formato">
+          {e.migracion ? <>{dia(e.migracion.fecha)} · «{e.migracion.archivo}» a {e.migracion.destino} · {ESTADO_MIGRACION[e.migracion.estado] || e.migracion.estado}</>
+            : "Ninguna migración todavía."}
+        </Evento>
+        <Evento estado={e.restauracion ? "alerta" : "neutro"} titulo="Última restauración desde la segunda copia">
+          {e.restauracion ? <>{dia(e.restauracion.fecha)} · «{e.restauracion.archivo}» estaba {e.restauracion.estado_previo}</> : "Nunca hizo falta restaurar un archivo."}
+        </Evento>
+        <Evento estado="neutro" titulo="Simulacro de restauración de la base de datos">
+          Pendiente: el respaldo probado de la base de datos todavía no está construido en el sistema.
+        </Evento>
+      </ol>
+    </div>
+  );
+}
+const ESTADO_MIGRACION: Record<string, string> = { completada: "completada", fallida: "fallida", en_curso: "en curso", esperando_archivo: "esperando el archivo convertido" };
 
 // --- Configuración (solo administrador) --------------------------------------------------------
 

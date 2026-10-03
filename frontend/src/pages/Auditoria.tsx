@@ -1,13 +1,14 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ErrorAPI, descargar, pedir } from "@/lib/api";
+import { ErrorAPI, pedir } from "@/lib/api";
 import {
   MODULO_NOMBRE, MOTIVO_CIERRE, duracion, valor, type Cambio, type Consolidado, type Desglose, type Evento,
   type PropiedadRico,
 } from "@/lib/auditoria";
 import { Hallazgos } from "@/components/Hallazgos";
+import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
-import { useSesion } from "@/lib/sesion";
+import { useVista } from "@/components/Marco";
 
 const hora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const soloHora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" });
@@ -46,30 +47,39 @@ function Cambios({ cambios }: { cambios: Cambio[] }) {
 
 // --- Mi trazabilidad -----------------------------------------------------------------------------
 
+// Cuántos registros se ven sin desplazarse; el resto se exporta.
+const RECIENTES_TRAZABILIDAD = 15;
+const RECIENTES_DECISIONES = 25;
+
 function MiTrazabilidad() {
   const [acciones, setAcciones] = useState<{ accion: string; modulo: string; etiqueta: string }[]>([]);
   const [filtro, setFiltro] = useState({ accion: "", desde: "", hasta: "" });
   const [eventos, setEventos] = useState<Evento[] | null>(null);
-  const [siguiente, setSiguiente] = useState<number | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     pedir<typeof acciones>("/api/auditoria/acciones").then(setAcciones).catch(() => undefined);
   }, []);
 
-  const cargar = useCallback(async (antes?: number) => {
+  const consulta = useCallback(() => {
     const p = new URLSearchParams();
     Object.entries(filtro).forEach(([k, v]) => v && p.set(k, v));
-    if (antes) p.set("antes_de", String(antes));
+    return p;
+  }, [filtro]);
+
+  const cargar = useCallback(async () => {
+    const p = consulta();
+    p.set("limite", String(RECIENTES_TRAZABILIDAD));
     try {
-      const r = await pedir<{ eventos: Evento[]; siguiente: number | null }>(`/api/auditoria/mi-trazabilidad?${p}`);
-      setEventos((prev) => (antes && prev ? [...prev, ...r.eventos] : r.eventos));
-      setSiguiente(r.siguiente);
+      const r = await pedir<{ eventos: Evento[]; total: number }>(`/api/auditoria/mi-trazabilidad?${p}`);
+      setEventos(r.eventos);
+      setTotal(r.total);
       setError("");
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar la trazabilidad.");
     }
-  }, [filtro]);
+  }, [consulta]);
 
   useEffect(() => {
     cargar();
@@ -88,10 +98,12 @@ function MiTrazabilidad() {
         </select>
         <label className="pastilla">Desde <input type="date" value={filtro.desde} onChange={(e) => setFiltro({ ...filtro, desde: e.target.value })} /></label>
         <label className="pastilla">Hasta <input type="date" value={filtro.hasta} onChange={(e) => setFiltro({ ...filtro, hasta: e.target.value })} /></label>
+        <ExportarExcel ruta={`/api/auditoria/trazabilidad/exportar?${consulta()}`} deshabilitado={!total} />
       </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
+      <AvisoReciente visibles={RECIENTES_TRAZABILIDAD} total={total} unidad="registros" />
       <div className="tarjeta">
-        <div className="tarjeta-cab">{eventos === null ? "Cargando…" : `${eventos.length}${siguiente ? "+" : ""} acción(es)`}</div>
+        <div className="tarjeta-cab">{eventos === null ? "Cargando…" : `${total} acción(es) con estos filtros`}</div>
         {eventos?.length === 0 && <div className="vacio">No hay acciones con esos filtros.</div>}
         {eventos?.map((e) => (
           <div className="fila" key={e.id} style={{ alignItems: "flex-start" }}>
@@ -107,7 +119,6 @@ function MiTrazabilidad() {
             </div>
           </div>
         ))}
-        {siguiente && <div className="tarjeta-cuerpo"><button type="button" className="boton chico" onClick={() => cargar(siguiente)}>Ver más</button></div>}
       </div>
     </>
   );
@@ -194,6 +205,7 @@ function PanelConsolidado() {
         <button type="button" className="boton chico" disabled={!datos?.semana.siguiente}
                 onClick={() => datos?.semana.siguiente && setSemana(datos.semana.siguiente)}>Semana siguiente ›</button>
         <label className="pastilla">Ir a <input type="date" aria-label="Semana" onChange={(e) => e.target.value && setSemana(e.target.value)} /></label>
+        <ExportarExcel ruta={`/api/auditoria/panel-consolidado/exportar${datos ? `?semana=${datos.semana.lunes}` : ""}`} deshabilitado={!datos} />
       </div>
       {error && <div className="aviso error">{error}</div>}
       <div className="tarjeta tabla-desplazable">
@@ -259,7 +271,7 @@ function DecisionesIA() {
 
   useEffect(() => {
     setError("");
-    pedir<DatosDecisiones>(`/api/auditoria/decisiones-ia?${consulta()}`).then(setDatos)
+    pedir<DatosDecisiones>(`/api/auditoria/decisiones-ia?${consulta()}&limite=${RECIENTES_DECISIONES}`).then(setDatos)
       .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudieron cargar las decisiones."));
   }, [consulta]);
 
@@ -286,10 +298,7 @@ function DecisionesIA() {
           <option value="30">Últimos 30 días</option>
           <option value="todo">Todo el registro</option>
         </select>
-        <button type="button" className="boton chico" disabled={!datos?.total}
-                onClick={() => descargar(`/api/auditoria/decisiones-ia/hoja-de-calculo?${consulta()}`).catch(() => undefined)}>
-          Descargar hoja de cálculo
-        </button>
+        <ExportarExcel ruta={`/api/auditoria/decisiones-ia/exportar?${consulta()}`} deshabilitado={!datos?.total} />
         {datos?.modelos.length ? <span className="insignia proceso">Motor de IA · {datos.modelos.join(", ")}</span> : null}
       </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
@@ -322,8 +331,9 @@ function DecisionesIA() {
               </div>
             </div>
           )}
+          <AvisoReciente visibles={datos.filas.length} total={datos.total} unidad="registros" />
           <div className="tarjeta">
-            <div className="tarjeta-cab">Decisiones · {datos.total}{datos.total > datos.filas.length ? ` (se muestran ${datos.filas.length}; la hoja de cálculo las trae todas)` : ""}</div>
+            <div className="tarjeta-cab">Decisiones · {datos.total}</div>
             {datos.filas.length === 0 ? <div className="vacio">Todavía no hay decisiones registradas con estos filtros.</div> : (
               <div className="tabla-desplazable">
                 <table className="tabla-permisos">
@@ -360,34 +370,9 @@ function DecisionesIA() {
 }
 
 export function Auditoria() {
-  const { usuario } = useSesion();
-  const veTodo = !!usuario && (usuario.es_administrador || usuario.permisos?.auditoria === "todo");
-  const esAdmin = !!usuario?.es_administrador;
-  const [parametros, setParametros] = useSearchParams();
-  const vista = parametros.get("vista");
-  const pestana = esAdmin && vista === "decisiones" ? "decisiones" : esAdmin && vista === "hallazgos" ? "hallazgos"
-    : veTodo && vista === "consolidado" ? "consolidado" : "propia";
+  const pestana = useVista<"propia" | "consolidado" | "decisiones" | "hallazgos">("/auditoria");
   return (
     <>
-      {veTodo && (
-        <div className="pestanas" role="tablist">
-          <button type="button" role="tab" aria-selected={pestana === "propia"} className={`pestana${pestana === "propia" ? " activa" : ""}`}
-                  onClick={() => setParametros({})}>Mi trazabilidad</button>
-          <button type="button" role="tab" aria-selected={pestana === "consolidado"}
-                  className={`pestana${pestana === "consolidado" ? " activa" : ""}`}
-                  onClick={() => setParametros({ vista: "consolidado" })}>Panel consolidado</button>
-          {esAdmin && (
-            <button type="button" role="tab" aria-selected={pestana === "decisiones"}
-                    className={`pestana${pestana === "decisiones" ? " activa" : ""}`}
-                    onClick={() => setParametros({ vista: "decisiones" })}>Decisiones de IA</button>
-          )}
-          {esAdmin && (
-            <button type="button" role="tab" aria-selected={pestana === "hallazgos"}
-                    className={`pestana${pestana === "hallazgos" ? " activa" : ""}`}
-                    onClick={() => setParametros({ vista: "hallazgos" })}>Hallazgos de conformidad</button>
-          )}
-        </div>
-      )}
       {pestana === "propia" ? <MiTrazabilidad /> : pestana === "consolidado" ? <PanelConsolidado />
         : pestana === "hallazgos" ? <Hallazgos /> : <DecisionesIA />}
     </>

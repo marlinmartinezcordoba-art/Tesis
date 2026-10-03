@@ -5,6 +5,8 @@ import { SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { useVista } from "@/components/Marco";
+import { EstadoVacio } from "@/components/EstadoVacio";
 import {
   CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, claseRicDe, conexionesTexto,
   type ClaseVocabulario, type EntidadVocabulario, type ParametrosFusion, type Sugerencia,
@@ -191,8 +193,7 @@ export function Vocabularios() {
   const { fondo } = useFondo();
   const ubicacion = useLocation();
   const puede = tienePermiso(usuario, "vocabularios", "escribir");
-  const [pestana, setPestana] = useState<"vocabulario" | "sugerencias">(
-    (ubicacion.state as { pestana?: "sugerencias" } | null)?.pestana || "vocabulario");
+  const pestana = useVista<"vocabulario" | "sugerencias">("/vocabularios");
   const [clase, setClase] = useState<ClaseVocabulario | "">("");
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<Orden>("conexiones_desc");
@@ -253,20 +254,9 @@ export function Vocabularios() {
 
   if (!fondo) return <div className="vacio">Primero debe existir un fondo (se registra en Ingesta).</div>;
 
-  const pendientes = sugerencias?.length || 0;
 
   return (
     <>
-      <div className="pestanas" role="tablist">
-        <button type="button" role="tab" aria-selected={pestana === "vocabulario"}
-                className={`pestana${pestana === "vocabulario" ? " activa" : ""}`} onClick={() => setPestana("vocabulario")}>
-          Vocabulario
-        </button>
-        <button type="button" role="tab" aria-selected={pestana === "sugerencias"}
-                className={`pestana${pestana === "sugerencias" ? " activa" : ""}`} onClick={() => setPestana("sugerencias")}>
-          Sugerencias de fusión {pendientes > 0 && <span className="contador">{pendientes}</span>}
-        </button>
-      </div>
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
@@ -323,11 +313,14 @@ export function Vocabularios() {
               {entidades === null ? "Cargando…" : `${entidades.length} entidad${entidades.length === 1 ? "" : "es"}${fusionadas ? " fusionadas" : ""}`}
             </div>
             {entidades !== null && entidades.length === 0 && (
-              <div className="vacio">
-                {q || clase ? "Ninguna entidad coincide con la búsqueda." : fusionadas
-                  ? "No hay entidades fusionadas en este fondo."
-                  : "El vocabulario está vacío. Se llena solo a medida que se publican descripciones."}
-              </div>
+              q || clase || nivel || fusionadas ? (
+                <EstadoVacio icono="filtro" titulo="Ninguna entidad cumple el filtro activo"
+                             texto={fusionadas && !q && !clase && !nivel ? "No hay entidades fusionadas en este fondo." : "La lista no está vacía por un error: el filtro no deja pasar nada."}
+                             accion={{ texto: "Limpiar filtro", alHacer: () => { setQ(""); setClase(""); setNivel(""); setFusionadas(false); } }} />
+              ) : (
+                <EstadoVacio icono="lista" titulo="El vocabulario del fondo está vacío"
+                             texto="Se llena solo, a medida que se publican descripciones: cada agente, lugar o forma documental confirmado queda aquí una sola vez." />
+              )
             )}
             {entidades?.map((e) => (
               <Link to={`/vocabularios/${e.id}`} className="fila fila-enlace" key={e.id}>
@@ -367,7 +360,13 @@ export function Vocabularios() {
           )}
           {sugerencias === null && <div className="cargando">Cargando…</div>}
           {sugerencias !== null && sugerencias.length === 0 && (
-            <div className="tarjeta"><div className="vacio">No hay sugerencias pendientes.</div></div>
+            <div className="tarjeta">
+              <EstadoVacio icono="fusion" titulo="No hay sugerencias pendientes"
+                           texto={<>Una sugerencia aparece cuando dos entidades del mismo tipo tienen nombres muy parecidos y
+                             pocas conexiones cada una (los criterios están abajo): por ejemplo, «Alcaldía Municipal» y «Alcaldía
+                             Mpal.». Que esta lista esté vacía no es un error: significa que la última búsqueda no encontró pares
+                             así. También puede buscar ahora con el botón de arriba.</>} />
+            </div>
           )}
           {sugerencias?.map((s) => (
             <TarjetaSugerencia key={s.id} s={s} puede={puede} alResolver={(texto) => {

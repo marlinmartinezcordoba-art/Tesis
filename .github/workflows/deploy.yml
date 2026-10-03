@@ -74,11 +74,12 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Compilación y tipos de la interfaz
+      - name: Compilación, tipos y pruebas de la interfaz
         working-directory: frontend
         run: |
           npm ci --no-audit --no-fund
           npm run build
+          npm test
 
   desplegar:
     needs: pruebas

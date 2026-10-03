@@ -75,7 +75,18 @@ export function EvaluacionCiega() {
         <>
           {esAdmin && <NuevaEvaluacion fondoId={fondo.id} creada={cargar} />}
           {!evaluaciones ? <div className="cargando">Cargando…</div> : evaluaciones.length === 0 ? (
-            <div className="vacio">{esAdmin ? "Todavía no hay evaluaciones." : "No hay evaluaciones en curso."}</div>
+            <div className="tarjeta">
+              <div className="tarjeta-cab">{esAdmin ? "Todavía no hay evaluaciones: así funciona el protocolo" : "No hay evaluaciones en curso: así funciona el protocolo"}</div>
+              <ol className="pasos-inicio">
+                <li><strong>Descripción a ciegas.</strong> La archivista describe cada documento sin ver nunca la propuesta del
+                  motor: esa es la referencia humana independiente.</li>
+                <li><strong>Descripción asistida.</strong> Después, el mismo documento con la propuesta del motor delante.</li>
+                <li><strong>Calificación.</strong> Se ve la propuesta y se califica de 1 a 5 en exactitud, completitud y
+                  pertinencia. Al cerrar, el sistema calcula precisión, exhaustividad y F1 frente a la descripción a ciegas, y
+                  el acuerdo entre archivistas.</li>
+              </ol>
+              {esAdmin && <p className="pista" style={{ padding: "0 18px 14px", margin: 0 }}>Para empezar, cree una evaluación con el formulario de arriba y agregue los documentos.</p>}
+            </div>
           ) : evaluaciones.map((e) => (
             <div key={e.id} className="fila">
               <div className="fila-principal">

@@ -87,6 +87,39 @@ def panel(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends
     return datos
 
 
+@router.get("/eventos-recientes", summary="Línea de tiempo: última verificación, migración y restauración del fondo")
+def eventos_recientes(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    from sqlalchemy import func, select
+
+    from app.models.instanciacion import Instanciacion
+    from app.models.preservacion import Restauracion, VerificacionIntegridad
+
+    fondo_o_404(db, fondo_id)
+    del_fondo = select(Instanciacion.id).where(Instanciacion.fondo_id == fondo_id)
+    ultima = db.scalar(select(func.max(VerificacionIntegridad.fecha)).where(
+        VerificacionIntegridad.instanciacion_id.in_(del_fondo)))
+    verificacion = None
+    if ultima is not None:
+        # Todo lo verificado en esa misma ronda (el mismo día).
+        filas = db.execute(select(VerificacionIntegridad.resultado, func.count()).where(
+            VerificacionIntegridad.instanciacion_id.in_(del_fondo),
+            func.date(VerificacionIntegridad.fecha) == func.date(ultima)).group_by(VerificacionIntegridad.resultado)).all()
+        verificacion = {"fecha": ultima, "resultados": dict(filas)}
+    m = db.scalars(select(Migracion).where(Migracion.instanciacion_origen_id.in_(del_fondo))
+                   .order_by(Migracion.aprobada_en.desc()).limit(1)).first()
+    r = db.scalars(select(Restauracion).where(Restauracion.instanciacion_id.in_(del_fondo))
+                   .order_by(Restauracion.fecha.desc()).limit(1)).first()
+    return {
+        "verificacion": verificacion,
+        "migracion": {"fecha": m.terminada_en or m.aprobada_en, "estado": m.estado, "destino": m.destino_nombre,
+                      "archivo": db.get(Instanciacion, m.instanciacion_origen_id).nombre_original} if m else None,
+        "restauracion": {"fecha": r.fecha, "estado_previo": r.estado_previo,
+                         "archivo": db.get(Instanciacion, r.instanciacion_id).nombre_original} if r else None,
+        # El respaldo probado de la base de datos (con simulacro de restauración) aún no existe en el sistema.
+        "simulacro_base_de_datos": None,
+    }
+
+
 @router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones")
 def detalle(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     return preservacion.detalle(db, _inst(db, inst_id))

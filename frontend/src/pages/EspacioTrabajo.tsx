@@ -13,6 +13,7 @@ import {
   verificacionInicial, verificarVocabulario, type Coincidencia, type NivelSuperior, type TipoEntidad, type Verificacion,
 } from "@/lib/descripcion";
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
+import { VisorDocumento } from "@/components/VisorDocumento";
 
 interface EntidadPropuesta {
   clave: string;
@@ -329,6 +330,7 @@ export function EspacioTrabajo() {
                 {d.nombre} — texto extraído{d.origen_texto === "ocr" ? " por OCR" : ""}
                 {d.confianza_ocr !== null && <> · confianza {confianzaTexto(d.confianza_ocr)}</>}
               </div>
+              <VisorDocumento base={`/api/descripcion/${d.id}/previsualizar`} alto={460} />
               {d.ocr_baja_confianza && (
                 <div className="aviso alerta" role="note">
                   La lectura automática de este documento tuvo confianza {confianzaTexto(d.confianza_ocr ?? 0)}, por debajo

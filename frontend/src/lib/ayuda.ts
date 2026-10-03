@@ -1,6 +1,6 @@
 // Guía de cada pantalla para la ambulancia de ayuda: qué hacer aquí, paso a
 // paso, con los nombres que se ven en la pantalla. Una guía por ruta y, en
-// las pantallas con pestañas, una por pestaña.
+// las pantallas con varias vistas (las del árbol de la barra lateral), una por vista.
 
 export interface Paso { titulo: string; texto: string }
 export interface Guia { titulo: string; pasos: Paso[] }

@@ -5,6 +5,32 @@ import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { confianzaTexto, fecha, peso } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { useVista } from "@/components/Marco";
+import { EstadoVacio } from "@/components/EstadoVacio";
+import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
+import { BotonPrevisualizar } from "@/components/VisorDocumento";
+
+// «Descritas» muestra las más recientes; el resto, en la exportación.
+const RECIENTES_DESCRITAS = 15;
+
+// Bajo una cola corta: lo descrito hoy y el total del fondo, el mismo dato
+// que cuenta el panel consolidado de auditoría (no un cálculo aparte).
+function Productividad({ fondoId }: { fondoId: string }) {
+  const [p, setP] = useState<{ hoy_por_mi: number; total_fondo: number } | null>(null);
+  useEffect(() => {
+    pedir<{ hoy_por_mi: number; total_fondo: number }>(`/api/descripcion/productividad?fondo_id=${fondoId}`).then(setP).catch(() => setP(null));
+  }, [fondoId]);
+  if (!p) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Su trabajo reciente</div>
+      <div className="resumen-preservacion compacto">
+        <div className="cifra"><strong>{p.hoy_por_mi}</strong><span>Descripciones que usted validó hoy (publicadas, corregidas o recortadas)</span></div>
+        <div className="cifra bien"><strong>{p.total_fondo}</strong><span>Descripciones publicadas en el fondo</span></div>
+      </div>
+    </div>
+  );
+}
 
 interface PorDescribir {
   id: string;
@@ -42,7 +68,7 @@ export function Descripcion() {
   const navegar = useNavigate();
   const ubicacion = useLocation();
   const puede = tienePermiso(usuario, "descripcion", "escribir");
-  const [pestana, setPestana] = useState<"cola" | "publicadas">("cola");
+  const pestana = useVista<"cola" | "publicadas">("/descripcion");
   const [cola, setCola] = useState<PorDescribir[] | null>(null);
   const [publicadas, setPublicadas] = useState<Publicada[] | null>(null);
   const [seleccion, setSeleccion] = useState<string[]>([]);
@@ -96,16 +122,6 @@ export function Descripcion() {
 
   return (
     <>
-      <div className="pestanas" role="tablist">
-        <button type="button" role="tab" aria-selected={pestana === "cola"} className={`pestana${pestana === "cola" ? " activa" : ""}`}
-                onClick={() => setPestana("cola")}>
-          Por describir {cola && cola.length > 0 && <span className="contador">{cola.length}</span>}
-        </button>
-        <button type="button" role="tab" aria-selected={pestana === "publicadas"} className={`pestana${pestana === "publicadas" ? " activa" : ""}`}
-                onClick={() => setPestana("publicadas")}>
-          Descritas
-        </button>
-      </div>
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
@@ -121,7 +137,9 @@ export function Descripcion() {
               {cola === null ? "Cargando…" : `${cola.length} documento${cola.length === 1 ? "" : "s"} listo${cola.length === 1 ? "" : "s"}`}
             </div>
             {cola !== null && cola.length === 0 && (
-              <div className="vacio">No hay documentos por describir. Los que termina de procesar la ingesta aparecen aquí solos.</div>
+              <EstadoVacio icono="bien" titulo="No hay documentos por describir"
+                           texto="Los que termina de procesar la ingesta aparecen aquí solos."
+                           accion={tienePermiso(usuario, "ingesta", "escribir") ? { texto: "Cargar documentos", alHacer: () => navegar("/ingesta") } : undefined} />
             )}
             {cola?.map((d) => (
               <div className={`fila${resaltado === d.id ? " resaltada" : ""}`} key={d.id}>
@@ -139,6 +157,7 @@ export function Descripcion() {
                   </div>
                 </div>
                 {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR con confianza baja</span>}
+                <BotonPrevisualizar base={`/api/descripcion/${d.id}/previsualizar`} nombre={d.nombre} />
                 {d.en_edicion_por ? (
                   <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
                 ) : puede && (
@@ -163,15 +182,23 @@ export function Descripcion() {
               </div>
             )}
           </div>
+          {fondo && cola !== null && cola.length < 5 && <Productividad fondoId={fondo.id} />}
         </>
       ) : (
         <>
           <h1>Descritas</h1>
-          <p className="sub">Descripciones ya publicadas en el fondo. Se pueden reabrir para corregirlas; cada cambio queda en auditoría.</p>
+          <p className="sub">Descripciones ya publicadas en el fondo, las más recientes primero. Se pueden reabrir para corregirlas;
+            cada cambio queda en auditoría.</p>
+          {fondo && publicadas && publicadas.length > RECIENTES_DESCRITAS && (
+            <div className="filtros"><ExportarExcel ruta={`/api/descripcion/publicadas/exportar?fondo_id=${fondo.id}`} /></div>
+          )}
+          <AvisoReciente visibles={RECIENTES_DESCRITAS} total={publicadas?.length ?? null} unidad="descripciones" />
           <div className="tarjeta">
             {publicadas === null ? <div className="vacio">Cargando…</div> : publicadas.length === 0 ? (
-              <div className="vacio">Todavía no se ha publicado ninguna descripción.</div>
-            ) : publicadas.map((p) => (
+              <EstadoVacio icono="documento" titulo="Todavía no se ha publicado ninguna descripción"
+                           texto="Cuando publique la primera desde «Por describir», aparecerá aquí."
+                           accion={{ texto: "Ir a Por describir", alHacer: () => navegar("/descripcion") }} />
+            ) : publicadas.slice(0, RECIENTES_DESCRITAS).map((p) => (
               <div className="fila" key={p.id}>
                 <div className="fila-principal">
                   <div className="nombre">{p.titulo}</div>
