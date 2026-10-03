@@ -118,7 +118,8 @@ class _Contexto:
     fondo, sus fechas y cuáles están reabiertas, y cachés de nodos."""
 
     def __init__(self, db: Session, fondo: RecursoDocumental, ver_restringidos: bool):
-        self.db, self.fondo = db, fondo
+        self.db, self.fondo, self.ver_restringidos = db, fondo, ver_restringidos
+        self._con_documentos: set[uuid.UUID] | None = None
         self.recursos = exportacion_rico._recursos(db, fondo, ver_restringidos, Counter())
         self.hijos: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
         self.por_forma: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
@@ -165,6 +166,20 @@ class _Contexto:
                 for i in faltan:
                     cache[i] = encontrados.get(i)
 
+    def entidad_consultable(self, ident: uuid.UUID) -> bool:
+        """Para quien no es archivista, una entidad del vocabulario (una
+        persona, una institución, un lugar) solo se muestra si lleva a algún
+        documento que puede ver: si solo la citan documentos clasificados o
+        reservados, su nombre también lo es (Ley 1712 art. 18; Ley 1581)."""
+        if self.ver_restringidos:
+            return True
+        if self._con_documentos is None:
+            ids = list(self.db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == self.fondo.id)))
+            visibles = {i for i in self.recursos if i != self.fondo.id}
+            self._con_documentos = {e for e, docs in vocabulario._documentos_por_entidad(self.db, ids).items()
+                                    if docs & visibles}
+        return ident in self._con_documentos
+
     def nodo(self, tipo: str, ident: uuid.UUID) -> dict | None:
         """Datos públicos de un nodo, o None si no es visible."""
         fid = self.fondo.id
@@ -183,7 +198,8 @@ class _Contexto:
         if tipo == "entidad_vocabulario":
             self.precargar([(tipo, ident)])
             e = self._entidades.get(ident)
-            if e is None or e.fondo_id != fid or e.estado != "activa" or e.subtipo == "mecanismo":
+            if e is None or e.fondo_id != fid or e.estado != "activa" or e.subtipo == "mecanismo" \
+                    or not self.entidad_consultable(e.id):
                 return None
             return {"tipo": tipo, "clase": e.clase, "familia": _FAMILIA_CLASE[e.clase], "etiqueta": e.nombre,
                     "subtitulo": e.subtipo, "estado": None,
@@ -202,7 +218,10 @@ class _Contexto:
             if i is None or i.fondo_id != fid or i.estado != "listo_para_descripcion":
                 return None
             return {"tipo": tipo, "clase": "instanciacion", "familia": "Instantiation", "etiqueta": i.nombre_original,
-                    "subtitulo": i.formato_puid, "estado": None, "fecha_inicio": None, "fecha_fin": None}
+                    # La copia que nace de una migración de formato (p. ej. PDF/A) no es un duplicado:
+                    # es la versión de conservación del original, que nunca se borra.
+                    "subtitulo": "Versión de conservación" if i.derivada_de_id else i.formato_puid,
+                    "estado": None, "fecha_inicio": None, "fecha_fin": None}
         if tipo == "actividad":
             self.precargar([(tipo, ident)])
             a = self._actividades.get(ident)
@@ -332,6 +351,14 @@ def _recorrer(ctx: _Contexto, raiz_tipo: str, raiz_id: uuid.UUID, saltos: int, f
         frontera = siguiente
         if not frontera:
             break
+    # Una versión de conservación se dibuja colgando de su original («migrada a»),
+    # no también del documento: si no, parece un archivo duplicado.
+    for clave in [k for k in aristas if k[2] == "has_or_had_instantiation"]:
+        destino = nodos.get(clave[1])
+        if destino and destino["tipo"] == "instanciacion":
+            inst = ctx._instancias.get(uuid.UUID(destino["id"]))
+            if inst is not None and inst.derivada_de_id and f"instanciacion:{inst.derivada_de_id}" in nodos:
+                del aristas[clave]
     return raiz, nodos, aristas, truncado
 
 
@@ -366,6 +393,8 @@ def opciones(db: Session, fondo: RecursoDocumental, ver_restringidos: bool) -> d
             EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
             or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))
             .order_by(EntidadVocabulario.nombre)):
+        if not ctx.entidad_consultable(e.id):
+            continue
         raices.append({"clave": f"entidad_vocabulario:{e.id}", "etiqueta": e.nombre,
                        "subtitulo": FAMILIAS[_FAMILIA_CLASE[e.clase]].split(" (")[0], "familia": _FAMILIA_CLASE[e.clase]})
     # Solo los tipos de relación que el fondo usa de verdad (no todo el catálogo).

@@ -286,3 +286,36 @@ Pedidos después de usar la versión 1 en una pantalla de 600 px de alto.
 | El menú del perfil de consulta | El grupo se llama «Consulta del archivo», no «Trabajo archivístico» |
 
 **Hallazgo para la autora.** El **Catálogo** muestra una unidad documental cuya serie superior sigue en **borrador**: «Oficio 210», bajo la serie «Permisos». La exportación RiC-O, el grafo y el índice no la muestran, porque cuelga de un nivel sin publicar. El catálogo sí la muestra, saltándose ese nivel. Hay que decidir una regla: publicar la serie, o que el catálogo tampoco la muestre mientras su nivel superior esté en borrador.
+
+### Lo que ve el perfil de consulta frente al índice de información clasificada y reservada (versión 1.3)
+
+La autora entregó como referencia un **índice de información clasificada y reservada** (Ley 1712 de 2014, artículos 18 y 19). Tiene 168 activos de información:
+- **Clasificación:** 138 son información pública clasificada (IPC, art. 18) y 30, información pública reservada (IPR, art. 19).
+- **Alcance:** 131 tienen **reserva parcial** y 37, **reserva total**.
+- **Plazos:** entre 1 y 15 años; el más frecuente es 15.
+
+**Fugas encontradas y corregidas.** Todas usan ahora la misma regla del grafo, el índice y la exportación RiC-O (`exportacion_rico._recursos`):
+
+| Dónde | Qué pasaba | Ahora |
+|---|---|---|
+| **Catálogo** (árbol y ficha) | Mostraba al perfil de consulta las descripciones clasificadas o reservadas | No las muestra; abrir una por su dirección da 404 |
+| **Ficha pública** (`/api/catalogo/registros/{id}`) | Igual | Igual que el catálogo |
+| Conteo «N documentos de esta entidad» | Contaba también lo reservado, lo que revela que existe | Solo cuenta lo que quien consulta puede ver |
+| **Grafo**: selector de raíz y nodos | Ofrecía y dibujaba personas o entidades citadas **solo** en documentos reservados: un dato personal (Ley 1581 de 2012) | Para quien no es archivista, una entidad solo aparece si lleva a algún documento visible |
+| Catálogo: documento bajo un nivel en borrador | Lo mostraba saltándose el nivel sin publicar | Ya no; aplica la misma regla que la exportación RiC-O |
+
+**Lo que el sistema todavía no hace, y la autora debe decidir.**
+
+1. **Reserva parcial.** RICORA solo sabe ocultar una descripción completa. Con 131 de 168 activos en reserva parcial, eso es **sobre-restringir**: el artículo 21 de la Ley 1712 obliga a entregar la parte no reservada. Para hacerlo bien hace falta una «versión pública» de la descripción, que oculte solo los campos o las partes documentales reservadas.
+2. **Vencimiento del plazo.** La declaración de derechos guarda «vigente hasta», pero el sistema **no levanta la reserva al vencer**. Mantenerla es el lado seguro. Lo correcto es una alerta que avise al archivista para que la revise y la levante.
+3. **Cargar el índice por serie y subserie.** La reserva se declara por descripción y se hereda hacia abajo: declararla en una serie cubre todo lo que contiene, igual que el índice declara por serie. No hay todavía una carga masiva desde el archivo del índice.
+
+### Leyenda y desplazamiento del grafo; la copia de conservación
+
+- **La leyenda es interactiva.** Tocar un tipo lo oculta o lo muestra en el dibujo, junto con sus relaciones; la raíz nunca se oculta. Cada tipo muestra cuántos hay, y «Mostrar todos» vuelve al grafo completo.
+- **Desplazamiento:**
+  - la rueda del ratón **sube y baja** por el grafo (con Mayús, a los lados) sin mover la página;
+  - Ctrl + rueda o el gesto de pellizco acercan y alejan;
+  - a la derecha hay botones ▲ ▼, + y −, un deslizador de acercamiento y «ajustar»;
+  - con el lienzo seleccionado, las flechas del teclado desplazan.
+- **Dos instanciaciones no son un duplicado.** Una migración de formato (por ejemplo, a PDF/A-2b) crea la **versión de conservación** y el original nunca se borra. RiC-O declara las dos instanciaciones del documento, y así sigue la exportación. El grafo, en cambio, dibuja la copia **colgando de su original** («migrada a») y la rotula «versión de conservación», para que no parezca un archivo repetido.

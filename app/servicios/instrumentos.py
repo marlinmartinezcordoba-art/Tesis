@@ -92,11 +92,17 @@ def _orden(r: RecursoDocumental):
     return (NIVEL_DESCRIPCION.index(r.nivel), (r.codigo_referencia or "").lower(), r.titulo.lower())
 
 
-def arbol(db: Session, fondo: RecursoDocumental) -> Arbol:
+def arbol(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = True) -> Arbol:
+    """El árbol de lo que se puede consultar, con la misma regla de la
+    exportación RiC-O, el grafo y el índice: solo lo publicado cuya cadena
+    superior también lo está y, para quien no es archivista, nada
+    clasificado ni reservado (propio o heredado)."""
+    from collections import Counter
+
+    from app.servicios import exportacion_rico
+
     a = Arbol(fondo=fondo)
-    filas = db.scalars(select(RecursoDocumental).where(
-        RecursoDocumental.fondo_id == fondo.id, RecursoDocumental.id != fondo.id,
-        RecursoDocumental.publicado_en.is_not(None))).all()
+    filas = [r for i, r in exportacion_rico._recursos(db, fondo, ver_restringidos, Counter()).items() if i != fondo.id]
     a.nodos[fondo.id] = fondo
     for r in filas:
         a.nodos[r.id] = r
@@ -154,9 +160,10 @@ def _nodo(a: Arbol, r: RecursoDocumental) -> dict:
             "fechas_extremas": _fechas_texto(a, r), "hijos": len(a.hijos.get(r.id, [])), "unidades_documentales": unidades}
 
 
-def nivel(db: Session, fondo: RecursoDocumental, nodo_id: uuid.UUID | None = None) -> dict:
+def nivel(db: Session, fondo: RecursoDocumental, nodo_id: uuid.UUID | None = None,
+          ver_restringidos: bool = True) -> dict:
     """Un nivel del árbol para la navegación por migas de pan."""
-    a = arbol(db, fondo)
+    a = arbol(db, fondo, ver_restringidos)
     nodo_id = nodo_id or fondo.id
     if nodo_id not in a.nodos:
         raise ErrorInstrumento("Ese nivel no existe en el fondo o no tiene una descripción publicada.", 404)
@@ -195,17 +202,20 @@ def preservacion(db: Session, instanciacion_id: str) -> dict:
             "derivada_de": str(inst.derivada_de_id) if inst.derivada_de_id else None}
 
 
-def ficha(db: Session, recurso: RecursoDocumental) -> dict:
+def ficha(db: Session, recurso: RecursoDocumental, ver_restringidos: bool = True) -> dict:
     fondo = db.get(RecursoDocumental, recurso.fondo_id)
-    a = arbol(db, fondo)
+    a = arbol(db, fondo, ver_restringidos)
     if recurso.id not in a.nodos:
-        raise ErrorInstrumento("Esa descripción no está publicada.", 404)
+        raise ErrorInstrumento("Esa descripción no está publicada o no se puede consultar.", 404)
     base = consulta.ficha_publica(db, recurso)
     ids = [uuid.UUID(e["entidad_id"]) for e in base["entidades"]]
     forma = db.get(EntidadVocabulario, recurso.forma_documental_id) if recurso.forma_documental_id else None
     if forma:
         ids.append(forma.id)
-    conexiones = vocabulario.conexiones_de(db, ids)
+    # «N documentos de esta entidad»: solo los que quien consulta puede ver
+    # (contar lo reservado revelaría que existe).
+    conexiones = {i: len({d for d in docs if d in a.nodos and d != fondo.id})
+                  for i, docs in vocabulario._documentos_por_entidad(db, ids).items()}
     entidades = []
     for e in base["entidades"]:
         propia = uuid.UUID(e["entidad_id"])

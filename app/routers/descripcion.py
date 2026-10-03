@@ -426,5 +426,13 @@ catalogo = APIRouter(prefix="/api/catalogo", tags=["Catálogo de consulta"])
 
 
 @catalogo.get("/registros/{recurso_id}", summary="Ficha de consulta de una descripción publicada")
-def ficha(recurso_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
-    return consulta.ficha_publica(db, _recurso_o_404(db, recurso_id))
+def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.routers.instrumentos import ve_restringidos
+    from app.servicios import instrumentos
+
+    recurso = _recurso_o_404(db, recurso_id)
+    fondo = db.get(RecursoDocumental, recurso.fondo_id or recurso.id)
+    # La misma regla del catálogo: lo clasificado o reservado no sale a quien no es archivista.
+    if recurso.id not in instrumentos.arbol(db, fondo, ve_restringidos(actor)).nodos:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La descripción no existe o no se puede consultar.")
+    return consulta.ficha_publica(db, recurso)

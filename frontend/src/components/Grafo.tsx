@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero, type ReactNode, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero, type ReactNode } from "react";
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
 
 export type Familia =
@@ -102,7 +102,7 @@ function corto(texto: string, n = 26): string {
 
 type Punto = SimulationNodeDatum & { clave: string };
 
-export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
+export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque }: {
   datos: DatosGrafo;
   seleccion: string | null;
   alSeleccionar: (clave: string | null) => void;
@@ -110,6 +110,21 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
   enfoque: { clave: string; vez: number } | null;
 }) {
   const lienzo = useRef<SVGSVGElement>(null);
+  // Leyenda interactiva: cada tipo de entidad se muestra u oculta con un toque.
+  // Lo oculto desaparece del dibujo con sus relaciones; la raíz nunca se oculta.
+  const [ocultas, setOcultas] = useState<Set<Familia>>(new Set());
+  const datos = useMemo<DatosGrafo>(() => {
+    if (!ocultas.size) return completo;
+    const nodos = completo.nodos.filter((n) => !ocultas.has(n.familia) || n.clave === completo.centro);
+    const quedan = new Set(nodos.map((n) => n.clave));
+    return { ...completo, nodos, aristas: completo.aristas.filter((a) => quedan.has(a.desde) && quedan.has(a.hacia)) };
+  }, [completo, ocultas]);
+  const alternarFamilia = (f: Familia) => setOcultas((o) => {
+    const n = new Set(o);
+    if (n.has(f)) n.delete(f);
+    else n.add(f);
+    return n;
+  });
   const [posiciones, setPosiciones] = useState<Record<string, { x: number; y: number }>>({});
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [encima, setEncima] = useState<string | null>(null);
@@ -250,10 +265,36 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
     }
   }
 
-  function rueda(e: WheelEvent<SVGSVGElement>) {
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
+
+  const mover1 = (dx: number, dy: number) => setVista((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+  // Teclado: flechas para desplazarse, + y − para acercar.
+  function teclas(e: React.KeyboardEvent<SVGSVGElement>) {
+    const pasos: Record<string, [number, number]> = { ArrowUp: [0, 80], ArrowDown: [0, -80], ArrowLeft: [80, 0], ArrowRight: [-80, 0] };
+    if (pasos[e.key]) { e.preventDefault(); mover1(...pasos[e.key]); }
+    else if (e.key === "+" || e.key === "=") zoom(1.2);
+    else if (e.key === "-") zoom(1 / 1.2);
   }
+
+  // Rueda del ratón: sube y baja por el grafo (Mayús + rueda, a los lados);
+  // Ctrl + rueda o el gesto de pellizco acercan y alejan. Escucha nativa,
+  // no pasiva, para que la página no se desplace a la vez.
+  useEffect(() => {
+    const el = lienzo.current;
+    if (!el) return;
+    const rueda = (e: globalThis.WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        const factor = Math.exp(-e.deltaY * 0.0025);
+        setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
+      } else if (e.shiftKey) {
+        setVista((v) => ({ ...v, x: v.x - (e.deltaY || e.deltaX) }));
+      } else {
+        setVista((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
+    };
+    el.addEventListener("wheel", rueda, { passive: false });
+    return () => el.removeEventListener("wheel", rueda);
+  }, []);
 
   const zoom = (factor: number) => setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
   const activo = encima || seleccion;
@@ -261,7 +302,7 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
   // Etiquetas de las relaciones: siempre, mientras se puedan leer; en un
   // grafo muy denso o muy alejado, solo las del nodo señalado.
   const etiquetasLegibles = datos.aristas.length <= 60 && vista.k >= 0.7;
-  const familiasPresentes = new Set(datos.nodos.map((n) => n.familia));
+  const familiasPresentes = new Set(completo.nodos.map((n) => n.familia));
   // Varias relaciones entre los mismos dos nodos: cada etiqueta a una distancia distinta de la línea.
   const desplazamiento = useMemo(() => {
     const vistos = new Map<string, number>();
@@ -275,15 +316,31 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
 
   return (
     <div className="lienzo-grafo">
-      <div className="leyenda-grafo" aria-label="Leyenda: tipos de entidad">
-        {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => (
-          <span key={f.clave} title={`rico:${f.ric.replace(/ /g, "")}`}>
-            <MuestraFamilia familia={f.clave} />{f.nombre}
-          </span>
-        ))}
+      <div className="leyenda-grafo" role="group" aria-label="Leyenda: toque un tipo para mostrarlo u ocultarlo">
+        {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => {
+          const cuantos = completo.nodos.filter((n) => n.familia === f.clave).length;
+          return (
+            <button key={f.clave} type="button" className={`item-leyenda${ocultas.has(f.clave) ? " oculta" : ""}`}
+                    aria-pressed={!ocultas.has(f.clave)} disabled={!cuantos}
+                    title={cuantos ? `${ocultas.has(f.clave) ? "Mostrar" : "Ocultar"} ${f.nombre.toLowerCase()} · rico:${f.ric.replace(/ /g, "")}` : "No hay en este grafo"}
+                    onClick={() => alternarFamilia(f.clave)}>
+              <MuestraFamilia familia={f.clave} />
+              <span>{f.nombre}</span>
+              <span className="cuenta-leyenda">{cuantos}</span>
+            </button>
+          );
+        })}
+        {ocultas.size > 0 && (
+          <button type="button" className="enlace mostrar-todos" onClick={() => setOcultas(new Set())}>Mostrar todos</button>
+        )}
       </div>
-      <div className="controles-grafo" role="group" aria-label="Acercamiento del grafo">
+      <div className="controles-grafo" role="group" aria-label="Acercamiento y desplazamiento del grafo">
+        <button type="button" className="boton chico" onClick={() => mover1(0, 120)} aria-label="Subir" title="Subir">▲</button>
+        <button type="button" className="boton chico" onClick={() => mover1(0, -120)} aria-label="Bajar" title="Bajar">▼</button>
         <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
+        <input type="range" className="deslizador-zoom" min={20} max={300} step={5} value={Math.round(vista.k * 100)}
+               aria-label={`Acercamiento: ${Math.round(vista.k * 100)} %`} title={`${Math.round(vista.k * 100)} %`}
+               onChange={(e) => setVista((v) => ({ ...v, k: Number(e.target.value) / 100 }))} />
         <button type="button" className="boton chico" onClick={() => zoom(0.8)} aria-label="Alejar" title="Alejar">−</button>
         <button type="button" className="boton chico" onClick={encuadrar} aria-label="Ajustar a la ventana" title="Ajustar a la ventana">
           <svg viewBox="0 0 24 24" width="14" height="14" {...trazo}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
@@ -292,7 +349,8 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
       <svg ref={lienzo} className="svg-grafo" role="img"
            viewBox={`${-tamano.ancho / 2} ${-tamano.alto / 2} ${tamano.ancho} ${tamano.alto}`}
            aria-label={`Grafo con ${datos.nodos.length} entidades y ${datos.aristas.length} relaciones`}
-           onPointerDown={(e) => bajar(e)} onPointerMove={mover} onPointerUp={soltar} onPointerLeave={soltar} onWheel={rueda}>
+           tabIndex={0} onKeyDown={teclas}
+           onPointerDown={(e) => bajar(e)} onPointerMove={mover} onPointerUp={soltar} onPointerLeave={soltar}>
         <defs>
           <marker id="flecha" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" className="punta" />
@@ -348,6 +406,9 @@ export function LienzoGrafo({ datos, seleccion, alSeleccionar, enfoque }: {
                   <circle r={r} />
                   <g className="icono-nodo" transform={`translate(${-12 * escala} ${-12 * escala}) scale(${escala})`}>{ICONO_FAMILIA[n.familia]}</g>
                   <text y={r + 13} textAnchor="middle">{corto(n.etiqueta)}</text>
+                  {n.subtitulo === "Versión de conservación" && (
+                    <text y={r + 26} textAnchor="middle" className="subtitulo-nodo">versión de conservación</text>
+                  )}
                 </g>
               );
             })}

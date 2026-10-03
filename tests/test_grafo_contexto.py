@@ -8,6 +8,7 @@ from datetime import date
 
 import pytest
 from openpyxl import load_workbook
+from sqlalchemy import select
 from rdflib import RDF, Graph, URIRef
 
 from app.db.base import ahora
@@ -347,3 +348,62 @@ def test_el_indice_de_consulta_no_cuenta_lo_reservado(cliente, db, fondo_descrit
     assert alcaldia(archivista)["documentos"] == 3
     lector = alcaldia(consulta)
     assert lector["documentos"] == 1 and [d["titulo"] for d in lector["descripciones"]] == [EXP49]
+
+
+# --- Lo clasificado o reservado no sale al perfil de consulta por ningún camino -------------------
+
+
+def test_el_perfil_de_consulta_no_ve_lo_reservado_en_el_catalogo_ni_en_las_fichas(
+        cliente, db, fondo_descrito, archivista, consulta, admin):
+    """Ley 1712 de 2014, art. 18 y 19: la reserva del expediente 1948 la
+    heredan sus dos oficios. El catálogo, la ficha, la ficha pública, los
+    conteos de documentos y el selector del grafo la respetan."""
+    f = fondo_descrito
+    db.add(DeclaracionDerechos(fondo_id=f["fondo"].id, entidad_tipo="recurso_documental", entidad_id=f["exp48"].id,
+                               base="estatuto", acceso="reservado", reproduccion="no_permitida",
+                               fundamento="Ley 1712 de 2014, art. 19", creada_por_id=admin.id))
+    db.commit()
+    serie = {"fondo_id": str(f["fondo"].id), "nodo_id": str(f["serie"].id)}
+    hijos = lambda quien: [h["titulo"] for h in cliente.get("/api/instrumentos/catalogo", headers=quien, params=serie).json()["hijos"]]
+    assert hijos(archivista) == [EXP48, EXP49] and hijos(consulta) == [EXP49]
+    for ruta in (f"/api/instrumentos/catalogo/{f['o114'].id}", f"/api/catalogo/registros/{f['o114'].id}"):
+        assert cliente.get(ruta, headers=consulta).status_code == 404, ruta
+        assert cliente.get(ruta, headers=archivista).status_code == 200, ruta
+    assert cliente.get("/api/instrumentos/catalogo", headers=consulta,
+                       params={"fondo_id": str(f["fondo"].id), "nodo_id": str(f["exp48"].id)}).status_code == 404
+    # «N documentos de esta entidad» no cuenta lo reservado.
+    ficha = cliente.get(f"/api/instrumentos/catalogo/{f['exp49'].id}", headers=consulta).json()
+    assert next(e for e in ficha["entidades"] if e["valor"] == ALCALDIA)["documentos"] == 1
+    ficha = cliente.get(f"/api/instrumentos/catalogo/{f['exp49'].id}", headers=archivista).json()
+    assert next(e for e in ficha["entidades"] if e["valor"] == ALCALDIA)["documentos"] == 3
+    # Quien solo aparece en lo reservado (el Gobernador, destinatario del oficio 114) no se ofrece ni se dibuja.
+    raices = lambda quien: {r["etiqueta"] for r in cliente.get("/api/grafo/opciones", headers=quien,
+                                                               params={"fondo_id": str(f["fondo"].id)}).json()["raices"]}
+    assert "Gobernador del Departamento" in raices(archivista)
+    assert "Gobernador del Departamento" not in raices(consulta) and ALCALDIA in raices(consulta)
+    gobernador = db.scalar(select(EntidadVocabulario).where(EntidadVocabulario.nombre == "Gobernador del Departamento"))
+    assert cliente.get(f"/api/grafo/entidad_vocabulario/{gobernador.id}", headers=consulta).status_code == 404
+
+
+def test_la_version_de_conservacion_cuelga_de_su_original_y_no_parece_un_duplicado(cliente, db, fondo_descrito, archivista):
+    """Una migración a PDF/A crea una segunda instanciación. RiC-O la declara
+    del documento y del original; el grafo la dibuja solo desde el original
+    («migrada a») y la rotula como versión de conservación."""
+    from app.models.instanciacion import Instanciacion
+
+    f = fondo_descrito
+    original = db.scalar(select(Instanciacion).where(Instanciacion.nombre_original == "Oficio_114_1948.pdf"))
+    copia = Instanciacion(id=uuid.uuid4(), fondo_id=f["fondo"].id, nombre_original="Oficio_114_1948 (PDF/A-2b).pdf",
+                          ruta="x/z.pdf", tamano_bytes=12, estado="listo_para_descripcion", huella="b" * 64,
+                          formato_puid="fmt/476", derivada_de_id=original.id)
+    db.add(copia)
+    db.flush()
+    for o_tipo, o_id, codigo in (("recurso_documental", f["o114"].id, "has_or_had_instantiation"),
+                                 ("instanciacion", original.id, "migrated_into")):
+        db.add(Relacion(origen_tipo=o_tipo, origen_id=o_id, destino_tipo="instanciacion", destino_id=copia.id,
+                        tipo_relacion="asociacion", codigo_ric=codigo, origen="persona"))
+    db.commit()
+    g = pedir(cliente, archivista, "recurso_documental", f["o114"].id, saltos=2)
+    hacia_copia = [(a["desde"].split(":")[0], a["codigo_ric"]) for a in g["aristas"] if a["hacia"] == f"instanciacion:{copia.id}"]
+    assert hacia_copia == [("instanciacion", "migrated_into")]
+    assert next(n for n in g["nodos"] if n["id"] == str(copia.id))["subtitulo"] == "Versión de conservación"

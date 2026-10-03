@@ -67,19 +67,25 @@ def _descarga(contenido: bytes, tipo: str, nombre: str, extra: dict | None = Non
 # --- Consulta ----------------------------------------------------------------------------------
 
 
+def ve_restringidos(actor: Actor) -> bool:
+    """Sesión de archivista: ve lo clasificado o reservado (Ley 1712, art.
+    18 y 19). El perfil de consulta, no."""
+    return actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir")
+
+
 @router.get("/catalogo", summary="Un nivel del árbol del fondo, para navegar por migas de pan")
-def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, _: Actor = Depends(lectura_catalogo),
+def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, actor: Actor = Depends(lectura_catalogo),
              db: Session = Depends(get_db)):
     try:
-        return instrumentos.nivel(db, fondo_o_404(db, fondo_id), nodo_id)
+        return instrumentos.nivel(db, fondo_o_404(db, fondo_id), nodo_id, ve_restringidos(actor))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
 
 
 @router.get("/catalogo/{recurso_id}", summary="Ficha de consulta: descripción, entidades y preservación")
-def ficha(recurso_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     try:
-        return instrumentos.ficha(db, _recurso_o_404(db, recurso_id))
+        return instrumentos.ficha(db, _recurso_o_404(db, recurso_id), ve_restringidos(actor))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
 
