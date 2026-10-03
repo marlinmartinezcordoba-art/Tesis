@@ -367,6 +367,9 @@ RELACION_NARIA = {
     ("has_activity_type", None): "TypeRelation",
 }
 RELACION_GENERAL = "Relation"
+
+# Tipo de fecha (RiC-A42): el subtipo EDTF del sistema → concepto rico:DateType.
+TIPO_FECHA = {"simple": "Fecha simple", "rango": "Rango de fechas", "conjunto": "Conjunto de fechas"}
 # Clases cuya fuente, según su definición en RiC-O, es el destino de la
 # tripleta binaria del sistema: el nodo se escribe al revés.
 #   PerformanceRelation: la actividad es la fuente (el agente, el destino).
@@ -406,6 +409,9 @@ APOYO = {
     "fecha_creacion": ("hasCreationDate", RECURSOS + ("Instantiation",), "Date"),
     "fechas_extremas": ("hasOrHadAllMembersWithCreationDate", ("RecordSet",), "Date"),
     "fecha_asociada": ("isAssociatedWithDate", ("Thing",), "Date"),
+    # Tipo de fecha (RiC-A42, brecha 3): RiC-O 1.1 retiró DateSingle, DateRange y
+    # DateSet (22-09-2023) y categoriza la fecha con rico:DateType.
+    "tipo_fecha": ("hasDateType", ("Date",), "DateType"),
     "tipo_lugar": ("hasOrHadPlaceType", ("Place",), "PlaceType"),
     "tipo_soporte": ("hasCarrierType", ("Instantiation",), "CarrierType"),
     "tipo_regla": ("hasOrHadRuleType", ("Rule",), "RuleType"),
@@ -611,7 +617,7 @@ def verificar_contra_owl() -> list[str]:
     clases = set(CLASE_NIVEL.values()) | set(CLASE_AGENTE.values()) | set(CLASE_VOCABULARIO.values()) \
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
                                       "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType",
-                                      "CarrierType", "RecordResourceExtent", "InstantiationExtent"}
+                                      "CarrierType", "RecordResourceExtent", "InstantiationExtent", "DateType"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")

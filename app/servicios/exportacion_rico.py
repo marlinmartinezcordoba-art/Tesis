@@ -416,10 +416,25 @@ def _estado_relacion(edtf: str | None) -> str | None:
 # --- Nodos ------------------------------------------------------------------------------------------
 
 
+def _tipo_fecha(ex: Exportacion, nodo: URIRef, subtipo: str | None) -> None:
+    """rico:hasDateType (RiC-A42): fecha simple, rango o conjunto (brecha 3)."""
+    if subtipo in ric_o.TIPO_FECHA:
+        prop, clase = _apoyo("tipo_fecha")
+        ex.grafo.add((nodo, prop, _concepto(ex, "tipo-de-fecha", subtipo, clase, ric_o.TIPO_FECHA[subtipo])))
+
+
+def _subtipo_edtf(edtf: str | None) -> str | None:
+    try:
+        return fechas.subtipo_de(edtf) if edtf else None
+    except fechas.FechaInvalida:
+        return None
+
+
 def _fecha_libre(ex: Exportacion, sujeto: URIRef, predicado: URIRef, nodo: URIRef, expresada: str | None,
                  edtf: str | None) -> None:
     g = ex.grafo
     g.add((nodo, RDF.type, RICO[ric_o.CLASE_NODO["fecha"]]))
+    _tipo_fecha(ex, nodo, _subtipo_edtf(edtf))
     if expresada:
         g.add((nodo, _a("fecha_expresada"), Literal(expresada)))
     if edtf:
@@ -667,6 +682,7 @@ def _fecha(ex: Exportacion, f: Fecha) -> None:
     s = uri(f.id)
     g.add((s, RDF.type, RICO[ric_o.CLASE_NODO["fecha"]]))
     g.add((s, _a("fecha_expresada"), Literal(f.expresion)))
+    _tipo_fecha(ex, s, _subtipo_edtf(f.edtf) or f.subtipo)
     if f.edtf:
         g.add((s, _a("fecha_normalizada"), Literal(f.edtf)))
         calificador = "aproximada" if "~" in f.edtf or "%" in f.edtf else "incierta" if "?" in f.edtf else None

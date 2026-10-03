@@ -236,3 +236,41 @@ def test_las_relaciones_invertidas_tienen_clase_especifica(codigo):
     assert ric_o.clase_relacion(codigo, None) in ("PerformanceRelation", "RecordResourceHoldingRelation",
                                                   "TypeRelation")
     assert codigo in ric_o.RELACION_INVERTIDA
+
+
+# --- Brecha 3 · Tipo de fecha (RiC-A42) ----------------------------------------------------------------
+
+
+def test_cada_fecha_declara_su_tipo_simple_rango_o_conjunto(db, fondo):
+    """RiC-O 1.1 retiró DateSingle, DateRange y DateSet (22-09-2023): la fecha es
+    una sola clase, rico:Date, categorizada con rico:DateType (RiC-A42)."""
+    from app.models.descripcion import Fecha
+
+    doc = documento(db, fondo)
+    serie = RecursoDocumental(id=uuid.uuid4(), nivel="serie", titulo="Oficios", fondo_id=fondo.id,
+                              incluido_en_id=fondo.id, publicado_en=ahora(), fechas_extremas="1936-1950",
+                              fechas_extremas_edtf="1936/1950")
+    db.add(serie)
+    simple = Fecha(expresion="8 de marzo de 1948", subtipo="simple", edtf="1948-03-08")
+    conjunto = Fecha(expresion="1948 y 1950", subtipo="conjunto", edtf="{1948,1950}")
+    db.add_all([simple, conjunto])
+    db.flush()
+    for f in (simple, conjunto):
+        relacion(db, f, doc, "is_creation_date_of" if f is simple else "is_date_associated_with",
+                 origen_tipo="fecha", destino_tipo="recurso_documental")
+    g = exportar_conforme(db, fondo).grafo
+
+    def tipo(nodo):
+        t = uno(g, nodo, RICO.hasDateType)
+        assert (t, RDF.type, RICO.DateType) in g
+        return str(uno(g, t, RICO.name))
+
+    assert tipo(u(simple.id)) == "Fecha simple"
+    assert tipo(u(conjunto.id)) == "Conjunto de fechas"
+    [extremas] = g.objects(u(serie.id), RICO.hasOrHadAllMembersWithCreationDate)
+    assert tipo(extremas) == "Rango de fechas"
+    # Ninguna clase retirada de RiC-O sale en la exportación.
+    for retirada in ("DateSingle", "SingleDate", "DateRange", "DateSet"):
+        assert (None, RDF.type, RICO[retirada]) not in g
+    # Toda fecha con forma EDTF tiene su tipo (el perfil SHACL lo exige).
+    assert all(list(g.objects(f, RICO.hasDateType)) for f in g.subjects(RICO.normalizedDateValue, None))

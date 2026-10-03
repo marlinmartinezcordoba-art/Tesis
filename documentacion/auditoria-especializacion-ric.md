@@ -16,7 +16,7 @@ RICORA **produce RiC conforme**: ningún término fuera del OWL, validación con
 |---|---|---|---|
 | 1 | No se exportaban la certeza, la fuente ni el estado de cada relación | Alta | **Cerrada** |
 | 2 | Datos que el sistema ya tenía y no mapeaba a RiC-O | Alta | **Cerrada**, con dos correcciones al diagnóstico (abajo) |
-| 3 | Fechas sin tipo (SingleDate, DateRange, DateSet; RiC-A42) | Media | Abierta |
+| 3 | Fechas sin tipo (RiC-A42) | Media | **Cerrada**, con una corrección al diagnóstico (abajo) |
 | 4 | No importa RiC-O, EAD3 ni EAC-CPF | Alta | Abierta (decisión de alcance) |
 | 5 | Una autoridad por fondo, sin procedencia múltiple | Alta | Abierta (decisión de alcance, VOC-05) |
 | 6 | Grafo generado al vuelo por fondo, sin almacén RDF ni SPARQL entre fondos | Media-alta | Abierta |
@@ -29,6 +29,7 @@ RICORA **produce RiC conforme**: ningún término fuera del OWL, validación con
 - **Ubicación física.** `rico:PhysicalLocation` es la delimitación física de un **Lugar** (Place), no la ubicación de una caja en el depósito. Mapear caja y carpeta ahí habría sido un error de conformidad. La ubicación del original sigue contada como omitida: RiC-O 1.1 no tiene una propiedad de dato para la ubicación de una Instantiation.
 - **Integridad.** `rico:integrityNote` es la **completitud intelectual** de un recurso, no la verificación de huella. La fijeza va en `rico:authenticityNote` («no ha sido alterado ni corrompido»), cuyo dominio admite la Instantiation.
 - **Estado del registro.** `rico:RecordState` describe el estado de producción del documento (borrador, original, copia), no el de la descripción. Publicado o borrador es el estado de la ficha, así que no se mapea ahí. El sistema no registra la tradición documental, por eso no se exporta.
+- **Brecha 3.** El diagnóstico pedía instanciar `SingleDate`, `DateRange` y `DateSet`. **Esas clases no existen en RiC-O 1.1**: el registro de cambios del propio OWL dice que se retiraron el 22 de septiembre de 2023 («removed DateSingle, DateRange, DateSet»), al alinear la ontología con RiC-CM 1.0. Instanciarlas habría producido términos fuera del OWL. Lo correcto es una sola clase, `rico:Date`, categorizada con `rico:DateType` (RiC-A42), cuya nota de alcance dice justamente: «categorizar una fecha como fecha simple, rango o conjunto». Por la misma razón, RiC-CM 1.0 no tiene entidades E19 a E21: la numeración salta de E18 (Date) a E22 (Place). La cobertura de entidades se cuenta sobre 19, no sobre 22.
 - **Brecha 8.** Autor y acumulador no estaban «mapeados sin probar»: eran **códigos reservados**, y el sistema rechazaba crearlos.
 
 ## 3. Lo que se cerró
@@ -37,6 +38,7 @@ RICORA **produce RiC conforme**: ningún término fuera del OWL, validación con
 |---|---|---|
 | 1 | Cada relación exportada es un nodo `rico:Relation` con la clase más específica de RiC-O 1.1, orientada como la define el OWL, con: `relationSource` (persona o motor de análisis, y el fragmento citado si el archivo no está restringido); `relationCertainty` (alta, media o baja, con la confianza del motor), solo si la propuso el motor y nadie la corrigió; y `relationState` (vigente o terminada), solo si su vigencia lo dice. | `tests/test_especializacion_ric.py` (5) y `tests/test_exportacion_rico.py` |
 | 2 | `rico:Extent` con `quantity` (decimal) y `unitOfMeasurement`: folios del documento; bytes y páginas del archivo. `qualityOfRepresentationNote` (RiC-A34) con la confianza del OCR. `authenticityNote` (RiC-A03) con la huella de ingreso, la última verificación y la validación del formato. `migrationDate` y `derivationDate`. | `tests/test_especializacion_ric.py` (3) |
+| 3 | Cada `rico:Date` lleva `rico:hasDateType` hacia un concepto `rico:DateType` del fondo: «Fecha simple», «Rango de fechas» o «Conjunto de fechas», según su forma EDTF. Vale para las fechas del vocabulario, las fechas extremas, los periodos de las relaciones y la existencia de los agentes. El perfil SHACL exige el tipo en toda fecha con forma normalizada, y a lo sumo uno. | `tests/test_especializacion_ric.py` |
 | 8 | `rico:hasAuthor` (RiC-R079) y `rico:hasAccumulator` (RiC-R028) mapeados, con roles «autor» y «acumulador» al describir y en la interfaz. `rico:Group` exportado. Nodos `AuthorshipRelation`, `AccumulationRelation` y `MembershipRelation`. | `tests/test_especializacion_ric.py`, `tests/test_especializacion_ric_autoria.py` (3) |
 
 Cada exportación de estas pruebas pasa, además, la verificación OWL y el perfil SHACL, que ahora tiene formas para `rico:Relation` (fuente, destino y certeza con su patrón) y `rico:Extent` (cantidad decimal y unidad).
@@ -55,6 +57,7 @@ Cada exportación de estas pruebas pasa, además, la verificación OWL y el perf
 | Confianza de los atributos | Exportarla · no | **No** (alcance, idiomas…) | RiC-O solo tiene certeza para una relación, no para un atributo. Inventar una propiedad rompería la conformidad. | Esa procedencia queda solo en el sistema. |
 | Cantidad decimal | `"12"` · `"12.0"` | **`"12.0"`** (forma canónica) | Turtle y JSON-LD leen igual la forma canónica; con «12», las dos serializaciones dejaban de coincidir. | Ninguno. |
 | Autor | Mismo rol que productor · rol propio con el dominio del OWL | **Rol propio**: solo en una unidad documental, y solo persona, grupo o cargo | Es lo que dice `rico:hasAuthor`. Una entidad corporativa o una familia van como productor. | El motor de análisis no propone autor ni acumulador: se declaran a mano. |
+| Tipo de fecha (brecha 3) | Clases DateSingle/DateRange/DateSet · `rico:DateType` | **`rico:DateType`** con tres conceptos | Las clases se retiraron de RiC-O 1.1; DateType es lo que la ontología vigente define para esto. El tipo sale del EDTF, no de una elección manual, así que no puede contradecir la fecha. | Subtipos más finos (fecha de expedición, de recepción) no se distinguen todavía. RiC-O permite subcategorías de estos tres. |
 | Comprobación de rango en el mapeo | Clase exacta · la clase o una subclase | **La clase o una subclase** (InstantiationExtent ⊂ Extent) | Es la semántica de RDFS: si el rango es una clase, una instancia de su subclase lo cumple. | Ninguno. |
 
 ## 5. Cobertura antes y después

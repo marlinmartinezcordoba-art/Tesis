@@ -145,7 +145,15 @@ pr:Date a sh:NodeShape ;
     sh:or ( [ sh:path rico:expressedDate ; sh:minCount 1 ] [ sh:path rico:normalizedDateValue ; sh:minCount 1 ] ) ;
     # El patrón EDTF no se escribe aquí: se genera desde las expresiones de
     # app/servicios/fechas.py (el mismo subconjunto que valida el sistema).
-    sh:property [ sh:path rico:normalizedDateValue ; sh:maxCount 1 ] .
+    sh:property [ sh:path rico:normalizedDateValue ; sh:maxCount 1 ] ;
+    # Tipo de fecha (RiC-A42, brecha 3 de la auditoría de especialización): a
+    # lo sumo uno, y obligatorio cuando hay forma normalizada (de ella sale).
+    sh:property [ sh:path rico:hasDateType ; sh:maxCount 1 ; sh:class rico:DateType ] .
+
+pr:DateNormalizada a sh:NodeShape ;
+    sh:targetSubjectsOf rico:normalizedDateValue ;
+    sh:property [ sh:path rico:hasDateType ; sh:minCount 1 ;
+                  sh:message "Una fecha con forma EDTF declara su tipo: simple, rango o conjunto." ] .
 
 # --- Language -------------------------------------------------------------------
 
