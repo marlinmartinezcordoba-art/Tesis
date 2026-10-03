@@ -10,8 +10,25 @@ export const IDIOMAS: Record<string, string> = {
   que: "quechua", chb: "chibcha (muisca)", guc: "wayuunaiki",
 };
 
+/** Clasificación del acceso según la Ley 1712 de 2014 (se declara al publicar). */
+export interface Clasificacion {
+  acceso: "hereda" | "publico" | "clasificado" | "reservado";
+  fundamento: string;
+  hasta: string; // AAAA-MM-DD, solo para la reserva
+  reproduccion: "permitida" | "condicionada" | "no_permitida";
+}
+
+export const CLASIFICACION_VACIA: Clasificacion = { acceso: "hereda", fundamento: "", hasta: "", reproduccion: "permitida" };
+
+export function clasificacionParaEnviar(c: Clasificacion) {
+  if (c.acceso === "hereda") return null;
+  return { acceso: c.acceso, fundamento: c.fundamento.trim() || null, reproduccion: c.reproduccion,
+           vigente_hasta: c.acceso === "reservado" ? c.hasta || null : null };
+}
+
 export interface CamposRegistroValor {
   idiomas: string[];
+  clasificacion: Clasificacion;
   condicionesAcceso: string;
   condicionesUso: string;
   historiaArchivistica: string;
@@ -46,8 +63,75 @@ export const ESCRITURAS: Record<string, string> = {
 };
 
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
-  return { idiomas, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
+  return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
            isadg: {}, escrituras: [] };
+}
+
+const OPCIONES_ACCESO: [Clasificacion["acceso"], string, string][] = [
+  ["hereda", "Igual que el nivel superior", "Toma la clasificación del expediente, la serie o el fondo."],
+  ["publico", "Pública", "Cualquiera puede consultarla (Ley 1712, art. 2: máxima publicidad)."],
+  ["clasificado", "Clasificada", "Información pública clasificada (art. 18): intimidad, vida o salud de las personas, "
+    + "secretos comerciales. Solo la ven quienes tienen permiso."],
+  ["reservado", "Reservada", "Información pública reservada (art. 19): defensa, seguridad, relaciones internacionales, "
+    + "investigaciones… Con plazo máximo de 15 años (art. 22)."],
+];
+
+const NOMBRE_ACCESO: Record<string, string> = { publico: "pública", clasificado: "clasificada", reservado: "reservada" };
+
+function ClasificacionAcceso({ valor, alCambiar, heredada }: {
+  valor: Clasificacion; alCambiar: (c: Clasificacion) => void; heredada?: { acceso: string; de: string | null } | null;
+}) {
+  const restringe = valor.acceso === "clasificado" || valor.acceso === "reservado";
+  return (
+    <fieldset className="campo" style={{ border: 0, padding: 0, margin: "0 0 14px" }}>
+      <legend style={{ fontWeight: 600, marginBottom: 6 }}>
+        ¿Quién puede consultarlo? <span className="meta">(Ley 1712 de 2014 · lo decide la institución, no el motor)</span>
+      </legend>
+      {OPCIONES_ACCESO.map(([clave, nombre, ayuda]) => (
+        <label key={clave} className="opcion-radio">
+          <input type="radio" name="clasificacion-acceso" value={clave} checked={valor.acceso === clave}
+                 onChange={() => alCambiar({
+                   ...valor, acceso: clave,
+                   // Lo restringido no se reproduce, salvo que la persona diga otra cosa.
+                   reproduccion: clave === "clasificado" || clave === "reservado" ? "no_permitida"
+                     : valor.acceso === "clasificado" || valor.acceso === "reservado" ? "permitida" : valor.reproduccion,
+                 })} />
+          <span><b>{nombre}</b> <span className="meta">— {ayuda}
+            {clave === "hereda" && heredada && ` Hoy: ${NOMBRE_ACCESO[heredada.acceso] || heredada.acceso}${heredada.de ? `, de «${heredada.de}»` : ""}.`}
+            {clave === "hereda" && heredada === null && " Hoy no hay ninguna clasificación arriba: se trata como pública."}</span></span>
+        </label>
+      ))}
+      {restringe && (
+        <div style={{ marginTop: 8, paddingLeft: 24 }}>
+          <label htmlFor="fundamento">Fundamento legal <span className="meta">(obligatorio)</span></label>
+          <input id="fundamento" className="entrada" maxLength={500} value={valor.fundamento}
+                 placeholder={valor.acceso === "reservado" ? "Ej.: Ley 1712 de 2014, art. 19, literal f"
+                   : "Ej.: Ley 1712 de 2014, art. 18, literal a (intimidad)"}
+                 onChange={(e) => alCambiar({ ...valor, fundamento: e.target.value })} />
+          {valor.acceso === "reservado" && (
+            <>
+              <label htmlFor="hasta" style={{ marginTop: 8 }}>Reservada hasta <span className="meta">(obligatorio · máximo 15 años)</span></label>
+              <input id="hasta" type="date" className="entrada" style={{ width: "auto" }} value={valor.hasta}
+                     onChange={(e) => alCambiar({ ...valor, hasta: e.target.value })} />
+            </>
+          )}
+          <div className="pista">No se mostrará en el catálogo público, la guía, los datos abiertos ni el paquete de
+            consulta. Se puede cambiar después en Preservación → Derechos.</div>
+        </div>
+      )}
+      {valor.acceso !== "hereda" && (
+        <div style={{ marginTop: 8, paddingLeft: 24 }}>
+          <label htmlFor="reproduccion">Reproducción</label>
+          <select id="reproduccion" className="selector" style={{ width: "auto" }} value={valor.reproduccion}
+                  onChange={(e) => alCambiar({ ...valor, reproduccion: e.target.value as Clasificacion["reproduccion"] })}>
+            <option value="permitida">Permitida</option>
+            <option value="condicionada">Condicionada</option>
+            <option value="no_permitida">No permitida</option>
+          </select>
+        </div>
+      )}
+    </fieldset>
+  );
 }
 
 function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
@@ -107,9 +191,10 @@ function BuscarPublicada({ fondoId, alElegir }: { fondoId: string; alElegir: (id
   );
 }
 
-export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza }: {
+export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada }: {
   valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; fondoId: string;
   propuestos: string[]; confianza: number | null;
+  heredada?: { acceso: string; de: string | null } | null;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
@@ -147,11 +232,15 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           <button type="button" className="boton chico" disabled={!/^[a-zA-Z]{3}$/.test(nuevo)} onClick={() => agregar(nuevo)}>Agregar</button>
         </div>
       </div>
+      <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
+                           alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
       <div className="campo">
-        <label htmlFor="acceso">Condiciones de acceso <span className="meta">(las decide la institución, no el motor)</span></label>
+        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(ISAD-G 3.4.1 · opcional · las decide la institución, no el motor)</span></label>
         <textarea id="acceso" className="entrada" rows={2} value={valor.condicionesAcceso} maxLength={5000}
-                  placeholder="Quién puede consultarlo y bajo qué condición"
+                  placeholder="Ej.: «Consulta en sala con cita previa» o «Contiene datos de salud de terceros»"
                   onChange={(e) => alCambiar({ ...valor, condicionesAcceso: e.target.value })} />
+        <div className="pista">Este texto explica el acceso en la ficha. Lo que decide si el documento se muestra o se
+          oculta es la clasificación de arriba.</div>
       </div>
       <div className="campo">
         <label htmlFor="uso">Condiciones de uso o de reproducción</label>

@@ -836,6 +836,21 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
 # --- Lectura (interna) y corrección posterior -------------------------------------------------------
 
 
+def _clasificacion_de(db: Session, recurso: RecursoDocumental) -> dict:
+    """La clasificación propia (Ley 1712) y, si no tiene, la que hereda."""
+    from app.servicios import derechos
+
+    propia = derechos._vigente(db, recurso.id)
+    rige = propia or derechos.declaracion_de_recurso(db, recurso)
+    datos = lambda d: {"acceso": d.acceso, "fundamento": d.fundamento, "reproduccion": d.reproduccion,  # noqa: E731
+                       "vigente_hasta": d.vigente_hasta.isoformat() if d.vigente_hasta else None}
+    heredada = None
+    if propia is None and rige is not None:
+        origen = db.get(RecursoDocumental, rige.entidad_id)
+        heredada = datos(rige) | {"de": origen.titulo if origen else None}
+    return {"clasificacion": datos(propia) if propia else None, "clasificacion_heredada": heredada}
+
+
 def detalle(db: Session, recurso: RecursoDocumental) -> dict:
     """Vista interna completa, con origen y confianza de cada dato. Solo
     para las pantallas de trabajo y la auditoría."""
@@ -915,6 +930,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
     return {
         "id": str(recurso.id), "nivel": recurso.nivel, "titulo": recurso.titulo,
         "alcance_contenido": recurso.alcance_contenido, "fondo_id": str(recurso.fondo_id),
+        **_clasificacion_de(db, recurso),
         "incluido_en": {"id": str(superior.id), "titulo": superior.titulo, "nivel": superior.nivel} if superior else None,
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
         "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),

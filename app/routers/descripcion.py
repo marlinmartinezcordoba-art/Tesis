@@ -215,6 +215,34 @@ def _confirmar_recortes(db: Session) -> None:
         db.commit()
 
 
+FUNDAMENTO_PUBLICA = "Ley 1712 de 2014, art. 2 (principio de máxima publicidad)"
+
+
+def _clasificar(db: Session, recurso, c, usuario_id) -> None:
+    """Declara el acceso del Record Resource en la misma transacción de la
+    publicación (Ley 1712 de 2014, arts. 18, 19 y 22)."""
+    from datetime import date
+
+    from app.servicios import derechos
+
+    fundamento = (c.fundamento or "").strip()
+    if c.acceso != "publico" and len(fundamento) < 5:
+        raise descripcion.ErrorDescripcion(
+            "Indique el fundamento legal de la clasificación o la reserva (por ejemplo, «Ley 1712 de 2014, art. 18, "
+            "literal a: derecho a la intimidad»).")
+    if c.acceso == "reservado":
+        if c.vigente_hasta is None:
+            raise descripcion.ErrorDescripcion("Indique hasta cuándo dura la reserva: la Ley 1712 (art. 22) no permite "
+                                               "una reserva sin plazo.")
+        hoy = date.today()
+        if c.vigente_hasta <= hoy or c.vigente_hasta > date(hoy.year + 15, hoy.month, min(hoy.day, 28)):
+            raise descripcion.ErrorDescripcion("La reserva debe vencer en el futuro y en no más de 15 años "
+                                               "(Ley 1712 de 2014, art. 22).")
+    derechos.declarar(db, entidad_tipo="recurso_documental", entidad_id=recurso.id, base="estatuto", acceso=c.acceso,
+                      reproduccion=c.reproduccion, fundamento=fundamento or FUNDAMENTO_PUBLICA, nota=None,
+                      vigente_hasta=c.vigente_hasta if c.acceso == "reservado" else None, usuario_id=usuario_id)
+
+
 @router.post("/publicar", status_code=status.HTTP_201_CREATED, summary="Publicar la descripción (una sola transacción)")
 def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     try:
@@ -228,6 +256,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
+        if datos.clasificacion is not None:
+            _clasificar(db, recurso, datos.clasificacion, actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -544,6 +574,10 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)
+        if datos.clasificacion is not None:
+            _clasificar(db, recurso, datos.clasificacion, actor.id)
+        elif datos.clasificacion_hereda:
+            _volver_a_heredar(db, recurso, actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -555,6 +589,22 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
         raise
     _confirmar_recortes(db)
     return descripcion.detalle(db, recurso)
+
+
+def _volver_a_heredar(db: Session, recurso, usuario_id) -> None:
+    """Deja sin efecto la clasificación propia (no se borra: queda en la
+    historia) y la descripción vuelve a regirse por la del nivel superior."""
+    from app.db.base import ahora
+    from app.servicios import derechos
+
+    propia = derechos._vigente(db, recurso.id)
+    if propia is None:
+        return
+    propia.vigente, propia.reemplazada_en = False, ahora()
+    registrar(db, modulo="preservacion", accion="derechos_declarados", usuario_id=usuario_id,
+              entidad_tipo="recurso_documental", entidad_id=recurso.id, detalle=recurso.titulo,
+              anterior={"acceso": propia.acceso, "fundamento": propia.fundamento},
+              nuevo={"acceso": "hereda del nivel superior"})
 
 
 # --- Consulta pública (base del catálogo del módulo 4) ------------------------------------------------

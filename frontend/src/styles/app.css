@@ -667,3 +667,19 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .deslizador-zoom { writing-mode: vertical-lr; direction: rtl; width: 28px; height: 90px; margin: 2px auto; accent-color: var(--accent); }
 .nodo .subtitulo-nodo { font-size: 9.5px; fill: var(--muted); font-style: italic; }
 .svg-grafo:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Espera del motor de análisis al abrir una descripción */
+.espera-fondo { position: fixed; inset: 0; background: rgba(15, 23, 42, .35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.espera-tarjeta { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; width: min(520px, 100%); box-shadow: 0 12px 40px rgba(0, 0, 0, .18); }
+.espera-tarjeta h2 { margin: 0 0 2px; font-size: 1.1rem; }
+.barra-indeterminada { position: relative; height: 6px; border-radius: 999px; background: var(--proc-bg); overflow: hidden; margin: 14px 0; }
+.barra-indeterminada i { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 999px; background: var(--proc); animation: indeterminada 1.4s ease-in-out infinite; }
+@keyframes indeterminada { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .barra-indeterminada i { animation: none; left: 0; width: 100%; opacity: .5; } }
+.espera-pasos { margin: 0 0 10px; padding-left: 20px; font-size: .88rem; color: var(--muted); }
+.espera-pasos li { margin: 4px 0; }
+.espera-pasos li.hecho { color: var(--ok); }
+.espera-pasos li.hecho::marker { content: "✓  "; }
+.espera-pasos li.actual { color: var(--ink); font-weight: 600; }
+.campo .opcion-radio { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-weight: 400; text-transform: none; letter-spacing: normal; font-size: .9rem; color: var(--ink); }
+.campo .opcion-radio input { margin-top: 4px; }

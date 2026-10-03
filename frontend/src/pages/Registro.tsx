@@ -3,8 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
-  CamposRegistro, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
-  type CamposRegistroValor, type ParteBorrador,
+  CLASIFICACION_VACIA, CamposRegistro, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  parteParaEnviar, partePendiente,
+  type CamposRegistroValor, type Clasificacion, type ParteBorrador,
 } from "@/components/DescripcionV3";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
@@ -34,6 +35,18 @@ interface EntidadRegistrada {
   antes_de_fusion?: { id: string; nombre: string };
 }
 
+interface ClasificacionGuardada {
+  acceso: "publico" | "clasificado" | "reservado";
+  fundamento: string;
+  reproduccion: Clasificacion["reproduccion"];
+  vigente_hasta: string | null;
+}
+
+function clasificacionInicial(c: ClasificacionGuardada | null): Clasificacion {
+  if (!c) return CLASIFICACION_VACIA;
+  return { acceso: c.acceso, fundamento: c.fundamento, hasta: c.vigente_hasta || "", reproduccion: c.reproduccion };
+}
+
 interface Registro {
   id: string;
   nivel: string;
@@ -52,6 +65,8 @@ interface Registro {
   idiomas: string[];
   origen_idiomas: string | null;
   condiciones_acceso: string | null;
+  clasificacion: ClasificacionGuardada | null;
+  clasificacion_heredada: (ClasificacionGuardada & { de: string | null }) | null;
   condiciones_uso: string | null;
   historia_archivistica: string | null;
   isadg: Record<string, string | null> & { escrituras: string[] };
@@ -123,7 +138,7 @@ export function RegistroDescripcion() {
     setQuitarForma(false);
     setNuevas([]);
     setPartes([]);
-    setCampos({ idiomas: r.idiomas, condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
+    setCampos({ idiomas: r.idiomas, clasificacion: clasificacionInicial(r.clasificacion), condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
                 isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [] });
@@ -181,6 +196,10 @@ export function RegistroDescripcion() {
           })),
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso,
+          // La clasificación solo se envía si cambió: cada cambio queda en la historia de derechos.
+          ...(JSON.stringify(campos.clasificacion) === JSON.stringify(clasificacionInicial(registro.clasificacion)) ? {}
+            : campos.clasificacion.acceso === "hereda" ? { clasificacion_hereda: true }
+            : { clasificacion: clasificacionParaEnviar(campos.clasificacion) }),
           condiciones_uso: campos.condicionesUso,
           historia_archivistica: campos.historiaArchivistica,
           isadg: campos.isadg, escrituras: campos.escrituras,
@@ -269,7 +288,8 @@ export function RegistroDescripcion() {
       )}
 
       {editando ? (
-        <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null} />
+        <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null}
+                        heredada={registro.clasificacion_heredada} />
       ) : (
         <div className="tarjeta">
           <div className="tarjeta-cab">Idioma, condiciones y secuencia</div>

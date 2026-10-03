@@ -62,6 +62,46 @@ function extension(nombre: string) {
   return p.length > 1 ? p.pop()!.slice(0, 4) : "·";
 }
 
+// Mientras el motor de análisis lee el documento (puede tardar hasta 90 s, el
+// límite del servidor): qué está pasando y cuánto lleva, en lugar de una
+// pantalla quieta. Los pasos son los del servidor, en su orden; la petición
+// es una sola, así que el paso se deduce del tiempo y se dice así.
+const LIMITE_MOTOR_S = 90;
+
+function EsperaMotor({ cantidad, nombre }: { cantidad: number; nombre: string }) {
+  const [segundos, setSegundos] = useState(0);
+  useEffect(() => {
+    const inicio = Date.now();
+    const t = setInterval(() => setSegundos(Math.floor((Date.now() - inicio) / 1000)), 500);
+    return () => clearInterval(t);
+  }, []);
+  const pasos = [
+    "Reservar el documento para usted (nadie más puede editarlo mientras tanto)",
+    "Buscar en el vocabulario del fondo las entidades que ya existen",
+    "El motor de análisis lee el texto y propone agentes, fechas, lugares, actividades y relaciones",
+  ];
+  const actual = segundos < 1 ? 0 : segundos < 2 ? 1 : 2;
+  return (
+    <div className="espera-fondo" role="dialog" aria-modal="true" aria-labelledby="espera-titulo">
+      <div className="espera-tarjeta" role="status" aria-live="polite">
+        <h2 id="espera-titulo">Preparando la descripción</h2>
+        <p className="meta">{cantidad > 1 ? `${cantidad} documentos` : `«${nombre}»`}</p>
+        <div className="barra-indeterminada" aria-hidden="true"><i /></div>
+        <ol className="espera-pasos">
+          {pasos.map((p, i) => (
+            <li key={p} className={i < actual ? "hecho" : i === actual ? "actual" : ""}>{p}</li>
+          ))}
+        </ol>
+        <p className="meta">Lleva {segundos} s. El motor suele tardar entre 10 y 40 segundos.</p>
+        {segundos >= 45 && (
+          <p className="pista">Está tardando más de lo normal. Si llega a {LIMITE_MOTOR_S} s sin respuesta, el documento se
+            abre igual, sin propuesta, para describirlo a mano.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Descripcion() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
@@ -73,7 +113,7 @@ export function Descripcion() {
   const [publicadas, setPublicadas] = useState<Publicada[] | null>(null);
   const [seleccion, setSeleccion] = useState<string[]>([]);
   const [nivel, setNivel] = useState("expediente");
-  const [abriendo, setAbriendo] = useState(false);
+  const [abriendo, setAbriendo] = useState<{ cantidad: number; nombre: string } | null>(null);
   const [error, setError] = useState("");
   const aviso = (ubicacion.state as { aviso?: string } | null)?.aviso;
   // Desde el panel de alertas se llega con ?documento=<id>: esa fila se resalta.
@@ -102,7 +142,7 @@ export function Descripcion() {
 
   async function describir(ids: string[], nivelConjunto?: string) {
     setError("");
-    setAbriendo(true);
+    setAbriendo({ cantidad: ids.length, nombre: cola?.find((d) => d.id === ids[0])?.nombre || "" });
     try {
       const espacio = await pedir<{ trabajo_id: string }>("/api/descripcion/iniciar", {
         method: "POST",
@@ -111,7 +151,7 @@ export function Descripcion() {
       navegar(`/descripcion/trabajo/${espacio.trabajo_id}`, { state: { espacio } });
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo abrir la descripción.");
-      setAbriendo(false);
+      setAbriendo(null);
       cargar();
     }
   }
@@ -122,6 +162,7 @@ export function Descripcion() {
 
   return (
     <>
+      {abriendo && <EsperaMotor cantidad={abriendo.cantidad} nombre={abriendo.nombre} />}
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
@@ -161,7 +202,7 @@ export function Descripcion() {
                 {d.en_edicion_por ? (
                   <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
                 ) : puede && (
-                  <button type="button" className="boton chico" disabled={abriendo} onClick={() => describir([d.id])}>Describir</button>
+                  <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
                 )}
               </div>
             ))}
@@ -175,7 +216,7 @@ export function Descripcion() {
                     <option value="subserie">Subserie</option>
                     <option value="serie">Serie</option>
                   </select>
-                  <button type="button" className="boton primario" disabled={abriendo} onClick={() => describir(seleccion, nivel)}>
+                  <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, nivel)}>
                     {abriendo ? "Abriendo…" : "Describir como conjunto"}
                   </button>
                 </div>

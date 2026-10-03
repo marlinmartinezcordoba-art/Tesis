@@ -2,7 +2,8 @@ import { confianzaTexto } from "@/lib/formato";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
+  CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, clasificacionParaEnviar, parteParaEnviar,
+  partePendiente,
   type CamposRegistroValor, type ParteBorrador,
 } from "@/components/DescripcionV3";
 import { SelectorFecha } from "@/components/SelectorFecha";
@@ -251,6 +252,7 @@ export function EspacioTrabajo() {
           })),
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso || null,
+          clasificacion: clasificacionParaEnviar(campos.clasificacion),
           condiciones_uso: campos.condicionesUso || null,
           historia_archivistica: campos.historiaArchivistica || null,
           isadg: campos.isadg, escrituras: campos.escrituras,

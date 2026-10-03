@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -99,8 +99,19 @@ class CamposRegistro(BaseModel):
     sigue_a_id: uuid.UUID | None = None
 
 
+class ClasificacionIn(BaseModel):
+    """Clasificación del acceso según la Ley 1712 de 2014, declarada al
+    describir. Crea la declaración de derechos del Record Resource (la
+    misma que se gestiona en Preservación → Derechos)."""
+    acceso: Literal["publico", "clasificado", "reservado"]
+    fundamento: str | None = Field(default=None, max_length=500)  # obligatorio si no es pública
+    reproduccion: Literal["permitida", "condicionada", "no_permitida"] = "permitida"
+    vigente_hasta: date | None = None  # obligatorio si es reservada (art. 22: máximo 15 años)
+
+
 class PublicarIn(CamposRegistro):
     trabajo_id: uuid.UUID
+    clasificacion: ClasificacionIn | None = None  # vacío: hereda la del nivel superior
     titulo: str = Field(max_length=300)
     alcance_contenido: str = Field(default="", max_length=5000)
     incluido_en_id: uuid.UUID | None = None
@@ -130,6 +141,9 @@ class EditarIn(CamposRegistro):
     agregar_entidades: list[EntidadIn] = Field(default_factory=list, max_length=100)
     agregar_partes: list[ParteIn] = Field(default_factory=list, max_length=50)
     control: ControlIn | None = None
+    # Clasificación del acceso (Ley 1712): una nueva, o volver a heredar la del nivel superior.
+    clasificacion: ClasificacionIn | None = None
+    clasificacion_hereda: bool = False
 
 
 class NivelSuperiorOut(BaseModel):
