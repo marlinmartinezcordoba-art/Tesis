@@ -10,6 +10,7 @@ alerta de campos pendientes.
 import re
 import unicodedata
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
@@ -31,6 +32,32 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 class NivelIn(BaseModel):
     recurso_id: uuid.UUID
+
+
+class FirmaFuid(BaseModel):
+    nombre: str | None = Field(default=None, max_length=200)
+    cargo: str | None = Field(default=None, max_length=200)
+    firma: str | None = Field(default=None, max_length=200)
+    lugar: str | None = Field(default=None, max_length=200)
+    fecha: str | None = Field(default=None, max_length=40)
+
+
+class EncabezadoFuid(BaseModel):
+    """Encabezado y firmas del FUID (Acuerdo 042 de 2002, hallazgo INS-06)."""
+    entidad_remitente: str | None = Field(default=None, max_length=300)
+    entidad_productora: str | None = Field(default=None, max_length=300)
+    unidad_administrativa: str | None = Field(default=None, max_length=300)
+    oficina_productora: str | None = Field(default=None, max_length=300)
+    objeto: Literal["transferencia_primaria", "transferencia_secundaria", "valoracion_documental",
+                    "fondos_acumulados", "inventario_individual", "inventario_documental"] = "inventario_documental"
+    registro_entrada: str | None = Field(default=None, max_length=100)
+    elaborado_por: FirmaFuid | None = None
+    entregado_por: FirmaFuid | None = None
+    recibido_por: FirmaFuid | None = None
+
+
+class InventarioIn(NivelIn):
+    encabezado: EncabezadoFuid | None = None
 
 
 class GuiaIn(BaseModel):
@@ -178,10 +205,10 @@ def vista_previa(datos: NivelIn, _: Actor = Depends(acceso_modulo("instrumentos"
 
 
 @router.post("/inventario", summary="Genera y descarga el inventario FUID en hoja de cálculo")
-def inventario(datos: NivelIn, request: Request, actor: Actor = Depends(acceso_modulo("instrumentos")),
+def inventario(datos: InventarioIn, request: Request, actor: Actor = Depends(acceso_modulo("instrumentos")),
                db: Session = Depends(get_db)):
     inventario, alerta = _inventario(db, datos.recurso_id)
-    contenido = instrumentos.inventario_xlsx(inventario)
+    contenido = instrumentos.inventario_xlsx(inventario, datos.encabezado.model_dump() if datos.encabezado else None)
     registrar(db, modulo="instrumentos", accion="inventario_exportado", usuario_id=actor.id,
               entidad_tipo="recurso_documental", entidad_id=datos.recurso_id, request=request,
               nuevo={"renglones": len(inventario["filas"]), "pendientes": inventario["pendientes"]},

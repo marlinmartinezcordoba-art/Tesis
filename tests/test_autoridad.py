@@ -95,6 +95,7 @@ def test_el_nombre_autorizado_no_se_cambia_desde_vocabularios(cliente, db, fondo
 
 
 def test_nivel_de_detalle_pasa_a_completo_y_el_filtro_lo_respeta(cliente, db, fondo, archivista):
+    """ISAAR 5.4.5 (hallazgo VOC-01): mínimo, parcial o completo."""
     a = entidad(db, fondo, "Alcaldía Municipal de Tunja")
     b = entidad(db, fondo, "Concejo Municipal de Tunja")
     assert db.get(EntidadVocabulario, a.id).nivel_detalle == "minimo"
@@ -104,16 +105,24 @@ def test_nivel_de_detalle_pasa_a_completo_y_el_filtro_lo_respeta(cliente, db, fo
     assert db.get(EntidadVocabulario, a.id).nivel_detalle == "minimo"
     cliente.patch(f"/api/vocabulario/{a.id}", headers=archivista, json={"historia": "Primera alcaldía del distrito."})
     db.expire_all()
-    assert db.get(EntidadVocabulario, a.id).nivel_detalle == "completo"
+    assert db.get(EntidadVocabulario, a.id).nivel_detalle == "parcial"
     params = {"fondo_id": str(fondo.id), "clase": "agente"}
-    completos = cliente.get("/api/vocabulario", headers=archivista, params={**params, "nivel_detalle": "completo"}).json()
+    parciales = cliente.get("/api/vocabulario", headers=archivista, params={**params, "nivel_detalle": "parcial"}).json()
     minimos = cliente.get("/api/vocabulario", headers=archivista, params={**params, "nivel_detalle": "minimo"}).json()
-    assert [e["id"] for e in completos] == [str(a.id)] and [e["id"] for e in minimos] == [str(b.id)]
+    assert [e["id"] for e in parciales] == [str(a.id)] and [e["id"] for e in minimos] == [str(b.id)]
     # El cambio de nivel queda en auditoría con el valor anterior y el nuevo.
     [ev] = [x for x in eventos(db, "entidad_enriquecida", a.id) if "historia" in (x.valor_nuevo or {})]
-    assert ev.valor_anterior["nivel_detalle"] == "minimo" and ev.valor_nuevo["nivel_detalle"] == "completo"
+    assert ev.valor_anterior["nivel_detalle"] == "minimo" and ev.valor_nuevo["nivel_detalle"] == "parcial"
+    # Completo: fechas de existencia, historia, otro elemento del área y fuentes.
+    cliente.patch(f"/api/vocabulario/{a.id}", headers=archivista,
+                  json={"existencia_edtf": "1539/", "estatuto_juridico": "publica"})
+    db.expire_all()
+    assert db.get(EntidadVocabulario, a.id).nivel_detalle == "completo"
+    completos = cliente.get("/api/vocabulario", headers=archivista, params={**params, "nivel_detalle": "completo"}).json()
+    assert [e["id"] for e in completos] == [str(a.id)]
     # Al vaciar el área de descripción vuelve a mínimo.
-    cliente.patch(f"/api/vocabulario/{a.id}", headers=archivista, json={"historia": ""})
+    cliente.patch(f"/api/vocabulario/{a.id}", headers=archivista,
+                  json={"historia": "", "existencia_edtf": "", "estatuto_juridico": ""})
     db.expire_all()
     assert db.get(EntidadVocabulario, a.id).nivel_detalle == "minimo"
 
@@ -224,7 +233,7 @@ def test_hitos_se_guardan_con_su_fecha_y_se_listan_cronologicamente(cliente, db,
     assert hitos[0]["clase_rico"] == "rico:Event" and hitos[0]["propiedad_rico"] == "rico:affectsOrAffected"
     # Un hito cuenta como dato del área de descripción.
     db.expire_all()
-    assert db.get(EntidadVocabulario, a.id).nivel_detalle == "completo"
+    assert db.get(EntidadVocabulario, a.id).nivel_detalle == "parcial"
     assert cliente.post(f"/api/vocabulario/{a.id}/hitos", headers=archivista,
                         json={"tipo": "otro", "descripcion": "x", "edtf": "1948-02-30"}).status_code == 422
 
@@ -405,7 +414,7 @@ def test_fusion_lleva_la_ficha_a_la_definitiva_y_queda_en_auditoria(cliente, db,
     assert [i["valor"] for i in f["identificadores"]] == ["AL-1"]
     assert [n["nombre"] for n in f["nombres"]] == ["Alcaldía de Tunja"]  # el nombre absorbido, como otra forma
     assert [v["con"]["nombre"] for v in f["vinculos"]] == ["Secretaría de Gobierno"]
-    assert f["control"]["nivel_detalle"] == "completo"
+    assert f["control"]["nivel_detalle"] == "parcial"
     assert db.scalar(select(Relacion).where(Relacion.origen_id == a.id, Relacion.destino_id == a.id)).estado == "anulada"
     [ev] = eventos(db, "fusion_vocabulario")
     assert ev.valor_nuevo["registros_ficha_movidos"] >= 3

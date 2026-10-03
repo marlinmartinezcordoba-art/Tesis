@@ -12,7 +12,7 @@ un instrumento exportado (ver app/servicios/consulta.py).
 import uuid
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import declared_attr
 
 from app.db.base import Base, ahora
@@ -44,7 +44,10 @@ TIPO_LUGAR = ("pais", "departamento", "provincia", "municipio", "corregimiento",
 # externa reconocida (rico:hasOrHadIdentifier + rico:IdentifierType).
 ESQUEMA_IDENTIFICADOR = ("interno", "viaf", "wikidata", "isni", "lcnaf", "otro")
 ESQUEMA_EXTERNO = ("viaf", "wikidata", "isni", "lcnaf")
-NIVEL_DETALLE = ("minimo", "completo")
+# ISAAR 5.4.5 y ISDF 5.4.5: mínimo, parcial o completo (hallazgo VOC-01).
+NIVEL_DETALLE = ("minimo", "parcial", "completo")
+ESTADO_ELABORACION = ("borrador", "revisado", "definitivo")  # ISAAR 5.4.4
+TIPO_FUNCION = ("funcion", "subfuncion", "proceso", "actividad", "transaccion")  # ISDF 5.1.1
 TIPO_NOMBRE_ENTIDAD = ("paralela", "normalizada", "otra", "historica")
 TIPO_HITO = ("creacion", "reforma", "traslado", "supresion", "otro")
 ESTADO_REGISTRO = ("vigente", "anulado")
@@ -120,6 +123,16 @@ class EntidadVocabulario(_Procedencia, Base):
     nivel_detalle = Column(Enum(*NIVEL_DETALLE, name="nivel_detalle"), nullable=False, default="minimo",
                            server_default="minimo", index=True)
     fuentes = Column(Text, nullable=True)
+    # Resto del área de control de ISAAR e ISDF (hallazgos VOC-01 y VOC-03).
+    estado_elaboracion = Column(String(20), nullable=True)
+    institucion_responsable = Column(String(300), nullable=True)
+    notas_mantenimiento = Column(Text, nullable=True)
+    lenguas = Column(ARRAY(String(3)), nullable=True)
+    escrituras = Column(ARRAY(String(4)), nullable=True)
+    # Función (ISDF): tipo y código de clasificación (el del cuadro de
+    # clasificación documental; skos:notation).
+    tipo_funcion = Column(String(20), nullable=True)
+    codigo_clasificacion = Column(String(40), nullable=True)
     # --- Lugar ampliado (RiC-A11 coordenadas; rico:PlaceType) ---
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)
@@ -271,6 +284,8 @@ class SugerenciaFusion(Base):
     entidad_a_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False)
     entidad_b_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False)
     similitud = Column(Float, nullable=False)
+    # «nombre», «otra_forma» o «identificador» (hallazgo VOC-05).
+    motivo = Column(String(30), nullable=False, default="nombre", server_default="nombre")
     estado = Column(Enum(*ESTADO_SUGERENCIA, name="estado_sugerencia"), nullable=False, default="pendiente", index=True)
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     resuelta_en = Column(DateTime(timezone=True), nullable=True)

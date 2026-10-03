@@ -247,13 +247,26 @@ COLUMNAS_FUID = [
     ("nombre", "Nombre de la serie, subserie o asunto", True),
     ("fecha_inicial", "Fecha inicial", True),
     ("fecha_final", "Fecha final", True),
+    # Unidad de conservación: caja, carpeta, tomo u otra (hallazgo INS-06).
     ("caja", "Caja", True),
     ("carpeta", "Carpeta", True),
+    ("tomo", "Tomo", False),
+    ("otro", "Otro", False),
     ("folios", "N.º de folios", True),
     ("soporte", "Soporte", True),
+    ("frecuencia_consulta", "Frecuencia de consulta", False),
     ("notas", "Notas", False),
+    # Agregada por el sistema (hallazgo INS-03): el inventario es interno y
+    # puede incluir lo clasificado o reservado, pero lo dice.
+    ("acceso", "Acceso (Ley 1712)", False),
 ]
 PENDIENTE = "Pendiente"
+FRECUENCIA_NOMBRE = {"alta": "Alta", "media": "Media", "baja": "Baja", "ninguna": "Ninguna"}
+ACCESO_NOMBRE = {"publico": "Pública", "clasificado": "Clasificada", "reservado": "Reservada"}
+# Objeto del inventario (encabezado del FUID).
+OBJETO_FUID = {"transferencia_primaria": "Transferencia primaria", "transferencia_secundaria": "Transferencia secundaria",
+               "valoracion_documental": "Valoración documental", "fondos_acumulados": "Fondos acumulados",
+               "inventario_individual": "Inventario individual", "inventario_documental": "Inventario documental"}
 
 
 def _nombre_fila(a: Arbol, r: RecursoDocumental) -> str:
@@ -276,6 +289,8 @@ def filas_inventario(db: Session, recurso: RecursoDocumental) -> dict:
     """Un renglón por unidad documental, o por expediente cuando el
     expediente se describió como un todo (sin unidades documentales
     publicadas dentro)."""
+    from app.servicios import derechos
+
     fondo = db.get(RecursoDocumental, recurso.fondo_id or recurso.id)
     a = arbol(db, fondo)
     if recurso.id not in a.nodos:
@@ -288,14 +303,21 @@ def filas_inventario(db: Session, recurso: RecursoDocumental) -> dict:
         if not es_fila:
             continue
         ini, fin = a.fechas.get(n, (None, None))
+        declaracion = derechos.declaracion_de_recurso(db, r)
+        acceso = declaracion.acceso if derechos.restringe(declaracion) else "publico"
         valores = {
             "codigo": r.codigo_referencia, "nombre": _nombre_fila(a, r),
             "fecha_inicial": _fecha_corta(ini) if ini else None, "fecha_final": _fecha_corta(fin) if fin else None,
-            "caja": r.caja, "carpeta": r.carpeta, "folios": _folios(a, r), "soporte": r.soporte, "notas": r.nota,
+            "caja": r.caja, "carpeta": r.carpeta, "tomo": r.tomo, "otro": r.otra_unidad, "folios": _folios(a, r),
+            "soporte": r.soporte, "frecuencia_consulta": FRECUENCIA_NOMBRE.get(r.frecuencia_consulta or ""),
+            "notas": r.nota, "acceso": ACCESO_NOMBRE[acceso],
         }
         valores["numero_orden"] = len(renglones) + 1
         pendientes = [c for c, _, obligatoria in COLUMNAS_FUID if obligatoria and valores.get(c) in (None, "")]
-        renglones.append({"id": str(r.id), "nivel": r.nivel, "valores": valores, "pendientes": pendientes})
+        if r.tomo or r.otra_unidad:  # conservado en tomo u otra unidad: caja y carpeta no aplican
+            pendientes = [c for c in pendientes if c not in ("caja", "carpeta")]
+        renglones.append({"id": str(r.id), "nivel": r.nivel, "valores": valores, "pendientes": pendientes,
+                          "restringido": acceso != "publico"})
     por_campo = defaultdict(int)
     for f in renglones:
         for c in f["pendientes"]:
@@ -348,7 +370,10 @@ def alerta_pendientes(db: Session, inventario: dict) -> dict | None:
     return {"id": str(alerta.id), "mensaje": mensaje}
 
 
-def inventario_xlsx(inventario: dict) -> bytes:
+def inventario_xlsx(inventario: dict, encabezado_fuid: dict | None = None) -> bytes:
+    """El FUID con su encabezado (entidad remitente y productora, unidad
+    administrativa, oficina productora, objeto, registro de entrada) y el
+    bloque de firmas (elaborado, entregado y recibido por), hallazgo INS-06."""
     from openpyxl import Workbook
     from openpyxl.comments import Comment
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -366,10 +391,16 @@ def inventario_xlsx(inventario: dict) -> bytes:
     hoja["A1"] = "FORMATO ÚNICO DE INVENTARIO DOCUMENTAL"
     hoja["A1"].font = Font(bold=True, size=13)
     hoja["A1"].alignment = Alignment(horizontal="center")
+    e = encabezado_fuid or {}
     encabezado = [
+        ("Entidad remitente", e.get("entidad_remitente") or ""),
+        ("Entidad productora", e.get("entidad_productora") or ""),
+        ("Unidad administrativa", e.get("unidad_administrativa") or ""),
+        ("Oficina productora", e.get("oficina_productora") or ""),
         ("Fondo", inventario["fondo"]["titulo"]),
         ("Nivel inventariado", f"{NIVEL_NOMBRE[inventario['nivel']['nivel']]}: {inventario['nivel']['titulo']}"),
-        ("Objeto", "Inventario documental"),
+        ("Objeto", OBJETO_FUID.get(e.get("objeto") or "inventario_documental", "Inventario documental")),
+        ("Registro de entrada (año, mes, día, N.º T)", e.get("registro_entrada") or ""),
         ("Fecha de elaboración", date.today().strftime("%d/%m/%Y")),
         ("Campos pendientes", str(inventario["pendientes"])),
     ]
@@ -399,8 +430,21 @@ def inventario_xlsx(inventario: dict) -> bytes:
             else:
                 celda.value = valor
 
+    # Bloque de firmas del FUID.
+    fila = fila_titulos + len(inventario["filas"]) + 3
+    for k, (titulo, clave) in enumerate((("Elaborado por", "elaborado_por"), ("Entregado por", "entregado_por"),
+                                          ("Recibido por", "recibido_por"))):
+        persona = e.get(clave) or {}
+        columna = 1 + k * 4
+        hoja.cell(row=fila, column=columna, value=titulo).font = Font(bold=True)
+        for d, (campo, nombre) in enumerate((("nombre", "Nombre"), ("cargo", "Cargo"), ("firma", "Firma"),
+                                             ("lugar", "Lugar"), ("fecha", "Fecha")), start=1):
+            hoja.cell(row=fila + d, column=columna, value=f"{nombre}:")
+            hoja.cell(row=fila + d, column=columna + 1, value=persona.get(campo) or "")
+
     anchos = {"numero_orden": 8, "codigo": 16, "nombre": 48, "fecha_inicial": 13, "fecha_final": 13,
-              "caja": 9, "carpeta": 10, "folios": 10, "soporte": 14, "notas": 30}
+              "caja": 9, "carpeta": 10, "tomo": 9, "otro": 10, "folios": 10, "soporte": 14,
+              "frecuencia_consulta": 12, "notas": 30, "acceso": 14}
     for j, col in enumerate(columnas, start=1):
         hoja.column_dimensions[get_column_letter(j)].width = anchos.get(col["clave"], 14)
     hoja.freeze_panes = hoja.cell(row=fila_titulos + 1, column=1)
@@ -423,9 +467,10 @@ INSTRUCCION_GUIA = (
 
 
 def datos_guia(db: Session, fondo: RecursoDocumental) -> dict:
-    """Solo datos validados: los niveles superiores publicados, conteos,
-    fechas extremas y los agentes y lugares más citados del vocabulario."""
-    a = arbol(db, fondo)
+    """Solo datos validados y públicos (hallazgo INS-03): la guía es un
+    instrumento de difusión y además se envía al motor externo, así que no
+    lleva niveles clasificados o reservados ni cuenta sus documentos."""
+    a = arbol(db, fondo, ver_restringidos=False)
     superiores = [a.nodos[n] for n in _en_orden(a, fondo.id)
                   if a.nodos[n].nivel in ("fondo", "seccion", "subseccion", "serie", "subserie")]
     conteo = defaultdict(int)
@@ -437,7 +482,9 @@ def datos_guia(db: Session, fondo: RecursoDocumental) -> dict:
     activas = db.scalars(select(EntidadVocabulario).where(
         EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
         or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
-    conexiones = vocabulario.conexiones_de(db, [e.id for e in activas])
+    visibles = set(a.nodos) - {fondo.id}
+    documentos = vocabulario._documentos_por_entidad(db, [e.id for e in activas])
+    conexiones = {e.id: len(documentos.get(e.id, set()) & visibles) for e in activas}
     principales = defaultdict(list)
     for e in sorted(activas, key=lambda e: -conexiones[e.id]):
         if conexiones[e.id] and len(principales[e.clase]) < 6:

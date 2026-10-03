@@ -31,9 +31,12 @@ def _vigente(db: Session, e: EntidadVocabulario | None) -> EntidadVocabulario | 
     return e
 
 
-def obtener(db: Session, fondo_id: uuid.UUID, programa: str, version: str,
+def obtener(db: Session, fondo_id: uuid.UUID, programa: str, version: str | None,
             usuario_id: uuid.UUID | None = None) -> EntidadVocabulario:
-    return vocabulario.mecanismo(db, fondo_id=fondo_id, nombre=programa, version=version or "desconocida",
+    """Sin versión no se inventa una (antes era «desconocida», que mezclaba
+    todas las ejecuciones sin versión; hallazgo VOC-07): el mecanismo queda
+    con la versión vacía, marcado en su ficha y con una alerta para completarla."""
+    return vocabulario.mecanismo(db, fondo_id=fondo_id, nombre=programa, version=(version or "").strip() or None,
                                  usuario_id=usuario_id)
 
 
@@ -85,12 +88,12 @@ _SIEGFRIED = re.compile(r"^\s*siegfried\s+(\S+)(?:\s*·\s*PRONOM\s+(.+))?$", re.
 _PROGRAMA = re.compile(r"^\s*([A-Za-zÁÉÍÓÚáéíóúñÑ][\w\-]*)\s+(\d[\w.\-]*)\s*(?:\((.*)\))?\s*$")
 
 
-def version_siegfried(herramienta: str) -> tuple[str, str]:
+def version_siegfried(herramienta: str) -> tuple[str, str | None]:
     """Versión del programa y de sus firmas: las dos cambian el resultado de
     la identificación, así que las dos son parte de la versión exacta."""
     m = _SIEGFRIED.match(herramienta or "")
     if not m:
-        return "Siegfried", (herramienta or "desconocida").strip()[:120]
+        return "Siegfried", (herramienta or "").strip()[:120] or None
     version, firmas = m.group(1), m.group(2)
     if firmas:
         nombres = [re.sub(r"\.xml$", "", f.strip()) for f in firmas.split(";") if f.strip()]

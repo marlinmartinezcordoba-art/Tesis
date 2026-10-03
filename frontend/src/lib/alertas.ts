@@ -30,4 +30,5 @@ export const TIPO_ALERTA: Record<string, string> = {
   verificacion_atrasada: "Verificación de integridad atrasada",
   huella_referencia_alterada: "Huella de referencia alterada",
   exportacion_no_conforme: "Exportación RiC-O no conforme",
+  mecanismo_sin_version: "Mecanismo sin versión",
 };

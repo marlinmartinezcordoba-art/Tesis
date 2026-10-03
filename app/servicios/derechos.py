@@ -72,6 +72,18 @@ def declaracion_que_rige(db: Session, inst: Instanciacion) -> tuple[DeclaracionD
     return (d, "fondo", fondo.titulo) if d else (None, None, None)
 
 
+def declaracion_de_recurso(db: Session, recurso: RecursoDocumental) -> DeclaracionDerechos | None:
+    """La declaración que rige una descripción: la propia o la del nivel más
+    cercano hacia arriba (para el FUID y el índice de la Ley 1712)."""
+    actual = recurso
+    while actual is not None:
+        d = _vigente(db, actual.id)
+        if d is not None:
+            return d
+        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id and actual.id != actual.fondo_id else None
+    return None
+
+
 def instanciacion_restringida(db: Session, inst: Instanciacion) -> bool:
     """¿El archivo está hoy bajo reserva o clasificación, propia o heredada?"""
     return restringe(declaracion_que_rige(db, inst)[0])

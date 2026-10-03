@@ -187,6 +187,9 @@ PROPIEDADES: dict[str, Propiedad] = {
     "occupies_or_occupied": Propiedad("occupiesOrOccupied", "RiC-R054", ("Person",), ("Position",),
                                       "isOrWasOccupiedBy"),
     # Composición de los grupos (hallazgos CM-06, CM-07, CM-09, CM-10).
+    # Parentesco (ISAAR 5.3.2, hallazgo VOC-02): Person ↔ Person, simétrica.
+    "has_family_association_with": Propiedad("hasFamilyAssociationWith", None, ("Person",), ("Person",),
+                                             "hasFamilyAssociationWith"),
     "has_or_had_member": Propiedad("hasOrHadMember", "RiC-R055", GRUPOS, ("Person",), "isOrWasMemberOf"),
     "has_or_had_subdivision": Propiedad("hasOrHadSubdivision", "RiC-R005", GRUPOS, GRUPOS, "isOrWasSubdivisionOf"),
     "exists_or_existed_in": Propiedad("existsOrExistedIn", "RiC-R056", ("Position",), GRUPOS, "hasOrHadPosition"),
@@ -305,6 +308,34 @@ ATRIBUTOS = {
     "organizacion": ("structure", "RiC-A40"),
     "caracteristicas_fisicas": ("physicalCharacteristicsNote", "RiC-A31"),
 }
+
+# Relaciones entre agentes y de los mandatos como nodo de relación de RiC-O
+# (hallazgo VOC-06): además de la tripleta directa, la fila sale como un
+# rico:*Relation con su origen, su destino, su vigencia y su nota, y la clase
+# refleja el rol (no es lo mismo la norma superior de un decreto que el
+# mandato que regula una actividad). (código, rol) → clase; rol None = cualquiera.
+RELACION_NARIA = {
+    ("has_or_had_subordinate", None): "AgentHierarchicalRelation",
+    ("has_successor", None): "AgentTemporalRelation",
+    ("is_agent_associated_with_agent", None): "AgentToAgentRelation",
+    ("occupies_or_occupied", None): "PositionHoldingRelation",
+    ("has_or_had_member", None): "MembershipRelation",
+    ("is_or_was_leader_of", None): "LeadershipRelation",
+    ("has_or_had_subdivision", None): "GroupSubdivisionRelation",
+    ("exists_or_existed_in", None): "PositionToGroupRelation",
+    ("has_family_association_with", None): "FamilyRelation",
+    ("has_family_association_with", "progenitor"): "ChildRelation",
+    ("has_family_association_with", "hermano"): "SiblingRelation",
+    ("has_family_association_with", "conyuge"): "SpouseRelation",
+    ("authorizes", None): "MandateRelation",
+    ("regulates_or_regulated", None): "RuleRelation",
+}
+RELACION_ORIGEN, RELACION_DESTINO = "relationHasSource", "relationHasTarget"
+
+
+def clase_relacion(codigo: str, rol: str | None) -> str | None:
+    return RELACION_NARIA.get((codigo, rol)) or RELACION_NARIA.get((codigo, None))
+
 
 # Propiedades de objeto hacia nodos de apoyo (no son relaciones del grafo
 # descriptivo, sino atributos que RiC-O modela como clases).
@@ -577,6 +608,13 @@ def verificar_contra_owl() -> list[str]:
         rangos = set().union(*[_clases_de(g, r) for r in g.objects(u, RDFS.range)] or [set()])
         if rango not in rangos:
             problemas.append(f"{clave}: el rango de rico:{nombre} no es rico:{rango}.")
+    # Nodos de relación (VOC-06): la clase existe y es subclase de rico:Relation.
+    for (codigo, rol), clase in RELACION_NARIA.items():
+        if not existe(clase, OWL.Class) or "Relation" not in _ancestros(g, clase):
+            problemas.append(f"{codigo}/{rol}: rico:{clase} no es una clase de relación de RiC-O 1.1.")
+    for nombre in (RELACION_ORIGEN, RELACION_DESTINO):
+        if not existe(nombre, OWL.ObjectProperty):
+            problemas.append(f"rico:{nombre} no existe como propiedad de objeto.")
     return problemas
 
 

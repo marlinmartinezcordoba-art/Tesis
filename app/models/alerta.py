@@ -21,6 +21,7 @@ TIPO_ALERTA = (
     "verificacion_atrasada",  # preservación: hay instanciaciones sin verificar dentro del plazo
     "huella_referencia_alterada",  # preservación: la huella de la base no coincide con el manifiesto independiente
     "exportacion_no_conforme",  # instrumentos: una descarga RiC-O no pasó la validación OWL/SHACL
+    "mecanismo_sin_version",  # vocabularios: un programa actuó sin declarar su versión exacta
 )
 
 

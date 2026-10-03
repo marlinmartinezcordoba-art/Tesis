@@ -182,12 +182,14 @@ def test_inventario_un_renglon_por_unidad_o_expediente_con_columnas_fuid(cliente
     hoja, filas = _xlsx(r.content)
     titulos = next(fila for fila in filas if fila[0] == "N.º de orden")
     assert titulos == ["N.º de orden", "Código", "Nombre de la serie, subserie o asunto", "Fecha inicial", "Fecha final",
-                       "Caja", "Carpeta", "N.º de folios", "Soporte", "Notas"]
-    datos = filas[filas.index(titulos) + 1:]
+                       "Caja", "Carpeta", "Tomo", "Otro", "N.º de folios", "Soporte", "Frecuencia de consulta", "Notas",
+                       "Acceso (Ley 1712)"]
+    datos = [d for d in filas[filas.index(titulos) + 1:] if isinstance(d[0], int)]  # sin el bloque de firmas
     # Dos oficios del expediente 1948 (descrito por unidades) + el expediente 1949 (descrito como un todo).
     assert [d[1] for d in datos] == ["CO-AM-114", "CO-AM-115", "CO-49"]
-    assert datos[0] == [1, "CO-AM-114", "Correspondencia / Oficio N.º 114", "15/03/1948", "15/03/1948", "1", "3", 2, "Papel", None]
-    assert datos[2][3:5] == ["10/01/1949", "02/12/1949"] and datos[2][7] == 40
+    assert datos[0] == [1, "CO-AM-114", "Correspondencia / Oficio N.º 114", "15/03/1948", "15/03/1948", "1", "3", None,
+                        None, 2, "Papel", None, None, "Pública"]
+    assert datos[2][3:5] == ["10/01/1949", "02/12/1949"] and datos[2][9] == 40
 
 
 def test_campo_obligatorio_vacio_queda_pendiente_sin_bloquear(cliente, fondo_descrito, archivista):

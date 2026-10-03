@@ -341,6 +341,18 @@ def _relacion(ex: Exportacion, rel: Relacion, extremos) -> None:
         ex.omitidas[f"rico:{p.rico} entre clases que su dominio o rango no admiten"] += 1
         return
     ex.grafo.add((uri(i_o), RICO[p.rico], uri(i_d)))
+    clase = ric_o.clase_relacion(rel.codigo_ric, rel.rol)
+    if clase:
+        # La misma fila como nodo de relación (VOC-06): vigencia, nota y rol no se pierden.
+        g, nodo = ex.grafo, uri(rel.id)
+        g.add((nodo, RDF.type, RICO[clase]))
+        g.add((nodo, RICO[ric_o.RELACION_ORIGEN], uri(i_o)))
+        g.add((nodo, RICO[ric_o.RELACION_DESTINO], uri(i_d)))
+        if rel.fecha_edtf:
+            _periodo(ex, nodo, rel.fecha_edtf)
+        descripcion = "; ".join(x for x in (f"Rol: {rel.rol.replace('_', ' ')}" if rel.rol else None, rel.nota) if x)
+        if descripcion:
+            g.add((nodo, _a("descripcion_general"), Literal(descripcion)))
     if rel.codigo_ric == "has_or_had_holder" and rel.fecha_edtf:
         # RiC-O no reifica la custodia en una clase de relación con fechas: el
         # tramo queda en el sistema y la exportación lo cuenta (DES-05).
@@ -478,6 +490,12 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
     ex.nodos[r.id] = ("recurso_documental", clase)
 
 
+# Esquemas SKOS por fondo (hallazgo VOC-04): funciones, formas documentales y tipos de parte.
+ESQUEMAS_SKOS = {"tipo_actividad": ("tipos-de-actividad", "Tipos de actividad (funciones)"),
+                 "forma_documental": ("formas-documentales", "Formas documentales"),
+                 "tipo_parte": ("tipos-de-parte", "Tipos de parte documental")}
+
+
 def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dict) -> None:
     g = ex.grafo
     s = uri(e.id)
@@ -487,16 +505,26 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
     # Un mandato lleva rico:title (especialización de rico:name que admite
     # Rule); lo demás, rico:name.
     g.add((s, _a("titulo" if e.clase == "mandato" else "nombre"), Literal(e.nombre)))
-    if e.clase in ("tipo_actividad", "forma_documental", "tipo_parte"):
+    if e.clase in ESQUEMAS_SKOS:
+        # Cada concepto en su esquema, con sus otras formas, su código y su
+        # nota de alcance (hallazgos VOC-03 y VOC-04).
+        clave, titulo = ESQUEMAS_SKOS[e.clase]
+        esquema = uri(ex.fondo.id, clave)
         g.add((s, RDF.type, SKOS.Concept))
         g.add((s, SKOS.prefLabel, Literal(e.nombre)))
-    if e.clase == "tipo_actividad":
-        esquema = uri(ex.fondo.id, "tipos-de-actividad")
         g.add((esquema, RDF.type, SKOS.ConceptScheme))
-        g.add((esquema, SKOS.prefLabel, Literal(f"Tipos de actividad (funciones) · {ex.fondo.titulo}")))
+        g.add((esquema, SKOS.prefLabel, Literal(f"{titulo} · {ex.fondo.titulo}")))
         g.add((s, SKOS.inScheme, esquema))
+        for n in db.scalars(select(NombreEntidad).where(NombreEntidad.entidad_id == e.id,
+                                                        NombreEntidad.estado == "vigente")).all():
+            g.add((s, SKOS.altLabel, Literal(n.nombre, lang=bcp47(n.idioma))))
+        if e.historia:
+            g.add((s, SKOS.scopeNote, Literal(e.historia)))
+        if e.codigo_clasificacion:
+            g.add((s, SKOS.notation, Literal(e.codigo_clasificacion)))
         if e.concepto_superior_id and e.concepto_superior_id in entidades:
             g.add((s, SKOS[ric_o.SKOS_BROADER], uri(e.concepto_superior_id)))
+            g.add((uri(e.concepto_superior_id), SKOS.narrower, s))  # explícita: sin razonador también se ve
         elif not e.concepto_superior_id:
             g.add((esquema, SKOS.hasTopConcept, s))
     if e.subtipo == "mecanismo" and e.version:

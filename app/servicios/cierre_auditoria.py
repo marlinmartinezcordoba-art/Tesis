@@ -374,6 +374,62 @@ CIERRES: dict[str, Cierre] = {
         "registrando el administrador (decisión documentada).",
         ("tests/test_cierre_bloque3.py::test_calificador_ambos_y_decada_persisten_por_la_api",
          "tests/test_cierre_cm02.py::test_cuadro_de_clasificacion_sin_archivos_propios")),
+    "VOC-01": Cierre(
+        date(2026, 10, 3),
+        'Área de control ISAAR completa: estado de elaboración, institución responsable, lenguas (ISO 639-3) y escrituras (ISO 15924), notas de mantenimiento; nivel de detalle mínimo, parcial o completo; listas controladas también como CHECK en la base.',
+        ('tests/test_cierre_bloque4_voc.py::test_area_de_control_isaar_completa_y_validada', 'tests/test_cierre_bloque4_voc.py::test_la_base_restringe_estado_de_elaboracion_y_tipo_de_funcion', 'tests/test_autoridad.py::test_nivel_de_detalle_pasa_a_completo_y_el_filtro_lo_respeta',)),
+    "VOC-02": Cierre(
+        date(2026, 10, 3),
+        'Parentesco tipado entre personas (progenitor, hermano, cónyuge, otro) con rico:hasFamilyAssociationWith y su clase de relación (ChildRelation, SiblingRelation, SpouseRelation, FamilyRelation); ocupa cargo, miembro y dirige ya se cerraron en el bloque 1.',
+        ('tests/test_cierre_bloque4_voc.py::test_parentesco_tipado_entre_personas_y_su_relacion_en_rico',)),
+    "VOC-03": Cierre(
+        date(2026, 10, 3),
+        'Función ISDF: tipo (función, subfunción, proceso, actividad, transacción), código de clasificación (skos:notation), fechas EDTF, otras formas del nombre, nota de alcance (skos:scopeNote) y área de control con nivel de detalle.',
+        ('tests/test_cierre_bloque4_voc.py::test_funcion_isdf_con_tipo_codigo_formas_y_control',)),
+    "VOC-04": Cierre(
+        date(2026, 10, 3),
+        'SKOS completo: skos:narrower explícito, skos:altLabel, skos:notation, skos:scopeNote y un ConceptScheme por fondo también para formas documentales y tipos de parte.',
+        ('tests/test_cierre_bloque4_voc.py::test_funcion_isdf_con_tipo_codigo_formas_y_control', 'tests/test_cierre_bloque4_voc.py::test_formas_documentales_y_tipos_de_parte_en_su_esquema_skos',)),
+    "VOC-05": Cierre(
+        date(2026, 10, 3),
+        'La detección de duplicados mira las otras formas del nombre y el mismo identificador externo (la señal más fuerte, sin límite de conexiones); cada sugerencia dice su motivo. Verificación y detección probadas en los seis tipos. Autoridades por fondo: decisión documentada.',
+        ('tests/test_cierre_bloque4_voc.py::test_mismo_identificador_externo_se_sugiere_aunque_el_nombre_no_se_parezca', 'tests/test_cierre_bloque4_voc.py::test_otra_forma_del_nombre_lleva_a_sugerir_la_fusion', 'tests/test_cierre_bloque4_voc.py::test_verificacion_y_deteccion_en_cada_uno_de_los_seis_tipos',)),
+    "VOC-06": Cierre(
+        date(2026, 10, 3),
+        'Cada relación entre agentes y de los mandatos sale también como nodo rico:*Relation con origen, destino, vigencia (hasBeginningDate/hasEndDate) y nota; la clase refleja el rol (RuleRelation para la jerarquía normativa, MandateRelation para la creación). Clases verificadas contra el OWL.',
+        ('tests/test_cierre_bloque4_voc.py::test_relaciones_fechadas_salen_como_nodo_de_relacion_con_su_clase',)),
+    "VOC-07": Cierre(
+        date(2026, 10, 3),
+        'Sin versión no se inventa «desconocida»: el mecanismo queda con la versión vacía, marcado en la ficha y con una alerta para completarla. El registro por fondo se mantiene (decisión documentada).',
+        ('tests/test_cierre_bloque4_voc.py::test_mecanismo_sin_version_queda_vacio_marcado_y_con_alerta',)),
+    "VOC-09": Cierre(
+        date(2026, 10, 3),
+        'Los cinco compromisos pendientes del prompt de vocabularios quedaron cerrados (VOC-02, pruebas de los seis tipos, VOC-07, área de control ISDF, relaciones con vigencia en RDF).',
+        ('tests/test_cierre_bloque4_voc.py::test_verificacion_y_deteccion_en_cada_uno_de_los_seis_tipos', 'tests/test_cierre_bloque4_voc.py::test_relaciones_fechadas_salen_como_nodo_de_relacion_con_su_clase',)),
+    "INS-01": Cierre(
+        date(2026, 10, 3),
+        'Descarga sin sesión del subconjunto público (/api/publico/rdf), gobernada por el mismo interruptor del administrador, que sigue apagado (decisión de la autora). Para encenderlo se exige un dominio (no una IP) y la base de las URI queda registrada: no cambia sin confirmarlo.',
+        ('tests/test_cierre_bloque4_ins.py::test_rdf_publico_sin_sesion_solo_si_esta_encendido_y_sin_lo_reservado', 'tests/test_cierre_bloque4_ins.py::test_publicar_uris_exige_dominio_y_no_cambia_la_base_sin_confirmarlo',)),
+    "INS-03": Cierre(
+        date(2026, 10, 3),
+        'La guía se arma solo con lo público (ni el texto ni lo que se envía al motor llevan lo clasificado o reservado) y el FUID marca el acceso de cada renglón (Ley 1712).',
+        ('tests/test_cierre_bloque4_ins.py::test_la_guia_no_incluye_lo_reservado_ni_lo_envia_al_motor', 'tests/test_cierre_bloque4_ins.py::test_el_fuid_marca_lo_clasificado_o_reservado',)),
+    "INS-04": Cierre(
+        date(2026, 10, 3),
+        'Punto SPARQL de solo lectura (GET y POST, protocolo SPARQL 1.1) sobre el grafo público del fondo: sin SERVICE, LOAD ni actualizaciones, con límite de tiempo y de resultados.',
+        ('tests/test_cierre_bloque4_ins.py::test_sparql_responde_sobre_lo_publico_y_no_ve_lo_reservado', 'tests/test_cierre_bloque4_ins.py::test_sparql_rechaza_lo_que_no_es_lectura',)),
+    "INS-05": Cierre(
+        date(2026, 10, 3),
+        'EAD3 del fondo y EAC-CPF 2.0 de cada agente, validados contra los esquemas oficiales de la SAA antes de salir; manifiesto IIIF Presentation 3.0 de cada descripción pública con sus páginas. Sin servidor IIIF Image (decisión documentada).',
+        ('tests/test_cierre_bloque4_ins.py::test_ead3_del_fondo_valida_contra_el_esquema_y_no_lleva_lo_reservado', 'tests/test_cierre_bloque4_ins.py::test_eac_cpf_del_agente_valida_contra_el_esquema', 'tests/test_cierre_bloque4_ins.py::test_un_validador_de_esquema_detecta_un_documento_mal_formado', 'tests/test_cierre_bloque4_ins.py::test_manifiesto_iiif_de_una_descripcion_publica',)),
+    "INS-06": Cierre(
+        date(2026, 10, 3),
+        'FUID completo (Acuerdo 042 de 2002): tomo, otra unidad y frecuencia de consulta; encabezado con entidad remitente y productora, unidad administrativa, oficina productora, objeto elegible y registro de entrada; bloque de firmas.',
+        ('tests/test_cierre_bloque4_ins.py::test_fuid_con_unidades_de_conservacion_frecuencia_encabezado_y_firmas', 'tests/test_instrumentos.py::test_inventario_un_renglon_por_unidad_o_expediente_con_columnas_fuid',)),
+    "INS-08": Cierre(
+        date(2026, 10, 3),
+        'Índice de información clasificada y reservada (Ley 1712, art. 20; columnas del Decreto 1081 de 2015) en JSON y hoja de cálculo, con el estado de cada reserva (vencida: art. 22) y sin revelar el contenido. Los demás puntos de la lista se cerraron en INS-01 a INS-06.',
+        ('tests/test_cierre_bloque4_ins.py::test_indice_ley_1712_lista_lo_reservado_con_fundamento_y_plazo',)),
 }
 
 

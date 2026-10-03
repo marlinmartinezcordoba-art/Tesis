@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FichaAutoridad, type Ficha } from "@/components/FichaAutoridad";
+import { FichaAutoridad, NIVEL_FICHA, type Ficha } from "@/components/FichaAutoridad";
 import { EnlaceHistoria } from "@/components/Historia";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
@@ -202,7 +202,7 @@ export function EntidadVocabularioDetalle() {
         {e.nombre}{" "}
         {e.nivel_detalle && (
           <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`} style={{ verticalAlign: "middle" }}>
-            {e.nivel_detalle === "completo" ? "Ficha completa" : "Ficha mínima"}
+            {NIVEL_FICHA[e.nivel_detalle] || e.nivel_detalle}
           </span>
         )}
       </h1>

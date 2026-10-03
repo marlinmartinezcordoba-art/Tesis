@@ -53,6 +53,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     # Ingesta
     "documento_cargado": ("Cargó un documento", "Documentos cargados"),
     "lote_creado": ("Abrió un lote de transferencia", "Lotes abiertos"),
+    "rdf_publico_descargado": ("Descargó el RDF público del fondo", None),
+    "ead3_exportado": ("Exportó el fondo en EAD3", None),
     "lote_acta_fijada": ("Indicó el acta escaneada de un lote", None),
     "lote_confirmado": ("Confirmó un lote: paquete de envío y acuse de recibo", "Lotes recibidos"),
     "lote_anulado": ("Anuló un lote de transferencia", None),

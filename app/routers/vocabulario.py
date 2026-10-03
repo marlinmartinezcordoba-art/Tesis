@@ -111,7 +111,7 @@ def _entidad_out(db: Session, e: EntidadVocabulario, conexiones: int) -> Entidad
     destino = db.get(EntidadVocabulario, e.fusionada_en_id) if e.fusionada_en_id else None
     return EntidadOut(id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
                       fusionada_en={"id": str(destino.id), "nombre": destino.nombre} if destino else None,
-                      nivel_detalle=e.nivel_detalle if e.clase == "agente" else None,
+                      nivel_detalle=e.nivel_detalle if e.clase in ("agente", "tipo_actividad") else None,
                       version=e.version if e.subtipo == "mecanismo" else None)
 
 
@@ -129,7 +129,7 @@ def _entidad_o_404(db: Session, entidad_id: uuid.UUID) -> EntidadVocabulario:
 def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None,
            estado: Literal["activa", "fusionada"] = "activa",
            orden: Literal["conexiones_desc", "conexiones_asc", "nombre"] = "conexiones_desc",
-           nivel_detalle: Literal["minimo", "completo"] | None = None,
+           nivel_detalle: Literal["minimo", "parcial", "completo"] | None = None,
            db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     consulta = select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.estado == estado)
@@ -137,7 +137,7 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
         consulta = consulta.where(EntidadVocabulario.clase == clase)
     if nivel_detalle:
         # El nivel de detalle es del registro de autoridad de un agente.
-        consulta = consulta.where(EntidadVocabulario.clase == "agente", EntidadVocabulario.nivel_detalle == nivel_detalle)
+        consulta = consulta.where(EntidadVocabulario.clase.in_(("agente", "tipo_actividad")), EntidadVocabulario.nivel_detalle == nivel_detalle)
     if q and q.strip():
         buscado = vocabulario.normalizar(q)
         consulta = consulta.where(or_(EntidadVocabulario.nombre_normalizado.contains(buscado),
@@ -159,7 +159,7 @@ def sugerencias(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
                        .order_by(SugerenciaFusion.similitud.desc())).all()
     ids = [i for s in filas for i in (s.entidad_a_id, s.entidad_b_id)]
     conexiones = vocabulario.conexiones_de(db, ids)
-    return [{"id": str(s.id), "clase": s.clase, "similitud": s.similitud, "creada_en": s.creada_en,
+    return [{"id": str(s.id), "clase": s.clase, "similitud": s.similitud, "motivo": s.motivo, "creada_en": s.creada_en,
              "entidades": [_entidad_out(db, db.get(EntidadVocabulario, i), conexiones[i]).model_dump(mode="json")
                            for i in (s.entidad_a_id, s.entidad_b_id)]} for s in filas]
 

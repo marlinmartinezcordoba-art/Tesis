@@ -115,6 +115,9 @@ class ControlIn(BaseModel):
     carpeta: str | None = Field(default=None, max_length=30)
     folios: int | None = Field(default=None, ge=0, le=100000)
     soporte: str | None = Field(default=None, max_length=40)
+    tomo: str | None = Field(default=None, max_length=30)
+    otra_unidad: str | None = Field(default=None, max_length=60)
+    frecuencia_consulta: Literal["alta", "media", "baja", "ninguna"] | None = None
 
 
 class EditarIn(CamposRegistro):

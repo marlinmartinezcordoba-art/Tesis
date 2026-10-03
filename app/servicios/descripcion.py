@@ -966,7 +966,7 @@ def contexto_actividad(db: Session, actividad_id: uuid.UUID) -> dict:
 
 
 # Datos de control del inventario (FUID), que escribe siempre una persona.
-CAMPOS_CONTROL = ("codigo_referencia", "caja", "carpeta", "folios", "soporte")
+CAMPOS_CONTROL = ("codigo_referencia", "caja", "carpeta", "folios", "soporte", "tomo", "otra_unidad", "frecuencia_consulta")
 
 
 def control_de(recurso: RecursoDocumental) -> dict:

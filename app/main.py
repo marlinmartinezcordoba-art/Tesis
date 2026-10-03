@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import (alertas, auditoria, auth, descripcion, evaluacion, exportacion, fondos, ingesta,
+from app.routers import (alertas, auditoria, auth, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
                          grafo, instrumentos, preservacion, vocabulario)
 
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +49,7 @@ app.include_router(auditoria.gestion)
 app.include_router(exportacion.router)
 app.include_router(grafo.router)
 app.include_router(evaluacion.router)
+app.include_router(publico.router)  # datos abiertos: el subconjunto público (INS-01, INS-04, INS-05, INS-08)
 app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atiende todo lo demás
 
 # Rutas que no exigen sesión. La prueba de seguridad recorre todas las
@@ -67,6 +68,14 @@ RUTAS_PUBLICAS = {
     # salvo que el administrador haya encendido «URI públicas», y nunca
     # entrega lo clasificado o reservado.
     "/id/{ruta:path}",
+    # Datos abiertos (app/routers/publico.py): la misma regla que /id/.
+    "/api/publico/rdf",
+    "/api/publico/sparql",
+    "/api/publico/ead3",
+    "/api/publico/eac/{entidad_id}",
+    "/api/publico/ley1712",
+    "/api/publico/iiif/{recurso_id}/manifest",
+    "/api/publico/iiif/imagen/{instanciacion_id}/{pagina}.png",
 }
 
 

@@ -254,8 +254,64 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
 
 // --- Inventario ---------------------------------------------------------------------------------
 
+// Encabezado y firmas del FUID (Acuerdo 042 de 2002, hallazgo INS-06).
+const OBJETOS_FUID: [string, string][] = [
+  ["inventario_documental", "Inventario documental"], ["transferencia_primaria", "Transferencia primaria"],
+  ["transferencia_secundaria", "Transferencia secundaria"], ["valoracion_documental", "Valoración documental"],
+  ["fondos_acumulados", "Fondos acumulados"], ["inventario_individual", "Inventario individual"],
+];
+const CAMPOS_ENCABEZADO: [string, string][] = [
+  ["entidad_remitente", "Entidad remitente"], ["entidad_productora", "Entidad productora"],
+  ["unidad_administrativa", "Unidad administrativa"], ["oficina_productora", "Oficina productora"],
+  ["registro_entrada", "Registro de entrada (año, mes, día, N.º T)"],
+];
+const FIRMAS: [string, string][] = [["elaborado_por", "Elaborado por"], ["entregado_por", "Entregado por"], ["recibido_por", "Recibido por"]];
+
+function EncabezadoFuid({ valor, alCambiar }: { valor: Record<string, string>; alCambiar: (v: Record<string, string>) => void }) {
+  const campo = (clave: string, etiqueta: string) => (
+    <div className="campo" key={clave}>
+      <label htmlFor={`fuid-${clave}`}>{etiqueta}</label>
+      <input id={`fuid-${clave}`} className="entrada" maxLength={300} value={valor[clave] || ""}
+             onChange={(e) => alCambiar({ ...valor, [clave]: e.target.value })} />
+    </div>
+  );
+  return (
+    <details className="tarjeta">
+      <summary className="tarjeta-cab">Encabezado y firmas del FUID (opcional)</summary>
+      <div className="tarjeta-cuerpo">
+        <div className="campo">
+          <label htmlFor="fuid-objeto">Objeto</label>
+          <select id="fuid-objeto" className="selector" value={valor.objeto || "inventario_documental"}
+                  onChange={(e) => alCambiar({ ...valor, objeto: e.target.value })}>
+            {OBJETOS_FUID.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+          </select>
+        </div>
+        {CAMPOS_ENCABEZADO.map(([c, n]) => campo(c, n))}
+        {FIRMAS.map(([c, n]) => (
+          <fieldset key={c} className="campo">
+            <legend>{n}</legend>
+            {campo(`${c}.nombre`, "Nombre")}{campo(`${c}.cargo`, "Cargo")}{campo(`${c}.lugar`, "Lugar")}{campo(`${c}.fecha`, "Fecha")}
+          </fieldset>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function encabezadoParaEnviar(v: Record<string, string>) {
+  const salida: Record<string, unknown> = { objeto: v.objeto || "inventario_documental" };
+  for (const [c] of CAMPOS_ENCABEZADO) if (v[c]?.trim()) salida[c] = v[c].trim();
+  for (const [c] of FIRMAS) {
+    const persona: Record<string, string> = {};
+    for (const k of ["nombre", "cargo", "lugar", "fecha"]) if (v[`${c}.${k}`]?.trim()) persona[k] = v[`${c}.${k}`].trim();
+    if (Object.keys(persona).length) salida[c] = persona;
+  }
+  return salida;
+}
+
 function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) {
   const [datos, setDatos] = useState<DatosInventario | null>(null);
+  const [encabezado, setEncabezado] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   const a = nivel.actual;
@@ -281,7 +337,8 @@ function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) 
     setOcupado(true);
     setError("");
     try {
-      await descargar("/api/instrumentos/inventario", { method: "POST", body: JSON.stringify({ recurso_id: a.id }) });
+      await descargar("/api/instrumentos/inventario", { method: "POST",
+        body: JSON.stringify({ recurso_id: a.id, encabezado: encabezadoParaEnviar(encabezado) }) });
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo exportar.");
     } finally {
@@ -330,6 +387,7 @@ function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) 
               </tbody>
             </table>
           </div>
+          <EncabezadoFuid valor={encabezado} alCambiar={setEncabezado} />
           <div className="barra-publicar">
             <span>
               {datos.filas.length} renglón(es) ·{" "}

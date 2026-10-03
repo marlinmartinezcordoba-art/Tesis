@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SelectorFecha } from "@/components/SelectorFecha";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { controlInicial, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
 import { fecha } from "@/lib/formato";
@@ -43,7 +43,9 @@ export interface Ficha {
   nombres: Nombre[];
   vinculos: Vinculo[];
   clase_rico: string;
-  control: { identificador_registro: string; reglas: string | null; nivel_detalle: string | null; creada_en: string; revisada_en: string | null };
+  control: { identificador_registro: string; reglas: string | null; nivel_detalle: string | null; creada_en: string;
+             revisada_en: string | null; estado_elaboracion?: string | null; institucion_responsable?: string | null;
+             lenguas?: string[]; escrituras?: string[]; notas_mantenimiento?: string | null };
   identificadores?: { id: string; esquema: string; valor: string; externo: boolean; uri: string | null }[];
   hitos?: { id: string; tipo: string; descripcion: string; edtf: string; fecha_legible: string; clase_rico: string; propiedad_rico: string }[];
   existencia_legible?: string | null;
@@ -311,6 +313,12 @@ const OPCIONES: Record<string, OpcionVinculo[]> = {
     { tipo: "dirige", etiqueta: "Dirige o dirigió", busca: "agente", conFecha: true, subtipos: ["persona"] },
     { tipo: "subdivision", etiqueta: "Tiene o tuvo como subdivisión a", busca: "agente", conFecha: true, subtipos: GRUPOS },
     { tipo: "subdivision", etiqueta: "Es o fue subdivisión de", busca: "agente", conFecha: true, invertir: true, subtipos: GRUPOS },
+    // Parentesco (ISAAR 5.3.2; rico:hasFamilyAssociationWith), con su tipo controlado.
+    { tipo: "progenitor_de", etiqueta: "Es padre o madre de", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "progenitor_de", etiqueta: "Es hijo o hija de", busca: "agente", conFecha: true, invertir: true, subtipos: ["persona"] },
+    { tipo: "hermano_de", etiqueta: "Es hermano o hermana de", busca: "agente", subtipos: ["persona"] },
+    { tipo: "conyuge_de", etiqueta: "Es o fue cónyuge de", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "familiar_de", etiqueta: "Tiene otro parentesco con", busca: "agente", conFecha: true, subtipos: ["persona"] },
   ],
   agente_lugares: [{ tipo: "lugar_agente", etiqueta: "Actúa o actuó en", busca: "lugar" }],
   agente_creacion: [{ tipo: "creado_por", etiqueta: "Fue creado o establecido por", busca: "mandato" }],
@@ -655,6 +663,12 @@ function FichaAgente(p: Props) {
   return (
     <>
       <Area titulo="1. Área de identificación" insignia={<code className="rico">{f.clase_rico}</code>}>
+        {e.subtipo !== "mecanismo" && (
+          <p style={{ marginTop: 0 }}>
+            <button type="button" className="enlace" onClick={() => descargar(`/api/publico/eac/${e.id}`).catch(() => undefined)}>
+              Descargar la ficha en EAC-CPF 2.0 (.xml)</button>
+          </p>
+        )}
         <dl className="par-dato">
           <dt>Tipo de entidad</dt><dd>{e.subtipo ? SUBTIPO_NOMBRE[e.subtipo] || e.subtipo : "Agente"}</dd>
           <dt>Forma autorizada del nombre</dt><dd><b>{e.nombre}</b> <span className="meta">(se corrige desde la descripción, que la verifica contra el vocabulario)</span></dd>
@@ -694,25 +708,48 @@ function FichaAgente(p: Props) {
       </Area>
 
       <Area titulo="3. Área de relaciones">
-        <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado", "ocupa_cargo", "cargo_en", "miembro", "dirige", "subdivision"]}
+        <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado", "ocupa_cargo", "cargo_en", "miembro", "dirige", "subdivision",
+                 "progenitor_de", "hermano_de", "conyuge_de", "familiar_de"]}
                   opciones={OPCIONES.agente_relaciones}
                   vacio="Sin relaciones con otros agentes." entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
       </Area>
 
-      <Area titulo="4. Área de control" abierta={false}
-            insignia={f.control.nivel_detalle && <span className={`insignia ${f.control.nivel_detalle === "completo" ? "bien" : "proceso"}`}>
-              {f.control.nivel_detalle === "completo" ? "Ficha completa" : "Ficha mínima"}</span>}>
-        <dl className="par-dato">
-          <dt>Identificador del registro</dt><dd><code className="rico">{f.control.identificador_registro}</code></dd>
-          <TextoEditable etiqueta="Reglas o convenciones" campo="reglas" valor={f.control.reglas} {...comun} />
-          <dt>Nivel de detalle</dt>
-          <dd>{f.control.nivel_detalle === "completo" ? "Completo" : "Mínimo"} <span className="meta">(se calcula: pasa a completo con el primer dato del área de descripción)</span></dd>
-          <dt>Creación de la ficha</dt><dd>{fecha(f.control.creada_en)}</dd>
-          <dt>Última revisión</dt><dd>{f.control.revisada_en ? fecha(f.control.revisada_en) : "—"} <span className="meta">(tomada de la auditoría)</span></dd>
-          <TextoEditable etiqueta="Fuentes" campo="fuentes" valor={f.campos.fuentes} multilinea {...comun} />
-        </dl>
-      </Area>
+      <AreaControl {...p} titulo="4. Área de control" />
     </>
+  );
+}
+
+// Nivel de detalle (ISAAR 5.4.5 / ISDF 5.4.5): mínimo, parcial o completo.
+export const NIVEL_FICHA: Record<string, string> = { minimo: "Ficha mínima", parcial: "Ficha parcial", completo: "Ficha completa" };
+const ESTADO_ELABORACION: Record<string, string> = { borrador: "Borrador", revisado: "Revisado", definitivo: "Definitivo" };
+const TIPO_FUNCION: Record<string, string> = { funcion: "Función", subfuncion: "Subfunción", proceso: "Proceso",
+  actividad: "Actividad", transaccion: "Transacción" };
+
+// Área de control común a la ficha ISAAR (agente) y a la ISDF (función), hallazgos VOC-01 y VOC-03.
+function AreaControl(p: Props & { titulo: string }) {
+  const { entidad: e, ficha: f, puede, alCambiar } = p;
+  const comun = { puede, entidadId: e.id, alCambiar };
+  const nivel = f.control.nivel_detalle || "minimo";
+  return (
+    <Area titulo={p.titulo} abierta={false}
+          insignia={f.control.nivel_detalle && <span className={`insignia ${nivel === "completo" ? "bien" : "proceso"}`}>{NIVEL_FICHA[nivel]}</span>}>
+      <dl className="par-dato">
+        <dt>Identificador del registro</dt><dd><code className="rico">{f.control.identificador_registro}</code></dd>
+        <TextoEditable etiqueta="Institución responsable" campo="institucion_responsable" valor={f.control.institucion_responsable} {...comun} />
+        <TextoEditable etiqueta="Reglas o convenciones" campo="reglas" valor={f.control.reglas} {...comun} />
+        <ListaEditable etiqueta="Estado de elaboración" campo="estado_elaboracion" valor={f.control.estado_elaboracion || null}
+                       opciones={ESTADO_ELABORACION} {...comun} />
+        <dt>Nivel de detalle</dt>
+        <dd>{NIVEL_FICHA[nivel]} <span className="meta">(se calcula: parcial con el primer dato del área de descripción;
+          completo con fechas, historia, otro elemento y las fuentes)</span></dd>
+        <dt>Creación de la ficha</dt><dd>{fecha(f.control.creada_en)}</dd>
+        <dt>Última revisión</dt><dd>{f.control.revisada_en ? fecha(f.control.revisada_en) : "—"} <span className="meta">(tomada de la auditoría)</span></dd>
+        <TextoEditable etiqueta="Lenguas (ISO 639-3, separadas por coma)" campo="lenguas" valor={(f.control.lenguas || []).join(", ")} {...comun} />
+        <TextoEditable etiqueta="Escrituras (ISO 15924, separadas por coma)" campo="escrituras" valor={(f.control.escrituras || []).join(", ")} {...comun} />
+        <TextoEditable etiqueta="Fuentes" campo="fuentes" valor={f.campos.fuentes} multilinea {...comun} />
+        <TextoEditable etiqueta="Notas de mantenimiento" campo="notas_mantenimiento" valor={f.control.notas_mantenimiento} multilinea {...comun} />
+      </dl>
+    </Area>
   );
 }
 
@@ -834,8 +871,21 @@ function SuperiorSkos({ ficha: f, entidad: e, puede, fondoId, alCambiar }: Props
 
 function FichaTipoActividad(p: Props) {
   const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
+  const comun = { puede, entidadId: e.id, alCambiar };
   return (
     <>
+      <Area titulo="Identificación y descripción (ISDF)" insignia={<code className="rico">skos:notation · skos:scopeNote</code>}>
+        <dl className="par-dato">
+          <ListaEditable etiqueta="Tipo" campo="tipo_funcion" valor={(f.campos.tipo_funcion as string) || null} opciones={TIPO_FUNCION} {...comun} />
+          <TextoEditable etiqueta="Código de clasificación" campo="codigo_clasificacion" valor={f.campos.codigo_clasificacion}
+                         pista="El código del cuadro de clasificación documental (por ejemplo, 200.12)." {...comun} />
+          <TextoEditable etiqueta="Fechas (EDTF)" campo="existencia_edtf" valor={f.campos.existencia_edtf} {...comun} />
+          <TextoEditable etiqueta="Historia o nota de alcance" campo="historia" valor={f.campos.historia} multilinea {...comun} />
+        </dl>
+      </Area>
+      <Area titulo="Otras formas del nombre" insignia={<code className="rico">skos:altLabel</code>}>
+        <FormasDelNombre ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
+      </Area>
       <Area titulo="Posición en el árbol de funciones" insignia={<code className="rico">{f.clase_rico} · skos:Concept</code>}>
         <p className="meta" style={{ marginTop: 0 }}>
           La jerarquía función → subfunción → trámite no existe en RiC-O; se expresa con SKOS, que la complementa sin
@@ -855,6 +905,7 @@ function FichaTipoActividad(p: Props) {
         {(f.actividades || []).length === 0 ? <p className="meta" style={{ margin: 0 }}>Ninguna actividad lo lleva asignado todavía.</p>
           : (f.actividades || []).map((a) => <div key={a.id} className="fila" style={{ padding: "6px 0" }}><Link to={`/vocabularios/${a.id}`}>{a.nombre}</Link></div>)}
       </Area>
+      <AreaControl {...p} titulo="Área de control (ISDF)" />
     </>
   );
 }

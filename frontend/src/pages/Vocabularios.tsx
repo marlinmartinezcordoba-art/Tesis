@@ -7,6 +7,7 @@ import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
+import { NIVEL_FICHA } from "@/components/FichaAutoridad";
 import {
   CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, claseRicDe, conexionesTexto,
   type ClaseVocabulario, type EntidadVocabulario, type ParametrosFusion, type Sugerencia,
@@ -90,7 +91,9 @@ function TarjetaSugerencia({ s, puede, alResolver }: { s: Sugerencia; puede: boo
           <Fragment key={e.id}>
             {i === 1 && (
               <div className="similitud" aria-label={`Similitud ${Math.round(s.similitud * 100)} %`}>
-                <strong>{Math.round(s.similitud * 100)} %</strong><span>similitud</span>
+                <strong>{Math.round(s.similitud * 100)} %</strong>
+                <span>{s.motivo === "identificador" ? "mismo identificador externo"
+                  : s.motivo === "otra_forma" ? "similitud (otra forma del nombre)" : "similitud"}</span>
               </div>
             )}
             <label className={`candidata${definitiva === e.id ? " elegida" : ""}`}>
@@ -198,7 +201,7 @@ export function Vocabularios() {
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<Orden>("conexiones_desc");
   const [fusionadas, setFusionadas] = useState(false);
-  const [nivel, setNivel] = useState<"" | "minimo" | "completo">("");
+  const [nivel, setNivel] = useState<"" | "minimo" | "parcial" | "completo">("");
   const [vistaArbol, setVistaArbol] = useState(false);
   const [entidades, setEntidades] = useState<EntidadVocabulario[] | null>(null);
   const [sugerencias, setSugerencias] = useState<Sugerencia[] | null>(null);
@@ -293,6 +296,7 @@ export function Vocabularios() {
                       onChange={(e) => setNivel(e.target.value as typeof nivel)}>
                 <option value="">Cualquier nivel de detalle</option>
                 <option value="minimo">Ficha mínima (por enriquecer)</option>
+                <option value="parcial">Ficha parcial</option>
                 <option value="completo">Ficha completa</option>
               </select>
             )}
@@ -336,7 +340,7 @@ export function Vocabularios() {
                 </div>
                 {e.nivel_detalle && (
                   <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`}>
-                    {e.nivel_detalle === "completo" ? "Ficha completa" : "Ficha mínima"}
+                    {NIVEL_FICHA[e.nivel_detalle] || e.nivel_detalle}
                   </span>
                 )}
                 <span className="meta">{conexionesTexto(e.conexiones)}</span>

@@ -16,6 +16,8 @@ export interface Sugerencia {
   id: string;
   clase: ClaseVocabulario;
   similitud: number;
+  // Por qué se sugiere (VOC-05): nombre parecido, otra forma del nombre o el mismo identificador externo.
+  motivo?: "nombre" | "otra_forma" | "identificador";
   creada_en: string;
   entidades: [EntidadVocabulario, EntidadVocabulario];
 }

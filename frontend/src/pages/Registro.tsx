@@ -69,6 +69,9 @@ interface Control {
   carpeta: string | null;
   folios: number | null;
   soporte: string | null;
+  tomo: string | null;
+  otra_unidad: string | null;
+  frecuencia_consulta: string | null;
 }
 
 const CAMPOS_CONTROL: { clave: keyof Control; nombre: string; pista?: string }[] = [
@@ -77,6 +80,9 @@ const CAMPOS_CONTROL: { clave: keyof Control; nombre: string; pista?: string }[]
   { clave: "carpeta", nombre: "Carpeta" },
   { clave: "folios", nombre: "N.º de folios" },
   { clave: "soporte", nombre: "Soporte", pista: "Papel, electrónico…" },
+  { clave: "tomo", nombre: "Tomo" },
+  { clave: "otra_unidad", nombre: "Otra unidad de conservación", pista: "Rollo, sobre…" },
+  { clave: "frecuencia_consulta", nombre: "Frecuencia de consulta", pista: "alta, media, baja o ninguna" },
 ];
 
 interface Nueva extends EntidadManual {
@@ -106,7 +112,7 @@ export function RegistroDescripcion() {
   const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [control, setControl] = useState<Record<keyof Control, string>>(
-    { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "" });
+    { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "", tomo: "", otra_unidad: "", frecuencia_consulta: "" });
 
   function cargar(r: Registro) {
     setRegistro(r);
@@ -124,6 +130,8 @@ export function RegistroDescripcion() {
     setControl({
       codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
       folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
+      tomo: r.control.tomo || "", otra_unidad: r.control.otra_unidad || "",
+      frecuencia_consulta: r.control.frecuencia_consulta || "",
     });
     nivelesSuperiores(r.fondo_id, r.nivel).then(setSuperiores).catch(() => undefined);
   }
@@ -183,6 +191,8 @@ export function RegistroDescripcion() {
             codigo_referencia: control.codigo_referencia.trim() || null, caja: control.caja.trim() || null,
             carpeta: control.carpeta.trim() || null, soporte: control.soporte.trim() || null,
             folios: control.folios.trim() === "" ? null : Number(control.folios),
+            tomo: control.tomo.trim() || null, otra_unidad: control.otra_unidad.trim() || null,
+            frecuencia_consulta: control.frecuencia_consulta.trim().toLowerCase() || null,
           },
         }),
       });

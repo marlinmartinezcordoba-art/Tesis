@@ -90,6 +90,9 @@ def conformidad(request: Request, fondo_id: uuid.UUID, incluir_restringidos: boo
 
 class UrisPublicasIO(BaseModel):
     publicas: bool
+    # Solo para cambiar a propósito la base ya publicada (otro dominio): las
+    # URI anteriores dejarían de resolverse (hallazgo INS-01).
+    confirmar_nueva_base: bool = False
 
 
 @router.get("/uris-publicas", summary="¿Se resuelven las URI sin sesión?")
@@ -100,6 +103,30 @@ def ver_uris(_: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)
 @router.put("/uris-publicas", summary="Encender o apagar la resolución sin sesión (solo administrador)")
 def cambiar_uris(datos: UrisPublicasIO, request: Request, actor: Actor = Depends(solo_administrador),
                  db: Session = Depends(get_db)) -> UrisPublicasIO:
+    if datos.publicas:
+        # URI estables (INS-01): se publican con un nombre de dominio, no con la
+        # dirección IP del servidor, y la base no cambia después sin decidirlo.
+        import ipaddress
+        from urllib.parse import urlparse
+
+        base = exportacion_rico.base()
+        anfitrion = urlparse(base).hostname or ""
+        try:
+            ipaddress.ip_address(anfitrion)
+            es_ip = True
+        except ValueError:
+            es_ip = anfitrion in ("", "localhost")
+        if es_ip:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Las URI se publicarían con «{anfitrion or 'sin nombre'}». Fije antes un nombre de "
+                                       "dominio permanente (RICORA_URL_PUBLICA): cambiarlo después rompe cada URI citada.")
+        anterior = parametros.leer(db, "rdf_base_publicada")
+        if anterior and anterior != base and not datos.confirmar_nueva_base:
+            raise HTTPException(status.HTTP_409_CONFLICT,
+                                detail=f"Las URI ya se publicaron con la base {anterior} y ahora sería {base}: las citas "
+                                       "anteriores dejarían de resolverse. Confirme el cambio de base si es deliberado.")
+        if anterior != base:
+            parametros.cambiar(db, "rdf_base_publicada", base, actor.id, "instrumentos", ip=ip_de(request))
     parametros.cambiar(db, "rdf_uris_publicas", datos.publicas, actor.id, "instrumentos", ip=ip_de(request))
     db.commit()
     return datos

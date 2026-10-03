@@ -48,6 +48,7 @@ CODIGO_RELACION_RIC = (
     "exists_or_existed_in",  # RiC-R056 — el cargo (Position) existe dentro de un Group
     "has_or_had_member",  # RiC-R055
     "is_or_was_leader_of",  # RiC-R042
+    "has_family_association_with",  # rico:hasFamilyAssociationWith — parentesco entre personas (VOC-02)
     # -- recurso documental a recurso documental / instanciación --
     "includes_or_included",  # RiC-R024 — pertenencia a un conjunto documental
     "has_or_had_constituent",  # RiC-R003

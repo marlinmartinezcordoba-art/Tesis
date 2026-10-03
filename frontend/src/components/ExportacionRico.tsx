@@ -48,6 +48,18 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
     }
   }
 
+  async function otro(ruta: string, clave: string) {
+    setOcupado(clave);
+    setError("");
+    try {
+      await descargar(ruta);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo descargar.");
+    } finally {
+      setOcupado("");
+    }
+  }
+
   async function validar() {
     setOcupado("validar");
     setError("");
@@ -106,6 +118,29 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
               {ocupado === "validar" ? "Validando…" : "Validar conformidad"}
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Otros formatos y datos abiertos</div>
+        <div className="tarjeta-cuerpo">
+          <p className="meta">
+            Solo lo público (sin lo clasificado ni lo reservado). EAD3 y EAC-CPF se validan contra el esquema oficial
+            de la SAA antes de descargarse.
+          </p>
+          <div className="acciones">
+            <button type="button" className="boton" disabled={!!ocupado}
+                    onClick={() => otro(`/api/publico/ead3?fondo_id=${fondo.id}`, "ead3")}>
+              {ocupado === "ead3" ? "Exportando…" : "Descargar EAD3 (.xml)"}</button>
+            <button type="button" className="boton" disabled={!!ocupado}
+                    onClick={() => otro(`/api/publico/ley1712?fondo_id=${fondo.id}&formato=xlsx`, "ley1712")}>
+              {ocupado === "ley1712" ? "Exportando…" : "Índice de información clasificada y reservada (Ley 1712)"}</button>
+          </div>
+          <p className="meta" style={{ marginBottom: 0 }}>
+            Consulta SPARQL de solo lectura: <code>/api/publico/sparql?fondo_id={fondo.id}&amp;query=…</code>. La ficha
+            de cada agente se descarga en EAC-CPF desde Vocabularios, y cada descripción pública tiene su manifiesto IIIF
+            en <code>/api/publico/iiif/&lt;id&gt;/manifest</code>.
+          </p>
         </div>
       </div>
 

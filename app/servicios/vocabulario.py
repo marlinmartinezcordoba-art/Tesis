@@ -284,30 +284,53 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
     from app.models.descripcion import SugerenciaFusion
     from app.servicios import parametros
 
+    from app.models.descripcion import ESQUEMA_EXTERNO, IdentificadorEntidad
+
     umbral = int(parametros.leer(db, "fusion_similitud_pct")) / 100
     maximo = int(parametros.leer(db, "fusion_max_conexiones"))
     a, b = aliased(EntidadVocabulario), aliased(EntidadVocabulario)
-    similitud = func.similarity(a.nombre_normalizado, b.nombre_normalizado)
-    consulta = (select(a, b, similitud.label("s"))
+    # Nombre autorizado y otras formas del nombre de cada lado (VOC-05).
+    fa, fb = _formas().alias("fa"), _formas().alias("fb")
+    similitud = func.max(func.similarity(fa.c.n, fb.c.n))
+    otra_forma = func.bool_or(fa.c.forma.is_not(None) | fb.c.forma.is_not(None))
+    consulta = (select(a, b, similitud.label("s"), otra_forma.label("otra"))
                 .join(b, (a.fondo_id == b.fondo_id) & (a.clase == b.clase) & (a.id < b.id))
-                .where(a.estado == "activa", b.estado == "activa", similitud >= umbral))
+                .join(fa, fa.c.entidad_id == a.id).join(fb, fb.c.entidad_id == b.id)
+                .where(a.estado == "activa", b.estado == "activa", func.similarity(fa.c.n, fb.c.n) >= umbral)
+                .group_by(a.id, b.id))
+    # El mismo identificador externo (Wikidata, VIAF, ISNI, LCNAF) es la
+    # señal más fuerte de duplicado: se sugiere siempre, sin mirar el nombre
+    # ni las conexiones.
+    ia, ib = aliased(IdentificadorEntidad), aliased(IdentificadorEntidad)
+    por_identificador = (select(a, b)
+                         .join(ia, ia.entidad_id == a.id).join(ib, (ib.esquema == ia.esquema) & (ib.valor == ia.valor))
+                         .join(b, (b.id == ib.entidad_id) & (a.fondo_id == b.fondo_id) & (a.clase == b.clase)
+                               & (a.id < b.id))
+                         .where(a.estado == "activa", b.estado == "activa", ia.estado == "vigente",
+                                ib.estado == "vigente", ia.esquema.in_(ESQUEMA_EXTERNO)).distinct())
     if fondo_id is not None:
         consulta = consulta.where(a.fondo_id == fondo_id)
-    pares = db.execute(consulta).all()
+        por_identificador = por_identificador.where(a.fondo_id == fondo_id)
+    pares = [(x, y, float(s_), "otra_forma" if otra else "nombre") for x, y, s_, otra in db.execute(consulta).all()]
+    mismos = {(x.id, y.id) for x, y in db.execute(por_identificador).all()}
+    pares = [p for p in pares if (p[0].id, p[1].id) not in mismos] + [
+        (x, y, 1.0, "identificador") for x, y in db.execute(por_identificador).all()]
     if not pares:
         return 0
     conexiones = conexiones_de(db, list({x.id for p in pares for x in p[:2]}))
     existentes = set(db.execute(select(SugerenciaFusion.entidad_a_id, SugerenciaFusion.entidad_b_id)).all())
     nuevas = 0
-    for x, y, s in pares:
-        if (x.id, y.id) in existentes or conexiones[x.id] > maximo or conexiones[y.id] > maximo:
+    for x, y, s, motivo in pares:
+        if (x.id, y.id) in existentes:
+            continue
+        if motivo != "identificador" and (conexiones[x.id] > maximo or conexiones[y.id] > maximo):
             continue
         # Dos versiones de un mismo programa son mecanismos distintos: el
         # resultado de cada una debe poder atribuirse a la suya.
         if x.subtipo == y.subtipo == "mecanismo" and (x.version or "") != (y.version or ""):
             continue
         db.add(SugerenciaFusion(fondo_id=x.fondo_id, clase=x.clase, entidad_a_id=x.id, entidad_b_id=y.id,
-                                similitud=round(float(s), 2)))
+                                similitud=round(float(s), 2), motivo=motivo))
         nuevas += 1
     return nuevas
 
@@ -396,7 +419,7 @@ def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
 # --- Mecanismos: un solo registro por programa y versión ------------------------------------------
 
 
-def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
+def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str | None,
               usuario_id: uuid.UUID | None = None) -> EntidadVocabulario:
     """Agente de subtipo mecanismo (RiC-E13) para un programa con su versión
     exacta: el motor de análisis, Ghostscript. Si ya existe en el
@@ -406,11 +429,12 @@ def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
     from app.servicios.auditoria import registrar
 
     nombre = " ".join(nombre.split())
-    version = version.strip()
-    etiqueta = nombre if version in nombre else f"{nombre} {version}"
+    version = (version or "").strip() or None
+    etiqueta = nombre if not version or version in nombre else f"{nombre} {version}"
     existente = db.scalar(select(EntidadVocabulario).where(
         EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == "agente",
-        EntidadVocabulario.subtipo == "mecanismo", EntidadVocabulario.version == version,
+        EntidadVocabulario.subtipo == "mecanismo",
+        EntidadVocabulario.version == version if version else EntidadVocabulario.version.is_(None),
         EntidadVocabulario.nombre_normalizado == normalizar(etiqueta)))
     if existente is not None:
         # Si se fusionó, vale la definitiva.
@@ -421,6 +445,13 @@ def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
               confianza=None, motor=None, usuario_id=usuario_id)
     e.version = version
     db.flush()
+    if version is None:
+        from app.servicios import alertas
+
+        alertas.crear(db, tipo="mecanismo_sin_version", severidad="media", modulo="vocabularios",
+                      entidad_tipo="entidad_vocabulario", entidad_id=e.id, fondo_id=fondo_id,
+                      mensaje=f"«{etiqueta}» actuó sin declarar su versión. Complete la versión exacta en su ficha: "
+                              "sin ella no se puede reproducir ni atribuir lo que hizo.")
     registrar(db, modulo="vocabularios", accion="mecanismo_registrado", usuario_id=usuario_id,
               entidad_tipo="entidad_vocabulario", entidad_id=e.id, nuevo={"nombre": etiqueta, "version": version},
               detalle=f"Mecanismo «{etiqueta}» registrado en el vocabulario del fondo")

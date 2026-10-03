@@ -123,3 +123,38 @@ La autora las resolvió el 3 de octubre de 2026, antes de escribir código para 
 | Generar el AIP | A demanda, en Preservación | El AIP BagIt con PREMIS se arma por instanciación o expediente cuando se pide. No es automático al ingresar: el AIP necesita la descripción, que llega después |
 | Generar la información descriptiva | En Descripción | Fuera de la ingesta, por diseño del flujo |
 | Coordinar las actualizaciones | Sí | Segunda copia al terminar la ingesta |
+
+## 8. Bloque 4 · Vocabularios e instrumentos
+
+| Hallazgo | Estado | Pruebas |
+|---|---|---|
+| VOC-01 · Área de control ISAAR, nivel de detalle | Cerrado | `tests/test_cierre_bloque4_voc.py`, `tests/test_autoridad.py` |
+| VOC-02 · Parentesco tipado | Cerrado | `tests/test_cierre_bloque4_voc.py` |
+| VOC-03 · Función ISDF | Cerrado | `tests/test_cierre_bloque4_voc.py` |
+| VOC-04 · SKOS completo | Cerrado | `tests/test_cierre_bloque4_voc.py` |
+| VOC-05 · Duplicados por forma del nombre e identificador | Cerrado | `tests/test_cierre_bloque4_voc.py` (8) |
+| VOC-06 · Relaciones con vigencia y rol en RDF | Cerrado | `tests/test_cierre_bloque4_voc.py` |
+| VOC-07 · Mecanismo sin versión | Cerrado | `tests/test_cierre_bloque4_voc.py` |
+| VOC-09 · Compromisos del prompt | Cerrado | los anteriores |
+| INS-01 · Datos abiertos sin sesión, URI estables | Cerrado (interruptor apagado) | `tests/test_cierre_bloque4_ins.py` |
+| INS-03 · Guía y FUID frente a lo reservado | Cerrado | `tests/test_cierre_bloque4_ins.py` |
+| INS-04 · SPARQL | Cerrado | `tests/test_cierre_bloque4_ins.py` (5) |
+| INS-05 · EAD3, EAC-CPF, IIIF | Cerrado (IIIF sin servidor de imagen) | `tests/test_cierre_bloque4_ins.py` (4) |
+| INS-06 · FUID completo | Cerrado | `tests/test_cierre_bloque4_ins.py`, `tests/test_instrumentos.py` |
+| INS-08 · Índice Ley 1712 | Cerrado | `tests/test_cierre_bloque4_ins.py` |
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Nivel de detalle (VOC-01) | Dos niveles · tres niveles de ISAAR | **Mínimo, parcial, completo** | ISAAR 5.4.5 prevé tres. «Completo» exige fechas de existencia, historia, otro elemento del área y fuentes; con un solo dato, la ficha es «parcial». Antes, una línea de historia la volvía «completa». | Fichas que antes figuraban completas ahora aparecen parciales. Es el dato correcto. |
+| Listas controladas (VOC-01) | Solo en la API · también en la base | **También en la base** (CHECK) | La prueba de profundidad de la auditoría: «Borrador» y «borrador» no pueden convivir por un descuido de otra ruta. | Un valor nuevo exige una migración. |
+| Parentesco (VOC-02) | Nota libre · un vínculo genérico · un vínculo por tipo | **Un vínculo por tipo** (progenitor, hermano, cónyuge, otro) sobre la misma propiedad `hasFamilyAssociationWith` | Dos archivistas que registran «hijo de» terminan en el mismo dato controlado. El tipo se refleja en la clase de relación de RiC-O (ChildRelation, SiblingRelation, SpouseRelation). | Parentescos menos comunes (padrinazgo) van como «otro» con nota. |
+| Relaciones en RDF (VOC-06) | Solo la tripleta · solo el nodo de relación · ambos | **Ambos** | La tripleta directa sirve a un consumidor simple. El nodo `rico:*Relation` conserva la vigencia, la nota y el rol, que se perdían. | Grafo más grande, con un nodo por relación. |
+| Duplicados entre fondos (VOC-05) | Autoridades compartidas entre fondos · una por fondo | **Una por fondo** (se mantiene) | El vocabulario de cada fondo es el contexto de su procedencia, y los permisos, la exportación y la fusión trabajan por fondo. Compartir autoridades cambiaría la arquitectura. El mismo Wikidata en dos fondos ya los enlaza en el RDF (`owl:sameAs`). | La misma institución se describe dos veces si aparece en dos fondos. |
+| Mecanismo sin versión (VOC-07) | «desconocida» · versión vacía con alerta | **Versión vacía, marcada, con alerta** | Inventar un valor mezcla ejecuciones distintas bajo un mismo mecanismo y aparenta un dato que no existe. La forma SHACL `pr:Mechanism` deja ver el hueco en la conformidad. | Una exportación con ese mecanismo sale «no conforme» hasta completar la versión. Es lo honesto. |
+| Datos abiertos sin sesión (INS-01) | Abrir siempre · interruptor del administrador | **Interruptor, apagado** (decisión de la autora) | Lo gobierna una persona responsable y se enciende solo con HTTPS y un dominio. | Mientras esté apagado, los datos abiertos no son abiertos. |
+| URI estables (INS-01) | Confiar en la configuración · exigir dominio y fijar la base | **Exigir dominio y registrar la base**; cambiarla pide confirmación | Una URI publicada con la IP del servidor deja de existir al pasar a un dominio. | Encender la publicación exige configurar el dominio antes. |
+| SPARQL (INS-04) | Almacén de tripletas (Oxigraph, Fuseki) · rdflib en memoria sobre el grafo público | **rdflib sobre el grafo público del fondo** | Sin servicios nuevos ni costo. La fuente es siempre la exportación filtrada, nunca la base. | Lento con fondos muy grandes. Por eso hay límites de 10 segundos y 10 000 resultados. |
+| IIIF (INS-05) | Servidor IIIF Image (Cantaloupe) · manifiesto Presentation con imágenes estáticas · nada | **Manifiesto Presentation 3.0 con las páginas PNG del visor** | Cualquier visor IIIF (Mirador, Universal Viewer) abre la descripción sin otro servidor. | Sin zoom profundo ni mosaicos. Las páginas son las del visor (tamaño máximo limitado). |
+| Validación EAD3 y EAC-CPF (INS-05) | Generar sin validar · validar contra el XSD oficial | **Validar contra el XSD de la SAA** (copiado en `app/recursos/esquemas`) y no entregar lo que no valida | Una exportación que no valida no sirve para intercambiar. | Si la SAA publica otra versión del esquema, hay que actualizar la copia. |
+| Índice Ley 1712 (INS-08) | Manual · generado desde las declaraciones de derechos | **Generado** con las columnas del Decreto 1081 de 2015 | El dato ya existe (fundamento, plazo, acceso). Generarlo evita que el índice y la realidad diverjan. | El «objetivo legítimo» sale de la nota de la declaración: hay que escribirla al declarar. |
+| FUID (INS-06) | Encabezado fijo · elegible al exportar | **Elegible al exportar** (objeto, entidades, firmas) | Cada transferencia tiene su remitente, su objeto y sus firmas. | Lo que no se diligencia sale en blanco, como en el formato en papel. |

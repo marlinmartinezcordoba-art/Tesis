@@ -97,3 +97,8 @@ class RecursoDocumental(Base):
     carpeta = Column(String(30), nullable=True)
     folios = Column(Integer, nullable=True)  # ISAD(G) 3.1.5 volumen; RiC-A35 Record Resource Extent
     soporte = Column(String(40), nullable=True)  # ISAD(G) 3.1.5; RiC-A05 Carrier Type del original (papel…)
+    # Resto del FUID (Acuerdo 042 de 2002; hallazgo INS-06): otras unidades de
+    # conservación y la frecuencia de consulta (alta, media, baja, ninguna).
+    tomo = Column(String(30), nullable=True)
+    otra_unidad = Column(String(60), nullable=True)
+    frecuencia_consulta = Column(String(10), nullable=True)

@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.descripcion import (
-    ESQUEMA_EXTERNO, ESQUEMA_IDENTIFICADOR, ESTATUTO_JURIDICO, TIPO_HITO, TIPO_LUGAR, TIPO_NOMBRE_ENTIDAD,
+    ESQUEMA_EXTERNO, ESQUEMA_IDENTIFICADOR, ESTADO_ELABORACION, ESTATUTO_JURIDICO, TIPO_FUNCION, TIPO_HITO, TIPO_LUGAR, TIPO_NOMBRE_ENTIDAD,
     EntidadVocabulario, Hito, IdentificadorEntidad, NombreEntidad, Relacion,
 )
 from app.models.recurso_documental import RecursoDocumental
@@ -45,8 +45,16 @@ class ErrorAutoridad(Exception):
 
 # Campos que se pueden editar por clase. El nombre base no: cambiarlo pasa
 # por la verificación de duplicados del módulo de descripción.
+# Área de control de ISAAR 5.4 e ISDF 5.4 (hallazgos VOC-01 y VOC-03): estado
+# de elaboración, institución responsable, lenguas y escrituras, notas de
+# mantenimiento (además de reglas y fuentes).
+CAMPOS_CONTROL = ("reglas", "fuentes", "estado_elaboracion", "institucion_responsable", "lenguas", "escrituras",
+                  "notas_mantenimiento")
 CAMPOS_AGENTE = ("version", "existencia_edtf", "historia", "estatuto_juridico", "estructura", "contexto_general",
-                 "reglas", "fuentes")
+                 *CAMPOS_CONTROL)
+# Función (ISDF; hallazgo VOC-03): tipo, código de clasificación (skos:notation),
+# fechas, historia (nota de alcance) y el área de control.
+CAMPOS_FUNCION = ("tipo_funcion", "codigo_clasificacion", "existencia_edtf", "historia", *CAMPOS_CONTROL)
 CAMPOS_LUGAR = ("latitud", "longitud", "tipo_lugar", "historia")
 CAMPOS_GENERALES = ("historia",)  # actividad, tipo de actividad, mandato: una nota de alcance
 # Regla de retención (TRD): años en gestión y en central, disposición final y
@@ -54,13 +62,16 @@ CAMPOS_GENERALES = ("historia",)  # actividad, tipo de actividad, mandato: una n
 CAMPOS_REGLA = ("retencion_gestion_anios", "retencion_central_anios", "disposicion_final", "historia")
 
 # Área de descripción de ISAAR: con uno solo de estos campos, la ficha deja
-# de ser «mínima».
+# de ser «mínima» y pasa a «parcial»; es «completa» con fechas de
+# existencia, historia, al menos otro elemento del área y las fuentes.
 AREA_DESCRIPCION = ("existencia_edtf", "historia", "estatuto_juridico", "estructura", "contexto_general")
 
 
 def campos_de(e: EntidadVocabulario) -> tuple[str, ...]:
     if e.clase == "agente":
         return CAMPOS_AGENTE
+    if e.clase == "tipo_actividad":
+        return CAMPOS_FUNCION
     if e.clase == "lugar":
         return CAMPOS_LUGAR
     if e.clase == "regla":
@@ -79,6 +90,26 @@ def _texto(valor, maximo: int | None = None) -> str | None:
     return valor or None
 
 
+def _codigos(campo: str, valor) -> list[str] | None:
+    """Lenguas (ISO 639-3) o escrituras (ISO 15924) del registro de autoridad."""
+    from app.servicios import isadg
+    from app.servicios.motor import idiomas_validos
+
+    if valor in (None, "", []):
+        return None
+    lista = valor if isinstance(valor, list) else [x for x in str(valor).replace(";", ",").split(",")]
+    lista = [str(x).strip() for x in lista if str(x).strip()]
+    if campo == "lenguas":
+        limpios = idiomas_validos(lista)
+        if len(limpios) != len(lista):
+            raise ErrorAutoridad("Las lenguas se indican con su código ISO 639-3 (spa, lat, eng…).")
+        return limpios or None
+    try:
+        return isadg.escrituras_validas(lista)
+    except isadg.ErrorIsadg as exc:
+        raise ErrorAutoridad(str(exc)) from exc
+
+
 def _numero(valor, minimo: float, maximo: float, nombre: str) -> float | None:
     if valor in (None, ""):
         return None
@@ -92,13 +123,23 @@ def _numero(valor, minimo: float, maximo: float, nombre: str) -> float | None:
 
 
 def recalcular_nivel(db: Session, e: EntidadVocabulario) -> str:
-    """«completo» en cuanto el área de descripción tiene al menos un dato
-    (un campo o un hito de la línea de tiempo); si no, «minimo»."""
-    if e.clase != "agente":
+    """ISAAR 5.4.5 / ISDF 5.4.5 (hallazgo VOC-01): «minimo» sin datos del área
+    de descripción; «parcial» con alguno; «completo» con fechas de existencia,
+    historia, al menos otro elemento (estatuto, estructura, contexto o un
+    hito; en una función, su tipo y su código) y las fuentes."""
+    if e.clase not in ("agente", "tipo_actividad"):
         return e.nivel_detalle
-    tiene = any(getattr(e, c) for c in AREA_DESCRIPCION) or db.scalar(
-        select(Hito.id).where(Hito.agente_id == e.id, Hito.estado == "vigente").limit(1)) is not None
-    e.nivel_detalle = "completo" if tiene else "minimo"
+    if e.clase == "agente":
+        hitos = db.scalar(select(Hito.id).where(Hito.agente_id == e.id, Hito.estado == "vigente").limit(1)) is not None
+        alguno = any(getattr(e, c) for c in AREA_DESCRIPCION) or hitos
+        otro = any(getattr(e, c) for c in ("estatuto_juridico", "estructura", "contexto_general")) or hitos
+    else:
+        alguno = any(getattr(e, c) for c in ("tipo_funcion", "codigo_clasificacion", "existencia_edtf", "historia"))
+        otro = bool(e.tipo_funcion and e.codigo_clasificacion)
+    if e.existencia_edtf and e.historia and otro and e.fuentes:
+        e.nivel_detalle = "completo"
+    else:
+        e.nivel_detalle = "parcial" if alguno else "minimo"
     return e.nivel_detalle
 
 
@@ -151,6 +192,22 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
             nuevos[campo] = valor or None if campo == "disposicion_final" else valor
         elif campo in ("version", "reglas"):
             nuevos[campo] = _texto(valor, 120 if campo == "version" else 200)
+        elif campo == "estado_elaboracion":
+            v = _texto(valor)
+            if v and v not in ESTADO_ELABORACION:
+                raise ErrorAutoridad("El estado de elaboración es borrador, revisado o definitivo.")
+            nuevos[campo] = v
+        elif campo == "tipo_funcion":
+            v = _texto(valor)
+            if v and v not in TIPO_FUNCION:
+                raise ErrorAutoridad("El tipo es función, subfunción, proceso, actividad o transacción (ISDF 5.1.1).")
+            nuevos[campo] = v
+        elif campo == "codigo_clasificacion":
+            nuevos[campo] = _texto(valor, 40)
+        elif campo == "institucion_responsable":
+            nuevos[campo] = _texto(valor, 300)
+        elif campo in ("lenguas", "escrituras"):
+            nuevos[campo] = _codigos(campo, valor)
         else:
             nuevos[campo] = _texto(valor, 20000)
     if e.clase == "agente" and e.subtipo == "mecanismo":
@@ -191,8 +248,8 @@ def agregar_nombre(db: Session, e: EntidadVocabulario, *, tipo: str, nombre: str
         raise ErrorAutoridad("Tipo de forma del nombre desconocido.")
     if tipo == "historica" and e.clase != "lugar":
         raise ErrorAutoridad("Los nombres históricos se registran en los lugares.")
-    if tipo != "historica" and e.clase not in ("agente", "lugar"):
-        raise ErrorAutoridad("Las formas del nombre se registran en agentes y lugares.")
+    if tipo != "historica" and e.clase not in ("agente", "lugar", "tipo_actividad"):
+        raise ErrorAutoridad("Las formas del nombre se registran en agentes, lugares y funciones.")
     nombre = _texto(nombre, 300)
     if not nombre:
         raise ErrorAutoridad("Falta el nombre.")
@@ -401,6 +458,15 @@ VINCULOS: dict[str, Vinculo] = {
     # validados por subtipo: «agente:persona» admite solo personas.
     "ocupa_cargo": Vinculo("occupies_or_occupied", None, "asociacion", ("agente:persona",), ("agente:cargo",), False,
                            False, "ocupa u ocupó el cargo", "es o fue ocupado por"),
+    # Parentesco (ISAAR 5.3.2; rico:hasFamilyAssociationWith, hallazgo VOC-02), tipado por el rol.
+    "progenitor_de": Vinculo("has_family_association_with", "progenitor", "asociacion", ("agente:persona",),
+                             ("agente:persona",), False, False, "es padre o madre de", "es hijo o hija de"),
+    "hermano_de": Vinculo("has_family_association_with", "hermano", "asociacion", ("agente:persona",),
+                          ("agente:persona",), False, False, "es hermano o hermana de", "es hermano o hermana de"),
+    "conyuge_de": Vinculo("has_family_association_with", "conyuge", "asociacion", ("agente:persona",),
+                          ("agente:persona",), False, False, "es o fue cónyuge de", "es o fue cónyuge de"),
+    "familiar_de": Vinculo("has_family_association_with", None, "asociacion", ("agente:persona",),
+                           ("agente:persona",), False, False, "tiene parentesco con", "tiene parentesco con"),
     "miembro": Vinculo("has_or_had_member", None, "asociacion", GRUPOS_VOCABULARIO, ("agente:persona",), False,
                        False, "tiene o tuvo como miembro a", "es o fue miembro de"),
     "dirige": Vinculo("is_or_was_leader_of", None, "asociacion", ("agente:persona",), GRUPOS_VOCABULARIO, False,
@@ -549,7 +615,8 @@ def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str
     if any(getattr(x, "estado", "activa") != "activa" for x in (origen, destino) if isinstance(x, EntidadVocabulario)):
         raise ErrorAutoridad("No se vincula una entidad fusionada; use la definitiva.")
     if _fila_vigente(db, v, origen.id, destino.id) or (
-            v.codigo == "is_agent_associated_with_agent" and _fila_vigente(db, v, destino.id, origen.id)):
+            v.codigo == "is_agent_associated_with_agent" and _fila_vigente(db, v, destino.id, origen.id)) or (
+            v.rol in ("hermano", "conyuge") and _fila_vigente(db, v, destino.id, origen.id)):
         raise ErrorAutoridad("Ese vínculo ya existe.")
     if v.unico_superior and _superiores(db, v, destino.id):
         raise ErrorAutoridad("Esta entidad ya tiene un superior directo; anule ese vínculo antes de declarar otro.")
@@ -718,8 +785,13 @@ def ficha(db: Session, e: EntidadVocabulario) -> dict:
         "clase_rico": f"rico:{ric_o.clase_de('entidad_vocabulario', clase=e.clase, subtipo=e.subtipo)}",
         "control": {
             "identificador_registro": str(e.id),
-            "reglas": e.reglas or (REGLAS_POR_DEFECTO if e.clase == "agente" else None),
-            "nivel_detalle": e.nivel_detalle if e.clase == "agente" else None,
+            "reglas": e.reglas or (REGLAS_POR_DEFECTO if e.clase == "agente" else
+                                   "ISDF, 1.ª edición (Consejo Internacional de Archivos, 2007)"
+                                   if e.clase == "tipo_actividad" else None),
+            "nivel_detalle": e.nivel_detalle if e.clase in ("agente", "tipo_actividad") else None,
+            "estado_elaboracion": e.estado_elaboracion, "institucion_responsable": e.institucion_responsable,
+            "lenguas": e.lenguas or [], "escrituras": e.escrituras or [],
+            "notas_mantenimiento": e.notas_mantenimiento,
             # Creación y última revisión: de auditoría, nunca capturadas a mano.
             "creada_en": e.creado_en,
             "revisada_en": eventos[-1] if eventos else None,
