@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from app.models.auditoria import RegistroAuditoria
 
 # Módulos del sistema, tal como aparecen en la auditoría.
-MODULOS = ("autenticacion", "ingesta", "descripcion", "vocabularios", "instrumentos", "preservacion", "auditoria", "sistema")
+MODULOS = ("autenticacion", "ingesta", "descripcion", "vocabularios", "instrumentos", "preservacion", "auditoria", "sistema",
+           "evaluacion")
 
 
 class Accion:

@@ -3,6 +3,7 @@
 from app.db.base import Base  # noqa: F401
 from app.models.alerta import Alerta  # noqa: F401
 from app.models.auditoria import RegistroAuditoria  # noqa: F401
+from app.models.evaluacion import Anotacion, Calificacion, Evaluacion, EvaluacionDocumento, Exposicion  # noqa: F401
 from app.models.hallazgo import EtiquetaVersionPrompt, HallazgoConformidad  # noqa: F401
 from app.models.descripcion import (  # noqa: F401
     Actividad, EntidadVocabulario, Fecha, Relacion, SugerenciaFusion, TrabajoDescripcion, TrabajoInstanciacion,

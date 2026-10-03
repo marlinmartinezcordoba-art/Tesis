@@ -61,6 +61,7 @@ export interface Desglose {
 export const MODULO_NOMBRE: Record<string, string> = {
   autenticacion: "Autenticación", ingesta: "Ingesta", descripcion: "Descripción", vocabularios: "Vocabularios",
   instrumentos: "Instrumentos", preservacion: "Preservación", auditoria: "Auditoría", sistema: "Sistema",
+  evaluacion: "Evaluación",
 };
 
 export const MOTIVO_CIERRE: Record<string, string> = {

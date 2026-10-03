@@ -13,6 +13,7 @@ export const ICONOS: Record<string, ReactNode> = {
   instrumentos: <svg viewBox="0 0 24 24" {...trazo}><path d="M6 4h9l3 3v13H6z" /><path d="M9 12h6M9 15h6M9 9h3" /></svg>,
   preservacion: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 3l7 3v6c0 4.5-3 7-7 9-4-2-7-4.5-7-9V6z" /></svg>,
   auditoria: <svg viewBox="0 0 24 24" {...trazo}><path d="M4 19V5m5 14V9m5 10V12m5 7V6" /></svg>,
+  evaluacion: <svg viewBox="0 0 24 24" {...trazo}><path d="M9 4h6v3H9zM7 6H5v14h14V6h-2" /><path d="M8.5 13.5l2.2 2.2 4.8-4.8" /></svg>,
   alerta: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17.5v.01" /></svg>,
   usuarios: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="8" r="3.2" /><path d="M5 20c1-4 4.5-6 7-6s6 2 7 6" /></svg>,
 };
@@ -23,6 +24,7 @@ interface Entrada {
   icono: string;
   grupo: "trabajo" | "sistema";
   modulo: Modulo | "usuarios";
+  tipo?: "leer" | "escribir";
 }
 
 // Solo aparecen los módulos ya construidos; cada módulo nuevo se agrega
@@ -36,6 +38,8 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion" },
   { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria" },
+  // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración.
+  { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
   { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios" },
 ];
 
@@ -143,7 +147,7 @@ function AvisoAlertas() {
 export function Marco({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
-  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo));
+  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo));
   const grupos: [string, Entrada[]][] = [
     ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
     ["Sistema", visibles.filter((e) => e.grupo === "sistema")],

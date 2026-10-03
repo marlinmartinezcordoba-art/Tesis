@@ -437,3 +437,7 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .visor-pagina { position: relative; user-select: none; touch-action: none; cursor: crosshair; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
 .visor-pagina img { display: block; width: 100%; height: auto; pointer-events: none; }
 .zona-recorte { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); pointer-events: none; }
+
+/* Evaluación ciega: documento y descripción lado a lado; en pantallas angostas, uno debajo del otro. */
+.evaluacion-columnas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { .evaluacion-columnas { grid-template-columns: 1fr; } }

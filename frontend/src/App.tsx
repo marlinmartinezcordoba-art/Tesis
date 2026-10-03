@@ -5,6 +5,7 @@ import { puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Alertas } from "@/pages/Alertas";
 import { Auditoria, TrazabilidadEntidad } from "@/pages/Auditoria";
+import { EvaluacionCiega } from "@/pages/Evaluacion";
 import { DefinirContrasena } from "@/pages/DefinirContrasena";
 import { Descripcion } from "@/pages/Descripcion";
 import { EspacioTrabajo } from "@/pages/EspacioTrabajo";
@@ -60,6 +61,7 @@ export default function App() {
       <Route path="/preservacion/instanciacion/:id" element={<Protegida modulo="preservacion"><InstanciacionPreservacion /></Protegida>} />
       <Route path="/preservacion/configuracion" element={<Protegida permitir={(u) => u.es_administrador}><ConfiguracionPreservacion /></Protegida>} />
       <Route path="/auditoria" element={<Protegida modulo="auditoria"><Auditoria /></Protegida>} />
+      <Route path="/evaluacion" element={<Protegida modulo="descripcion" tipo="escribir"><EvaluacionCiega /></Protegida>} />
       <Route path="/auditoria/entidad/:tipo/:id" element={<Protegida modulo="auditoria"><TrazabilidadEntidad /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />

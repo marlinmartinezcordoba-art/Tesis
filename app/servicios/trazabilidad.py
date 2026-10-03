@@ -85,6 +85,17 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
     "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
     "hallazgo_creado": ("Registró un hallazgo de conformidad", "Hallazgos de conformidad"),
+    "evaluacion_creada": ("Creó una evaluación ciega", "Evaluación"),
+    "documentos_agregados": ("Agregó documentos a una evaluación", "Evaluación"),
+    "propuestas_generadas": ("Generó las propuestas del motor para una evaluación", "Evaluación"),
+    "evaluacion_iniciada": ("Inició una evaluación", "Evaluación"),
+    "evaluacion_cerrada": ("Cerró una evaluación", "Evaluación"),
+    "anotacion_iniciada": ("Empezó a describir un documento de una evaluación", "Evaluación"),
+    "anotacion_enviada": ("Envió la descripción de un documento de una evaluación", "Evaluación"),
+    "anotacion_anulada": ("Anuló una anotación de una evaluación", "Evaluación"),
+    "propuesta_vista": ("Vio la propuesta del motor en una evaluación", "Evaluación"),
+    "calificacion_registrada": ("Calificó una propuesta del motor con la rúbrica", "Evaluación"),
+    "resultados_consultados": ("Consultó los resultados de una evaluación", "Evaluación"),
     "hallazgo_actualizado": ("Cambió el estado o la acción de un hallazgo", "Hallazgos de conformidad"),
     "version_prompt_etiquetada": ("Puso nombre a una versión de la instrucción del motor", "Administración"),
     "conformidad_rico_validada": ("Validó la conformidad con RiC-O (OWL y SHACL)", "Instrumentos generados"),
@@ -164,7 +175,7 @@ def _nombres(db: Session) -> dict:
 # Qué permiso de módulo hace falta para ver la historia de cada tipo de entidad.
 MODULO_DE_ENTIDAD = {
     "recurso_documental": "descripcion", "instanciacion": "ingesta", "entidad_vocabulario": "vocabularios",
-    "hallazgo": "usuarios", "version_prompt": "usuarios",
+    "hallazgo": "usuarios", "version_prompt": "usuarios", "evaluacion": "usuarios",
     "sugerencia_fusion": "vocabularios", "trabajo_descripcion": "descripcion",
     "usuario": "usuarios", "rol": "usuarios", "sesion": "usuarios", "parametro": "usuarios", "alerta": None,
 }
