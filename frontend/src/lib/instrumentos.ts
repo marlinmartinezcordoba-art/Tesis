@@ -84,9 +84,12 @@ export interface Inventario {
 export interface Indice {
   fondo: { id: string; titulo: string };
   grupos: {
-    clase: "agente" | "lugar" | "forma_documental";
+    clase: string;
     total: number;
-    letras: { letra: string; entidades: { id: string; nombre: string; subtipo: string | null; documentos: number }[] }[];
+    letras: { letra: string; entidades: {
+      id: string; nombre: string; subtipo: string | null; documentos: number;
+      descripciones: { id: string; titulo: string; nivel: string }[];
+    }[] }[];
   }[];
 }
 

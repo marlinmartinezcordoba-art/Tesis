@@ -331,3 +331,19 @@ def test_resumen_del_fondo_y_coherencia_de_fechas(cliente, db, fondo_descrito, a
     db.commit()
     lector = cliente.get("/api/instrumentos/resumen", headers=consulta, params={"fondo_id": str(fondo.id)}).json()
     assert lector["descripciones"] == 2 and lector["archivos"] == 0
+
+
+def test_el_indice_de_consulta_no_cuenta_lo_reservado(cliente, db, fondo_descrito, archivista, consulta, admin):
+    f = fondo_descrito
+    db.add(DeclaracionDerechos(fondo_id=f["fondo"].id, entidad_tipo="recurso_documental", entidad_id=f["exp48"].id,
+                               base="estatuto", acceso="reservado", reproduccion="no_permitida",
+                               fundamento="Ley 1712 de 2014, art. 19", creada_por_id=admin.id))
+    db.commit()
+
+    def alcaldia(quien):
+        datos = cliente.get("/api/instrumentos/indice", headers=quien, params={"fondo_id": str(f["fondo"].id)}).json()
+        return next(e for g in datos["grupos"] for x in g["letras"] for e in x["entidades"] if e["nombre"] == ALCALDIA)
+
+    assert alcaldia(archivista)["documentos"] == 3
+    lector = alcaldia(consulta)
+    assert lector["documentos"] == 1 and [d["titulo"] for d in lector["descripciones"]] == [EXP49]

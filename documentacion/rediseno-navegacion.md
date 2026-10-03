@@ -266,3 +266,23 @@ Pedidos después de usar la versión 1 en una pantalla de 600 px de alto.
 | El grafo en pantalla completa se cortaba y no se podía bajar | El lienzo se ajusta al **alto de la ventana** (`calc(100vh − …)`), en vista normal y en pantalla completa; en pantalla completa se oculta el título para ganar espacio | Medía 600 px fijos: en una pantalla de 600 px de alto no cabía |
 | Instrumentos mostraba tarjetas que repetían los submódulos | Se quitaron. En su lugar, en la portada del fondo: **Resumen del fondo**. Muestra la composición por nivel y los archivos, los productores, los lugares más citados y las formas documentales. **Avisa si las fechas de los documentos quedan fuera de las fechas extremas declaradas del fondo** (`GET /api/instrumentos/resumen`) | Las tarjetas eran redundantes con el árbol (desviación consciente de §9 del prompt). El resumen aporta información que no está en ninguna otra pantalla |
 | ¿Panel consolidado y Mi trazabilidad son lo mismo? | **No son lo mismo**: uno es el registro de cada acción propia y el otro, un resumen por persona y por semana. Se **unificaron en una sola entrada, «Trazabilidad»**, con dos modos: «Mis acciones» y «Equipo por semana». El segundo solo se ofrece a quien ve toda la auditoría | Son dos miradas sobre lo mismo, la trazabilidad; dos entradas del menú lo hacían parecer duplicado. Auditoría pasa de 4 a 3 vistas |
+
+### Índice y Vocabulario: uno para consultar, otro para trabajar (versión 1.2)
+
+**Pedido de la autora:** «el índice y el vocabulario son lo mismo; si uno es interno y otro para consulta, sepáralos».
+
+**Diagnóstico del perfil de consulta**, recorrido con un usuario de prueba en el entorno de desarrollo:
+- ya no veía Vocabularios: solo tiene lectura del catálogo;
+- veía **Inventario** y **Guía**, que solo decían «Su rol puede consultar el catálogo, pero no generar instrumentos»: dos pantallas vacías;
+- el **Índice** listaba términos con «0 documentos» y sus nombres no llevaban a ningún documento;
+- los conteos se calculaban desde la base completa, sin la regla de visibilidad.
+
+| Decisión | Qué se hizo |
+|---|---|
+| Separar los dos instrumentos | **Vocabularios** es la herramienta interna: fichas ISAAR, fusiones, sugerencias. El **Índice** es la puerta de consulta por nombres: solo lo ve **quien no tiene acceso a Vocabularios** (el perfil de consulta). Así el equipo interno no ve los mismos términos dos veces |
+| Un índice que sirva para consultar | Cada término se despliega en **los documentos que lo citan**, y cada documento abre su ficha. Tiene buscador por nombre. Un término sin documentos visibles **no se lista**: no es un punto de acceso, y se sigue administrando en Vocabularios |
+| La misma visibilidad en todos los instrumentos | El índice cuenta solo lo publicado y, para quien no es archivista, nada clasificado ni reservado. Es la misma regla del grafo y de la exportación RiC-O |
+| Pantallas que el perfil no puede usar | **Inventario** y **Guía** solo aparecen a quien puede generar instrumentos |
+| El menú del perfil de consulta | El grupo se llama «Consulta del archivo», no «Trabajo archivístico» |
+
+**Hallazgo para la autora.** El **Catálogo** muestra una unidad documental cuya serie superior sigue en **borrador**: «Oficio 210», bajo la serie «Permisos». La exportación RiC-O, el grafo y el índice no la muestran, porque cuelga de un nivel sin publicar. El catálogo sí la muestra, saltándose ese nivel. Hay que decidir una regla: publicar la serie, o que el catálogo tampoco la muestre mientras su nivel superior esté en borrador.

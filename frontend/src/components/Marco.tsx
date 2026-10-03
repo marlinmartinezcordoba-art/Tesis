@@ -50,8 +50,14 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
     { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" }] },
   { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "catalogo", nombre: "Catálogo" }, { vista: "grafo", nombre: "Grafo" }, { vista: "inventario", nombre: "Inventario" },
-    { vista: "guia", nombre: "Guía" }, { vista: "indice", nombre: "Índice" }, { vista: "rico", nombre: "RiC-O" }] },
+    { vista: "catalogo", nombre: "Catálogo" }, { vista: "grafo", nombre: "Grafo" },
+    // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
+    { vista: "inventario", nombre: "Inventario", permitir: (u) => puede(u, "instrumentos", "escribir") },
+    { vista: "guia", nombre: "Guía", permitir: (u) => puede(u, "instrumentos", "escribir") },
+    // El índice es la puerta de consulta por nombres; el equipo interno trabaja
+    // los mismos términos en Vocabularios, así que no lo ve dos veces.
+    { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") },
+    { vista: "rico", nombre: "RiC-O" }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
@@ -100,7 +106,9 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
   }, [actual?.ruta]);
 
   const grupos: [string, Entrada[]][] = [
-    ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
+    // Para quien solo consulta (sin acceso a ningún módulo de trabajo) el grupo se llama «Consulta».
+    [MODULOS_TRABAJO.some((m) => m !== "instrumentos" && puede(usuario, m)) ? "Trabajo archivístico" : "Consulta del archivo",
+      visibles.filter((e) => e.grupo === "trabajo")],
     ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
   ];
   // Abrir un módulo cierra el que estaba abierto; tocar el abierto lo cierra.

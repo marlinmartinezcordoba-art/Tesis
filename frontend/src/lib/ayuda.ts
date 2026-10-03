@@ -143,8 +143,10 @@ const GUIAS: Record<string, Guia> = {
   "instrumentos:indice": {
     titulo: "Instrumentos · Índice",
     pasos: [
-      { titulo: "Los términos del fondo, en orden alfabético.",
-        texto: "Agrupados por tipo, con cuántos documentos cita cada uno. Pulse un término para ir a su ficha en Vocabularios." },
+      { titulo: "Busque por nombre.",
+        texto: "Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Escriba en el buscador para filtrar." },
+      { titulo: "Toque un término para ver sus documentos.",
+        texto: "Se despliegan los documentos publicados que lo citan; cada uno abre su ficha." },
       { titulo: "Solo puntos de acceso del contenido.",
         texto: "Los programas del sistema (mecanismos) no aparecen aquí." },
     ],

@@ -13,6 +13,7 @@ import { IDIOMAS } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 import { ExportacionRico } from "@/components/ExportacionRico";
 import { useVista } from "@/components/Marco";
+import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
@@ -431,40 +432,76 @@ function Guia({ fondo, puede }: { fondo: { id: string; titulo: string }; puede: 
 
 // --- Índice -------------------------------------------------------------------------------------
 
-function Indice({ fondo }: { fondo: { id: string; titulo: string } }) {
-  const { usuario } = useSesion();
-  const veVocabulario = tienePermiso(usuario, "vocabularios");
+// Índice de consulta: cada término lleva a los documentos que lo citan
+// (lo que el lector puede ver). La gestión de los términos es interna y
+// vive en Vocabularios.
+function Indice({ fondo, abrir }: { fondo: { id: string; titulo: string }; abrir: (id: string) => void }) {
   const [datos, setDatos] = useState<DatosIndice | null>(null);
   const [error, setError] = useState("");
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     pedir<DatosIndice>(`/api/instrumentos/indice?fondo_id=${fondo.id}`).then(setDatos)
       .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el índice."));
   }, [fondo.id]);
 
+  const filtro = q.trim().toLowerCase();
+  const grupos = (datos?.grupos || []).map((g) => ({
+    ...g,
+    letras: g.letras.map((l) => ({ ...l, entidades: l.entidades.filter((e) => !filtro || e.nombre.toLowerCase().includes(filtro)) }))
+      .filter((l) => l.entidades.length),
+  })).filter((g) => g.letras.length);
+
   return (
     <>
       <h1>Índice</h1>
-      <p className="sub">Vista de consulta, generada desde el vocabulario ya consolidado del fondo.</p>
+      <p className="sub">Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Toque un
+        término para ver los documentos que lo citan.</p>
       {error && <div className="aviso error">{error}</div>}
       {!datos && !error && <div className="cargando">Cargando…</div>}
-      {datos?.grupos.filter((g) => g.total > 0 || ["agente", "lugar", "forma_documental"].includes(g.clase)).map((g) => (
+      {datos && (
+        <div className="filtros">
+          <input className="entrada" type="search" placeholder="Buscar un nombre en el índice…" aria-label="Buscar en el índice"
+                 value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      )}
+      {datos && grupos.length === 0 && (
+        <div className="tarjeta">
+          <EstadoVacio icono="lista" titulo={filtro ? "Ningún término coincide con la búsqueda" : "El índice todavía está vacío"}
+                       texto={filtro ? undefined : "Se llena a medida que se publican descripciones que citan agentes, lugares o formas documentales."}
+                       accion={filtro ? { texto: "Limpiar búsqueda", alHacer: () => setQ("") } : undefined} />
+        </div>
+      )}
+      {grupos.map((g) => (
         <div className="tarjeta" key={g.clase}>
-          <div className="tarjeta-cab">{CLASE_NOMBRE_PLURAL[g.clase]} · {g.total}</div>
-          {g.total === 0 && <div className="vacio">Sin entradas.</div>}
+          <div className="tarjeta-cab">{CLASE_NOMBRE_PLURAL[g.clase as keyof typeof CLASE_NOMBRE_PLURAL] || g.clase} · {g.letras.reduce((n, l) => n + l.entidades.length, 0)}</div>
           {g.letras.map((l) => (
             <div key={l.letra} className="grupo-letra">
               <div className="letra">{l.letra}</div>
               <div>
                 {l.entidades.map((e) => (
-                  <div className="fila" key={e.id}>
-                    <div className="fila-principal">
-                      <div className="nombre">
-                        {veVocabulario ? <Link to={`/vocabularios/${e.id}`}>{e.nombre}</Link> : e.nombre}
-                        {e.subtipo && <span className="meta"> · {SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}
+                  <div key={e.id}>
+                    <button type="button" className="fila fila-boton" aria-expanded={abierto === e.id}
+                            onClick={() => setAbierto(abierto === e.id ? null : e.id)}>
+                      <div className="fila-principal">
+                        <div className="nombre">
+                          {e.nombre}
+                          {e.subtipo && <span className="meta"> · {SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <span className="meta">{e.documentos} documento{e.documentos === 1 ? "" : "s"}</span>
+                      <span className="meta">{e.documentos} documento{e.documentos === 1 ? "" : "s"} {abierto === e.id ? "▴" : "▾"}</span>
+                    </button>
+                    {abierto === e.id && (
+                      <ul className="documentos-termino">
+                        {e.descripciones.map((d) => (
+                          <li key={d.id}>
+                            <span className="insignia acento">{NIVEL_NOMBRE[d.nivel] || d.nivel}</span>
+                            <button type="button" className="enlace" onClick={() => abrir(d.id)}>{d.titulo}</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>
@@ -536,7 +573,7 @@ function ResumenFondo({ fondoId }: { fondoId: string }) {
 const PROPOSITO: Partial<Record<Pestana, [string, string]>> = {
   inventario: ["Para control interno.", "El inventario documental (FUID) dice qué hay, dónde está físicamente (caja, carpeta, folios) y en qué soporte: es la herramienta de quien custodia el fondo."],
   guia: ["Para un lector externo.", "La guía presenta el fondo en prosa a quien no lo conoce: su productor, su contenido y cómo se organiza, sin detalle unidad por unidad."],
-  indice: ["Para buscar rápido por nombre.", "El índice reúne los agentes, lugares y formas documentales del vocabulario del fondo, en orden alfabético, con cuántos documentos los citan."],
+  indice: ["Para buscar rápido por nombre.", "El índice es la puerta de consulta por nombres: cada agente, lugar o forma documental lleva a los documentos publicados que lo citan."],
   rico: ["Para verificar la correspondencia con la ontología.", "La vista RiC-O entrega el fondo como datos enlazados y comprueba que cada clase y propiedad exista en RiC-O 1.1: es la evidencia técnica de conformidad."],
 };
 
@@ -594,7 +631,7 @@ export function Instrumentos() {
           )}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
-          {pestana === "indice" && <Indice fondo={nivel.fondo} />}
+          {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} />}
           {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
           <Proposito vista={pestana} />
           {pestana === "grafo" && (

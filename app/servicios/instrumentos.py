@@ -511,23 +511,35 @@ def guia_docx(db: Session, fondo: RecursoDocumental, texto: str) -> bytes:
 # --- Índice de términos -------------------------------------------------------------------------
 
 
-def indice(db: Session, fondo: RecursoDocumental) -> dict:
+def indice(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False) -> dict:
+    """Índice de consulta: cada punto de acceso lleva a los documentos que el
+    lector puede ver (publicados y, para quien no es archivista, no
+    clasificados ni reservados). Un término sin documentos visibles no es
+    un punto de acceso y no se lista: eso queda en Vocabularios."""
+    from app.servicios.grafo import _Contexto
+
     # Los mecanismos (los programas que actúan en el sistema: el motor,
     # Siegfried, Ghostscript) no son puntos de acceso del contenido del
     # fondo: se administran en Vocabularios, pero no van al índice.
     activas = db.scalars(select(EntidadVocabulario).where(
         EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
         or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
-    conexiones = vocabulario.conexiones_de(db, [e.id for e in activas])
+    visibles = {i: r for i, r in _Contexto(db, fondo, ver_restringidos).recursos.items() if i != fondo.id}
+    por_entidad = vocabulario._documentos_por_entidad(db, [e.id for e in activas])
     grupos = []
     for clase in ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"):
-        entidades = sorted((e for e in activas if e.clase == clase), key=lambda e: (e.nombre_normalizado, e.nombre))
         letras = defaultdict(list)
-        for e in entidades:
+        total = 0
+        for e in sorted((e for e in activas if e.clase == clase), key=lambda e: (e.nombre_normalizado, e.nombre)):
+            docs = sorted((visibles[i] for i in por_entidad.get(e.id, ()) if i in visibles), key=lambda r: r.titulo)
+            if not docs:
+                continue
+            total += 1
             inicial = (e.nombre_normalizado[:1] or "#").upper()
             letras[inicial if inicial.isalpha() else "#"].append(
-                {"id": str(e.id), "nombre": e.nombre, "subtipo": e.subtipo, "documentos": conexiones[e.id]})
-        grupos.append({"clase": clase, "total": len(entidades),
+                {"id": str(e.id), "nombre": e.nombre, "subtipo": e.subtipo, "documentos": len(docs),
+                 "descripciones": [{"id": str(r.id), "titulo": r.titulo, "nivel": r.nivel} for r in docs]})
+        grupos.append({"clase": clase, "total": total,
                        "letras": [{"letra": k, "entidades": v} for k, v in sorted(letras.items())]})
     return sin_campos_internos({"fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "grupos": grupos})
 

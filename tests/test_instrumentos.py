@@ -283,9 +283,13 @@ def test_indice_agrupa_por_tipo_y_ordena_alfabeticamente(cliente, db, fondo_desc
     assert [g["clase"] for g in datos["grupos"]] == ["agente", "lugar", "forma_documental", "actividad",
                                                      "tipo_actividad", "mandato"]
     agentes = datos["grupos"][0]
-    assert [x["letra"] for x in agentes["letras"]] == ["A", "C", "G", "Z"]
+    # Solo son puntos de acceso los términos que llevan a documentos publicados.
+    assert [x["letra"] for x in agentes["letras"]] == ["A", "G"]
     assert [e["nombre"] for x in agentes["letras"] for e in x["entidades"]] == [
-        "Ábrego, Luis", "Alcaldía Municipal", "concejo municipal", "Gobernador del Departamento", "Zapata, Ana"]
+        "Alcaldía Municipal", "Gobernador del Departamento"]
+    alcaldia = agentes["letras"][0]["entidades"][0]
+    assert alcaldia["documentos"] == 3 and {d["titulo"] for d in alcaldia["descripciones"]} == {
+        "Correspondencia 1949", "Oficio N.º 114", "Oficio N.º 115"}  # el borrador no cuenta
     assert datos["grupos"][1]["letras"][0]["entidades"][0]["nombre"] == "Boyacá"
 
 

@@ -15,8 +15,7 @@ const TODO = { ingesta: "escribir", descripcion: "escribir", vocabularios: "escr
 const ADMIN: UsuarioBreve = { id: "1", nombre: "Marlín", correo: "m@x.co", rol: "administrador", rol_nombre: "Administrador",
   iniciales: "MM", es_administrador: true, permisos: TODO };
 const CONSULTA: UsuarioBreve = { ...ADMIN, rol: "consulta", rol_nombre: "Consulta", es_administrador: false,
-  permisos: { ingesta: "leer", descripcion: "leer", vocabularios: "leer", instrumentos: "leer", preservacion: "leer",
-    catalogo: "leer", auditoria: "propia" } };
+  permisos: { catalogo: "leer", auditoria: "propia" } };
 
 function Ubicacion() {
   const l = useLocation();
@@ -55,7 +54,7 @@ describe("árbol de submódulos", () => {
     // Sin ?vista, la primera vista del módulo es la activa.
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Vocabulario");
     fireEvent.click(rama("Instrumentos"));
-    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "Índice", "RiC-O"]);
+    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O"]);
     expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("false");
     expect(vistasVisibles("Vocabularios")).toEqual([]);
     // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
@@ -100,5 +99,15 @@ describe("árbol de submódulos", () => {
     montar("/evaluacion");
     expect(screen.queryByRole("button", { name: "Evaluación" })).toBeNull();
     expect(screen.getByRole("link", { name: "Evaluación" })).toBeTruthy();
+  });
+
+  it("el perfil de consulta ve el índice y no lo que no puede usar; el equipo interno usa Vocabularios", () => {
+    // Consulta: catálogo, grafo, índice y RiC-O; sin inventario ni guía (se generan) y sin Vocabularios.
+    expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo", "Índice", "RiC-O"]);
+    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O"]);
+    montar("/instrumentos?vista=indice", CONSULTA);
+    expect(screen.queryByRole("link", { name: "Vocabulario" })).toBeNull();
+    expect(screen.getByText("Consulta del archivo")).toBeTruthy();
+    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Índice");
   });
 });

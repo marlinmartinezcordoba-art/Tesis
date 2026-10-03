@@ -147,8 +147,9 @@ def resumen(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: S
 
 
 @router.get("/indice", summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
-def indice(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
-    return instrumentos.indice(db, fondo_o_404(db, fondo_id))
+def indice(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    return instrumentos.indice(db, fondo_o_404(db, fondo_id),
+                               actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
 
 
 # --- Inventario --------------------------------------------------------------------------------
