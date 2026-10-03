@@ -10,13 +10,16 @@ Se construyen uno a la vez; cada uno se valida antes de empezar el siguiente.
 
 | Módulo | Estado | Documento |
 |---|---|---|
-| Autenticación y autorización (transversal) | Entregado; cierre transversal con los siete módulos pendiente de validación (rol revisor provisional) | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
-| 1 · Ingesta y digitalización | Entregado | [documentacion/modulo-1-ingesta.md](documentacion/modulo-1-ingesta.md) |
-| 2 · Descripción multinivel asistida por IA (v2: EDTF, actividad y mandato, decisiones de IA) | Entregado, pendiente de validación | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
-| 3 · Vocabularios y control de autoridad | Entregado | [documentacion/modulo-3-vocabularios.md](documentacion/modulo-3-vocabularios.md) |
-| 4 · Generación de instrumentos de descripción | Entregado | [documentacion/modulo-4-instrumentos.md](documentacion/modulo-4-instrumentos.md) |
-| 5 · Preservación digital (v2: segunda copia, PREMIS, AIP BagIt) | Entregado, pendiente de validación | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) · anexo: [AIP de ejemplo](documentacion/anexos/aip-ejemplo/) |
-| Auditoría (transversal) | Entregado, pendiente de validación · incluye la prueba de extremo a extremo de los siete módulos | [documentacion/modulo-auditoria.md](documentacion/modulo-auditoria.md) |
+| Autenticación y autorización (transversal) | Entregado | [documentacion/modulo-autenticacion.md](documentacion/modulo-autenticacion.md) |
+| 1 · Ingesta y digitalización (v1.1: confianza del OCR) | Entregado, pendiente de validación | [documentacion/modulo-1-ingesta.md](documentacion/modulo-1-ingesta.md) |
+| 2 · Descripción multinivel asistida por IA (v3: parte documental, idioma, condiciones, secuencia, custodia, sub-actividad, contexto de vocabulario) | Entregado, pendiente de validación | [documentacion/modulo-2-descripcion.md](documentacion/modulo-2-descripcion.md) |
+| 3 · Vocabularios y control de autoridad (v2: ISAAR-CPF completo, lugar ampliado, funciones SKOS, mecanismos) | Entregado, pendiente de validación | [documentacion/modulo-3-vocabularios.md](documentacion/modulo-3-vocabularios.md) |
+| 4 · Instrumentos de descripción, con la **exportación RiC-O 1.1** (Turtle, JSON-LD, URI `/id/…`, conformidad OWL + SHACL) | Entregado, pendiente de validación | [documentacion/modulo-4-instrumentos.md](documentacion/modulo-4-instrumentos.md) · anexo: [exportación de ejemplo](documentacion/anexos/rico-ejemplo/) |
+| 5 · Preservación digital (v2.2: segunda copia, PREMIS, AIP BagIt, agentes mecanismo) | Entregado, pendiente de validación | [documentacion/modulo-5-preservacion.md](documentacion/modulo-5-preservacion.md) · anexo: [AIP de ejemplo](documentacion/anexos/aip-ejemplo/) |
+| Auditoría (transversal, v7: hallazgos de conformidad, propiedad RiC-O, versión de la instrucción) | Entregado, pendiente de validación · incluye la prueba de extremo a extremo | [documentacion/modulo-auditoria.md](documentacion/modulo-auditoria.md) |
+| Evaluación ciega (objetivo 3 de la tesis) | Entregado; el método lo debe validar la autora | [documentacion/modulo-evaluacion.md](documentacion/modulo-evaluacion.md) |
+
+**Conformidad con RiC-O 1.1:** todo nombre de clase y de propiedad sale de un único mapeo (`app/servicios/ric_o.py`), verificado contra el OWL oficial incluido en el repositorio (`app/recursos/ric-o/`). La verificación es una prueba automática. El detalle de cada decisión está en [documentacion/anexos/verificacion-ric-o-1-1.md](documentacion/anexos/verificacion-ric-o-1-1.md).
 
 ## Arquitectura
 
@@ -37,7 +40,7 @@ export DATABASE_URL=postgresql+psycopg2://ricora:ricora@localhost:5432/ricora RI
 cd frontend && npm install && npm run dev        # interfaz en :5173
 ```
 
-Para las pruebas se necesita PostgreSQL con un usuario que pueda crear bases de datos:
+Para las pruebas (282) se necesita PostgreSQL con un usuario que pueda crear bases de datos, y Siegfried, Tesseract y Ghostscript instalados (las pruebas usan las herramientas reales):
 
 ```bash
 .venv/bin/python -m pytest tests
