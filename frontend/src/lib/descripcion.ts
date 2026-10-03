@@ -46,8 +46,10 @@ export const SUBTIPO_NOMBRE: Record<string, string> = { ...SUBTIPO_AGENTE, ...SU
 
 export const ROL_NOMBRE: Record<string, string> = {
   productor: "Productor",
+  autor: "Autor (persona, grupo o cargo)",
   remitente: "Remitente",
   destinatario: "Destinatario",
+  acumulador: "Acumulador",
   mencionado: "Mencionado",
   custodio: "Custodio (distinto del productor)",
 };

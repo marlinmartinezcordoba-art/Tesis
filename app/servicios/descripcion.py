@@ -9,6 +9,8 @@ Relaciones que crea (catálogo curado, códigos oficiales RiC-CM 1.0):
 | Productor                    | has_creator (R027)                     | documento → agente    |
 | Remitente                    | has_sender (R031)                      | documento → agente    |
 | Destinatario                 | has_addressee (R032)                   | documento → agente    |
+| Autor (persona, grupo, cargo)| has_author (R079), solo un documento   | documento → agente    |
+| Acumulador                   | has_accumulator (R028)                 | documento → agente    |
 | Agente o lugar mencionado    | has_or_had_subject (R019)              | documento → entidad   |
 | Fecha de creación            | is_creation_date_of (R080)             | fecha → documento     |
 | Actividad documentada        | documents (R033)                       | documento → actividad |
@@ -63,11 +65,16 @@ TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
 from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
 SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
 
+ROLES_AGENTE = ("productor", "autor", "remitente", "destinatario", "acumulador", "mencionado", "custodio")
+
 # (tipo, rol) → (código RiC, categoría amplia, sentido)
 RELACION_POR_ROL = {
     ("agente", "productor"): ("has_creator", "procedencia"),
     ("agente", "remitente"): ("has_sender", "procedencia"),
     ("agente", "destinatario"): ("has_addressee", "procedencia"),
+    # Brecha 8 de la auditoría de especialización: autoría y acumulación.
+    ("agente", "autor"): ("has_author", "procedencia"),
+    ("agente", "acumulador"): ("has_accumulator", "procedencia"),
     ("agente", "mencionado"): ("has_or_had_subject", "asociacion"),
     # Quien tiene o tuvo la custodia sin haberlo producido (RiC-R039i).
     ("agente", "custodio"): ("has_or_had_holder", "procedencia"),
@@ -364,9 +371,9 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
             continue
 
         if e.tipo == "agente":
-            if e.rol not in ("productor", "remitente", "destinatario", "mencionado", "custodio"):
-                raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, remitente, destinatario, mencionado "
-                                       "o custodio.")
+            if e.rol not in ROLES_AGENTE:
+                raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, autor, remitente, destinatario, "
+                                       "acumulador, mencionado o custodio.")
             if e.subtipo not in SUBTIPOS_AGENTE and e.reutilizar_id:
                 existente = db.get(EntidadVocabulario, uuid.UUID(str(e.reutilizar_id)))
                 e.subtipo = existente.subtipo if existente is not None else None
@@ -383,6 +390,14 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
         if e.tipo == "tipo_actividad" and not any(x.tipo == "actividad" and x.tipo_clave == e.clave for x in entidades):
             raise ErrorDescripcion(f"El tipo de actividad «{e.valor}» no está asignado a ninguna actividad: "
                                    "asígneselo a una o descártelo. Un documento no se conecta a un tipo en abstracto.")
+        if e.tipo == "agente" and e.rol == "autor":
+            # RiC-O 1.1: rico:hasAuthor va de un Record a una persona, un grupo o un cargo.
+            if recurso.nivel != "unidad_documental":
+                raise ErrorDescripcion("El autor se declara en una unidad documental: en RiC, la autoría es de un "
+                                       "documento, no de una agrupación ni de una parte. Para el conjunto, use productor.")
+            if e.subtipo not in ("persona", "grupo", "cargo"):
+                raise ErrorDescripcion(f"«{e.valor}» no puede ser autor: en RiC el autor es una persona, un grupo o un "
+                                       "cargo. Una entidad corporativa o una familia van como productor.")
         nodo = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
         db.flush()
         if e.clave:

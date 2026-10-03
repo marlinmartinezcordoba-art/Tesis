@@ -154,3 +154,23 @@ pr:Language a sh:NodeShape ;
     sh:property [
         sh:path rico:identifier ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[a-z]{3}$" ;
         sh:message "Un idioma se identifica con su código ISO 639-3." ] .
+
+# --- Relation (auditoría de especialización, brecha 1) -------------------------
+# Toda relación exportada tiene su nodo: con su fuente y su destino, y con la
+# certeza solo si la propuso el motor de análisis.
+
+pr:Relation a sh:NodeShape ;
+    sh:targetClass rico:Relation ;
+    sh:property [ sh:path rico:relationHasSource ; sh:minCount 1 ] ;
+    sh:property [ sh:path rico:relationHasTarget ; sh:minCount 1 ] ;
+    sh:property [ sh:path rico:relationCertainty ; sh:maxCount 1 ;
+                  sh:pattern "^(alta|media|baja) " ;
+                  sh:message "La certeza de una relación es alta, media o baja, con la confianza del motor." ] ;
+    sh:property [ sh:path rico:relationSource ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+# --- Extent (brecha 2) -----------------------------------------------------------
+
+pr:Extent a sh:NodeShape ;
+    sh:targetClass rico:Extent ;
+    sh:property [ sh:path rico:quantity ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ] ;
+    sh:property [ sh:path rico:unitOfMeasurement ; sh:minCount 1 ; sh:maxCount 1 ] .

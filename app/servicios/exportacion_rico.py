@@ -12,10 +12,17 @@ Qué se exporta:
   lugares, actividades, tipos de actividad (como esquema SKOS), mandatos,
   formas documentales, fechas y la línea de tiempo de los agentes.
 
+La procedencia de cada relación sí sale (auditoría de especialización,
+brecha 1): cada relación tiene su nodo rico:Relation con su fuente
+(rico:relationSource: persona o motor de análisis, y el fragmento citado si
+el archivo del que sale no está restringido), su certeza
+(rico:relationCertainty, solo si la propuso el motor y nadie la corrigió) y
+su estado (rico:relationState, si su vigencia dice que terminó o sigue).
+
 Qué no se exporta nunca:
-- la procedencia del dato (origen, confianza, motor, fragmento citado): la
-  regla de procedencia del sistema;
-- el motor de análisis y la procedencia de cada dato. Los agentes
+- la procedencia de cada atributo de una entidad (la confianza del alcance,
+  de los idiomas…): RiC-O no tiene dónde ponerla fuera de una relación;
+- el motor de análisis como agente. Los agentes
   mecanismo que actuaron sobre un archivo exportado (el identificador de
   formato, el conversor a PDF/A) sí salen, como rico:Mechanism con su
   versión (rico:technicalCharacteristics) y la acción técnica que ejecutaron
@@ -43,6 +50,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.base import ahora
 from app.models.descripcion import EntidadVocabulario, Fecha, Hito, IdentificadorEntidad, NombreEntidad, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.preservacion import DeclaracionDerechos, Migracion
@@ -185,7 +193,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
                 if tipo != "recurso_documental" and ident not in ex.nodos:
                     ex.nodos[ident] = (tipo, None)
                     frontera.add(ident)
-            _relacion(ex, rel, extremos)
+            _relacion(db, ex, rel, extremos, incluir_restringidos)
 
     # Formas documentales y tipos de parte citados por la propia descripción
     # (no por una fila de relación).
@@ -216,7 +224,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
     for f in fechas_.values():
         _fecha(ex, f)
     for i in instancias.values():
-        _instanciacion(ex, i)
+        _instanciacion(db, ex, i)
     _acciones_tecnicas(db, ex, instancias, entidades)
     return ex
 
@@ -330,7 +338,7 @@ def _clase_de(tipo: str, nodo) -> str:
     return ric_o.clase_de(tipo)
 
 
-def _relacion(ex: Exportacion, rel: Relacion, extremos) -> None:
+def _relacion(db: Session, ex: Exportacion, rel: Relacion, extremos, incluir_restringidos: bool = False) -> None:
     p = ric_o.propiedad(rel.codigo_ric)
     (t_o, i_o, n_o), (t_d, i_d, n_d) = extremos
     if p is None:
@@ -341,22 +349,68 @@ def _relacion(ex: Exportacion, rel: Relacion, extremos) -> None:
         ex.omitidas[f"rico:{p.rico} entre clases que su dominio o rango no admiten"] += 1
         return
     ex.grafo.add((uri(i_o), RICO[p.rico], uri(i_d)))
-    clase = ric_o.clase_relacion(rel.codigo_ric, rel.rol)
-    if clase:
-        # La misma fila como nodo de relación (VOC-06): vigencia, nota y rol no se pierden.
-        g, nodo = ex.grafo, uri(rel.id)
-        g.add((nodo, RDF.type, RICO[clase]))
-        g.add((nodo, RICO[ric_o.RELACION_ORIGEN], uri(i_o)))
-        g.add((nodo, RICO[ric_o.RELACION_DESTINO], uri(i_d)))
-        if rel.fecha_edtf:
-            _periodo(ex, nodo, rel.fecha_edtf)
-        descripcion = "; ".join(x for x in (f"Rol: {rel.rol.replace('_', ' ')}" if rel.rol else None, rel.nota) if x)
-        if descripcion:
-            g.add((nodo, _a("descripcion_general"), Literal(descripcion)))
+    # La misma fila como nodo de relación (VOC-06 y brecha 1): vigencia, nota,
+    # rol, fuente, certeza y estado no se pierden. Orientado como lo define RiC-O.
+    clase = ric_o.clase_relacion(rel.codigo_ric, rel.rol) or ric_o.RELACION_GENERAL
+    fuente, destino = (i_d, i_o) if rel.codigo_ric in ric_o.RELACION_INVERTIDA else (i_o, i_d)
+    g, nodo = ex.grafo, uri(rel.id)
+    g.add((nodo, RDF.type, RICO[clase]))
+    g.add((nodo, RICO[ric_o.RELACION_ORIGEN], uri(fuente)))
+    g.add((nodo, RICO[ric_o.RELACION_DESTINO], uri(destino)))
+    g.add((nodo, RDFS.label, Literal(f"Relación {ric_o.etiqueta(rel.codigo_ric)}")))
+    if rel.fecha_edtf:
+        _periodo(ex, nodo, rel.fecha_edtf)
+    descripcion = "; ".join(x for x in (f"Rol: {rel.rol.replace('_', ' ')}" if rel.rol else None, rel.nota) if x)
+    if descripcion:
+        g.add((nodo, _a("descripcion_general"), Literal(descripcion)))
+    _procedencia_relacion(db, ex, nodo, rel, incluir_restringidos)
     if rel.codigo_ric == "has_or_had_holder" and rel.fecha_edtf:
         # RiC-O no reifica la custodia en una clase de relación con fechas: el
         # tramo queda en el sistema y la exportación lo cuenta (DES-05).
         ex.omitidas["periodo de un tramo de custodia (RiC-O no reifica la custodia)"] += 1
+
+
+def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relacion, incluir_restringidos: bool) -> None:
+    """Fuente, certeza y estado de una relación (brecha 1 de la auditoría de
+    especialización): lo que distingue una descripción asistida por IA."""
+    g = ex.grafo
+    if rel.origen == "persona":
+        fuente = "Registrada por una persona."
+    else:
+        # El motor no se nombra: no se exporta como agente (decisión anterior, que se mantiene).
+        fuente = ("Propuesta por el motor de análisis" + (", corregida" if rel.origen == "motor_editado" else "")
+                  + " y confirmada por una persona.")
+    if rel.fragmento and rel.fragmento_instanciacion_id:
+        # El fragmento sale solo si el archivo del que se tomó no está restringido:
+        # citarlo sería publicar parte de su contenido.
+        archivo = db.get(Instanciacion, rel.fragmento_instanciacion_id)
+        if archivo is not None and (incluir_restringidos or not derechos.instanciacion_restringida(db, archivo)):
+            fuente += f" Fragmento del documento: «{rel.fragmento.strip()[:300]}»."
+        else:
+            ex.omitidas["fragmento citado de un archivo restringido (la fuente de la relación sale sin él)"] += 1
+    g.add((nodo, _a("fuente_relacion"), Literal(fuente, lang="es")))
+    # La certeza es la del motor: si una persona la corrigió, ya no es su propuesta.
+    if rel.origen == "motor" and rel.confianza is not None:
+        g.add((nodo, _a("certeza_relacion"),
+               Literal(f"{ric_o.certeza(rel.confianza)} (confianza del motor: {rel.confianza:.2f})", lang="es")))
+    estado = _estado_relacion(rel.fecha_edtf)
+    if estado:
+        g.add((nodo, _a("estado_relacion"), Literal(estado, lang="es")))
+
+
+def _estado_relacion(edtf: str | None) -> str | None:
+    """«terminada» si su vigencia acabó; «vigente» si empezó y no tiene fin."""
+    if not edtf:
+        return None
+    try:
+        f = fechas.interpretar(edtf)
+    except fechas.FechaInvalida:
+        return None
+    if f.fin is not None and f.fin < ahora().date():
+        return "terminada"
+    if f.subtipo == "rango" and f.inicio is not None and f.fin is None:
+        return "vigente"
+    return None
 
 
 # --- Nodos ------------------------------------------------------------------------------------------
@@ -467,6 +521,9 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
         g.add((s, _a("organizacion"), Literal(r.organizacion)))
     if r.nota:
         g.add((s, _a("descripcion_general"), Literal(r.nota)))
+    if r.folios:  # ISAD-G 3.1.5, RiC-A35: el texto y el nodo con cantidad y unidad (brecha 2)
+        g.add((s, _a("extension"), Literal(f"{r.folios} folios", lang="es")))
+        _extension(ex, s, "extension_recurso", "folios", r.folios, "folios")
     if clase == "RecordSet":
         # Un solo idioma declarado: todos sus miembros; varios: algunos en cada uno (O-26).
         idioma = _apoyo("idioma_agrupacion" if len(r.idiomas or []) <= 1 else "idioma_agrupacion_parcial")[0]
@@ -620,7 +677,59 @@ def _fecha(ex: Exportacion, f: Fecha) -> None:
     ex.nodos[f.id] = ("fecha", "Date")
 
 
-def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
+def _extension(ex: Exportacion, sujeto: URIRef, clave: str, sufijo: str, cantidad: int, unidad: str) -> None:
+    """Extensión como nodo rico:Extent con cantidad legible por máquina y su
+    unidad (brecha 2), además del texto que ya se exportaba."""
+    prop, clase = _apoyo(clave)
+    nodo = URIRef(f"{sujeto}/extension/{sufijo}")
+    g = ex.grafo
+    g.add((nodo, RDF.type, clase))
+    # Forma canónica del decimal («12.0»): Turtle y JSON-LD la leen igual.
+    g.add((nodo, _a("cantidad"), Literal(f"{cantidad}.0", datatype=XSD.decimal)))
+    g.add((nodo, _a("unidad"), Literal(unidad, lang="es")))
+    g.add((nodo, RDFS.label, Literal(f"{cantidad} {unidad}", lang="es")))
+    g.add((sujeto, prop, nodo))
+
+
+def _notas_de_preservacion(db: Session, ex: Exportacion, i: Instanciacion, s: URIRef) -> None:
+    """Lo que el sistema sabe de la calidad, la autenticidad y la derivación
+    del archivo, en las propiedades de RiC-O que lo dicen (brecha 2)."""
+    from app.models.preservacion import ComprobacionTecnica, VerificacionIntegridad
+
+    g = ex.grafo
+    if i.origen_texto == "ocr" and i.confianza_ocr is not None:  # RiC-A34
+        g.add((s, _a("calidad_representacion"), Literal(
+            f"Texto obtenido por reconocimiento óptico de caracteres (OCR) con confianza media de "
+            f"{i.confianza_ocr:.0f} sobre 100" + (": baja, la transcripción puede tener errores." if i.ocr_baja_confianza
+                                                  else "."), lang="es")))
+    partes = []
+    if i.huella:
+        partes.append(f"Huella {i.algoritmo_huella} al ingresar: {i.huella}.")
+    v = db.scalar(select(VerificacionIntegridad).where(VerificacionIntegridad.instanciacion_id == i.id)
+                  .order_by(VerificacionIntegridad.fecha.desc()).limit(1))
+    if v is not None:
+        partes.append(f"Última verificación de integridad ({v.fecha:%Y-%m-%d}): copia primaria {v.resultado}; "
+                      f"segunda copia {v.segunda_copia_resultado or 'no verificada'}.")
+    c = db.scalar(select(ComprobacionTecnica).where(ComprobacionTecnica.instanciacion_id == i.id,
+                                                    ComprobacionTecnica.tipo == "validacion")
+                  .order_by(ComprobacionTecnica.realizada_en.desc()).limit(1))
+    if c is not None and c.resultado in ("conforme", "no_conforme"):
+        partes.append(f"Validación del formato con {c.herramienta} ({c.realizada_en:%Y-%m-%d}): {c.resumen}")
+    if partes:  # RiC-A03
+        g.add((s, _a("autenticidad"), Literal(" ".join(partes), lang="es")))
+    migrada = db.scalar(select(Migracion).where(Migracion.instanciacion_origen_id == i.id,
+                                                Migracion.estado == "completada", Migracion.terminada_en.is_not(None))
+                        .order_by(Migracion.terminada_en).limit(1))
+    if migrada is not None:
+        g.add((s, _a("fecha_migracion"), Literal(migrada.terminada_en.date().isoformat(), datatype=XSD.date)))
+    origen = db.scalar(select(Migracion).where(Migracion.instanciacion_resultado_id == i.id)) if i.derivada_de_id else None
+    derivada_en = (origen.terminada_en if origen is not None and origen.terminada_en else
+                   i.cargado_en if i.recorte_de_id or i.derivada_de_id else None)
+    if derivada_en is not None:
+        g.add((s, _a("fecha_derivacion"), Literal(derivada_en.date().isoformat(), datatype=XSD.date)))
+
+
+def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
     g = ex.grafo
     s = uri(i.id)
     g.add((s, RDF.type, RICO[ric_o.CLASE_NODO["instanciacion"]]))
@@ -630,6 +739,9 @@ def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
     if i.tamano_bytes is not None:
         extension = f"{i.tamano_bytes} bytes" + (f"; {i.paginas} página(s)" if i.paginas else "")
         g.add((s, _a("extension_instanciacion"), Literal(extension)))
+        _extension(ex, s, "extension_archivo", "bytes", i.tamano_bytes, "bytes")
+        if i.paginas:
+            _extension(ex, s, "extension_archivo", "paginas", i.paginas, "páginas")
     if i.soporte:  # original físico: su tipo de soporte (RiC-A05, rico:CarrierType)
         prop, clase_ap = _apoyo("tipo_soporte")
         g.add((s, prop, _concepto(ex, "tipo-de-soporte", i.soporte, clase_ap, i.soporte.replace("_", " ").capitalize())))
@@ -640,6 +752,7 @@ def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
     if i.formato_puid:
         # El formato identificado, con su ficha en el registro PRONOM.
         g.add((s, RDFS.seeAlso, URIRef(f"https://www.nationalarchives.gov.uk/PRONOM/{i.formato_puid}")))
+    _notas_de_preservacion(db, ex, i, s)
     ex.nodos[i.id] = ("instanciacion", "Instantiation")
 
 

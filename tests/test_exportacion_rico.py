@@ -167,7 +167,12 @@ def test_no_sale_nada_interno_ni_borradores_ni_mecanismos(db, fondo_rico):
     texto = exportacion_rico.serializar(ex.grafo, "turtle").decode()
     assert MOTOR_SECRETO not in texto and FRAGMENTO_SECRETO not in texto
     assert "Borrador" not in texto and "gemini-2.5-flash" not in texto and "Motor de análisis" not in texto
-    assert "0.93" not in texto and "0.41" not in texto  # confianzas
+    # Las confianzas del motor salen solo como certeza de una relación
+    # (rico:relationCertainty, brecha 1 de la auditoría de especialización);
+    # la de un atributo de una entidad (alcance, idiomas…) no sale nunca.
+    for s, p, o in ex.grafo:
+        if isinstance(o, Literal) and ("0.93" in str(o) or "0.41" in str(o)):
+            assert p == RICO.relationCertainty, (p, o)
     # Lo que RiC-O no puede decir queda contado, no se inventa.
     assert ex.omitidas["borradores sin publicar"] == 1
     assert ex.omitidas["estructura interna de un agente (sin propiedad en RiC-O)"] == 1

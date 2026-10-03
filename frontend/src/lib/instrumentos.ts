@@ -102,6 +102,8 @@ export function etiquetaRelacion(e: EntidadFicha): string {
   if (e.tipo === "actividad") return "Actividad documentada";
   if (e.codigo_ric === "has_or_had_subject") return "Trata de";
   if (e.rol === "productor" || e.codigo_ric === "has_creator") return "Producido por";
+  if (e.rol === "autor" || e.codigo_ric === "has_author") return "Autor";
+  if (e.rol === "acumulador" || e.codigo_ric === "has_accumulator") return "Acumulado por";
   if (e.rol === "remitente") return "Remitido por";
   if (e.rol === "destinatario") return "Dirigido a";
   if (e.rol === "mencionado") return "Menciona a";

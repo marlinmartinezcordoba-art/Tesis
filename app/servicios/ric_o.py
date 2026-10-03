@@ -144,6 +144,12 @@ PROPIEDADES: dict[str, Propiedad] = {
     # El OWL admite cualquier Record Resource (también un conjunto) e Instantiation.
     "has_sender": Propiedad("hasSender", "RiC-R031", RECURSOS, AGENTES, "isSenderOf"),
     "has_addressee": Propiedad("hasAddressee", "RiC-R032", RECURSOS, AGENTES, "isAddresseeOf"),
+    # Autoría y acumulación (brecha 8 de la auditoría de especialización): antes
+    # códigos reservados sin pantalla. Dominio y rango tal como los da el OWL:
+    # el autor, solo de un Record y solo una persona, un grupo o un cargo.
+    "has_author": Propiedad("hasAuthor", "RiC-R079", ("Record",), ("Person", "Group", "Position"), "isAuthorOf"),
+    "has_accumulator": Propiedad("hasAccumulator", "RiC-R028", RECURSOS + ("Instantiation",), AGENTES,
+                                 "isAccumulatorOf"),
     # Custodia: el agente que tiene o tuvo el documento sin haberlo producido.
     "has_or_had_holder": Propiedad("hasOrHadHolder", "RiC-R039i", RECURSOS + ("Instantiation",), AGENTES,
                                    "isOrWasHolderOf"),
@@ -225,9 +231,6 @@ PROPIEDADES: dict[str, Propiedad] = {
 # enumerado no se retira; tampoco se ofrecen como relación disponible. Una
 # prueba exige que todo código esté mapeado y escrito, o declarado aquí.
 CODIGOS_RESERVADOS = {
-    "has_author": "Autor intelectual (R079): el sistema registra productor, remitente y destinatario; el autor no se "
-                  "distingue todavía del productor en la descripción.",
-    "has_accumulator": "Acumulador (R028): sin pantalla para declararlo; el productor cubre el caso del fondo.",
     "has_receiver": "Receptor (R029): se cubre con el destinatario (hasAddressee, R032).",
     "has_collector": "Coleccionista (R030): el fondo no tiene colecciones facticias de un coleccionista identificado.",
     "is_or_was_holder_of": "Duplicado del sentido inverso de hasOrHadHolder (R039i), que es el que se escribe.",
@@ -307,6 +310,18 @@ ATRIBUTOS = {
     "nuevos_ingresos": ("accruals", "RiC-A01"),
     "organizacion": ("structure", "RiC-A40"),
     "caracteristicas_fisicas": ("physicalCharacteristicsNote", "RiC-A31"),
+    # Brecha 2 de la auditoría de especialización: datos que el sistema ya
+    # tenía y no decía en RiC-O. Verificados contra el OWL (dominio incluido).
+    "calidad_representacion": ("qualityOfRepresentationNote", "RiC-A34"),  # Instantiation: la confianza del OCR
+    "autenticidad": ("authenticityNote", "RiC-A03"),  # Instantiation: fijeza y validación del formato
+    "fecha_migracion": ("migrationDate", None),  # Instantiation migrada
+    "fecha_derivacion": ("derivationDate", None),  # Instantiation derivada (migración o recorte)
+    "cantidad": ("quantity", None),  # Extent
+    "unidad": ("unitOfMeasurement", None),  # Extent
+    # Brecha 1: procedencia de cada relación, en el nodo rico:Relation.
+    "certeza_relacion": ("relationCertainty", None),
+    "fuente_relacion": ("relationSource", None),
+    "estado_relacion": ("relationState", None),
 }
 
 # Relaciones entre agentes y de los mandatos como nodo de relación de RiC-O
@@ -329,17 +344,58 @@ RELACION_NARIA = {
     ("has_family_association_with", "conyuge"): "SpouseRelation",
     ("authorizes", None): "MandateRelation",
     ("regulates_or_regulated", None): "RuleRelation",
+    # Brecha 1 de la auditoría de especialización: toda relación exportada
+    # tiene su nodo, para llevar su certeza, su fuente y su estado. La clase
+    # es la más específica que RiC-O 1.1 tiene para ella (comprobada en el
+    # OWL, con su orientación); si no tiene una, la general rico:Relation.
+    ("has_creator", None): "CreationRelation",
+    ("has_author", None): "AuthorshipRelation",
+    ("has_accumulator", None): "AccumulationRelation",
+    ("includes_or_included", None): "WholePartRelation",
+    ("has_or_had_constituent", None): "WholePartRelation",
+    ("has_direct_subevent", None): "WholePartRelation",
+    ("contains_or_contained", None): "WholePartRelation",
+    ("precedes_or_preceded", None): "SequentialRelation",
+    ("has_or_had_instantiation", None): "RecordResourceToInstantiationRelation",
+    ("migrated_into", None): "MigrationRelation",
+    ("has_or_had_derived_instantiation", None): "DerivationRelation",
+    ("documents", None): "ActivityDocumentationRelation",
+    ("performs_or_performed", None): "PerformanceRelation",
+    ("has_or_had_holder", None): "RecordResourceHoldingRelation",
+    ("is_or_was_location_of", None): "PlaceRelation",
+    ("affects_or_affected", None): "EventRelation",
+    ("has_activity_type", None): "TypeRelation",
 }
+RELACION_GENERAL = "Relation"
+# Clases cuya fuente, según su definición en RiC-O, es el destino de la
+# tripleta binaria del sistema: el nodo se escribe al revés.
+#   PerformanceRelation: la actividad es la fuente (el agente, el destino).
+#   RecordResourceHoldingRelation: el agente custodio es la fuente.
+#   TypeRelation: el tipo es la fuente.
+RELACION_INVERTIDA = {"performs_or_performed", "has_or_had_holder", "has_activity_type"}
 RELACION_ORIGEN, RELACION_DESTINO = "relationHasSource", "relationHasTarget"
+
+# Certeza de una relación propuesta por el motor de análisis (relationCertainty).
+# Umbrales del sistema, no de RiC-O: la confianza del motor va de 0 a 1.
+CERTEZA = ((0.8, "alta"), (0.5, "media"), (0.0, "baja"))
 
 
 def clase_relacion(codigo: str, rol: str | None) -> str | None:
     return RELACION_NARIA.get((codigo, rol)) or RELACION_NARIA.get((codigo, None))
 
 
+def certeza(confianza: float | None) -> str | None:
+    if confianza is None:
+        return None
+    return next(nombre for umbral, nombre in CERTEZA if confianza >= umbral)
+
+
 # Propiedades de objeto hacia nodos de apoyo (no son relaciones del grafo
 # descriptivo, sino atributos que RiC-O modela como clases).
 APOYO = {
+    # Extensión como nodo con cantidad y unidad (brecha 2): además del texto.
+    "extension_recurso": ("hasExtent", RECURSOS, "RecordResourceExtent"),
+    "extension_archivo": ("hasExtent", ("Instantiation",), "InstantiationExtent"),
     "idioma_registro": ("hasOrHadLanguage", ("Record", "RecordPart", *AGENTES), "Language"),
     "idioma_agrupacion": ("hasOrHadAllMembersWithLanguage", ("RecordSet",), "Language"),
     # Varios idiomas en una agrupación: no todos los miembros están en cada uno (hallazgo O-26).
@@ -555,7 +611,7 @@ def verificar_contra_owl() -> list[str]:
     clases = set(CLASE_NIVEL.values()) | set(CLASE_AGENTE.values()) | set(CLASE_VOCABULARIO.values()) \
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
                                       "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType",
-                                      "CarrierType"}
+                                      "CarrierType", "RecordResourceExtent", "InstantiationExtent"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")
@@ -606,7 +662,7 @@ def verificar_contra_owl() -> list[str]:
         for fuera in cubre(dominio, usadas):
             problemas.append(f"{clave}: el dominio de rico:{nombre} no admite {fuera}.")
         rangos = set().union(*[_clases_de(g, r) for r in g.objects(u, RDFS.range)] or [set()])
-        if rango not in rangos:
+        if not (_ancestros(g, rango) & rangos):  # el rango o una subclase suya (InstantiationExtent ⊂ Extent)
             problemas.append(f"{clave}: el rango de rico:{nombre} no es rico:{rango}.")
     # Nodos de relación (VOC-06): la clase existe y es subclase de rico:Relation.
     for (codigo, rol), clase in RELACION_NARIA.items():
