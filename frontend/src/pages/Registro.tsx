@@ -53,6 +53,7 @@ interface Registro {
   origen_idiomas: string | null;
   condiciones_acceso: string | null;
   condiciones_uso: string | null;
+  historia_archivistica: string | null;
   tipo_parte: { id: string; nombre: string } | null;
   partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null;
             instanciaciones: { id: string; nombre: string }[] }[];
@@ -116,7 +117,7 @@ export function RegistroDescripcion() {
     setNuevas([]);
     setPartes([]);
     setCampos({ idiomas: r.idiomas, condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
-                secuencia: null });
+                historiaArchivistica: r.historia_archivistica || "", secuencia: null });
     setControl({
       codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
       folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
@@ -170,6 +171,7 @@ export function RegistroDescripcion() {
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso,
           condiciones_uso: campos.condicionesUso,
+          historia_archivistica: campos.historiaArchivistica,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           agregar_partes: partes.map(parteParaEnviar),
@@ -264,6 +266,7 @@ export function RegistroDescripcion() {
                 {registro.origen_idiomas && <span className="meta"> · {ORIGEN_NOMBRE[registro.origen_idiomas]}</span>}</dd>
               <dt>Condiciones de acceso</dt><dd>{registro.condiciones_acceso || "—"}</dd>
               <dt>Condiciones de uso</dt><dd>{registro.condiciones_uso || "—"}</dd>
+              <dt>Historia archivística</dt><dd>{registro.historia_archivistica || "—"}</dd>
               <dt>Secuencia</dt>
               <dd>{registro.secuencia.length === 0 ? "—" : registro.secuencia.map((x) => (
                 <div key={x.relacion_id}>

@@ -7,7 +7,11 @@ from app.db.base import Base, ahora
 
 # Estado de ingesta: un único campo decide qué pantalla muestra el
 # documento. Ingesta muestra los tres primeros; descripción, el cuarto.
-ESTADO_INGESTA = ("procesando", "duplicado_pendiente", "error", "listo_para_descripcion")
+# «registro_fisico»: el original en papel (u otro soporte) como Instantiation
+# sin archivo (hallazgo CM-04). No pasa por la ingesta ni por la fijeza.
+ESTADO_INGESTA = ("procesando", "duplicado_pendiente", "error", "listo_para_descripcion", "registro_fisico")
+# Tipo de soporte de un original físico (rico:CarrierType, RiC-A05).
+TIPO_SOPORTE = ("papel", "pergamino", "papel_fotografico", "microfilme", "cinta_magnetica", "disco_optico", "otro")
 ESTADOS_COLA = ("procesando", "duplicado_pendiente", "error")
 
 # Paso interno del procesamiento, solo para mostrar el avance.
@@ -32,8 +36,11 @@ class Instanciacion(Base):
     expediente_destino_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=True)
 
     nombre_original = Column(String(500), nullable=False)
-    ruta = Column(String(500), nullable=False)  # relativa a DIRECTORIO_ALMACENAMIENTO
-    tamano_bytes = Column(BigInteger, nullable=False)
+    ruta = Column(String(500), nullable=True)  # relativa a DIRECTORIO_ALMACENAMIENTO; vacía en un original físico
+    tamano_bytes = Column(BigInteger, nullable=True)
+    # Original físico: su soporte y dónde está (caja, carpeta, estante).
+    soporte = Column(String(40), nullable=True)
+    ubicacion_fisica = Column(String(300), nullable=True)
     tipo_declarado = Column(String(200), nullable=True)  # lo que dijo el navegador; no se usa para decidir nada
 
     estado = Column(Enum(*ESTADO_INGESTA, name="estado_ingesta"), nullable=False, default="procesando", index=True)

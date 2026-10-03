@@ -19,6 +19,7 @@ queda «anulado», con quién y cuándo en auditoría.
 """
 
 import uuid
+from datetime import date
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -48,6 +49,9 @@ CAMPOS_AGENTE = ("version", "existencia_edtf", "historia", "estatuto_juridico", 
                  "reglas", "fuentes")
 CAMPOS_LUGAR = ("latitud", "longitud", "tipo_lugar", "historia")
 CAMPOS_GENERALES = ("historia",)  # actividad, tipo de actividad, mandato: una nota de alcance
+# Regla de retención (TRD): años en gestión y en central, disposición final y
+# el procedimiento (en «historia»).
+CAMPOS_REGLA = ("retencion_gestion_anios", "retencion_central_anios", "disposicion_final", "historia")
 
 # Área de descripción de ISAAR: con uno solo de estos campos, la ficha deja
 # de ser «mínima».
@@ -59,6 +63,8 @@ def campos_de(e: EntidadVocabulario) -> tuple[str, ...]:
         return CAMPOS_AGENTE
     if e.clase == "lugar":
         return CAMPOS_LUGAR
+    if e.clase == "regla":
+        return CAMPOS_REGLA
     return CAMPOS_GENERALES
 
 
@@ -132,6 +138,17 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
             nuevos[campo] = _numero(valor, -90, 90, "latitud")
         elif campo == "longitud":
             nuevos[campo] = _numero(valor, -180, 180, "longitud")
+        elif campo in ("retencion_gestion_anios", "retencion_central_anios", "disposicion_final"):
+            from app.servicios import retencion
+
+            if campo != "disposicion_final" and isinstance(valor, str):  # desde un campo de texto de la ficha
+                valor = int(valor) if valor.strip().isdigit() else (None if not valor.strip() else -1)
+            try:
+                retencion.validar(valor if campo != "disposicion_final" else None,
+                                  None, valor if campo == "disposicion_final" else None)
+            except retencion.ErrorRetencion as exc:
+                raise ErrorAutoridad(str(exc)) from exc
+            nuevos[campo] = valor or None if campo == "disposicion_final" else valor
         elif campo in ("version", "reglas"):
             nuevos[campo] = _texto(valor, 120 if campo == "version" else 200)
         else:
@@ -243,7 +260,8 @@ def uri_externa(esquema: str, valor: str) -> str | None:
 
 
 def agregar_hito(db: Session, agente: EntidadVocabulario, *, tipo: str, descripcion: str, edtf: str,
-                 usuario_id: uuid.UUID, ip: str | None = None) -> Hito:
+                 usuario_id: uuid.UUID, ip: str | None = None, lugar_id: uuid.UUID | None = None,
+                 afectados: list[dict] | None = None) -> Hito:
     if agente.clase != "agente":
         raise ErrorAutoridad("La línea de tiempo institucional es de un agente.")
     if tipo not in TIPO_HITO:
@@ -255,9 +273,24 @@ def agregar_hito(db: Session, agente: EntidadVocabulario, *, tipo: str, descripc
         i = fechas.interpretar(_texto(edtf, 200) or "")
     except fechas.FechaInvalida as exc:
         raise ErrorAutoridad(str(exc)) from exc
+    lugar = db.get(EntidadVocabulario, lugar_id) if lugar_id else None
+    if lugar_id and (lugar is None or lugar.clase != "lugar" or lugar.fondo_id != agente.fondo_id):
+        raise ErrorAutoridad("El lugar del hito debe ser un lugar del vocabulario de este fondo.")
     h = Hito(fondo_id=agente.fondo_id, agente_id=agente.id, tipo=tipo, descripcion=descripcion, edtf=i.edtf,
-             inicio=i.inicio, fin=i.fin, creado_por_id=usuario_id)
+             inicio=i.inicio, fin=i.fin, creado_por_id=usuario_id, lugar_id=lugar.id if lugar else None)
     db.add(h)
+    db.flush()
+    # Un mismo hito (una fusión, el traslado de un fondo) afecta a varios
+    # agentes o descripciones: una fila affects_or_affected por cada uno.
+    for a in afectados or []:
+        tipo_a, ident = a.get("tipo"), uuid.UUID(str(a.get("id")))
+        otro = _clase_nodo(db, tipo_a, ident) if tipo_a in ("entidad_vocabulario", "recurso_documental") else None
+        if otro is None or otro.fondo_id != agente.fondo_id or otro.id == agente.id or (
+                isinstance(otro, EntidadVocabulario) and otro.clase != "agente"):
+            raise ErrorAutoridad("Cada afectado debe ser otro agente o una descripción de este fondo.")
+        db.add(Relacion(origen_tipo="hito", origen_id=h.id, destino_tipo=tipo_a, destino_id=otro.id,
+                        tipo_relacion="temporal", codigo_ric="affects_or_affected", origen="persona",
+                        confirmada_por_id=usuario_id))
     db.flush()
     antes = agente.nivel_detalle
     recalcular_nivel(db, agente)
@@ -273,9 +306,23 @@ def agregar_hito(db: Session, agente: EntidadVocabulario, *, tipo: str, descripc
 def hitos_de(db: Session, agente_id: uuid.UUID) -> list[dict]:
     filas = db.scalars(select(Hito).where(Hito.agente_id == agente_id, Hito.estado == "vigente")
                        .order_by(Hito.inicio.asc().nulls_last(), Hito.creado_en)).all()
-    return [{"id": str(h.id), "tipo": h.tipo, "descripcion": h.descripcion, "edtf": h.edtf,
-             "fecha_legible": fechas.legible(h.edtf), "clase_rico": "rico:Event",
-             "propiedad_rico": ric_o.etiqueta("affects_or_affected")} for h in filas]
+    salida = []
+    for h in filas:
+        lugar = db.get(EntidadVocabulario, h.lugar_id) if h.lugar_id else None
+        otros = db.scalars(select(Relacion).where(Relacion.origen_id == h.id, Relacion.estado == "vigente",
+                                                  Relacion.codigo_ric == "affects_or_affected")).all()
+        afectados = []
+        for r in otros:
+            otro = _clase_nodo(db, r.destino_tipo, r.destino_id)
+            if otro is not None:
+                afectados.append({"tipo": r.destino_tipo, "id": str(otro.id),
+                                  "nombre": getattr(otro, "nombre", None) or otro.titulo})
+        salida.append({"id": str(h.id), "tipo": h.tipo, "descripcion": h.descripcion, "edtf": h.edtf,
+                       "fecha_legible": fechas.legible(h.edtf), "clase_rico": "rico:Event",
+                       "propiedad_rico": ric_o.etiqueta("affects_or_affected"),
+                       "lugar": {"id": str(lugar.id), "nombre": lugar.nombre} if lugar else None,
+                       "afectados": afectados})
+    return salida
 
 
 # --- Anular un registro accesorio ---------------------------------------------------------------
@@ -321,7 +368,12 @@ class Vinculo:
     # Desde qué lado se declara en la interfaz: «origen» si la entidad que
     # se edita es el origen de la fila, «destino» si es el destino.
     se_declara_desde: str = "origen"
+    # Varios superiores, cada uno con su vigencia y sin solaparse (un
+    # municipio que fue de una provincia hasta 1886 y luego de un departamento).
+    superiores_por_vigencia: bool = False
 
+
+GRUPOS_VOCABULARIO = ("agente:grupo", "agente:entidad_corporativa", "agente:familia")
 
 VINCULOS: dict[str, Vinculo] = {
     # Agente a agente (ISAAR 5.3): jerárquica, temporal, asociativa.
@@ -331,12 +383,25 @@ VINCULOS: dict[str, Vinculo] = {
                        "tiene como sucesor a", "es sucesor de"),
     "asociado": Vinculo("is_agent_associated_with_agent", None, "asociacion", ("agente",), ("agente",), False, False,
                         "está asociado con", "está asociado con"),
+    # Persona, cargo y grupo (ISAAR 5.3; RiC-R054, R055, R056, R005, R042),
+    # validados por subtipo: «agente:persona» admite solo personas.
+    "ocupa_cargo": Vinculo("occupies_or_occupied", None, "asociacion", ("agente:persona",), ("agente:cargo",), False,
+                           False, "ocupa u ocupó el cargo", "es o fue ocupado por"),
+    "miembro": Vinculo("has_or_had_member", None, "asociacion", GRUPOS_VOCABULARIO, ("agente:persona",), False,
+                       False, "tiene o tuvo como miembro a", "es o fue miembro de"),
+    "dirige": Vinculo("is_or_was_leader_of", None, "asociacion", ("agente:persona",), GRUPOS_VOCABULARIO, False,
+                      False, "dirige o dirigió", "es o fue dirigido por"),
+    "subdivision": Vinculo("has_or_had_subdivision", None, "inclusion", GRUPOS_VOCABULARIO, GRUPOS_VOCABULARIO, True,
+                           False, "tiene o tuvo como subdivisión a", "es o fue subdivisión de"),
+    "cargo_en": Vinculo("exists_or_existed_in", None, "inclusion", ("agente:cargo",), GRUPOS_VOCABULARIO, False,
+                        False, "existe o existió en", "tiene o tuvo el cargo"),
     # Lugar de actuación de un agente (RiC-R075): se declara desde el agente.
     "lugar_agente": Vinculo("is_or_was_location_of", "actuacion", "espacial", ("lugar",), ("agente",), False, False,
                             "es o fue lugar de actuación de", "actúa o actuó en", se_declara_desde="destino"),
     # Lugar contenido en otro (RiC-R007): se declara desde el lugar contenido.
-    "lugar_superior": Vinculo("contains_or_contained", None, "espacial", ("lugar",), ("lugar",), True, True,
-                              "contiene a", "está dentro de", se_declara_desde="destino"),
+    "lugar_superior": Vinculo("contains_or_contained", None, "espacial", ("lugar",), ("lugar",), True, False,
+                              "contiene a", "está dentro de", se_declara_desde="destino",
+                              superiores_por_vigencia=True),
     # Actividad mayor y sub-actividad (rico:hasDirectSubevent): desde la sub-actividad.
     "actividad_mayor": Vinculo("has_direct_subevent", None, "inclusion", ("actividad",), ("actividad",), True, True,
                                "tiene como sub-actividad a", "es sub-actividad de", se_declara_desde="destino"),
@@ -360,6 +425,10 @@ VINCULOS: dict[str, Vinculo] = {
     # Entidad que expidió el mandato (RiC-R065): desde el mandato.
     "expedido_por": Vinculo("issued_by", None, "procedencia", ("mandato",), ("agente",), False, False,
                             "fue expedido por", "expidió"),
+    # Regla de retención (TRD) que regula la serie o subserie (R063, rol «retencion»): desde la regla.
+    "regla_serie": Vinculo("regulates_or_regulated", "retencion", "asociacion", ("regla",),
+                           ("recurso:serie,subserie",), False, True, "regula la retención de",
+                           "tiene su retención regulada por"),
     # Función ↔ serie que produce (TRD): R001, desde el tipo de actividad.
     "serie_producida": Vinculo("is_related_to", "serie_producida", "asociacion", ("tipo_actividad",),
                                ("recurso:serie,subserie",), False, False, "produce la serie", "es producida por la función"),
@@ -376,6 +445,10 @@ def _admite(clases: tuple[str, ...], nodo) -> bool:
     for c in clases:
         if c.startswith("recurso:"):
             if isinstance(nodo, RecursoDocumental) and nodo.nivel in c.split(":")[1].split(","):
+                return True
+        elif ":" in c:  # «clase:subtipo», p. ej. «agente:persona»
+            clase, subtipo = c.split(":", 1)
+            if isinstance(nodo, EntidadVocabulario) and nodo.clase == clase and nodo.subtipo == subtipo:
                 return True
         elif isinstance(nodo, EntidadVocabulario) and nodo.clase == c:
             return True
@@ -410,6 +483,30 @@ def _crearia_ciclo(db: Session, v: Vinculo, origen_id: uuid.UUID, destino_id: uu
         vistos.add(actual)
         pendientes.extend(_superiores(db, v, actual))
     return False
+
+
+def _intervalo(edtf: str | None):
+    if not edtf:
+        return None
+    i = fechas.interpretar(edtf)
+    return (i.inicio or date.min, i.fin or date.max)
+
+
+def _sin_solape(db: Session, v: Vinculo, nodo_id: uuid.UUID, vigencia: str | None) -> None:
+    """Un segundo superior solo con vigencias que no se crucen (hallazgo CM-12)."""
+    consulta = select(Relacion.fecha_edtf).where(Relacion.codigo_ric == v.codigo, Relacion.estado == "vigente",
+                                                 Relacion.destino_id == nodo_id)
+    existentes = list(db.scalars(consulta))
+    if not existentes:
+        return
+    nuevo = _intervalo(vigencia)
+    if nuevo is None or any(e is None for e in existentes):
+        raise ErrorAutoridad("Ya tiene un lugar superior. Para declarar otro, indique la vigencia de cada uno "
+                             "(por ejemplo «1857/1885» y «1886/»): un lugar no está en dos a la vez.")
+    for e in existentes:
+        a = _intervalo(e)
+        if nuevo[0] < a[1] and a[0] < nuevo[1]:
+            raise ErrorAutoridad(f"La vigencia se cruza con la de otro lugar superior ({fechas.legible(e)}).")
 
 
 def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str, con_id: uuid.UUID,
@@ -450,6 +547,8 @@ def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str
             vigencia = fechas.interpretar(fecha_edtf.strip()).edtf
         except fechas.FechaInvalida as exc:
             raise ErrorAutoridad(str(exc)) from exc
+    if v.superiores_por_vigencia:
+        _sin_solape(db, v, destino.id, vigencia)
     r = Relacion(origen_tipo=origen_tipo, origen_id=origen.id, destino_tipo=destino_tipo, destino_id=destino.id,
                  tipo_relacion=v.tipo_relacion, codigo_ric=v.codigo, rol=v.rol, origen="persona",
                  confirmada_por_id=usuario_id, fecha_edtf=vigencia, nota=_texto(nota, 500))
@@ -647,7 +746,7 @@ def ficha(db: Session, e: EntidadVocabulario) -> dict:
     if e.clase == "mandato":
         from app.servicios.descripcion import _fecha_de
 
-        salida["expedicion"] = _fecha_de(db, e.id, "is_creation_date_of")
+        salida["expedicion"] = _fecha_de(db, e.id, "is_date_associated_with")
     return salida
 
 

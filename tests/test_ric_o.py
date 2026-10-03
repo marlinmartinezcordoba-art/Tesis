@@ -77,3 +77,29 @@ def test_uri_de_la_forma_documental_es_la_del_owl():
     assert ric_o.uri("forma_documental") == "rico:hasDocumentaryFormType"
     assert ric_o.uri("has_successor") == "rico:hasSuccessor" and ric_o.uri_inversa("has_successor") == "rico:isSuccessorOf"
     assert ric_o.uri("no_existe") is None
+
+
+def test_cada_codigo_del_catalogo_esta_mapeado_y_escrito_o_reservado_con_motivo():
+    """Hallazgos CM-20 y O-33: ningún código del catálogo es un «nombre prestado» sin explicación."""
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parent.parent / "app"
+    fuente = "".join(p.read_text(encoding="utf-8") for p in raiz.rglob("*.py")
+                     if p.name not in ("enums.py", "ric_o.py"))
+    for codigo in CODIGO_RELACION_RIC:
+        if codigo in ric_o.PROPIEDADES:
+            assert f'"{codigo}"' in fuente, f"{codigo} está mapeado pero ningún servicio lo escribe"
+            assert codigo not in ric_o.CODIGOS_RESERVADOS, codigo
+        else:
+            assert len(ric_o.CODIGOS_RESERVADOS.get(codigo, "")) > 20, f"{codigo} sin mapeo ni motivo declarado"
+    assert set(ric_o.CODIGOS_RESERVADOS) <= set(CODIGO_RELACION_RIC)
+
+
+def test_el_perfil_de_cardinalidades_esta_escrito_y_documentado():
+    """CM-21: cada restricción propia frente a RiC-O, con su razón, en el código y en el anexo."""
+    from pathlib import Path
+
+    anexo = (Path(__file__).resolve().parent.parent / "documentacion" / "anexos" / "verificacion-ric-o-1-1.md").read_text()
+    for clave, (regla, razon) in ric_o.PERFIL_CARDINALIDAD.items():
+        assert len(regla) > 10 and len(razon) > 20, clave
+        assert regla in anexo, f"{clave} no está en el anexo de verificación"

@@ -4,53 +4,14 @@ como comentario la sección de la especificación funcional de la que sale,
 para no tener que volver al documento a verificar de dónde salió un valor.
 """
 
-# Documento — nivel de descripción (sección 09, bloque Documento)
-NIVEL_DOCUMENTO = ("documento_simple", "componente", "conjunto")
-
-# Documento — soporte (sección 09, bloque Documento)
-SOPORTE_DOCUMENTO = ("fisico", "digital_nativo", "digitalizado")
-
-# Instanciación — tipo de copia (sección 09, bloque Instanciación)
-TIPO_COPIA = ("master_preservacion", "copia_acceso")
-
-# La condición de acceso (Ley 1712 de 2014) vive en una sola parte: la
-# declaración de derechos (models/preservacion.py, servicios/derechos.py).
-
-# Agente — tipo de agente (sección 09, bloque Agente; subtipos de la clase
-# Agent en RiC-CM 1.0: Person (RiC-E08) y Group (RiC-E09) con CorporateBody
-# (RiC-E11) y Family (RiC-E10) como subtipos de Group, más Position
-# (RiC-E12) y Mechanism (RiC-E13) — agregados tras la revisión del estándar
-# oficial de noviembre de 2023 (ver artefacto "Alineación con RiC-CM 1.0"):
-# "cargo" es el rol funcional de una persona dentro de un grupo,
-# independiente de quién lo ocupe en cada momento (p. ej. "Secretario
-# General" como entidad propia, distinta de la persona que lo ejerce hoy);
-# "mecanismo" es un proceso o sistema — típicamente de software — que
-# realiza actividades según reglas dadas por quien lo creó, útil para
-# trazar como agente al propio motor de análisis (módulo 3) cuando importa
-# registrar qué propuso, con qué versión, y no solo guardarlo como texto
-# suelto en origen_motor.
-TIPO_AGENTE = ("persona", "entidad_corporativa", "familia", "grupo", "cargo", "mecanismo")
-
-# Agente — rol que cumple en un documento específico (usado por el prompt
-# de la clase Agente y por el criterio CC-03: solo productor o firmante
-# sustentan una relación de procedencia)
-ROL_AGENTE_EN_DOCUMENTO = ("productor", "firmante", "destinatario", "mencionado")
-
-# Actividad — tipo de función (sección 09, bloque Actividad y Función)
-TIPO_FUNCION = ("sustantiva", "de_apoyo")
-
-# Mandato — tipo de norma (sección 09, bloque Mandato y Regla)
-TIPO_NORMA = ("externa", "interna")
-
-# Fecha — tipo de fecha (sección 09, bloque Fecha)
-TIPO_FECHA = ("creacion", "tramite", "vigencia", "plazo")
-
-# Fecha — precisión (sección 09, bloque Fecha; CC-07 exige no forzar una
-# fecha exacta cuando el documento no la da)
-PRECISION_FECHA = ("exacta", "aproximada", "rango")
-
-# Lugar — tipo de lugar (sección 09, bloque Lugar)
-TIPO_LUGAR = ("pais", "departamento", "municipio", "direccion")
+# Hallazgos CM-01, CM-05, CM-16 y CM-20 de la auditoría RiC: aquí había
+# enumerados de una versión anterior de la especificación (nivel y soporte
+# del documento, tipo de copia, tipo de agente, rol del agente, tipo de
+# función, de norma, de fecha, precisión y tipo de lugar) que ningún código
+# usaba y que divergían de los vigentes. Se retiraron: cada lista controlada
+# vive una sola vez, junto a su modelo (models/descripcion.py,
+# models/recurso_documental.py) y, cuando corresponde, como restricción de
+# la base de datos.
 
 # Relación — categorías amplias de la ontología RiC-O (sección 09, bloque
 # Relación, y sección 10 sobre el motor de grafo). Cada una agrupa varios
@@ -133,8 +94,4 @@ CODIGO_RELACION_RIC = (
 # Los nombres de RiC-O de cada código (y su inversa) viven solo en
 # app/servicios/ric_o.py: ric_o.uri() y ric_o.uri_inversa().
 
-# Relación — de dónde salió la propuesta (CC-05, CC-08)
-ORIGEN_DECISION = ("propuesta_ia", "correccion_manual")
 
-# Usuario — roles del sistema (sección 07, módulo 11, RF-M11-01)
-ROL_USUARIO = ("archivista", "revisor", "consulta", "administrador")

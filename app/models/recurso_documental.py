@@ -10,7 +10,10 @@ from app.db.base import Base, ahora
 # como Record Set con su tipo y la relación de inclusión RiC-R024).
 # La parte documental (RiC-E05 Record Part: un anexo, un folio, una firma,
 # un sello) es el último nivel, por debajo de la unidad documental.
-NIVEL_DESCRIPCION = ("fondo", "seccion", "serie", "subserie", "expediente", "unidad_documental", "parte_documental")
+# La subsección (cuadro de clasificación documental colombiano, Acuerdo AGN
+# 004 de 2019) va entre la sección y la serie (hallazgo DES-08).
+NIVEL_DESCRIPCION = ("fondo", "seccion", "subseccion", "serie", "subserie", "expediente", "unidad_documental",
+                     "parte_documental")
 
 
 class RecursoDocumental(Base):
@@ -28,6 +31,9 @@ class RecursoDocumental(Base):
     nivel = Column(Enum(*NIVEL_DESCRIPCION, name="nivel_descripcion"), nullable=False, index=True)
     titulo = Column(String(300), nullable=False)
     fechas_extremas = Column(String(60), nullable=True)  # p. ej. "1930–1955", tal como se describe
+    # La misma fecha normalizada en EDTF (servicios/fechas.extremas): la que se
+    # usa para ordenar, filtrar y exportar. La de arriba queda como se escribió.
+    fechas_extremas_edtf = Column(String(200), nullable=True)
     nota = Column(Text, nullable=True)
     # Inclusión (RiC-R024 includes / is included in): nivel superior inmediato.
     incluido_en_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=True, index=True)
@@ -57,6 +63,11 @@ class RecursoDocumental(Base):
     # Siempre las decide una persona.
     condiciones_acceso = Column(Text, nullable=True)
     condiciones_uso = Column(Text, nullable=True)
+    # Historia archivística (ISAD-G 3.2.3; rico:history): cómo llegó el fondo
+    # o el documento a su custodio actual (hallazgo DES-06). Distinta de la
+    # relación puntual con el custodio (has_or_had_holder).
+    historia_archivistica = Column(Text, nullable=True)
+    origen_historia_archivistica = Column(String(20), nullable=True)
     # Tipo de una parte documental (anexo, folio, firma, sello), del vocabulario.
     tipo_parte_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     publicado_en = Column(DateTime(timezone=True), nullable=True)

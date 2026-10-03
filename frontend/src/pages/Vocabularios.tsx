@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
@@ -307,6 +307,7 @@ export function Vocabularios() {
               </div>
             )}
           </div>
+          {clase === "regla" && !fusionadas && <NuevaRegla fondoId={fondo.id} />}
           {clase === "tipo_actividad" && vistaArbol && !fusionadas ? <ArbolFunciones fondoId={fondo.id} /> : (
           <div className="tarjeta">
             <div className="tarjeta-cab">
@@ -379,5 +380,59 @@ export function Vocabularios() {
         </>
       )}
     </>
+  );
+}
+
+
+// Una regla de retención de la TRD (rico:Rule) se crea aquí y luego, desde su
+// ficha, se une a la serie o subserie que regula (hallazgos CM-18 y DES-09).
+function NuevaRegla({ fondoId }: { fondoId: string }) {
+  const navegar = useNavigate();
+  const [abierta, setAbierta] = useState(false);
+  const [datos, setDatos] = useState({ nombre: "", gestion: "", central: "", disposicion: "" });
+  const [error, setError] = useState("");
+  async function crear(ev: React.FormEvent) {
+    ev.preventDefault();
+    setError("");
+    const numero = (v: string) => (v.trim() === "" ? null : Number(v));
+    try {
+      const r = await pedir<{ entidad: { id: string } }>("/api/vocabulario/reglas", {
+        method: "POST", body: JSON.stringify({
+          fondo_id: fondoId, nombre: datos.nombre, retencion_gestion_anios: numero(datos.gestion),
+          retencion_central_anios: numero(datos.central), disposicion_final: datos.disposicion || null,
+        }),
+      });
+      navegar(`/vocabularios/${r.entidad.id}`);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo crear la regla.");
+    }
+  }
+  if (!abierta) {
+    return <button type="button" className="boton chico" style={{ marginBottom: 12 }} onClick={() => setAbierta(true)}>Nueva regla de retención</button>;
+  }
+  return (
+    <form className="tarjeta" onSubmit={crear} style={{ padding: 14, marginBottom: 12 }}>
+      <div className="rejilla">
+        <input className="entrada" required placeholder="Nombre (p. ej. «TRD Actas, 110.2»)" aria-label="Nombre de la regla"
+               value={datos.nombre} onChange={(e) => setDatos({ ...datos, nombre: e.target.value })} />
+        <input className="entrada" type="number" min={0} max={100} placeholder="Años en gestión" aria-label="Años en el archivo de gestión"
+               value={datos.gestion} onChange={(e) => setDatos({ ...datos, gestion: e.target.value })} />
+        <input className="entrada" type="number" min={0} max={100} placeholder="Años en central" aria-label="Años en el archivo central"
+               value={datos.central} onChange={(e) => setDatos({ ...datos, central: e.target.value })} />
+        <select className="selector" aria-label="Disposición final" value={datos.disposicion}
+                onChange={(e) => setDatos({ ...datos, disposicion: e.target.value })}>
+          <option value="">Disposición final…</option>
+          <option value="conservacion_total">Conservación total</option>
+          <option value="eliminacion">Eliminación</option>
+          <option value="seleccion">Selección</option>
+          <option value="medio_tecnico">Reproducción por medio técnico</option>
+        </select>
+      </div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      <div className="acciones" style={{ marginTop: 10 }}>
+        <button type="submit" className="boton chico primario">Crear regla</button>
+        <button type="button" className="boton chico" onClick={() => setAbierta(false)}>Cancelar</button>
+      </div>
+    </form>
   );
 }

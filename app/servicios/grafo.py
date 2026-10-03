@@ -17,7 +17,6 @@ La entidad raíz siempre se muestra.
 """
 
 import io
-import re
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -27,7 +26,7 @@ from rdflib import RDF, RDFS, Graph, Literal, URIRef
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.descripcion import Actividad, EntidadVocabulario, Fecha, Relacion, TrabajoDescripcion
+from app.models.descripcion import EntidadVocabulario, Hito, Fecha, Relacion, TrabajoDescripcion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.servicios import derechos, exportacion_rico, fechas, ric_o, vocabulario
@@ -48,6 +47,7 @@ FAMILIAS = {
     "Agent": "Agente (Agent)",
     "Place": "Lugar (Place)",
     "Activity": "Actividad (Activity)",
+    "Event": "Hito institucional (Event)",
     "Date": "Fecha (Date)",
     "Instantiation": "Archivo (Instantiation)",
     "DocumentaryFormType": "Forma documental (Documentary Form Type)",
@@ -62,7 +62,6 @@ _FAMILIA_NIVEL = {"unidad_documental": "Record", "parte_documental": "RecordPart
 ESTADOS = {"publicada": "Publicada", "en_edicion": "Publicada, reabierta para corregir"}
 # La única relación del catálogo sin dirección (RiC-O no distingue un extremo).
 SIMETRICAS = {"is_agent_associated_with_agent"}
-_AÑOS = re.compile(r"^\s*(\d{4})\s*(?:[–—-]\s*(\d{4}))?\s*$")
 
 
 @dataclass
@@ -135,9 +134,9 @@ class _Contexto:
         # (Date) que tiene relacionadas.
         self.fechas_recurso: dict[uuid.UUID, list[tuple[date | None, date | None]]] = defaultdict(list)
         for r in self.recursos.values():
-            m = _AÑOS.match(r.fechas_extremas or "")
-            if m:
-                self.fechas_recurso[r.id].append((date(int(m.group(1)), 1, 1), date(int(m.group(2) or m.group(1)), 12, 31)))
+            if r.fechas_extremas_edtf:  # EDTF ya validado (hallazgo DES-02)
+                i = fechas.interpretar(r.fechas_extremas_edtf)
+                self.fechas_recurso[r.id].append((i.inicio, i.fin))
         enlaces = db.execute(select(Relacion.origen_tipo, Relacion.origen_id, Relacion.destino_id).where(
             Relacion.estado == "vigente",
             or_((Relacion.origen_tipo == "fecha") & Relacion.destino_id.in_(ids),
@@ -152,13 +151,13 @@ class _Contexto:
         self._entidades: dict[uuid.UUID, EntidadVocabulario | None] = {}
         self._fechas: dict[uuid.UUID, Fecha | None] = {}
         self._instancias: dict[uuid.UUID, Instanciacion | None] = {}
-        self._actividades: dict[uuid.UUID, Actividad | None] = {}
+        self._hitos: dict[uuid.UUID, Hito | None] = {}
 
     def precargar(self, pares: list[tuple[str, uuid.UUID]]) -> None:
         """Carga en lote los nodos que aún no se conocen (un SELECT por tabla)."""
         for tipo, modelo, cache in (("entidad_vocabulario", EntidadVocabulario, self._entidades),
                                     ("fecha", Fecha, self._fechas), ("instanciacion", Instanciacion, self._instancias),
-                                    ("actividad", Actividad, self._actividades)):
+                                    ("hito", Hito, self._hitos)):
             faltan = {i for t, i in pares if t == tipo and i not in cache}
             if faltan:
                 encontrados = {x.id: x for x in self.db.scalars(select(modelo).where(modelo.id.in_(faltan)))}
@@ -224,13 +223,13 @@ class _Contexto:
                     # es la versión de conservación del original, que nunca se borra.
                     "subtitulo": "Versión de conservación" if i.derivada_de_id else i.formato_puid,
                     "estado": None, "fecha_inicio": None, "fecha_fin": None}
-        if tipo == "actividad":
+        if tipo == "hito":  # evento institucional (rico:Event), hallazgo CM-13
             self.precargar([(tipo, ident)])
-            a = self._actividades.get(ident)
-            if a is None or a.fondo_id != fid:
+            h = self._hitos.get(ident)
+            if h is None or h.fondo_id != fid or h.estado != "vigente":
                 return None
-            return {"tipo": tipo, "clase": "actividad", "familia": "Activity", "etiqueta": a.nombre, "subtitulo": None,
-                    "estado": None, "fecha_inicio": None, "fecha_fin": None}
+            return {"tipo": tipo, "clase": "hito", "familia": "Event", "etiqueta": h.descripcion,
+                    "subtitulo": fechas.legible(h.edtf), "estado": None, "fecha_inicio": h.inicio, "fecha_fin": h.fin}
         return None
 
     def vecinos(self, frontera: list[tuple[str, uuid.UUID]]) -> list[tuple]:
@@ -472,8 +471,9 @@ def _fichas(db: Session, ctx: _Contexto, tipo: str, ident: uuid.UUID) -> tuple[l
                    _campo("Páginas", i.paginas, "extension")]
         atributos = [_campo("Huella SHA-256", i.huella, "identificador"), _campo("Cargado el", i.cargado_en, "fecha")]
     else:
-        a = ctx._actividades[ident]
-        resumen, atributos = [_campo("Nombre", a.nombre, "titulo")], []
+        h = ctx._hitos[ident]
+        resumen = [_campo("Hito", h.descripcion, "titulo"), _campo("Fecha", fechas.legible(h.edtf), "fecha")]
+        atributos = [_campo("Tipo de hito", h.tipo, "nivel")]
     return [x for x in resumen if x], [x for x in atributos if x]
 
 

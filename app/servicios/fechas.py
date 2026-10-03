@@ -184,3 +184,20 @@ def legible(edtf: str | None, expresion: str | None = None) -> str | None:
         return interpretar(edtf).legible
     except FechaInvalida:
         return expresion or edtf
+
+
+_EXTREMAS = re.compile(r"^\s*(\d{4})\s*(?:(?:[–—-]|a|al|hasta|/)\s*(\d{4}))?\s*$", re.IGNORECASE)
+
+
+def extremas(texto: str | None) -> Interpretacion | None:
+    """Fechas extremas de un conjunto (fondo, serie, expediente) en EDTF
+    (hallazgos CM-01, CM-16 y DES-02): «1930–1955», «1930 a 1955»,
+    «1930-1955» o ya en EDTF («1930/1955», «1930~/1955»). Lo que no se
+    pueda interpretar se rechaza: nunca queda texto libre sin normalizar."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    m = _EXTREMAS.match(texto)
+    if m:
+        texto = f"{m.group(1)}/{m.group(2)}" if m.group(2) else m.group(1)
+    return interpretar(texto)

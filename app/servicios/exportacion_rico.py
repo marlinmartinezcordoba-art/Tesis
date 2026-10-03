@@ -54,7 +54,7 @@ RST = Namespace(ric_o.RST)
 SKOS = Namespace(ric_o.SKOS)
 LEXVO = Namespace("http://lexvo.org/id/iso639-3/")
 
-NOMBRE_NIVEL = {"fondo": "Fondo", "seccion": "Sección", "serie": "Serie", "subserie": "Subserie",
+NOMBRE_NIVEL = {"fondo": "Fondo", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
                 "expediente": "Expediente"}
 
 
@@ -203,7 +203,15 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
             entidades[sup.id] = sup
             if sup.concepto_superior_id:
                 pendientes.append(sup)
-    for e in entidades.values():
+    # El lugar de los hitos de los agentes exportados (hallazgo CM-13).
+    for lugar_id in db.scalars(select(Hito.lugar_id).where(
+            Hito.agente_id.in_([i for i, e in entidades.items() if e.clase == "agente"]), Hito.estado == "vigente",
+            Hito.lugar_id.is_not(None))).all():
+        if lugar_id not in entidades and lugar_id not in vedadas:
+            lugar = db.get(EntidadVocabulario, lugar_id)
+            if lugar is not None and lugar.estado == "activa":
+                entidades[lugar_id] = lugar
+    for e in list(entidades.values()):
         _entidad(db, ex, e, entidades)
     for f in fechas_.values():
         _fecha(ex, f)
@@ -232,8 +240,23 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
             _entidad(db, ex, m, entidades)
         return uri(m.id)
 
-    def accion(nodo, nombre, quien, archivo, cuando):
+    tipo = RICO[ric_o.PROPIEDADES["has_activity_type"].rico]
+    documenta = RICO[ric_o.PROPIEDADES["documents"].rico]
+
+    def tipo_tecnico(clave, nombre):
+        """Tipo de la acción técnica, en el mismo esquema SKOS de los tipos de actividad del fondo."""
+        concepto = _concepto(ex, "tipo-de-accion-tecnica", clave, RICO.ActivityType, nombre)
+        esquema = uri(ex.fondo.id, "tipos-de-actividad")
+        g.add((esquema, RDF.type, SKOS.ConceptScheme))
+        g.add((esquema, SKOS.prefLabel, Literal(f"Tipos de actividad (funciones) · {ex.fondo.titulo}")))
+        g.add((concepto, RDF.type, SKOS.Concept))
+        g.add((concepto, SKOS.prefLabel, Literal(nombre)))
+        g.add((concepto, SKOS.inScheme, esquema))
+        return concepto
+
+    def accion(nodo, nombre, quien, archivo, cuando, clave_tipo, nombre_tipo):
         g.add((nodo, RDF.type, RICO.Activity))
+        g.add((nodo, tipo, tipo_tecnico(clave_tipo, nombre_tipo)))
         g.add((nodo, RDFS.label, Literal(nombre)))
         g.add((nodo, _a("nombre"), Literal(nombre)))
         g.add((nodo, afecta, uri(archivo)))
@@ -246,12 +269,17 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
         if i.formato_puid or i.mecanismo_identificacion_id:
             accion(uri(i.id, "identificacion-de-formato"),
                    f"Identificación de formato de «{i.nombre_original}»" + (f" ({i.formato_puid})" if i.formato_puid else ""),
-                   mecanismo(i.mecanismo_identificacion_id), i.id, i.procesado_en or i.cargado_en)
+                   mecanismo(i.mecanismo_identificacion_id), i.id, i.procesado_en or i.cargado_en,
+                   "identificacion", "Identificación de formato")
     for m in db.scalars(select(Migracion).where(Migracion.instanciacion_origen_id.in_(list(instancias)),
                                                 Migracion.estado == "completada")).all():
         origen = instancias[m.instanciacion_origen_id]
-        accion(uri(origen.id, "migracion", m.id), f"Migración de «{origen.nombre_original}» a {m.destino_nombre}",
-               mecanismo(m.mecanismo_id), origen.id, m.terminada_en or m.aprobada_en)
+        nodo = uri(origen.id, "migracion", m.id)
+        accion(nodo, f"Migración de «{origen.nombre_original}» a {m.destino_nombre}", mecanismo(m.mecanismo_id),
+               origen.id, m.terminada_en or m.aprobada_en, "migracion", "Migración de formato")
+        # La instanciación que resultó documenta la migración (hallazgo CM-22).
+        if m.instanciacion_resultado_id in instancias:
+            g.add((uri(m.instanciacion_resultado_id), documenta, nodo))
 
 
 def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) -> set[uuid.UUID]:
@@ -306,12 +334,17 @@ def _relacion(ex: Exportacion, rel: Relacion, extremos) -> None:
     p = ric_o.propiedad(rel.codigo_ric)
     (t_o, i_o, n_o), (t_d, i_d, n_d) = extremos
     if p is None:
-        ex.omitidas[f"relación «{rel.codigo_ric}» sin propiedad en RiC-O"] += 1
+        # Código reservado del catálogo: no es que RiC-O no lo tenga (hallazgo O-33).
+        ex.omitidas[f"relación «{rel.codigo_ric}» sin mapeo en el sistema (código reservado)"] += 1
         return
     if not ric_o.uso_valido(rel.codigo_ric, _clase_de(t_o, n_o), _clase_de(t_d, n_d)):
         ex.omitidas[f"rico:{p.rico} entre clases que su dominio o rango no admiten"] += 1
         return
     ex.grafo.add((uri(i_o), RICO[p.rico], uri(i_d)))
+    if rel.codigo_ric == "has_or_had_holder" and rel.fecha_edtf:
+        # RiC-O no reifica la custodia en una clase de relación con fechas: el
+        # tramo queda en el sistema y la exportación lo cuenta (DES-05).
+        ex.omitidas["periodo de un tramo de custodia (RiC-O no reifica la custodia)"] += 1
 
 
 # --- Nodos ------------------------------------------------------------------------------------------
@@ -381,7 +414,6 @@ def _tipo_agrupacion(ex: Exportacion, nivel: str) -> URIRef:
     return nodo
 
 
-_AÑOS = re.compile(r"^\s*(\d{4})\s*(?:[–—-]\s*(\d{4}))?\s*$")
 
 
 def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
@@ -401,13 +433,14 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
     if forma and clase != "RecordSet":
         g.add((s, _apoyo("forma_documental")[0], uri(forma)))
         ex.nodos.setdefault(forma, ("entidad_vocabulario", None))
+    if r.historia_archivistica:  # ISAD-G 3.2.3 (hallazgo DES-06)
+        g.add((s, _a("historia"), Literal(r.historia_archivistica)))
     idioma = _apoyo("idioma_agrupacion" if clase == "RecordSet" else "idioma_registro")[0]
     for codigo in r.idiomas or []:
         g.add((s, idioma, _idioma(ex, codigo)))
-    if r.fechas_extremas:
-        m = _AÑOS.match(r.fechas_extremas)
-        edtf = (f"{m.group(1)}/{m.group(2)}" if m.group(2) else m.group(1)) if m else None
-        _fecha_libre(ex, s, RICO.hasCreationDate, URIRef(f"{s}/fechas-extremas"), r.fechas_extremas, edtf)
+    if r.fechas_extremas or r.fechas_extremas_edtf:
+        _fecha_libre(ex, s, RICO.hasCreationDate, URIRef(f"{s}/fechas-extremas"), r.fechas_extremas,
+                     r.fechas_extremas_edtf)
     # Jerarquía: de incluido_en_id (siempre está), no solo de las filas de relación.
     if r.id != ex.fondo.id and r.incluido_en_id in recursos:
         padre = uri(r.incluido_en_id)
@@ -447,7 +480,9 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
         g.add((s, _a("descripcion_general"), Literal(e.contexto_general)))
     if e.estructura:
         ex.omitidas["estructura interna de un agente (sin propiedad en RiC-O)"] += 1
-    if e.clase in ("agente", "actividad"):
+    if e.clase == "agente":
+        # El periodo de una actividad tiene una sola fuente: su nodo Fecha
+        # (is_date_associated_with), exportado con las relaciones (CM-14).
         _periodo(ex, s, e.existencia_edtf)
     if e.clase == "agente" and e.estatuto_juridico:
         prop, clase_ap = _apoyo("estatuto_juridico")
@@ -459,6 +494,13 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
         if e.tipo_lugar:
             prop, clase_ap = _apoyo("tipo_lugar")
             g.add((s, prop, _concepto(ex, "tipo-de-lugar", e.tipo_lugar, clase_ap, e.tipo_lugar.capitalize())))
+    if e.clase == "regla":  # regla de retención de la TRD (rico:Rule)
+        from app.servicios import retencion
+
+        prop, clase_ap = _apoyo("tipo_regla")
+        g.add((s, prop, _concepto(ex, "tipo-de-regla", "retencion", clase_ap, "Regla de retención documental (TRD)")))
+        if retencion.resumen(e):
+            g.add((s, _a("descripcion_general"), Literal(retencion.resumen(e))))
     if e.clase == "mandato" and e.subtipo:
         prop, clase_ap = _apoyo("tipo_mandato")
         g.add((s, prop, _concepto(ex, "tipo-de-mandato", e.subtipo, clase_ap, e.subtipo.capitalize())))
@@ -496,6 +538,15 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
             g.add((nodo, RDFS.label, Literal(h.descripcion)))
             g.add((nodo, RICO[ric_o.PROPIEDADES["affects_or_affected"].rico], s))
             _periodo(ex, nodo, h.edtf)
+            # Otros afectados (hallazgo CM-13), solo si también se exportan.
+            for r in db.scalars(select(Relacion).where(Relacion.origen_id == h.id, Relacion.estado == "vigente",
+                                                       Relacion.codigo_ric == "affects_or_affected")).all():
+                if r.destino_id in entidades or r.destino_id in ex.nodos:
+                    g.add((nodo, RICO[ric_o.PROPIEDADES["affects_or_affected"].rico], uri(r.destino_id)))
+                else:
+                    ex.omitidas["afectados de un hito que no se exportan"] += 1
+            if h.lugar_id and h.lugar_id in entidades:
+                g.add((uri(h.lugar_id), RICO[ric_o.PROPIEDADES["is_or_was_location_of"].rico], nodo))
     ex.nodos[e.id] = ("entidad_vocabulario", clase)
 
 
@@ -521,8 +572,14 @@ def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
     g.add((s, _a("titulo"), Literal(i.nombre_original)))
     g.add((s, RDFS.label, Literal(i.nombre_original)))
     g.add((s, _a("identificador"), Literal(f"urn:uuid:{i.id}")))
-    extension = f"{i.tamano_bytes} bytes" + (f"; {i.paginas} página(s)" if i.paginas else "")
-    g.add((s, _a("extension_instanciacion"), Literal(extension)))
+    if i.tamano_bytes is not None:
+        extension = f"{i.tamano_bytes} bytes" + (f"; {i.paginas} página(s)" if i.paginas else "")
+        g.add((s, _a("extension_instanciacion"), Literal(extension)))
+    if i.soporte:  # original físico: su tipo de soporte (RiC-A05, rico:CarrierType)
+        prop, clase_ap = _apoyo("tipo_soporte")
+        g.add((s, prop, _concepto(ex, "tipo-de-soporte", i.soporte, clase_ap, i.soporte.replace("_", " ").capitalize())))
+    if i.ubicacion_fisica:
+        ex.omitidas["ubicación física de un original (sin propiedad de dato en RiC-O para una Instantiation)"] += 1
     if i.formato_puid:
         # El formato identificado, con su ficha en el registro PRONOM.
         g.add((s, RDFS.seeAlso, URIRef(f"https://www.nationalarchives.gov.uk/PRONOM/{i.formato_puid}")))

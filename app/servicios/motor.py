@@ -334,7 +334,9 @@ def normalizar(crudo: dict, documentos: list[Documento], motor: str,
         subtipo = str(e.get("subtipo") or "").strip().lower() or None
         if tipo == "agente":
             rol = rol if rol in ROLES_AGENTE else "mencionado"
-            subtipo = subtipo if subtipo in SUBTIPOS_AGENTE else "persona"
+            # Un subtipo que el motor no sabe decir queda vacío: lo elige el
+            # archivista (hallazgo CM-05: nada se fuerza a «persona»).
+            subtipo = subtipo if subtipo in SUBTIPOS_AGENTE else None
         elif tipo == "mandato":
             subtipo = subtipo if subtipo in SUBTIPOS_MANDATO else "otro"
             rol = None

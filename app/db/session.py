@@ -14,3 +14,8 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Guardián de la tabla de relaciones (hallazgo CM-19): se registra con la
+# sesión, así toda escritura de cualquier proceso pasa por él.
+import app.servicios.integridad_ric  # noqa: E402,F401

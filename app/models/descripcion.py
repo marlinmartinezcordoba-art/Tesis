@@ -27,7 +27,10 @@ ESTADO_REVISION = ("validado",)  # solo se publica lo que una persona validó
 # (RiC-E15 Activity), el tipo de actividad es el valor controlado de esa
 # competencia (rico:ActivityType, no una entidad «Función», que no existe
 # en RiC-O) y el mandato es la norma que la regula (RiC-E17 Mandate).
-CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte")
+CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte",
+                     "regla")
+# Disposición final de la tabla de retención documental (Acuerdo AGN 004 de 2019).
+DISPOSICION_FINAL = ("conservacion_total", "eliminacion", "seleccion", "medio_tecnico")
 # «grupo» (RiC-E09 Group usado directamente): un colectivo que no es ni
 # entidad corporativa ni familia, como un comité o una junta. La nota de
 # alcance de rico:Group admite «otras clases de grupos».
@@ -103,6 +106,11 @@ class EntidadVocabulario(_Procedencia, Base):
     existencia_inicio = Column(Date, nullable=True)
     existencia_fin = Column(Date, nullable=True)
     historia = Column(Text, nullable=True)
+    # Regla de retención (rico:Rule, RiC-E16; hallazgos CM-18 y DES-09): años
+    # en el archivo de gestión y en el central, y la disposición final.
+    retencion_gestion_anios = Column(Integer, nullable=True)
+    retencion_central_anios = Column(Integer, nullable=True)
+    disposicion_final = Column(String(30), nullable=True)
     estatuto_juridico = Column(String(20), nullable=True)
     estructura = Column(Text, nullable=True)
     contexto_general = Column(Text, nullable=True)
@@ -152,7 +160,8 @@ class Fecha(_Procedencia, Base):
 class Actividad(_Procedencia, Base):
     """Tabla de la primera versión. Desde la migración 0009 las actividades
     viven en el vocabulario (clase «actividad»), con verificación de
-    duplicados; esta tabla se conserva sin uso (nada se borra)."""
+    duplicados; esta tabla se conserva sin uso (nada se borra) y ningún
+    código la lee desde el cierre de la auditoría RiC (CM-14)."""
 
     __tablename__ = "actividades"
 
@@ -164,7 +173,7 @@ class Actividad(_Procedencia, Base):
 
 # Tablas que puede conectar una relación (clave foránea polimórfica,
 # validada en el código).
-TIPOS_NODO = ("recurso_documental", "instanciacion", "entidad_vocabulario", "fecha", "actividad")
+TIPOS_NODO = ("recurso_documental", "instanciacion", "entidad_vocabulario", "fecha", "hito")
 
 
 class Relacion(_Procedencia, Base):
@@ -321,6 +330,9 @@ class Hito(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=False)
     agente_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False, index=True)
+    # Dónde ocurrió (hallazgo CM-13). Otros agentes o descripciones afectados
+    # van como filas affects_or_affected en `relaciones` (origen «hito»).
+    lugar_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     tipo = Column(Enum(*TIPO_HITO, name="tipo_hito"), nullable=False)
     descripcion = Column(String(500), nullable=False)
     edtf = Column(String(200), nullable=False)

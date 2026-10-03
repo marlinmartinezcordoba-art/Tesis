@@ -117,6 +117,149 @@ CIERRES: dict[str, Cierre] = {
          "tests/test_cierre_pre08.py::test_los_mas_viejos_se_verifican_primero",
          "tests/test_cierre_pre08.py::test_la_verificacion_atrasada_genera_alerta_y_se_resuelve_sola",
          "tests/test_preservacion.py::test_verificacion_periodica_respeta_la_frecuencia")),
+    # --- Bloque 1 · RiC-CM -----------------------------------------------------------------------
+    "CM-01": Cierre(
+        date(2026, 10, 3),
+        "Fechas extremas en EDTF validado (columna fechas_extremas_edtf; fechas.extremas rechaza lo que no se "
+        "interpreta) y exportadas desde el EDTF, sin expresión regular. El soporte del original es atributo de su "
+        "Instantiation física (CM-04); la columna soporte del Record Resource queda solo para la columna del FUID. "
+        "Se retiraron NIVEL_DOCUMENTO y SOPORTE_DOCUMENTO.",
+        ("tests/test_cierre_cm02.py::test_cuadro_de_clasificacion_sin_archivos_propios",
+         "tests/test_cierre_cm02.py::test_fondo_registra_sus_fechas_extremas_en_edtf")),
+    "CM-02": Cierre(
+        date(2026, 10, 3),
+        "Ruta POST /api/descripcion/agrupaciones: sección, subsección, serie, subserie o expediente sin archivos "
+        "propios, con productor, código y fechas. Inclusión orgánica única (incluido_en_id) más inclusiones "
+        "adicionales con rol «adicional» (POST …/inclusiones), sin ciclos.",
+        ("tests/test_cierre_cm02.py::test_cuadro_de_clasificacion_sin_archivos_propios",
+         "tests/test_cierre_cm02.py::test_inclusion_adicional_sin_tocar_la_organica")),
+    "CM-03": Cierre(
+        date(2026, 10, 3),
+        "POST …/individualizar: un documento del conjunto pasa a ser su propio Record incluido en él; su archivo deja "
+        "de ser instanciación del conjunto (la fila queda anulada, no borrada) y se describe al reabrirlo.",
+        ("tests/test_cierre_cm03_cm04.py::test_un_oficio_del_expediente_pasa_a_ser_su_propio_record",)),
+    "CM-04": Cierre(
+        date(2026, 10, 3),
+        "El original físico es una Instantiation sin archivo (estado registro_fisico, soporte como rico:CarrierType); "
+        "la digitalización y el recorte derivan de su origen con hasOrHadDerivedInstantiation (R014). Se retiró "
+        "TIPO_COPIA. has_copy e is_original_of quedan reservados con su motivo (relacionan Records, no archivos).",
+        ("tests/test_cierre_cm03_cm04.py::test_original_fisico_con_soporte_y_digitalizacion_derivada",)),
+    "CM-05": Cierre(
+        date(2026, 10, 3),
+        "Restricción de la base ck_subtipo_agente; un subtipo desconocido se rechaza (el motor ya no lo fuerza a "
+        "«persona»; al reutilizar una entidad se toma el suyo). Se retiró el enumerado duplicado TIPO_AGENTE.",
+        ("tests/test_cierre_bloque1.py::test_un_subtipo_de_agente_desconocido_se_rechaza_en_la_base",)),
+    "CM-06": Cierre(
+        date(2026, 10, 3),
+        "Vínculos «ocupa_cargo» (R054, con vigencia) y «miembro» / «dirige» (R055, R042), validados por subtipo "
+        "(«agente:persona»).",
+        ("tests/test_cierre_bloque1.py::test_persona_ocupa_un_cargo_con_vigencia_y_el_cargo_existe_en_la_alcaldia",
+         "tests/test_cierre_bloque1.py::test_grupo_y_familia_con_miembros_subdivision_y_direccion")),
+    "CM-07": Cierre(
+        date(2026, 10, 3),
+        "Miembros (R055) y subdivisiones (R005, sin ciclos) de un grupo, declarables y exportados.",
+        ("tests/test_cierre_bloque1.py::test_grupo_y_familia_con_miembros_subdivision_y_direccion",)),
+    "CM-09": Cierre(
+        date(2026, 10, 3),
+        "La familia tiene miembros (R055) y se exporta como rico:Family con sus relaciones.",
+        ("tests/test_cierre_bloque1.py::test_la_familia_y_el_cargo_se_exportan_con_su_clase_y_relaciones",)),
+    "CM-10": Cierre(
+        date(2026, 10, 3),
+        "El cargo se une a quien lo ocupa (R054, con vigencia) y al grupo donde existe (R056 existsOrExistedIn / "
+        "hasOrHadPosition), validado por subtipo.",
+        ("tests/test_cierre_bloque1.py::test_persona_ocupa_un_cargo_con_vigencia_y_el_cargo_existe_en_la_alcaldia",
+         "tests/test_cierre_bloque1.py::test_la_familia_y_el_cargo_se_exportan_con_su_clase_y_relaciones")),
+    "CM-12": Cierre(
+        date(2026, 10, 3),
+        "Varios lugares superiores con vigencia, sin solaparse; lugar de expedición (R075 isOrWasLocationOf, desde el "
+        "lugar) distinto del tema; un solo vocabulario de tipos de lugar, con restricción de la base.",
+        ("tests/test_cierre_bloque1.py::test_lugar_con_dos_superiores_en_el_tiempo_sin_solape",
+         "tests/test_cierre_cm12.py::test_lugar_de_expedicion_distinto_del_tema")),
+    "CM-13": Cierre(
+        date(2026, 10, 3),
+        "Un hito afecta a varios agentes o descripciones (filas affects_or_affected con origen «hito»), tiene lugar "
+        "(isOrWasLocationOf) y se dibuja en el grafo como Event.",
+        ("tests/test_cierre_cm13.py::test_fusion_que_afecta_a_dos_entidades_con_su_lugar",)),
+    "CM-14": Cierre(
+        date(2026, 10, 3),
+        "La verificación de actividades parecidas advierte que una actividad es un ejercicio concreto; el periodo de "
+        "la actividad tiene una sola fuente (su nodo Fecha); ningún código lee ya la tabla «actividades».",
+        ("tests/test_cierre_cm13.py::test_verificar_una_actividad_advierte_que_es_un_ejercicio_concreto",)),
+    "CM-16": Cierre(
+        date(2026, 10, 3),
+        "Fechas extremas validadas como EDTF; se retiraron TIPO_FECHA y PRECISION_FECHA. Qué fecha es entidad y cuál "
+        "atributo queda documentado en cierre-auditoria-ric.md.",
+        ("tests/test_cierre_cm02.py::test_fondo_registra_sus_fechas_extremas_en_edtf",)),
+    "CM-18": Cierre(
+        date(2026, 10, 3),
+        "Clase «regla» del vocabulario (rico:Rule, RiC-E16): la regla de retención de la TRD, unida a su serie con "
+        "regulatesOrRegulated (rol «retencion»), heredada por expedientes y documentos y exportada con su tipo.",
+        ("tests/test_cierre_cm18_des09.py::test_regla_de_retencion_regula_la_serie_y_se_hereda",
+         "tests/test_cierre_cm18_des09.py::test_la_ficha_de_la_regla_se_edita_y_valida")),
+    "CM-19": Cierre(
+        date(2026, 10, 3),
+        "Guardián before_flush (servicios/integridad_ric.py): ninguna fila de relaciones se escribe si su código no "
+        "tiene propiedad en el mapeo o su origen o destino no son de una clase que la propiedad admite. Encontró y "
+        "corrigió dos casos reales (expedición del mandato con R080; remitente o destinatario de un conjunto).",
+        ("tests/test_cierre_bloque1.py::test_el_guardian_rechaza_una_relacion_que_ric_o_no_admite",)),
+    "CM-20": Cierre(
+        date(2026, 10, 3),
+        "Cada código del catálogo está mapeado y escrito, o reservado con su motivo (ric_o.CODIGOS_RESERVADOS); se "
+        "retiraron los enumerados muertos de enums.py.",
+        ("tests/test_ric_o.py::test_cada_codigo_del_catalogo_esta_mapeado_y_escrito_o_reservado_con_motivo",)),
+    "CM-21": Cierre(
+        date(2026, 10, 3),
+        "Decisión de la autora: un superior orgánico más inclusiones adicionales; custodia como cadena con fechas. "
+        "Perfil de cardinalidades escrito en el código (ric_o.PERFIL_CARDINALIDAD) y en el anexo de verificación; "
+        "relajadas las de lugar, hito y custodia.",
+        ("tests/test_ric_o.py::test_el_perfil_de_cardinalidades_esta_escrito_y_documentado",
+         "tests/test_cierre_cm02.py::test_inclusion_adicional_sin_tocar_la_organica",
+         "tests/test_cierre_des05_des06.py::test_cadena_de_custodia_con_fechas_e_historia_archivistica")),
+    "CM-22": Cierre(
+        date(2026, 10, 3),
+        "Identificación de formato y migración se exportan como rico:Activity con su tipo (SKOS), ejercida por el "
+        "Mechanism y documentada por la instanciación resultante; en la base siguen siendo eventos PREMIS que "
+        "apuntan al mecanismo.",
+        ("tests/test_cierre_cm11.py::test_el_mecanismo_sale_con_su_version_y_su_accion_tecnica",)),
+    # --- Bloque 3 (resueltos junto con el bloque 1) ------------------------------------------------
+    "DES-02": Cierre(
+        date(2026, 10, 3),
+        "Fechas extremas de fondo y conjuntos en EDTF validado, con su expresión original al lado; migración que "
+        "normaliza las existentes.",
+        ("tests/test_cierre_cm02.py::test_fondo_registra_sus_fechas_extremas_en_edtf",)),
+    "DES-05": Cierre(
+        date(2026, 10, 3),
+        "Custodia como cadena: cada tramo con periodo EDTF y nota, desde la descripción y también sobre una "
+        "instanciación (archivo u original físico).",
+        ("tests/test_cierre_des05_des06.py::test_cadena_de_custodia_con_fechas_e_historia_archivistica",)),
+    "DES-06": Cierre(
+        date(2026, 10, 3),
+        "Campo historia_archivistica (con su origen) en la descripción, el catálogo, la ficha pública y la "
+        "exportación (rico:history).",
+        ("tests/test_cierre_des05_des06.py::test_cadena_de_custodia_con_fechas_e_historia_archivistica",)),
+    "DES-08": Cierre(
+        date(2026, 10, 3),
+        "Nivel subsección; el cuadro de clasificación se crea sin documentos; código único en el fondo y, para serie "
+        "y subserie, compuesto desde el de su superior.",
+        ("tests/test_cierre_cm02.py::test_cuadro_de_clasificacion_sin_archivos_propios",
+         "tests/test_cierre_cm02.py::test_el_codigo_de_la_serie_se_compone_desde_su_superior")),
+    "DES-09": Cierre(
+        date(2026, 10, 3),
+        "Regla de retención (gestión, central, disposición final, procedimiento) unida a la serie, heredada hacia "
+        "abajo y mostrada en la ficha del catálogo.",
+        ("tests/test_cierre_cm18_des09.py::test_regla_de_retencion_regula_la_serie_y_se_hereda",)),
+    # --- Bloque 2 (resueltos junto con el bloque 1) ------------------------------------------------
+    "O-29": Cierre(
+        date(2026, 10, 3),
+        "La expedición del mandato pasa a isDateAssociatedWith (R068) con rol «expedicion»; migración 0018 de los "
+        "datos existentes. El guardián CM-19 impide volver a escribir R080 hacia un mandato.",
+        ("tests/test_cierre_bloque1.py::test_el_guardian_rechaza_una_relacion_que_ric_o_no_admite",
+         "tests/test_descripcion_contexto.py::test_la_actividad_queda_conectada_a_su_tipo_agente_y_mandato_y_se_ve_en_el_catalogo")),
+    "O-33": Cierre(
+        date(2026, 10, 3),
+        "Códigos sin mapeo declarados como reservados con su motivo; la exportación distingue «sin mapeo en el "
+        "sistema» de «sin propiedad en RiC-O».",
+        ("tests/test_ric_o.py::test_cada_codigo_del_catalogo_esta_mapeado_y_escrito_o_reservado_con_motivo",)),
 }
 
 

@@ -65,6 +65,8 @@ export interface Ficha {
   idiomas: string[];
   condiciones_acceso: string | null;
   condiciones_uso: string | null;
+  historia_archivistica?: string | null;
+  retencion?: { resumen: string; heredada_de: { titulo: string } | null } | null;
   tipo_parte: string | null;
   partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null; instanciaciones: { id: string; nombre: string }[] }[];
   parte_de: Miga | null;
@@ -96,7 +98,7 @@ export interface Indice {
 // Cómo se lee cada relación en la ficha, en lenguaje archivístico.
 export function etiquetaRelacion(e: EntidadFicha): string {
   if (e.tipo === "fecha") return "Fecha";
-  if (e.tipo === "lugar") return "Lugar";
+  if (e.tipo === "lugar") return e.rol === "expedicion" ? "Expedido en" : "Lugar del que trata";
   if (e.tipo === "actividad") return "Actividad documentada";
   if (e.codigo_ric === "has_or_had_subject") return "Trata de";
   if (e.rol === "productor" || e.codigo_ric === "has_creator") return "Producido por";

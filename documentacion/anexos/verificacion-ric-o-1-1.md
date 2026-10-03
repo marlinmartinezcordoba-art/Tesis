@@ -90,3 +90,20 @@ Sección y subserie no tienen individuo oficial. Se declaran como conceptos prop
 | Jerarquía normativa con R063 | Un lector puede entender «la ley regula el decreto» de forma más estrecha que «el decreto desarrolla la ley». | El rol «jerarquia_normativa» queda en la base y en la interfaz. La alternativa genérica (R062) pierde la dirección; se puede cambiar en un solo lugar del código. |
 | Hito institucional con R059 | «Impacto significativo» es más fuerte que «hecho de su historia». | Marcada como general. Un hito menor que no afecte al agente no debería registrarse como hito. |
 | Función y serie con R001 | R001 no dice nada del tipo de vínculo. | Marcada como general. La relación sustantiva se reconstruye por documents + hasActivityType. |
+
+
+## Perfil de aplicación de RICORA: cardinalidades (decisión CM-21)
+
+RiC-O 1.1 no declara ninguna propiedad funcional (`owl:FunctionalProperty`). Cada «a lo sumo uno» que impone RICORA es entonces una restricción propia del sistema. La autora la decidió el 3 de octubre de 2026 y aquí queda escrita con su razón. La misma tabla vive en el código (`ric_o.PERFIL_CARDINALIDAD`), y una prueba exige que ambas coincidan.
+
+| Restricción | Razón |
+|---|---|
+| Un solo superior orgánico por descripción (incluido_en_id), más inclusiones adicionales con rol «adicional» | Principio de procedencia y orden original del cuadro de clasificación; una colección facticia se declara como inclusión adicional. |
+| Una forma documental por documento | En diplomática un documento tiene un tipo documental; dos formas son dos documentos. |
+| Una instanciación digital pertenece a un solo Record Resource | Un archivo inscribe un documento; si un conjunto mezcla documentos, cada uno se individualiza en su propio Record (CM-03). |
+| Una regla de retención vigente por serie o subserie | La TRD asigna un solo tiempo de retención y una sola disposición final por serie o subserie. |
+| Un tipo de actividad por actividad | La actividad es el ejercicio concreto de una competencia; dos competencias son dos actividades. |
+| Un concepto superior por tipo de actividad | El árbol de funciones de la TRD es un árbol (función → subfunción), no un grafo. |
+| Varios lugares superiores, cada uno con su vigencia y sin solaparse | Relajada: un municipio cambia de provincia o de estado en el tiempo. |
+| Varios agentes o descripciones afectados por un hito | Relajada: una fusión o un traslado afecta a más de una entidad. |
+| Una cadena de custodios con fechas | Relajada: la historia custodial tiene varios tramos. |

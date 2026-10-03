@@ -55,6 +55,7 @@ export const ROL_NOMBRE: Record<string, string> = {
 export const NIVEL_NOMBRE: Record<string, string> = {
   fondo: "Fondo",
   seccion: "Sección",
+  subseccion: "Subsección",
   serie: "Serie",
   subserie: "Subserie",
   expediente: "Expediente",
@@ -76,6 +77,7 @@ export interface Coincidencia {
   subtipo: string | null;
   similitud: number;
   conexiones: number;
+  aviso?: string | null;
 }
 
 export function verificarVocabulario(fondoId: string, tipo: TipoEntidad | "tipo_parte", valor: string): Promise<Coincidencia[]> {

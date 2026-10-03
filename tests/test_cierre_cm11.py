@@ -52,6 +52,8 @@ def test_el_mecanismo_sale_con_su_version_y_su_accion_tecnica(db, fondo_rico, ad
         assert (u(quien.id), RICO.performsOrPerformed, accion) in g
         assert (accion, RICO.affectsOrAffected, u(inst.id)) in g
         assert next(g.objects(accion, RICO.hasBeginningDate), None) is not None
+    # CM-22: la migración tiene su tipo y la documenta el archivo que resultó (si se exporta).
+    assert next(g.objects(migracion, RICO.hasActivityType), None) is not None
     texto = exportacion_rico.serializar(g, "turtle").decode()
     assert "Motor de análisis" not in texto  # el motor es procedencia del dato, no acción sobre el archivo
 

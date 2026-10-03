@@ -23,11 +23,11 @@ from sqlalchemy.orm import Session
 from app.models.descripcion import EntidadVocabulario, Fecha, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
-from app.servicios import alertas, consulta, motor, vocabulario
+from app.servicios import retencion, alertas, consulta, motor, vocabulario
 
-NIVEL_PLURAL = {"seccion": "secciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
+NIVEL_PLURAL = {"seccion": "secciones", "subseccion": "subsecciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
                 "unidad_documental": "unidades documentales", "parte_documental": "partes documentales"}
-NIVEL_NOMBRE = {"fondo": "Fondo", "seccion": "Sección", "serie": "Serie", "subserie": "Subserie",
+NIVEL_NOMBRE = {"fondo": "Fondo", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
                 "expediente": "Expediente", "unidad_documental": "Unidad documental",
                 "parte_documental": "Parte documental"}
 
@@ -231,6 +231,8 @@ def ficha(db: Session, recurso: RecursoDocumental, ver_restringidos: bool = True
         "control": {c: getattr(recurso, c) for c in ("codigo_referencia", "caja", "carpeta", "folios", "soporte")},
         "instanciaciones": [{**i, "preservacion": preservacion(db, i["id"])} for i in base["instanciaciones"]],
         "hijos": len(a.hijos.get(recurso.id, [])),
+        # Tiempos de retención y disposición final, propios o heredados (TRD, hallazgo DES-09).
+        "retencion": retencion.retencion_de(db, recurso),
     })
 
 
@@ -425,7 +427,7 @@ def datos_guia(db: Session, fondo: RecursoDocumental) -> dict:
     fechas extremas y los agentes y lugares más citados del vocabulario."""
     a = arbol(db, fondo)
     superiores = [a.nodos[n] for n in _en_orden(a, fondo.id)
-                  if a.nodos[n].nivel in ("fondo", "seccion", "serie", "subserie")]
+                  if a.nodos[n].nivel in ("fondo", "seccion", "subseccion", "serie", "subserie")]
     conteo = defaultdict(int)
     for n in a.nodos.values():
         conteo[n.nivel] += 1

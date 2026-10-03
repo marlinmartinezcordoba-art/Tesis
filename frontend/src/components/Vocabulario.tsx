@@ -32,6 +32,7 @@ export function PreguntaVocabulario({ valor, verificacion, alDecidir }: {
   return (
     <div className="vocab">
       <div className="q">Ya existe algo parecido a «{valor}» en el vocabulario del fondo. ¿Es la misma entidad?</div>
+      {verificacion.coincidencias[0]?.aviso && <div className="meta" style={{ margin: "4px 0 6px" }}>{verificacion.coincidencias[0].aviso}</div>}
       {verificacion.coincidencias.map((c) => (
         <div key={c.id} className="vocab-opcion">
           <span>
@@ -74,6 +75,8 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
   const [valor, setValor] = useState(inicial?.valor || "");
   const [subtipo, setSubtipo] = useState(inicial?.subtipo || (inicial?.tipo === "mandato" ? "otro" : "persona"));
   const [rol, setRol] = useState(inicial?.rol || "productor");
+  const [periodo, setPeriodo] = useState("");
+  const [nota, setNota] = useState("");
   const [fecha, setFecha] = useState<ControlFecha>(desarmar(inicial?.edtf, inicial?.fecha_subtipo as never));
   const [edtf, setEdtf] = useState<string | null>(inicial?.edtf || null);
 
@@ -83,10 +86,11 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
     alGuardar({
       tipo, valor: valor.trim(),
       subtipo: tipo === "agente" || tipo === "mandato" ? subtipo : null,
-      rol: tipo === "agente" ? rol : null,
+      rol: tipo === "agente" ? rol : tipo === "lugar" && rol === "expedicion" ? "expedicion" : null,
       fecha_normalizada: null,
-      edtf: tipo === "fecha" || tipo === "mandato" ? edtf : null,
+      edtf: tipo === "fecha" || tipo === "mandato" ? edtf : tipo === "agente" && rol === "custodio" && periodo.trim() ? periodo.trim() : null,
       fecha_subtipo: tipo === "fecha" ? fecha.subtipo : null,
+      ...(tipo === "agente" && rol === "custodio" && nota.trim() ? { nota: nota.trim() } : {}),
     });
   }
 
@@ -113,7 +117,22 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
             <select className="selector" aria-label="Rol en el documento" value={rol} onChange={(e) => setRol(e.target.value)}>
               {Object.entries(ROL_NOMBRE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
+            {rol === "custodio" && (
+              <>
+                <input className="entrada" aria-label="Periodo de la custodia (EDTF)" placeholder="Periodo: 1950/1969 o 1970/"
+                       value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
+                <input className="entrada" aria-label="Nota del tramo de custodia" placeholder="Nota (opcional)"
+                       value={nota} onChange={(e) => setNota(e.target.value)} />
+              </>
+            )}
           </>
+        )}
+        {tipo === "lugar" && (
+          <select className="selector" aria-label="Papel del lugar" value={rol === "expedicion" ? "expedicion" : ""}
+                  onChange={(e) => setRol(e.target.value)}>
+            <option value="">Lugar del que trata</option>
+            <option value="expedicion">Lugar donde se expidió</option>
+          </select>
         )}
         {tipo === "mandato" && (
           <select className="selector" aria-label="Tipo de instrumento" value={subtipo} onChange={(e) => setSubtipo(e.target.value)}>

@@ -58,6 +58,7 @@ class Propiedad:
 CLASE_NIVEL = {
     "fondo": "RecordSet",
     "seccion": "RecordSet",
+    "subseccion": "RecordSet",
     "serie": "RecordSet",
     "subserie": "RecordSet",
     "expediente": "RecordSet",
@@ -65,7 +66,7 @@ CLASE_NIVEL = {
     "parte_documental": "RecordPart",
 }
 TIPO_AGRUPACION_OFICIAL = {"fondo": "Fonds", "serie": "Series", "expediente": "File"}
-TIPO_AGRUPACION_PROPIO = {"seccion": "Fonds", "subserie": "Series"}  # → skos:broadMatch
+TIPO_AGRUPACION_PROPIO = {"seccion": "Fonds", "subseccion": "Fonds", "subserie": "Series"}  # → skos:broadMatch
 
 CLASE_AGENTE = {
     "persona": "Person",
@@ -83,6 +84,7 @@ CLASE_VOCABULARIO = {
     "tipo_actividad": "ActivityType",  # además skos:Concept del esquema del fondo
     "mandato": "Mandate",
     "tipo_parte": "DocumentaryFormType",  # tipo de una parte documental (anexo, sello…)
+    "regla": "Rule",  # regla no normativa: la de retención de la TRD (RiC-E16, hallazgo CM-18)
 }
 
 CLASE_NODO = {
@@ -129,6 +131,7 @@ SUPERCLASES = {
 }
 
 AGENTES = ("Person", "Family", "CorporateBody", "Group", "Position", "Mechanism")
+GRUPOS = ("Group", "CorporateBody", "Family")
 REGISTROS = ("Record", "RecordPart")
 RECURSOS = ("RecordSet", "Record", "RecordPart")
 
@@ -138,8 +141,9 @@ RECURSOS = ("RecordSet", "Record", "RecordPart")
 PROPIEDADES: dict[str, Propiedad] = {
     # Procedencia
     "has_creator": Propiedad("hasCreator", "RiC-R027", RECURSOS + ("Instantiation",), AGENTES, "isCreatorOf"),
-    "has_sender": Propiedad("hasSender", "RiC-R031", REGISTROS, AGENTES, "isSenderOf"),
-    "has_addressee": Propiedad("hasAddressee", "RiC-R032", REGISTROS, AGENTES, "isAddresseeOf"),
+    # El OWL admite cualquier Record Resource (también un conjunto) e Instantiation.
+    "has_sender": Propiedad("hasSender", "RiC-R031", RECURSOS, AGENTES, "isSenderOf"),
+    "has_addressee": Propiedad("hasAddressee", "RiC-R032", RECURSOS, AGENTES, "isAddresseeOf"),
     # Custodia: el agente que tiene o tuvo el documento sin haberlo producido.
     "has_or_had_holder": Propiedad("hasOrHadHolder", "RiC-R039i", RECURSOS + ("Instantiation",), AGENTES,
                                    "isOrWasHolderOf"),
@@ -153,6 +157,10 @@ PROPIEDADES: dict[str, Propiedad] = {
     "has_or_had_instantiation": Propiedad("hasOrHadInstantiation", "RiC-R025", RECURSOS, ("Instantiation",),
                                           "isOrWasInstantiationOf"),
     "migrated_into": Propiedad("migratedInto", "RiC-R015", ("Instantiation",), ("Instantiation",), "migratedFrom"),
+    # Instanciación derivada de otra: el recorte de su archivo de origen, la
+    # digitalización de su original físico (hallazgo CM-04).
+    "has_or_had_derived_instantiation": Propiedad("hasOrHadDerivedInstantiation", "RiC-R014", ("Instantiation",),
+                                                  ("Instantiation",), "isOrWasDerivedFromInstantiation"),
     # Contexto funcional
     "documents": Propiedad("documents", "RiC-R033", RECURSOS + ("Instantiation",), ("Activity",), "documentedBy"),
     "has_activity_type": Propiedad("hasActivityType", None, ("Activity",), ("ActivityType",), "isActivityTypeOf",
@@ -162,7 +170,7 @@ PROPIEDADES: dict[str, Propiedad] = {
     "has_direct_subevent": Propiedad("hasDirectSubevent", None, ("Activity",), ("Activity",), "isDirectSubeventOf",
                                      nota="Atajo directo de RiC-R006 has or had subevent."),
     "regulates_or_regulated": Propiedad(
-        "regulatesOrRegulated", "RiC-R063", ("Mandate",), ("Activity", "ActivityType", "Mandate") + RECURSOS,
+        "regulatesOrRegulated", "RiC-R063", ("Mandate", "Rule"), ("Activity", "ActivityType", "Mandate") + RECURSOS,
         "isOrWasRegulatedBy",
         nota="Mandato que regula una actividad; con rol «creacion», el mandato que crea un tipo de actividad; "
              "con rol «jerarquia_normativa», la norma superior que regula a la que la desarrolla.",
@@ -178,6 +186,11 @@ PROPIEDADES: dict[str, Propiedad] = {
                                                 "isAgentAssociatedWithAgent", nota="Simétrica."),
     "occupies_or_occupied": Propiedad("occupiesOrOccupied", "RiC-R054", ("Person",), ("Position",),
                                       "isOrWasOccupiedBy"),
+    # Composición de los grupos (hallazgos CM-06, CM-07, CM-09, CM-10).
+    "has_or_had_member": Propiedad("hasOrHadMember", "RiC-R055", GRUPOS, ("Person",), "isOrWasMemberOf"),
+    "has_or_had_subdivision": Propiedad("hasOrHadSubdivision", "RiC-R005", GRUPOS, GRUPOS, "isOrWasSubdivisionOf"),
+    "exists_or_existed_in": Propiedad("existsOrExistedIn", "RiC-R056", ("Position",), GRUPOS, "hasOrHadPosition"),
+    "is_or_was_leader_of": Propiedad("isOrWasLeaderOf", "RiC-R042", ("Person",), GRUPOS, "hasOrHadLeader"),
     # Eventos institucionales (línea de tiempo del agente)
     "affects_or_affected": Propiedad("affectsOrAffected", "RiC-R059", ("Event",), AGENTES + RECURSOS,
                                      "isOrWasAffectedBy", estado="general",
@@ -187,7 +200,7 @@ PROPIEDADES: dict[str, Propiedad] = {
     # Lugar
     "contains_or_contained": Propiedad("containsOrContained", "RiC-R007", ("Place",), ("Place",),
                                        "isOrWasContainedBy"),
-    "is_or_was_location_of": Propiedad("isOrWasLocationOf", "RiC-R075", ("Place",), AGENTES + RECURSOS,
+    "is_or_was_location_of": Propiedad("isOrWasLocationOf", "RiC-R075", ("Place",), AGENTES + RECURSOS + ("Event",),
                                        "hasOrHadLocation"),
     # Tema y fecha
     "has_or_had_subject": Propiedad("hasOrHadSubject", "RiC-R019", RECURSOS, ("Thing",), "isOrWasSubjectOf"),
@@ -201,6 +214,57 @@ PROPIEDADES: dict[str, Propiedad] = {
                                nota="RiC-O no tiene propiedad entre un tipo de actividad y la serie que produce; "
                                     "la relación se reconstruye por documents + hasActivityType y se exporta "
                                     "con la relación más general, R001, simétrica."),
+}
+
+# Códigos del catálogo de la base (enums.CODIGO_RELACION_RIC) que el sistema
+# no escribe todavía, cada uno con su motivo (hallazgos CM-20 y O-33). Están
+# en el enumerado de PostgreSQL desde versiones anteriores y un valor de un
+# enumerado no se retira; tampoco se ofrecen como relación disponible. Una
+# prueba exige que todo código esté mapeado y escrito, o declarado aquí.
+CODIGOS_RESERVADOS = {
+    "has_author": "Autor intelectual (R079): el sistema registra productor, remitente y destinatario; el autor no se "
+                  "distingue todavía del productor en la descripción.",
+    "has_accumulator": "Acumulador (R028): sin pantalla para declararlo; el productor cubre el caso del fondo.",
+    "has_receiver": "Receptor (R029): se cubre con el destinatario (hasAddressee, R032).",
+    "has_collector": "Coleccionista (R030): el fondo no tiene colecciones facticias de un coleccionista identificado.",
+    "is_or_was_holder_of": "Duplicado del sentido inverso de hasOrHadHolder (R039i), que es el que se escribe.",
+    "is_or_was_manager_of": "Gestor (R038): sin caso en el fondo.",
+    "is_or_was_owner_of": "Propietario (R037): sin caso en el fondo; la custodia se registra con hasOrHadHolder.",
+    "is_or_was_controller_of": "Control entre agentes (R041): se cubre con la subordinación (R045).",
+    "is_original_of": "R010 relaciona dos Records (original y copia como documentos); el original físico de un mismo "
+                      "documento se modela como Instantiation con hasOrHadDerivedInstantiation (R014).",
+    "has_copy": "R012 relaciona dos Record Resources; mismo motivo que is_original_of.",
+    "is_or_was_expressed_by": "Regla expresada en un documento (R064): sin pantalla para declararlo todavía.",
+    "is_beginning_date_of": "Se exporta en sentido inverso (hasBeginningDate) desde la fecha guardada como dato.",
+    "is_end_date_of": "Se exporta en sentido inverso (hasEndDate) desde la fecha guardada como dato.",
+    "is_modification_date_of": "El sistema no registra fechas de modificación de un documento histórico.",
+    "is_or_was_jurisdiction_of": "Jurisdicción (R076): sin pantalla; el lugar de actuación usa isOrWasLocationOf (R075).",
+}
+
+# Perfil de aplicación de RICORA (decisión CM-21 de la autora, 3 de octubre de
+# 2026). RiC-O 1.1 no declara ninguna propiedad funcional: cada «a lo sumo
+# uno» del sistema es una restricción propia, deliberada y escrita aquí con
+# su razón. Las que impedían casos reales de RiC-CM se relajaron.
+PERFIL_CARDINALIDAD = {
+    "inclusion_organica": ("Un solo superior orgánico por descripción (incluido_en_id), más inclusiones adicionales "
+                           "con rol «adicional»", "Principio de procedencia y orden original del cuadro de "
+                           "clasificación; una colección facticia se declara como inclusión adicional."),
+    "forma_documental": ("Una forma documental por documento", "En diplomática un documento tiene un tipo "
+                         "documental; dos formas son dos documentos."),
+    "instanciacion_de_un_recurso": ("Una instanciación digital pertenece a un solo Record Resource",
+                                    "Un archivo inscribe un documento; si un conjunto mezcla documentos, cada uno "
+                                    "se individualiza en su propio Record (CM-03)."),
+    "regla_de_retencion": ("Una regla de retención vigente por serie o subserie", "La TRD asigna un solo tiempo de "
+                           "retención y una sola disposición final por serie o subserie."),
+    "tipo_de_actividad": ("Un tipo de actividad por actividad", "La actividad es el ejercicio concreto de una "
+                          "competencia; dos competencias son dos actividades."),
+    "superior_skos": ("Un concepto superior por tipo de actividad", "El árbol de funciones de la TRD es un árbol "
+                      "(función → subfunción), no un grafo."),
+    "lugar_superior": ("Varios lugares superiores, cada uno con su vigencia y sin solaparse", "Relajada: un "
+                       "municipio cambia de provincia o de estado en el tiempo."),
+    "afectados_del_hito": ("Varios agentes o descripciones afectados por un hito", "Relajada: una fusión o un "
+                           "traslado afecta a más de una entidad."),
+    "custodio": ("Una cadena de custodios con fechas", "Relajada: la historia custodial tiene varios tramos."),
 }
 
 # Atributos (propiedades de dato) que el sistema exporta.
@@ -244,6 +308,8 @@ APOYO = {
     "idioma_registro": ("hasOrHadLanguage", ("Record", "RecordPart", *AGENTES), "Language"),
     "idioma_agrupacion": ("hasOrHadAllMembersWithLanguage", ("RecordSet",), "Language"),
     "tipo_lugar": ("hasOrHadPlaceType", ("Place",), "PlaceType"),
+    "tipo_soporte": ("hasCarrierType", ("Instantiation",), "CarrierType"),
+    "tipo_regla": ("hasOrHadRuleType", ("Rule",), "RuleType"),
     "nombre_lugar": ("hasOrHadPlaceName", ("Place",), "PlaceName"),
     "nombre_agente": ("hasOrHadAgentName", AGENTES, "AgentName"),
     "identificador_externo": ("hasOrHadIdentifier", ("Thing",), "Identifier"),
@@ -430,7 +496,8 @@ def verificar_contra_owl() -> list[str]:
 
     clases = set(CLASE_NIVEL.values()) | set(CLASE_AGENTE.values()) | set(CLASE_VOCABULARIO.values()) \
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
-                                      "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType"}
+                                      "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType",
+                                      "CarrierType"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")

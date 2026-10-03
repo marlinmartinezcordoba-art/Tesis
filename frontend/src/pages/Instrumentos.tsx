@@ -17,7 +17,7 @@ import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
-const AGRUPACIONES = ["fondo", "seccion", "serie", "subserie", "expediente"];
+const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
 
 function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; actual?: Miga; ir: (id: string | null) => void }) {
   return (
@@ -111,6 +111,9 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
               )}
               {ficha.condiciones_acceso && <><dt>Condiciones de acceso</dt><dd>{ficha.condiciones_acceso}</dd></>}
               {ficha.condiciones_uso && <><dt>Condiciones de uso</dt><dd>{ficha.condiciones_uso}</dd></>}
+              {ficha.historia_archivistica && <><dt>Historia archivística</dt><dd>{ficha.historia_archivistica}</dd></>}
+              {ficha.retencion && <><dt>Retención (TRD)</dt><dd>{ficha.retencion.resumen}
+                {ficha.retencion.heredada_de && <span className="meta"> · heredada de {ficha.retencion.heredada_de.titulo}</span>}</dd></>}
               {ficha.secuencia.map((x) => (
                 <FilaEntidad key={x.id} etiqueta={x.posicion === "precede_a" ? "Precede a" : "Sigue a"}>{x.titulo}</FilaEntidad>
               ))}

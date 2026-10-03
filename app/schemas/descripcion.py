@@ -38,6 +38,7 @@ class CoincidenciaOut(BaseModel):
     subtipo: str | None
     similitud: float
     conexiones: int
+    aviso: str | None = None
 
 
 class EntidadIn(BaseModel):
@@ -47,6 +48,7 @@ class EntidadIn(BaseModel):
     rol: str | None = Field(default=None, max_length=40)
     fecha_normalizada: str | None = None
     edtf: str | None = Field(default=None, max_length=200)
+    nota: str | None = Field(default=None, max_length=500)  # p. ej. de un tramo de la custodia
     fecha_subtipo: Literal["simple", "rango", "conjunto"] | None = None
     tipo_clave: str | None = Field(default=None, max_length=40)
     agente_clave: str | None = Field(default=None, max_length=40)
@@ -88,6 +90,7 @@ class CamposRegistro(BaseModel):
     idiomas: list[str] | None = Field(default=None, max_length=5)
     condiciones_acceso: str | None = Field(default=None, max_length=5000)
     condiciones_uso: str | None = Field(default=None, max_length=5000)
+    historia_archivistica: str | None = Field(default=None, max_length=20000)
     precede_a_id: uuid.UUID | None = None
     sigue_a_id: uuid.UUID | None = None
 

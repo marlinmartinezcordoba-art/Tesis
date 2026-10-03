@@ -393,7 +393,7 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 }
 .f-RecordSet, .f-Record, .f-RecordPart { --g-color: var(--g-recurso); --g-icono: var(--g-icono-claro); }
 .f-Agent { --g-color: var(--g-agente); --g-icono: var(--g-icono-claro); }
-.f-Activity, .f-ActivityType, .f-Mandate { --g-color: var(--g-actividad); --g-icono: var(--g-icono-oscuro); }
+.f-Activity, .f-ActivityType, .f-Mandate, .f-Event { --g-color: var(--g-actividad); --g-icono: var(--g-icono-oscuro); }
 .f-Date { --g-color: var(--g-fecha); --g-icono: var(--g-icono-claro); }
 .f-Place { --g-color: var(--g-lugar); --g-icono: var(--g-icono-oscuro); }
 .f-Instantiation { --g-color: var(--g-instanciacion); --g-icono: var(--g-icono-claro); }

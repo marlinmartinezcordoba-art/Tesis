@@ -10,6 +10,8 @@ corrige con auditoría de valores anteriores y nuevos.
 import json
 import uuid
 
+from pydantic import BaseModel, Field
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
@@ -172,7 +174,16 @@ def cancelar(trabajo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descri
              summary="¿Ya existe en el vocabulario del fondo? (delegado al servicio de vocabularios)")
 def verificar(datos: VerificarIn, db: Session = Depends(get_db)):
     fondo_o_404(db, datos.fondo_id)
-    return [CoincidenciaOut(**c.__dict__) for c in vocabulario.verificar(db, datos.fondo_id, datos.tipo, datos.valor)]
+    # Una actividad es un ejercicio concreto, no la competencia (hallazgo CM-14):
+    # dos ejercicios del mismo trámite no se deben fusionar por parecerse.
+    aviso = (AVISO_ACTIVIDAD if datos.tipo == "actividad" else None)
+    return [CoincidenciaOut(**c.__dict__, aviso=aviso)
+            for c in vocabulario.verificar(db, datos.fondo_id, datos.tipo, datos.valor)]
+
+
+AVISO_ACTIVIDAD = ("Una actividad es un ejercicio concreto (la expedición de licencias de 1948), no la competencia "
+                   "(eso es el tipo de actividad). Reutilícela solo si es el mismo ejercicio; si es otro año u otro "
+                   "trámite, cree una nueva y asígnele el mismo tipo de actividad.")
 
 
 def _partes_de(partes) -> list[descripcion.ParteConfirmada]:
@@ -215,7 +226,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             incluido_en_id=datos.incluido_en_id,
             entidades=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.entidades],
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
-            precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes))
+            precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
+            historia_archivistica=datos.historia_archivistica)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -377,6 +389,117 @@ def ver(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
     return descripcion.detalle(db, _recurso_o_404(db, recurso_id))
 
 
+class AgrupacionIn(BaseModel):
+    fondo_id: uuid.UUID
+    nivel: str
+    titulo: str = Field(max_length=500)
+    incluido_en_id: uuid.UUID | None = None
+    codigo_referencia: str | None = Field(default=None, max_length=100)
+    fechas_extremas: str | None = Field(default=None, max_length=60)
+    alcance_contenido: str | None = Field(default=None, max_length=5000)
+    productor_id: uuid.UUID | None = None
+
+
+@router.post("/agrupaciones", status_code=status.HTTP_201_CREATED,
+             summary="Crear una sección, subsección, serie, subserie o expediente sin archivos propios")
+def crear_agrupacion(datos: AgrupacionIn, actor: Actor = Depends(acceso_modulo("descripcion")),
+                     db: Session = Depends(get_db)):
+    fondo_o_404(db, datos.fondo_id)
+    try:
+        r = descripcion.crear_agrupacion(
+            db, fondo_id=datos.fondo_id, nivel=datos.nivel, titulo=datos.titulo, incluido_en_id=datos.incluido_en_id,
+            usuario_id=actor.id, codigo_referencia=datos.codigo_referencia, fechas_extremas=datos.fechas_extremas,
+            alcance=datos.alcance_contenido, productor_id=datos.productor_id)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, r)
+
+
+class InclusionIn(BaseModel):
+    conjunto_id: uuid.UUID
+
+
+@router.post("/registros/{recurso_id}/inclusiones", status_code=status.HTTP_201_CREATED,
+             summary="Incluir además en otro conjunto (p. ej. una colección facticia)")
+def agregar_inclusion(recurso_id: uuid.UUID, datos: InclusionIn,
+                      actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    conjunto = _recurso_o_404(db, datos.conjunto_id)
+    try:
+        descripcion.agregar_inclusion(db, recurso, conjunto, actor.id)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, recurso)
+
+
+class IndividualizarIn(BaseModel):
+    instanciacion_id: uuid.UUID
+    titulo: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/registros/{recurso_id}/individualizar", status_code=status.HTTP_201_CREATED,
+             summary="Dar a un documento del conjunto su propio Record (luego se describe al reabrirlo)")
+def individualizar(recurso_id: uuid.UUID, datos: IndividualizarIn, actor: Actor = Depends(acceso_modulo("descripcion")),
+                   db: Session = Depends(get_db)):
+    conjunto = _recurso_o_404(db, recurso_id)
+    inst = db.get(Instanciacion, datos.instanciacion_id)
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El archivo no existe.")
+    try:
+        r = descripcion.individualizar(db, conjunto, inst, actor.id, datos.titulo)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, r)
+
+
+class OriginalFisicoIn(BaseModel):
+    soporte: str
+    ubicacion: str | None = Field(default=None, max_length=300)
+
+
+@router.post("/registros/{recurso_id}/original-fisico", status_code=status.HTTP_201_CREATED,
+             summary="Registrar el original físico (papel…) como instanciación")
+def original_fisico(recurso_id: uuid.UUID, datos: OriginalFisicoIn, actor: Actor = Depends(acceso_modulo("descripcion")),
+                    db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        descripcion.registrar_original_fisico(db, recurso, soporte=datos.soporte, ubicacion=datos.ubicacion,
+                                              usuario_id=actor.id)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, recurso)
+
+
+class CustodioIn(BaseModel):
+    agente_id: uuid.UUID
+    fecha_edtf: str | None = Field(default=None, max_length=200)
+    nota: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/instanciaciones/{instanciacion_id}/custodios", status_code=status.HTTP_201_CREATED,
+             summary="Un tramo de la custodia de un archivo o de un original físico (RiC-R039i)")
+def custodio_de_instanciacion(instanciacion_id: uuid.UUID, datos: CustodioIn,
+                              actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    inst = db.get(Instanciacion, instanciacion_id)
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El archivo no existe.")
+    try:
+        r = descripcion.custodio_de_instanciacion(db, inst, datos.agente_id, datos.fecha_edtf, datos.nota, actor.id)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return {"relacion_id": str(r.id), "custodios": descripcion.custodios_de(db, inst.id)}
+
+
 @router.post("/registros/{recurso_id}/reabrir", summary="Reabrir una descripción publicada para corregirla")
 def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     recurso = _recurso_o_404(db, recurso_id)
@@ -406,7 +529,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             control=datos.control.model_dump() if datos.control else None,
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
-            agregar_partes=_partes_de(datos.agregar_partes))
+            agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

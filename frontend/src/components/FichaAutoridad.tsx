@@ -75,6 +75,10 @@ const HITO_NOMBRE: Record<string, string> = {
   creacion: "Creación", reforma: "Reforma administrativa", traslado: "Traslado del archivo", supresion: "Supresión", otro: "Otro hecho",
 };
 const ESTATUTO: Record<string, string> = { publica: "Pública", privada: "Privada", mixta: "Mixta" };
+const DISPOSICION: Record<string, string> = {
+  conservacion_total: "Conservación total", eliminacion: "Eliminación", seleccion: "Selección",
+  medio_tecnico: "Reproducción por medio técnico",
+};
 const TIPO_LUGAR: Record<string, string> = {
   pais: "País", departamento: "Departamento", provincia: "Provincia", municipio: "Municipio", corregimiento: "Corregimiento",
   vereda: "Vereda", barrio: "Barrio", edificio: "Edificio", otro: "Otro",
@@ -284,7 +288,11 @@ function Buscador({ fondoId, busca, excluir, alElegir }: {
 // Cómo se declara cada vínculo desde la ficha: qué se busca, si lleva
 // fecha de vigencia y, cuando la fila nace en la otra entidad («invertir»),
 // desde cuál se envía.
-interface OpcionVinculo { tipo: string; etiqueta: string; busca: ClaseVocabulario | "serie"; conFecha?: boolean; invertir?: boolean }
+// `subtipos`: solo se ofrece si la entidad que se edita es de uno de esos tipos de agente.
+interface OpcionVinculo {
+  tipo: string; etiqueta: string; busca: ClaseVocabulario | "serie"; conFecha?: boolean; invertir?: boolean; subtipos?: string[];
+}
+const GRUPOS = ["grupo", "entidad_corporativa", "familia"];
 
 const OPCIONES: Record<string, OpcionVinculo[]> = {
   agente_relaciones: [
@@ -293,10 +301,20 @@ const OPCIONES: Record<string, OpcionVinculo[]> = {
     { tipo: "sucesor", etiqueta: "Tiene como sucesor a", busca: "agente", conFecha: true },
     { tipo: "sucesor", etiqueta: "Es sucesor de (su predecesor)", busca: "agente", conFecha: true, invertir: true },
     { tipo: "asociado", etiqueta: "Está asociado con", busca: "agente", conFecha: true },
+    // Persona, cargo y grupo (RiC-R054, R055, R056, R005, R042).
+    { tipo: "ocupa_cargo", etiqueta: "Ocupa u ocupó el cargo", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "ocupa_cargo", etiqueta: "Lo ocupa u ocupó (persona)", busca: "agente", conFecha: true, invertir: true, subtipos: ["cargo"] },
+    { tipo: "cargo_en", etiqueta: "Existe o existió en (grupo o entidad)", busca: "agente", subtipos: ["cargo"] },
+    { tipo: "cargo_en", etiqueta: "Tiene o tuvo el cargo", busca: "agente", invertir: true, subtipos: GRUPOS },
+    { tipo: "miembro", etiqueta: "Tiene o tuvo como miembro a (persona)", busca: "agente", conFecha: true, subtipos: GRUPOS },
+    { tipo: "miembro", etiqueta: "Es o fue miembro de", busca: "agente", conFecha: true, invertir: true, subtipos: ["persona"] },
+    { tipo: "dirige", etiqueta: "Dirige o dirigió", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "subdivision", etiqueta: "Tiene o tuvo como subdivisión a", busca: "agente", conFecha: true, subtipos: GRUPOS },
+    { tipo: "subdivision", etiqueta: "Es o fue subdivisión de", busca: "agente", conFecha: true, invertir: true, subtipos: GRUPOS },
   ],
   agente_lugares: [{ tipo: "lugar_agente", etiqueta: "Actúa o actuó en", busca: "lugar" }],
   agente_creacion: [{ tipo: "creado_por", etiqueta: "Fue creado o establecido por", busca: "mandato" }],
-  lugar: [{ tipo: "lugar_superior", etiqueta: "Está dentro de", busca: "lugar" }],
+  lugar: [{ tipo: "lugar_superior", etiqueta: "Está o estuvo dentro de", busca: "lugar", conFecha: true }],
   actividad: [
     { tipo: "actividad_mayor", etiqueta: "Es sub-actividad de", busca: "actividad" },
     { tipo: "ejercida_por", etiqueta: "Es o fue ejercida por", busca: "agente" },
@@ -377,7 +395,7 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
       {error && !abierta && <div className="aviso error" role="alert">{error}</div>}
       {puede && !abierta && (
         <div className="acciones" style={{ marginTop: 6, flexWrap: "wrap" }}>
-          {opciones.map((o) => (
+          {opciones.filter((o) => !o.subtipos || o.subtipos.includes(entidad.subtipo || "")).map((o) => (
             <button key={`${o.tipo}-${o.invertir ? "i" : "d"}`} type="button" className="boton chico" onClick={() => setAbierta(o)}>
               + {o.etiqueta}
             </button>
@@ -676,7 +694,8 @@ function FichaAgente(p: Props) {
       </Area>
 
       <Area titulo="3. Área de relaciones">
-        <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado"]} opciones={OPCIONES.agente_relaciones}
+        <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado", "ocupa_cargo", "cargo_en", "miembro", "dirige", "subdivision"]}
+                  opciones={OPCIONES.agente_relaciones}
                   vacio="Sin relaciones con otros agentes." entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
       </Area>
 
@@ -896,6 +915,32 @@ function FichaMandato(p: Props) {
   );
 }
 
+// Regla de retención de la TRD (rico:Rule): la serie que regula la hereda a sus expedientes.
+function FichaRegla(p: Props) {
+  const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
+  const comun = { puede, entidadId: e.id, alCambiar };
+  return (
+    <>
+      <Area titulo="Regla de retención (TRD)" insignia={<code className="rico">{f.clase_rico}</code>}>
+        <dl className="par-dato">
+          <TextoEditable etiqueta="Años en el archivo de gestión" campo="retencion_gestion_anios"
+                         valor={f.campos.retencion_gestion_anios != null ? String(f.campos.retencion_gestion_anios) : null} {...comun} />
+          <TextoEditable etiqueta="Años en el archivo central" campo="retencion_central_anios"
+                         valor={f.campos.retencion_central_anios != null ? String(f.campos.retencion_central_anios) : null} {...comun} />
+          <ListaEditable etiqueta="Disposición final" campo="disposicion_final" valor={(f.campos.disposicion_final as string) || null}
+                         opciones={DISPOSICION} {...comun} />
+          <TextoEditable etiqueta="Procedimiento" campo="historia" valor={f.campos.historia} multilinea {...comun} />
+        </dl>
+      </Area>
+      <Area titulo="Series o subseries que regula">
+        <Vinculos vinculos={f.vinculos} tipos={["regla_serie"]}
+                  opciones={[{ tipo: "regla_serie", etiqueta: "Regula la retención de", busca: "serie" }]} entidad={e} fondoId={fondoId}
+                  puede={puede} alCambiar={alCambiar} vacio="Todavía no regula ninguna serie." />
+      </Area>
+    </>
+  );
+}
+
 function FichaGeneral(p: Props) {
   const { entidad: e, ficha: f, puede, alCambiar } = p;
   return (
@@ -915,6 +960,7 @@ export function FichaAutoridad(p: Props) {
     case "tipo_actividad": return <FichaTipoActividad {...p} />;
     case "actividad": return <FichaActividad {...p} />;
     case "mandato": return <FichaMandato {...p} />;
+    case "regla": return <FichaRegla {...p} />;
     default: return <FichaGeneral {...p} />;
   }
 }

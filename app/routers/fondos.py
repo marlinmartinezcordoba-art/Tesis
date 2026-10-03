@@ -15,6 +15,7 @@ from app.db.session import get_db
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.schemas.ingesta import ExpedienteOut, FondoIn, FondoOut
+from app.servicios import fechas
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/fondos", tags=["Fondos"])
@@ -45,8 +46,14 @@ def registrar_fondo(datos: FondoIn, request: Request, actor: Actor = Depends(sol
     if db.scalar(select(RecursoDocumental.id).where(RecursoDocumental.nivel == "fondo",
                                                      func.lower(RecursoDocumental.titulo) == datos.titulo.lower())):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un fondo con ese nombre.")
+    try:
+        extremas = fechas.extremas(datos.fechas_extremas)
+    except fechas.FechaInvalida as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Fechas extremas: {exc} Escríbalas como «1930–1955» o «1930».") from exc
     fondo = RecursoDocumental(id=uuid.uuid4(), nivel="fondo", titulo=datos.titulo,
                               fechas_extremas=(datos.fechas_extremas or "").strip() or None,
+                              fechas_extremas_edtf=extremas.edtf if extremas else None,
                               nota=(datos.nota or "").strip() or None, creado_por_id=actor.id)
     fondo.fondo_id = fondo.id
     db.add(fondo)

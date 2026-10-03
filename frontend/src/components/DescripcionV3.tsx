@@ -14,11 +14,12 @@ export interface CamposRegistroValor {
   idiomas: string[];
   condicionesAcceso: string;
   condicionesUso: string;
+  historiaArchivistica: string;
   secuencia: { posicion: "precede" | "sigue"; id: string; titulo: string } | null;
 }
 
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
-  return { idiomas, condicionesAcceso: "", condicionesUso: "", secuencia: null };
+  return { idiomas, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null };
 }
 
 function BuscarPublicada({ fondoId, alElegir }: { fondoId: string; alElegir: (id: string, titulo: string) => void }) {
@@ -96,6 +97,12 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         <textarea id="uso" className="entrada" rows={2} value={valor.condicionesUso} maxLength={5000}
                   placeholder="Condición para copiarlo o reproducirlo"
                   onChange={(e) => alCambiar({ ...valor, condicionesUso: e.target.value })} />
+      </div>
+      <div className="campo">
+        <label htmlFor="historia">Historia archivística <span className="meta">(ISAD-G 3.2.3 · cómo llegó a su custodio actual)</span></label>
+        <textarea id="historia" className="entrada" rows={2} value={valor.historiaArchivistica} maxLength={20000}
+                  placeholder="Transferencias, depósitos y custodios anteriores"
+                  onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />
       </div>
       <div className="campo" style={{ marginBottom: 0 }}>
         <label>Secuencia en la serie <span className="meta">(opcional · rico:precedesOrPreceded)</span></label>

@@ -20,6 +20,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.db.base import ahora
+from app.models.descripcion import Relacion
 from app.models.instanciacion import Instanciacion
 from app.servicios import almacen, formato, mecanismos
 from app.servicios.auditoria import registrar
@@ -135,6 +136,11 @@ def recortar(db: Session, origen: Instanciacion, zona: dict, nombre: str, usuari
         recorte_de_id=origen.id, recorte_zona={"pagina": pagina, "x": x, "y": y, "ancho": ancho, "alto": alto},
     )
     db.add(inst)
+    db.flush()
+    # El recorte es una instanciación derivada de su archivo de origen (RiC-R014, hallazgo CM-04).
+    db.add(Relacion(origen_tipo="instanciacion", origen_id=origen.id, destino_tipo="instanciacion",
+                    destino_id=inst.id, tipo_relacion="identidad", codigo_ric="has_or_had_derived_instantiation",
+                    origen="persona", confirmada_por_id=usuario_id))
     db.flush()
     registrar(db, modulo="descripcion", accion="recorte_creado", usuario_id=usuario_id, entidad_tipo="instanciacion",
               entidad_id=inst.id, detalle=f"Recorte de «{origen.nombre_original}», página {pagina}",
