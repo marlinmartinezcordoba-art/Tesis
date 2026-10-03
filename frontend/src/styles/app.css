@@ -444,7 +444,13 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .lienzo-grafo { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 /* El lienzo se ajusta al alto de la ventana: en una pantalla baja no se corta. */
 .svg-grafo { display: block; width: 100%; height: clamp(360px, calc(100vh - 250px), 780px); cursor: grab; touch-action: none; user-select: none; transition: opacity .2s; }
-.svg-grafo:active { cursor: grabbing; }
+.svg-grafo:active, .lienzo-grafo.paneando .svg-grafo { cursor: grabbing; }
+.punto-lienzo { fill: var(--line); }
+.fondo-lienzo { pointer-events: all; }
+/* Arrastre del lienzo: barras, leyenda, controles y panel se apartan; vuelven al soltar. */
+.barra-grafo, .leyenda-grafo, .controles-grafo, .detalle-grafo, .vista-grafo .cabecera-nivel { transition: opacity .18s ease; }
+.vista-grafo.arrastrando .barra-grafo, .vista-grafo.arrastrando .cabecera-nivel, .vista-grafo.arrastrando .detalle-grafo,
+.lienzo-grafo.paneando .leyenda-grafo, .lienzo-grafo.paneando .controles-grafo { opacity: 0; pointer-events: none; }
 .leyenda-grafo { position: absolute; top: 10px; left: 10px; z-index: 2; display: flex; flex-direction: column; gap: 4px; font-size: .74rem; color: var(--ink);
   background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; pointer-events: auto; }
 .leyenda-grafo span { display: inline-flex; align-items: center; gap: 6px; }

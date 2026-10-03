@@ -212,3 +212,16 @@ Todas exigen sesión y lectura del catálogo. Lo clasificado o reservado solo lo
   1. el color del agente (verde en el grafo, violeta en el resto);
   2. que el filtro de estado ofrezca solo los dos estados reales;
   3. GET en vez de POST para exportar.
+
+## 15. Ajuste v1.4: lienzo libre, al estilo de un mapa mental
+
+La autora pidió moverse en cualquier dirección con clic sostenido, sin botones, y que barras y filtros se aparten mientras arrastra, como en un mapa mental.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo desplazarse | Botones ▲ ▼ · barras de desplazamiento · arrastre libre | Arrastre libre con clic sostenido; se quitan ▲ ▼ | El arrastre ya existía, pero fallaba: el cálculo del desplazamiento se leía tarde y el lienzo casi no se movía. Se corrigió y ahora sigue al puntero aunque salga del lienzo. Los botones ▲ ▼ sobraban. | Con teclado no hay arrastre. Siguen las flechas, la rueda y los botones + y −. |
+| Qué se oculta al arrastrar | Nada · solo los filtros · todo lo que tapa el lienzo | Encabezado, barra de búsqueda y filtros, leyenda, controles y panel de detalle se desvanecen, sin desaparecer del todo, y vuelven al soltar | Se ve solo el grafo mientras se mueve. Desvanecer no cambia la distribución de la pantalla, así que el lienzo no salta. | Queda un hueco claro arriba durante el arrastre. Es intencional, para que el lienzo no se mueva. |
+| Fondo del lienzo | Liso · cuadrícula de puntos fija · cuadrícula que se mueve con el dibujo | Cuadrícula de puntos que se mueve y escala con el dibujo | Da la sensación de lienzo infinito, como Mindomo, y deja ver que el arrastre funciona aunque no haya nodos a la vista. | Ninguno relevante. Usa un patrón SVG y no carga imágenes. |
+| Arrastrar sobre un nodo | Mueve el lienzo · mueve el nodo | Mueve el nodo, como antes | Así se pueden reacomodar entidades superpuestas. | Hay que empezar el arrastre en un espacio vacío para mover el lienzo. |
+
+Prueba: un recorrido con Playwright arrastra 150 px y luego otros 300 px saliendo del lienzo. El dibujo se desplaza esa misma distancia y barra, leyenda y controles quedan en opacidad 0 durante el arrastre y en 1 al soltar.

@@ -102,10 +102,12 @@ function corto(texto: string, n = 26): string {
 
 type Punto = SimulationNodeDatum & { clave: string };
 
-export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque }: {
+export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque, alArrastrar }: {
   datos: DatosGrafo;
   seleccion: string | null;
   alSeleccionar: (clave: string | null) => void;
+  // Avisa cuando se arrastra el lienzo, para que la pantalla aparte barras y paneles.
+  alArrastrar?: (activo: boolean) => void;
   // Nodo que la búsqueda pide centrar (el número cambia en cada búsqueda).
   enfoque: { clave: string; vez: number } | null;
 }) {
@@ -128,6 +130,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const [posiciones, setPosiciones] = useState<Record<string, { x: number; y: number }>>({});
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [encima, setEncima] = useState<string | null>(null);
+  const [paneando, setPaneando] = useState(false);
   const [tamano, setTamano] = useState({ ancho: 800, alto: 560 });
   const puntos = useRef<Map<string, Punto>>(new Map());
   const simulacion = useRef<ReturnType<typeof forceSimulation<Punto>> | null>(null);
@@ -227,8 +230,10 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
 
   function bajar(e: EventoPuntero<SVGElement>, clave?: string) {
     e.stopPropagation();
+    if (e.button !== 0) return; // solo el botón principal arrastra
     try {
-      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      // La captura va al lienzo entero: el arrastre sigue aunque el puntero salga de él.
+      lienzo.current?.setPointerCapture?.(e.pointerId);
     } catch {
       /* puntero sintético o ya liberado: el arrastre funciona igual */
     }
@@ -239,9 +244,18 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   function mover(e: EventoPuntero<SVGSVGElement>) {
     const a = arrastre.current;
     if (!a) return;
-    if (Math.abs(e.clientX - a.x) + Math.abs(e.clientY - a.y) > 3) a.movido = true;
+    if (!a.movido && Math.abs(e.clientX - a.x) + Math.abs(e.clientY - a.y) > 3) {
+      a.movido = true;
+      if (a.tipo === "fondo") {
+        setPaneando(true);
+        alArrastrar?.(true);
+      }
+    }
     if (a.tipo === "fondo") {
-      setVista((v) => ({ ...v, x: v.x + e.clientX - a.x, y: v.y + e.clientY - a.y }));
+      if (!a.movido) return;
+      // El desplazamiento se calcula ya: el actualizador de estado corre después y a.x habrá cambiado.
+      const dx = e.clientX - a.x, dy = e.clientY - a.y;
+      setVista((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
       a.x = e.clientX;
       a.y = e.clientY;
     } else if (a.clave) {
@@ -257,6 +271,10 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   function soltar() {
     const a = arrastre.current;
     arrastre.current = null;
+    if (a?.tipo === "fondo" && a.movido) {
+      setPaneando(false);
+      alArrastrar?.(false);
+    }
     if (a?.tipo === "nodo" && a.clave) {
       simulacion.current?.alphaTarget(0);
       if (!a.movido) alSeleccionar(a.clave);
@@ -315,7 +333,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   }, [datos]);
 
   return (
-    <div className="lienzo-grafo">
+    <div className={`lienzo-grafo${paneando ? " paneando" : ""}`}>
       <div className="leyenda-grafo" role="group" aria-label="Leyenda: toque un tipo para mostrarlo u ocultarlo">
         {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => {
           const cuantos = completo.nodos.filter((n) => n.familia === f.clave).length;
@@ -335,8 +353,6 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
         )}
       </div>
       <div className="controles-grafo" role="group" aria-label="Acercamiento y desplazamiento del grafo">
-        <button type="button" className="boton chico" onClick={() => mover1(0, 120)} aria-label="Subir" title="Subir">▲</button>
-        <button type="button" className="boton chico" onClick={() => mover1(0, -120)} aria-label="Bajar" title="Bajar">▼</button>
         <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
         <input type="range" className="deslizador-zoom" min={20} max={300} step={5} value={Math.round(vista.k * 100)}
                aria-label={`Acercamiento: ${Math.round(vista.k * 100)} %`} title={`${Math.round(vista.k * 100)} %`}
@@ -350,12 +366,19 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
            viewBox={`${-tamano.ancho / 2} ${-tamano.alto / 2} ${tamano.ancho} ${tamano.alto}`}
            aria-label={`Grafo con ${datos.nodos.length} entidades y ${datos.aristas.length} relaciones`}
            tabIndex={0} onKeyDown={teclas}
-           onPointerDown={(e) => bajar(e)} onPointerMove={mover} onPointerUp={soltar} onPointerLeave={soltar}>
+           onPointerDown={(e) => bajar(e)} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}
+           onLostPointerCapture={soltar}>
         <defs>
+          {/* Cuadrícula de puntos que se desplaza con el dibujo: da la sensación de lienzo libre. */}
+          <pattern id="puntos-grafo" width="24" height="24" patternUnits="userSpaceOnUse"
+                   patternTransform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
+            <circle cx="12" cy="12" r="1.1" className="punto-lienzo" />
+          </pattern>
           <marker id="flecha" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" className="punta" />
           </marker>
         </defs>
+        <rect className="fondo-lienzo" x={-tamano.ancho / 2} y={-tamano.alto / 2} width={tamano.ancho} height={tamano.alto} fill="url(#puntos-grafo)" />
         <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
           <g>
             {datos.aristas.map((a) => {

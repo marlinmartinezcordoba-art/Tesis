@@ -274,6 +274,12 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   const [error, setError] = useState("");
   const [verFiltros, setVerFiltros] = useState(false);
   const [completa, setCompleta] = useState(false);
+  // Mientras se arrastra el lienzo, barras y paneles se apartan para ver solo el grafo.
+  const [arrastrando, setArrastrando] = useState(false);
+  const alArrastrar = (activo: boolean) => {
+    setArrastrando(activo);
+    if (activo) setVerFiltros(false);
+  };
   const [busqueda, setBusqueda] = useState("");
   const [enfoque, setEnfoque] = useState<{ clave: string; vez: number } | null>(null);
   const selector = useRef<HTMLSelectElement>(null);
@@ -340,7 +346,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   const hallazgo = busqueda.trim() && datos && !datos.nodos.some((n) => n.etiqueta.toLowerCase().includes(busqueda.trim().toLowerCase()));
 
   return (
-    <div className={`vista-grafo${completa ? " completa" : ""}`}>
+    <div className={`vista-grafo${completa ? " completa" : ""}${arrastrando ? " arrastrando" : ""}`}>
       <div className="cabecera-nivel">
         <div>
           <h1>Grafo del fondo</h1>
@@ -403,7 +409,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
       {!datos ? <div className="cargando">Cargando…</div> : (
         <div className={`grafo-y-detalle${seleccion && !completa ? " con-detalle" : ""}${cargando ? " recargando" : ""}`}>
           <div className="contenedor-lienzo">
-            <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} />
+            <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar} />
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (
