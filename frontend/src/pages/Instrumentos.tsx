@@ -11,14 +11,16 @@ import { PestanaGrafo } from "@/pages/GrafoFondo";
 import { CadenaActividad } from "@/components/ContextoActividad";
 import { IDIOMAS } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
+import { ExportacionRico } from "@/components/ExportacionRico";
 
-type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice";
+type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
 const PESTANAS: { clave: Pestana; nombre: string }[] = [
   { clave: "catalogo", nombre: "Catálogo" },
   { clave: "grafo", nombre: "Grafo" },
   { clave: "inventario", nombre: "Inventario" },
   { clave: "guia", nombre: "Guía" },
   { clave: "indice", nombre: "Índice" },
+  { clave: "rico", nombre: "RiC-O" },
 ];
 const AGRUPACIONES = ["fondo", "seccion", "serie", "subserie", "expediente"];
 
@@ -536,6 +538,7 @@ export function Instrumentos() {
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
           {pestana === "indice" && <Indice fondo={nivel.fondo} />}
+          {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
           {pestana === "grafo" && (
             <PestanaGrafo fondo={nivel.fondo} centro={parametros.get("centro")}
                           centrar={(c) => cambiar({ centro: c })} abrirFicha={(id) => cambiar({ ficha: id })} />

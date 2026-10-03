@@ -205,7 +205,12 @@ PROPIEDADES: dict[str, Propiedad] = {
 
 # Atributos (propiedades de dato) que el sistema exporta.
 ATRIBUTOS = {
-    "titulo": ("title", "RiC-A40"),
+    # rico:title especializa RiC-A28 Name (RiC-A40 es Structure: corregido
+    # al comprobar los códigos de atributo contra el OWL).
+    "titulo": ("title", "RiC-A28"),
+    "nombre": ("name", "RiC-A28"),
+    "valor_textual": ("textualValue", None),
+    "extension_instanciacion": ("instantiationExtent", "RiC-A23"),
     "alcance_contenido": ("scopeAndContent", "RiC-A38"),
     "condiciones_acceso": ("conditionsOfAccess", "RiC-A08"),
     "condiciones_uso": ("conditionsOfUse", "RiC-A09"),
@@ -234,7 +239,8 @@ APOYO = {
     "estatuto_juridico": ("hasOrHadLegalStatus", AGENTES, "LegalStatus"),
     "tipo_agrupacion": ("hasRecordSetType", ("RecordSet",), "RecordSetType"),
     "forma_documental": ("hasDocumentaryFormType", ("Record", "RecordPart"), "DocumentaryFormType"),
-    "tipo_mandato": ("hasOrHadRuleType", ("Mandate",), "RuleType"),
+    # La más específica: RiC-O 1.1 tiene MandateType (subclase de RuleType).
+    "tipo_mandato": ("hasOrHadMandateType", ("Mandate",), "MandateType"),
     "inicio": ("hasBeginningDate", ("Thing",), "Date"),
     "fin": ("hasEndDate", ("Thing",), "Date"),
 }
@@ -242,6 +248,9 @@ APOYO = {
 # Datos que el sistema guarda pero que RiC-O no tiene dónde poner, y por
 # eso no se exportan. Se declaran para que la omisión sea explícita.
 SIN_PROPIEDAD = {
+    "estructura_agente": "ISAAR 5.2.7. rico:structure solo admite Instantiation y RecordResource; RiC expresa la "
+                         "estructura interna de un agente con relaciones entre agentes (hasOrHadSubordinate, que sí "
+                         "se exporta), no con un texto. Se conserva en la ficha.",
     "calendario": "RiC-O no declara calendario; normalizedDateValue usa ISO 8601 (gregoriano). Delimitación de la tesis.",
     "nivel_detalle": "Dato de control interno del registro de autoridad.",
     "fuentes": "RiC-O solo ofrece fuente para relaciones reificadas (isEvidencedBy); se conserva interno.",
@@ -324,7 +333,7 @@ def verificar_contra_owl() -> list[str]:
 
     clases = set(CLASE_NIVEL.values()) | set(CLASE_AGENTE.values()) | set(CLASE_VOCABULARIO.values()) \
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
-                                      "IdentifierType", "LegalStatus", "RecordSetType", "RuleType"}
+                                      "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")
@@ -358,9 +367,14 @@ def verificar_contra_owl() -> list[str]:
             codigos = {c.upper() for c in re.findall(r"R\d{3}i?", cm, flags=re.IGNORECASE)}
             if p.codigo_cm.split("-")[1].upper() not in codigos:
                 problemas.append(f"{codigo}: rico:{p.rico} no corresponde a {p.codigo_cm} en RiC-O.")
-    for clave, (nombre, _) in ATRIBUTOS.items():
+    for clave, (nombre, codigo) in ATRIBUTOS.items():
         if not existe(nombre, OWL.DatatypeProperty):
             problemas.append(f"{clave}: rico:{nombre} no existe como propiedad de dato.")
+            continue
+        if codigo:  # el código RiC-CM declarado debe ser el que da el propio OWL
+            cm = " ".join(str(x) for x in g.objects(URIRef(RICO + nombre), URIRef(RICO + "RiCCMCorrespondingComponent")))
+            if codigo.split("-")[1].upper() not in {c.upper() for c in re.findall(r"A\d{2}", cm)}:
+                problemas.append(f"{clave}: rico:{nombre} no corresponde a {codigo} en RiC-O.")
     for clave, (nombre, usadas, rango) in APOYO.items():
         u = URIRef(RICO + nombre)
         if not existe(nombre, OWL.ObjectProperty):

@@ -41,6 +41,9 @@ DEFINICIONES: dict[str, Definicion] = {
     "preservacion_formatos": Definicion(None, lambda v: _formatos(v), "Formatos soportados para migración automática."),
     "preservacion_segunda_ubicacion": Definicion(None, lambda v: _segunda_ubicacion(v),
                                                  "Lugar donde se guarda la segunda copia de cada instanciación."),
+    "rdf_uris_publicas": Definicion(False, lambda v: None if isinstance(v, bool) else "Debe ser verdadero o falso.",
+                                    "Si las URI de RiC-O (/id/…) se resuelven sin iniciar sesión. Apagado por "
+                                    "defecto: encenderlo publica en internet lo descrito con acceso público."),
 }
 
 

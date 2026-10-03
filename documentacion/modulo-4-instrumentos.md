@@ -237,7 +237,8 @@ La **vista previa** no se audita, porque no produce ningún archivo. Sí actuali
 
 - **Inventario en `.xlsx`** (Office Open XML): abre en Excel, LibreOffice y Google Sheets. Trae encabezado del formato, fila de títulos fija, orientación horizontal para imprimir y comentarios en las celdas pendientes.
 - **Guía en `.docx`:** abre en Word y LibreOffice.
-- **Pendiente para más adelante:** exportar a RiC-O (RDF), EAD o CSV. El prompt no lo pide en esta versión. El índice tampoco tiene exportación propia, como dice el prompt.
+- **RiC-O 1.1 en RDF (Turtle y JSON-LD), con URI resolubles y validación de conformidad:** ver la ampliación al final de este documento.
+- **Pendiente para más adelante:** EAD y CSV. El índice tampoco tiene exportación propia, como dice el prompt.
 
 ## 18. Normativa aplicable
 
@@ -429,3 +430,111 @@ La Especificación funcional y las Historias de usuario piden un «lienzo de gra
 - sin sesión, 401; nodo inexistente, 404.
 
 Verificación visual en navegador real, también en móvil.
+
+---
+
+## Ampliación · Exportación RiC-O 1.1, URI resolubles y conformidad (OWL y SHACL)
+
+**Por qué.** Era la brecha central del objetivo 2 de la tesis: el sistema decía usar RiC-O, pero no producía un solo dato en RiC-O que alguien pudiera comprobar. Ahora el fondo sale como datos enlazados, cada nodo tiene una URI, y la conformidad se mide sobre los datos con dos validadores independientes.
+
+### Qué hace
+
+- **Pestaña Instrumentos › RiC-O:** descargar el fondo en **Turtle** o en **JSON-LD**, y **validar la conformidad**. El reporte dice si es conforme, cuántas tripletas hay por clase de RiC-O, qué no se exportó y por qué, y qué guarda el sistema que RiC-O no puede expresar.
+- **URI de cada nodo:** `{dirección pública}/id/{uuid}`. Devuelve la descripción RDF del nodo: sus tripletas, las de sus nodos de apoyo (otras formas del nombre, identificadores, fechas propias), las que apuntan a él y la clase y la etiqueta de cada nodo citado. Negociación de contenido: Turtle por defecto; JSON-LD con `Accept: application/ld+json` o con la extensión `.jsonld`.
+
+### Qué se exporta (todo nombre sale de `app/servicios/ric_o.py`)
+
+| Dato | RiC-O |
+|---|---|
+| Fondo, sección, serie, subserie, expediente | `rico:RecordSet` + `rico:hasRecordSetType` (`rst:Fonds`, `rst:Series`, `rst:File`; sección y subserie: concepto propio con `skos:broadMatch`) |
+| Unidad documental / parte documental | `rico:Record` / `rico:RecordPart` |
+| Jerarquía | `rico:includesOrIncluded` (R024); la parte, `rico:hasOrHadConstituent` (R003) |
+| Título, código, alcance, condiciones | `rico:title` (A28), `rico:identifier` (A22), `rico:scopeAndContent` (A38), `rico:conditionsOfAccess` (A08) y `conditionsOfUse` (A09) |
+| Idioma | `rico:hasOrHadLanguage` (Record, RecordPart) o `rico:hasOrHadAllMembersWithLanguage` (RecordSet) → `rico:Language` con su código ISO 639-3 y `skos:exactMatch` a Lexvo |
+| Forma documental, tipo de parte | `rico:hasDocumentaryFormType` → `rico:DocumentaryFormType` (también `skos:Concept`) |
+| Fechas | `rico:Date` con `expressedDate` (A19), `normalizedDateValue` en EDTF (A29) y `dateQualifier` (A13) si es aproximada o incierta; las fechas extremas, `hasCreationDate` |
+| Agentes | su subclase (`Person`, `CorporateBody`, `Group`, `Family`, `Position`), `rico:name`, `history`, `generalDescription`, estatuto (`LegalStatus`), existencia (`hasBeginningDate`/`hasEndDate`), otras formas del nombre (`AgentName` + `textualValue`), identificadores (`Identifier` + `IdentifierType`) y `owl:sameAs` hacia Wikidata, VIAF o ISNI |
+| Lugar | `rico:Place`, coordenadas `geographicalCoordinates` (A11, «latitud, longitud» WGS 84), `PlaceType`, `PlaceName` |
+| Funciones | `rico:ActivityType` + `skos:Concept` en un `skos:ConceptScheme` por fondo, con `skos:broader` (la función superior se exporta aunque nadie la cite) |
+| Actividad, mandato, línea de tiempo | `rico:Activity`; `rico:Mandate` con `rico:title` y `hasOrHadMandateType`; cada hito un `rico:Event` con `affectsOrAffected` (R059) |
+| Instanciaciones | `rico:Instantiation` con `title`, `identifier` (`urn:uuid:`), `instantiationExtent` (A23) y `rdfs:seeAlso` a su ficha PRONOM; `migratedInto` (R015) |
+| Todas las relaciones vigentes | la propiedad del mapeo, solo si las clases de origen y destino están en su dominio y su rango |
+
+### Qué no sale nunca, y queda contado en el reporte
+
+- origen, confianza, motor y fragmento de cada dato (regla de procedencia);
+- los agentes mecanismo (los programas que actúan en el sistema);
+- los borradores, y lo que cuelga de un nivel no publicado;
+- por defecto, lo **clasificado o reservado** (Ley 1712 de 2014, arts. 18 y 19), propio o heredado del nivel superior más cercano con declaración de derechos. Quien tiene permiso de escritura en el catálogo puede incluirlo en la descarga, y queda en la auditoría. **Por la URI no se resuelve nunca**, ni con sesión;
+- lo que RiC-O no puede decir (`ric_o.SIN_PROPIEDAD`): calendario no gregoriano, nivel de detalle, fuentes, estructura interna de un agente.
+
+### Conformidad: dos validadores que no dependen uno del otro
+
+1. **Contra el OWL oficial** (`conformidad_rico.verificar_owl`). No usa el mapeo del sistema: lee la ontología. Toda clase y propiedad existe; cada tripleta respeta dominio y rango con las superclases; una propiedad de objeto no lleva un literal; **ningún predicado fuera de RiC-O, RDF, RDFS, SKOS y OWL** (un campo interno que se colara aparecería aquí).
+2. **Contra el perfil SHACL del sistema** (pyshacl), `app/recursos/ric-o/perfil-ricora.shacl.ttl`. RiC-O no declara cardinalidades; el perfil fija lo que RICORA promete: un título por descripción, tipo de agrupación, una unidad documental incluida en algo, una parte en exactamente una unidad, nombre de agente y de lugar, coordenadas bien formadas, ISO 639-3. Dos partes **se generan, no se escriben a mano**: una forma por relación desde el mapeo único, y el patrón EDTF desde las expresiones de `servicios/fechas.py`. Así el perfil no puede contradecir al sistema.
+
+Además, el reporte repite la verificación del mapeo contra el OWL.
+
+**Lo que encontró la validación durante el desarrollo** (por eso vale la pena):
+- una forma documental citada solo por la descripción no se exportaba (el objeto quedaba sin clase): corregido;
+- el patrón EDTF escrito a mano rechazaba `195X`, que el sistema sí admite: ahora sale de `fechas.py`;
+- **dos errores del mapeo de la entrega anterior**: `rico:title` anotado como RiC-A40 (que en RiC-CM 1.0 es *Structure*; es A28) y el tipo de mandato con `hasOrHadRuleType` cuando existe el más específico `hasOrHadMandateType`. Detalle en `documentacion/anexos/verificacion-ric-o-1-1.md`.
+
+### API
+
+| Método y ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/exportacion/rdf?fondo_id&formato=turtle\|jsonld&incluir_restringidos` | consultar el catálogo (incluir lo reservado: escribir) | Descarga el fondo. Evento `rdf_exportado` |
+| `GET /api/exportacion/conformidad?fondo_id` | consultar el catálogo | Reporte OWL + SHACL. Evento `conformidad_rico_validada` |
+| `GET` / `PUT /api/exportacion/uris-publicas` | consultar / **solo administrador** | Resolución de URI sin sesión. Cambio auditado como `parametro_cambiado` |
+| `GET /id/{uuid}[.ttl\|.jsonld]` | sin sesión solo si está encendido; con sesión, consultar el catálogo | Descripción RDF del nodo; 404 si no existe, no está publicado, es reservado o es un mecanismo; 301 a la definitiva si la entidad se fusionó |
+
+### Decisiones
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Biblioteca RDF | rdflib; pyoxigraph; escribir Turtle a mano | **rdflib 7.6** | Ya estaba para verificar el mapeo contra el OWL; serializa Turtle y JSON-LD; libre (BSD) | Lenta con grafos muy grandes (cientos de miles de tripletas). Un fondo histórico de tesis queda muy por debajo; si creciera, pyoxigraph acepta el mismo grafo |
+| Validación | Solo OWL; solo SHACL; **las dos** | **OWL (propia, sobre la ontología) + SHACL (pyshacl 0.40)** | El OWL dice si lo exportado es RiC-O; SHACL dice si cumple lo que el sistema promete (RiC-O no tiene cardinalidades). Ninguna sola basta | pyshacl con la ontología completa tardaba 138 s; con solo la jerarquía de clases, 1,5 s y el mismo resultado. Si cambia la versión de RiC-O, se vuelve a extraer sola |
+| Forma de las URI | Por tipo (`/agente/…`, `/recurso/…`); **`/id/{uuid}` para todo**; ARK o Handle | **`/id/{uuid}`** sobre la dirección pública | Estables: el uuid no cambia nunca, y la URI de una entidad fusionada **redirige con 301** a la definitiva (no se rompe ningún enlace externo), sin registro externo ni costo. El tipo va en el RDF, no en la URI | Dependen del dominio del servidor: si cambia, cambian las URI. ARK o Handle lo resolverían, con registro institucional (fuera del alcance sin costo) |
+| Resolución sin sesión | Siempre pública; nunca; **apagada por defecto y la enciende el administrador** | **Apagada por defecto** | El servidor aún no tiene HTTPS y el fondo puede tener reservas sin declarar. Publicar es una decisión institucional, no un efecto lateral de instalar el sistema | Mientras esté apagada, las URI no son «datos enlazados abiertos» en sentido estricto. Se dice así en la tesis |
+| Lo reservado en la exportación | Siempre fuera; siempre dentro; **fuera por defecto, dentro con permiso de escritura y auditoría** | Así | La descarga completa sirve para migrar el fondo a otro sistema; la de por defecto, para compartir | Un archivo descargado con lo reservado sale del control del sistema. Queda registrado quién y cuándo |
+| Enlace a autoridades externas | `rdfs:seeAlso`; `skos:exactMatch`; **`owl:sameAs`** | **`owl:sameAs`** (Wikidata, VIAF, ISNI validados) | Es la práctica de los archivos que publican datos enlazados; permite unir el agente con su ficha externa | `owl:sameAs` es una afirmación fuerte: si la archivista vincula mal un identificador, un razonador fusiona dos entidades distintas. El identificador se valida en su forma, no en su contenido |
+| Calendario no gregoriano | Inventar una propiedad; meterlo en la nota; **no exportarlo y contarlo** | **No exportarlo**, contado en el reporte | RiC-O no lo tiene y `normalizedDateValue` es ISO 8601 (gregoriano). Inventar una propiedad rompería la conformidad | La fecha juliana se exporta como si fuera gregoriana. Es una delimitación declarada de la tesis |
+
+### Código
+
+```
+app/servicios/exportacion_rico.py        el grafo del fondo, serialización, descripción de un nodo
+app/servicios/conformidad_rico.py        verificación OWL propia + SHACL (perfil + formas generadas)
+app/recursos/ric-o/perfil-ricora.shacl.ttl   perfil de aplicación SHACL
+app/routers/exportacion.py               /api/exportacion/… y /id/…
+app/servicios/ric_o.py                   (corregido) title ↔ A28; hasOrHadMandateType; atributos nuevos
+frontend/src/components/ExportacionRico.tsx   pestaña RiC-O
+tests/test_exportacion_rico.py           18 pruebas
+documentacion/anexos/rico-ejemplo/       exportación real y su reporte
+```
+
+### Pruebas (18 en `tests/test_exportacion_rico.py`; el proyecto llega a 265)
+
+| Prueba | Qué comprueba |
+|---|---|
+| Niveles | clase y tipo de agrupación de cada nivel; sección y subserie con `skos:broadMatch`; R024 y R003 en su sentido |
+| Idioma | ISO 639-3, la propiedad que corresponde a cada clase, enlace a Lexvo |
+| Contexto | agente con historia, otra forma del nombre, existencia, `owl:sameAs`, hito; lugar con coordenadas y tipo; actividad, función con su superior SKOS, mandato con su tipo, fecha aproximada |
+| Nada interno | ni motor, ni fragmento, ni confianzas, ni borrador, ni mecanismo, ni estructura ni calendario juliano; lo omitido, contado |
+| Reservado | fuera por defecto, heredado del expediente; dentro con la opción |
+| Turtle = JSON-LD | grafos isomorfos |
+| **Conforme** | 0 problemas OWL, SHACL conforme, mapeo sin problemas |
+| **SHACL detecta** (5 casos) | sin título, un lugar como productor, EDTF inválido, idioma que no es ISO, parte suelta |
+| **OWL independiente** | dominio violado, propiedad inventada, predicado ajeno |
+| API | descarga y reporte quedan en la auditoría; incluir lo reservado exige escritura |
+| URI | una entidad fusionada redirige (301) a la definitiva, con su extensión; 401 sin sesión cuando está apagado; contenido negociado; solo el administrador lo enciende; nodo de apoyo resoluble; 404 para borrador, inexistente y mecanismo; con URI públicas, lo clasificado sigue en 404 |
+
+**Mutaciones** detectadas: quitar el filtro de lo reservado, no cargar las formas documentales, exportar toda descripción como Record, invertir la propiedad de la parte documental.
+
+**Verificación visual:** pestaña RiC-O en escritorio y a 390 px, sin desplazamiento horizontal ni errores.
+
+### Evidencia
+
+`documentacion/anexos/rico-ejemplo/`: el fondo de prueba en Turtle y JSON-LD y su reporte. **Conforme** con RiC-O 1.1 (OWL y 41 formas SHACL), 196 tripletas en 21 clases de RiC-O. El LEEME explica cada omisión y cómo validarlo fuera del sistema.
+

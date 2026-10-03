@@ -83,6 +83,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     # Instrumentos
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
+    "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
+    "conformidad_rico_validada": ("Validó la conformidad con RiC-O (OWL y SHACL)", "Instrumentos generados"),
     # Preservación
     "integridad_verificada": ("Verificó la integridad", "Verificaciones de integridad"),
     "migracion_aprobada": ("Aprobó una migración", "Migraciones"),

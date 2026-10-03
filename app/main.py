@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import alertas, auditoria, auth, descripcion, fondos, ingesta, instrumentos, preservacion, vocabulario
+from app.routers import (alertas, auditoria, auth, descripcion, exportacion, fondos, ingesta, instrumentos,
+                         preservacion, vocabulario)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -44,6 +45,8 @@ app.include_router(vocabulario.router)
 app.include_router(instrumentos.router)
 app.include_router(preservacion.router)
 app.include_router(auditoria.router)
+app.include_router(exportacion.router)
+app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atiende todo lo demás
 
 # Rutas que no exigen sesión. La prueba de seguridad recorre todas las
 # demás y falla si alguna quedó sin la dependencia de autenticación.
@@ -57,6 +60,10 @@ RUTAS_PUBLICAS = {
     "/api/auth/recuperar/{token}",
     "/api/docs",
     "/api/openapi.json",
+    # Resolución de URI de RiC-O: decide sola. Sin sesión responde 401
+    # salvo que el administrador haya encendido «URI públicas», y nunca
+    # entrega lo clasificado o reservado.
+    "/id/{ruta:path}",
 }
 
 

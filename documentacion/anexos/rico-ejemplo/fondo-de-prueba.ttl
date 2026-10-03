@@ -1,0 +1,247 @@
+@prefix lexvo: <http://lexvo.org/id/iso639-3/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rico: <https://www.ica.org/standards/RiC/ontology#> .
+@prefix ricora: <http://localhost:8000/id/> .
+@prefix rst: <https://www.ica.org/standards/RiC/vocabularies/recordSetTypes#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+ricora:4ccecefd-bb01-4211-83c5-3ce37806c49d a rico:Event ;
+    rdfs:label "Asume la inspección de espectáculos" ;
+    rico:affectsOrAffected ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:isAssociatedWithDate <http://localhost:8000/id/4ccecefd-bb01-4211-83c5-3ce37806c49d/fecha> ;
+    rico:name "Asume la inspección de espectáculos" .
+
+ricora:5c8cf4d6-152f-41e5-9ecc-e5b2888f9224 a rico:RecordSet ;
+    rdfs:label "Fondo de prueba · Archivo Municipal" ;
+    rico:hasCreationDate <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/fechas-extremas> ;
+    rico:hasRecordSetType rst:Fonds ;
+    rico:includesOrIncluded ricora:3a739dee-65a8-4a85-be3a-0dbe2d4db30f ;
+    rico:title "Fondo de prueba · Archivo Municipal" .
+
+ricora:921edc17-975e-4f89-b204-ba93c2436c5b a rico:Date ;
+    rico:expressedDate "1948" ;
+    rico:isCreationDateOf ricora:3a739dee-65a8-4a85-be3a-0dbe2d4db30f ;
+    rico:normalizedDateValue "1948" .
+
+ricora:92e82a55-b9e3-4324-bf54-e6f699a2d8f1 a rico:Event ;
+    rdfs:label "Creación por el Acuerdo 12 del Concejo" ;
+    rico:affectsOrAffected ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:isAssociatedWithDate <http://localhost:8000/id/92e82a55-b9e3-4324-bf54-e6f699a2d8f1/fecha> ;
+    rico:name "Creación por el Acuerdo 12 del Concejo" .
+
+ricora:9dbb9574-3fbf-43f7-b4d2-8eeeb7eb86d3 a rico:CorporateBody ;
+    rdfs:label "Alcaldía Municipal de Tunja" ;
+    rico:hasOrHadSubordinate ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:name "Alcaldía Municipal de Tunja" .
+
+ricora:a7f79738-88fd-4906-b1bb-03ebb59bcb5b a rico:Mandate ;
+    rdfs:label "Ley 4 de 1913" ;
+    rico:hasOrHadMandateType <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/ley> ;
+    rico:regulatesOrRegulated ricora:75211bf1-8f09-4898-a4c5-8907a5de170b ;
+    rico:title "Ley 4 de 1913" .
+
+ricora:b6f8dc06-532a-4a1e-8f66-6bdabc02b6bc a rico:Place ;
+    rdfs:label "Colombia" ;
+    rico:containsOrContained ricora:faa3e9b0-e329-4a32-bd70-c35ccf74c67c ;
+    rico:name "Colombia" .
+
+ricora:e6d04b67-1ef5-48cc-a8ad-a7fb8c90463d a rico:Date ;
+    rico:expressedDate "1948" ;
+    rico:isDateAssociatedWith ricora:649f21fb-9da4-42e0-b9e7-cddc015ade8d ;
+    rico:normalizedDateValue "1948" .
+
+ricora:49821407-b0a8-42c8-a27a-a2f16db5a610 a rico:CorporateBody ;
+    rdfs:label "Secretaría de Obras Públicas" ;
+    rico:name "Secretaría de Obras Públicas" .
+
+<http://localhost:8000/id/4ccecefd-bb01-4211-83c5-3ce37806c49d/fecha> a rico:Date ;
+    rico:expressedDate "década de 1950" ;
+    rico:normalizedDateValue "195X" .
+
+ricora:54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde a rico:Instantiation ;
+    rdfs:label "Oficio_210_1948.png" ;
+    rdfs:seeAlso <https://www.nationalarchives.gov.uk/PRONOM/fmt/11> ;
+    rico:identifier "urn:uuid:54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde" ;
+    rico:instantiationExtent "46547 bytes; 1 página(s)" ;
+    rico:title "Oficio_210_1948.png" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/fechas-extremas> a rico:Date ;
+    rico:expressedDate "1930–1955" ;
+    rico:normalizedDateValue "1930/1955" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/estatuto-juridico/publica> a rico:LegalStatus ;
+    rdfs:label "Pública" ;
+    rico:name "Pública" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/idioma/spa> a rico:Language ;
+    rdfs:label "español" ;
+    skos:exactMatch lexvo:spa ;
+    rico:identifier "spa" ;
+    rico:name "español" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-identificador/interno> a rico:IdentifierType ;
+    rdfs:label "INTERNO" ;
+    rico:name "INTERNO" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/departamento> a rico:PlaceType ;
+    rdfs:label "Departamento" ;
+    rico:name "Departamento" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/municipio> a rico:PlaceType ;
+    rdfs:label "Municipio" ;
+    rico:name "Municipio" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/acuerdo> a rico:MandateType ;
+    rdfs:label "Acuerdo" ;
+    rico:name "Acuerdo" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/ley> a rico:MandateType ;
+    rdfs:label "Ley" ;
+    rico:name "Ley" .
+
+ricora:75211bf1-8f09-4898-a4c5-8907a5de170b a rico:Mandate ;
+    rdfs:label "Acuerdo 12 de 1948" ;
+    rico:authorizes ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:hasOrHadMandateType <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/acuerdo> ;
+    rico:issuedBy ricora:5ba9df81-1bb3-404d-969f-a96f228fa38f ;
+    rico:regulatesOrRegulated ricora:31330461-491a-4f12-aec3-c0613a22cf6e ;
+    rico:title "Acuerdo 12 de 1948" .
+
+ricora:772de37d-b857-46ee-a7bf-2f86b0641d6e a rico:Instantiation ;
+    rdfs:label "Oficio_210_1948_Sello_de_la_Alcaldía.png" ;
+    rdfs:seeAlso <https://www.nationalarchives.gov.uk/PRONOM/fmt/11> ;
+    rico:identifier "urn:uuid:772de37d-b857-46ee-a7bf-2f86b0641d6e" ;
+    rico:instantiationExtent "8736 bytes; 1 página(s)" ;
+    rico:title "Oficio_210_1948_Sello_de_la_Alcaldía.png" .
+
+<http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/identificador/9f776861-83dd-47ce-b4a2-2171dfd582a5> a rico:Identifier ;
+    rico:hasIdentifierType <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-identificador/interno> ;
+    rico:textualValue "AMT-SG-01" .
+
+<http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/inicio> a rico:Date ;
+    rico:expressedDate "1948" ;
+    rico:normalizedDateValue "1948" .
+
+<http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/nombre/441c4580-a567-4075-b8e2-0cb733d1b02d> a rico:AgentName ;
+    rico:textualValue "Secretaría de Gobierno" .
+
+ricora:84d87d3b-9420-45d3-b0d2-9e4b54b9bb1a a rico:RecordPart ;
+    rdfs:label "Sello de la Alcaldía" ;
+    rico:hasDocumentaryFormType ricora:fc7b6a72-5b16-45e7-aeda-349b90702513 ;
+    rico:hasOrHadInstantiation ricora:772de37d-b857-46ee-a7bf-2f86b0641d6e ;
+    rico:title "Sello de la Alcaldía" .
+
+<http://localhost:8000/id/92e82a55-b9e3-4324-bf54-e6f699a2d8f1/fecha> a rico:Date ;
+    rico:expressedDate "12 de marzo de 1948" ;
+    rico:normalizedDateValue "1948-03-12" .
+
+ricora:9eda454a-3187-427f-870d-03ff694bdcf5 a rico:Group ;
+    rdfs:label "Junta de Ornato y Mejoras" ;
+    rico:hasSuccessor ricora:49821407-b0a8-42c8-a27a-a2f16db5a610 ;
+    rico:name "Junta de Ornato y Mejoras" .
+
+ricora:a2c92796-d80d-4af7-9e63-faadb51f0a9a a skos:Concept,
+        rico:ActivityType ;
+    rdfs:label "Policía local" ;
+    skos:broader ricora:69f133a9-64a7-4646-9dd2-d5db1b00f061 ;
+    skos:inScheme <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad> ;
+    skos:prefLabel "Policía local" ;
+    rico:name "Policía local" .
+
+ricora:af839432-4a89-4563-8d93-da64f08a55de a rico:CorporateBody ;
+    rdfs:label "Secretaría de Gobierno y Convivencia de Tunja" ;
+    rico:name "Secretaría de Gobierno y Convivencia de Tunja" .
+
+ricora:f49cca28-310c-471a-be13-d4ef2f7d8853 a rico:Place ;
+    rdfs:label "Tunja" ;
+    rico:geographicalCoordinates "5.535300, -73.367800" ;
+    rico:hasOrHadPlaceName <http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0>,
+        <http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7> ;
+    rico:hasOrHadPlaceType <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/municipio> ;
+    rico:isOrWasLocationOf ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:name "Tunja" .
+
+<http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0> a rico:PlaceName ;
+    rico:hasEndDate <http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0/fin> ;
+    rico:textualValue "Hunza" .
+
+<http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0/fin> a rico:Date ;
+    rico:expressedDate "1539" ;
+    rico:normalizedDateValue "1539" .
+
+<http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7> a rico:PlaceName ;
+    rico:hasBeginningDate <http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/inicio> ;
+    rico:hasEndDate <http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/fin> ;
+    rico:textualValue "Muy Noble y Muy Leal Ciudad de Tunja" .
+
+<http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/fin> a rico:Date ;
+    rico:expressedDate "1819" ;
+    rico:normalizedDateValue "1819" .
+
+<http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/inicio> a rico:Date ;
+    rico:expressedDate "1541" ;
+    rico:normalizedDateValue "1541" .
+
+ricora:faa3e9b0-e329-4a32-bd70-c35ccf74c67c a rico:Place ;
+    rdfs:label "Boyacá" ;
+    rico:containsOrContained ricora:f49cca28-310c-471a-be13-d4ef2f7d8853 ;
+    rico:hasOrHadPlaceType <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/departamento> ;
+    rico:name "Boyacá" .
+
+ricora:fc7b6a72-5b16-45e7-aeda-349b90702513 a skos:Concept,
+        rico:DocumentaryFormType ;
+    rdfs:label "Sello" ;
+    skos:prefLabel "Sello" ;
+    rico:name "Sello" .
+
+ricora:31330461-491a-4f12-aec3-c0613a22cf6e a rico:Activity ;
+    rdfs:label "Ejercicio de la policía local en 1948" ;
+    rico:hasActivityType ricora:a2c92796-d80d-4af7-9e63-faadb51f0a9a ;
+    rico:hasDirectSubevent ricora:649f21fb-9da4-42e0-b9e7-cddc015ade8d ;
+    rico:name "Ejercicio de la policía local en 1948" .
+
+ricora:3a739dee-65a8-4a85-be3a-0dbe2d4db30f a rico:Record ;
+    rdfs:label "Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948" ;
+    rico:conditionsOfAccess "Consulta libre en la sala de investigación." ;
+    rico:conditionsOfUse "Reproducción con autorización escrita del archivo." ;
+    rico:documents ricora:649f21fb-9da4-42e0-b9e7-cddc015ade8d ;
+    rico:hasAddressee ricora:5ba9df81-1bb3-404d-969f-a96f228fa38f ;
+    rico:hasCreator ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:hasOrHadConstituent ricora:84d87d3b-9420-45d3-b0d2-9e4b54b9bb1a ;
+    rico:hasOrHadInstantiation ricora:54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde ;
+    rico:hasOrHadLanguage <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/idioma/spa> ;
+    rico:scopeAndContent "La Secretaría de Gobierno remite al Concejo el informe de permisos para las fiestas de 1948." ;
+    rico:title "Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948" .
+
+ricora:5ba9df81-1bb3-404d-969f-a96f228fa38f a rico:CorporateBody ;
+    rdfs:label "Concejo Municipal de Tunja" ;
+    rico:hasOrHadSubordinate ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b ;
+    rico:name "Concejo Municipal de Tunja" .
+
+<http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad> a skos:ConceptScheme ;
+    skos:hasTopConcept ricora:69f133a9-64a7-4646-9dd2-d5db1b00f061 ;
+    skos:prefLabel "Tipos de actividad (funciones) · Fondo de prueba · Archivo Municipal" .
+
+ricora:69f133a9-64a7-4646-9dd2-d5db1b00f061 a skos:Concept,
+        rico:ActivityType ;
+    rdfs:label "Gobierno municipal" ;
+    skos:inScheme <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad> ;
+    skos:prefLabel "Gobierno municipal" ;
+    rico:name "Gobierno municipal" .
+
+ricora:649f21fb-9da4-42e0-b9e7-cddc015ade8d a rico:Activity ;
+    rdfs:label "Expedición de permisos para las fiestas de 1948" ;
+    rico:name "Expedición de permisos para las fiestas de 1948" .
+
+ricora:79a3769b-b69f-44ef-89c7-ffbc164b239b a rico:CorporateBody ;
+    rdfs:label "Secretaría de Gobierno de Tunja" ;
+    rico:hasBeginningDate <http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/inicio> ;
+    rico:hasOrHadAgentName <http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/nombre/441c4580-a567-4075-b8e2-0cb733d1b02d> ;
+    rico:hasOrHadIdentifier <http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/identificador/9f776861-83dd-47ce-b4a2-2171dfd582a5> ;
+    rico:hasOrHadLegalStatus <http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/estatuto-juridico/publica> ;
+    rico:hasSuccessor ricora:af839432-4a89-4563-8d93-da64f08a55de ;
+    rico:history "Creada por el Acuerdo 12 de 1948 para atender el orden público y los permisos." ;
+    rico:isAgentAssociatedWithAgent ricora:9eda454a-3187-427f-870d-03ff694bdcf5 ;
+    rico:name "Secretaría de Gobierno de Tunja" ;
+    rico:performsOrPerformed ricora:31330461-491a-4f12-aec3-c0613a22cf6e .
+

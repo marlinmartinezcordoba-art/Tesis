@@ -1,0 +1,120 @@
+# Perfil de aplicación SHACL de RICORA sobre RiC-O 1.1.
+#
+# Fija lo que el sistema promete de sus datos exportados, más allá de lo
+# que RiC-O exige (RiC-O no declara cardinalidades obligatorias). Las
+# formas de las relaciones (qué clases admite cada propiedad en el origen
+# y en el destino) no se escriben aquí a mano: se generan desde el mapeo
+# único (app/servicios/ric_o.py) en app/servicios/conformidad_rico.py.
+
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rico: <https://www.ica.org/standards/RiC/ontology#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix pr:   <https://ricora.local/perfil#> .
+
+# --- Record Resource ---------------------------------------------------------
+
+pr:RecordResource a sh:NodeShape ;
+    sh:targetClass rico:RecordResource ;
+    sh:property [
+        sh:path rico:title ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ;
+        sh:message "Toda descripción tiene exactamente un título (ISAD(G) 3.1.2)." ] ;
+    sh:property [
+        sh:path rico:identifier ; sh:maxCount 1 ;
+        sh:message "Una descripción tiene a lo sumo un código de referencia." ] .
+
+pr:RecordSet a sh:NodeShape ;
+    sh:targetClass rico:RecordSet ;
+    sh:property [
+        sh:path rico:hasRecordSetType ; sh:minCount 1 ; sh:maxCount 1 ; sh:class rico:RecordSetType ;
+        sh:message "Cada agrupación declara su tipo (fondo, sección, serie, subserie o expediente)." ] ;
+    sh:property [
+        sh:path rico:hasOrHadAllMembersWithLanguage ; sh:class rico:Language ] .
+
+pr:Record a sh:NodeShape ;
+    sh:targetClass rico:Record ;
+    sh:property [
+        sh:path [ sh:inversePath rico:includesOrIncluded ] ; sh:minCount 1 ;
+        sh:message "Una unidad documental está incluida en una agrupación (no queda suelta del árbol)." ] ;
+    sh:property [
+        sh:path rico:hasDocumentaryFormType ; sh:maxCount 1 ; sh:class rico:DocumentaryFormType ] ;
+    sh:property [
+        sh:path rico:hasOrHadLanguage ; sh:class rico:Language ] .
+
+pr:RecordPart a sh:NodeShape ;
+    sh:targetClass rico:RecordPart ;
+    sh:property [
+        sh:path [ sh:inversePath rico:hasOrHadConstituent ] ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Una parte documental pertenece exactamente a una unidad documental (RiC-R003)." ] .
+
+# --- Instantiation -----------------------------------------------------------
+
+pr:Instantiation a sh:NodeShape ;
+    sh:targetClass rico:Instantiation ;
+    sh:property [ sh:path rico:identifier ; sh:minCount 1 ; sh:pattern "^urn:uuid:[0-9a-f-]{36}$" ] ;
+    # Es la instanciación de una descripción, o salió de migrar otra.
+    sh:or ( [ sh:path [ sh:inversePath rico:hasOrHadInstantiation ] ; sh:minCount 1 ]
+            [ sh:path [ sh:inversePath rico:migratedInto ] ; sh:minCount 1 ] ) .
+
+# --- Agent, Place, Activity, Mandate ----------------------------------------
+
+pr:Agent a sh:NodeShape ;
+    sh:targetClass rico:Agent ;
+    sh:property [
+        sh:path rico:name ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Todo agente tiene una forma autorizada del nombre (ISAAR(CPF) 5.1.2)." ] ;
+    sh:property [ sh:path rico:hasOrHadAgentName ; sh:class rico:AgentName ] ;
+    sh:property [ sh:path rico:hasOrHadLegalStatus ; sh:maxCount 1 ; sh:class rico:LegalStatus ] .
+
+pr:Mechanism a sh:NodeShape ;
+    sh:targetClass rico:Mechanism ;
+    sh:property [
+        sh:path rico:technicalCharacteristics ; sh:minCount 1 ;
+        sh:message "Un mecanismo declara su versión exacta (RiC-A41)." ] .
+
+pr:Place a sh:NodeShape ;
+    sh:targetClass rico:Place ;
+    sh:property [ sh:path rico:name ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [
+        sh:path rico:geographicalCoordinates ; sh:maxCount 1 ;
+        sh:pattern "^-?([0-8]?[0-9](\\.[0-9]+)?|90(\\.0+)?), -?(1[0-7][0-9]|[0-9]?[0-9])(\\.[0-9]+)?$|^-?([0-8]?[0-9](\\.[0-9]+)?|90(\\.0+)?), -?180(\\.0+)?$" ;
+        sh:message "Coordenadas WGS 84 «latitud, longitud» en grados decimales." ] ;
+    sh:property [ sh:path rico:hasOrHadPlaceType ; sh:maxCount 1 ; sh:class rico:PlaceType ] .
+
+pr:Activity a sh:NodeShape ;
+    sh:targetClass rico:Activity ;
+    sh:property [ sh:path rico:name ; sh:minCount 1 ] ;
+    sh:property [
+        sh:path rico:hasActivityType ; sh:maxCount 1 ; sh:class rico:ActivityType ;
+        sh:message "Una actividad tiene a lo sumo un tipo de actividad (función)." ] .
+
+pr:ActivityType a sh:NodeShape ;
+    sh:targetClass rico:ActivityType ;
+    sh:property [ sh:path skos:prefLabel ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path skos:inScheme ; sh:minCount 1 ; sh:class skos:ConceptScheme ] ;
+    sh:property [
+        sh:path skos:broader ; sh:maxCount 1 ; sh:class rico:ActivityType ;
+        sh:message "La función superior de un tipo de actividad es otro tipo de actividad (SKOS)." ] .
+
+pr:Mandate a sh:NodeShape ;
+    sh:targetClass rico:Mandate ;
+    sh:property [ sh:path rico:title ; sh:minCount 1 ] ;
+    sh:property [ sh:path rico:hasOrHadMandateType ; sh:maxCount 1 ; sh:class rico:MandateType ] .
+
+# --- Date ---------------------------------------------------------------------
+
+pr:Date a sh:NodeShape ;
+    sh:targetClass rico:Date ;
+    sh:or ( [ sh:path rico:expressedDate ; sh:minCount 1 ] [ sh:path rico:normalizedDateValue ; sh:minCount 1 ] ) ;
+    # El patrón EDTF no se escribe aquí: se genera desde las expresiones de
+    # app/servicios/fechas.py (el mismo subconjunto que valida el sistema).
+    sh:property [ sh:path rico:normalizedDateValue ; sh:maxCount 1 ] .
+
+# --- Language -------------------------------------------------------------------
+
+pr:Language a sh:NodeShape ;
+    sh:targetClass rico:Language ;
+    sh:property [
+        sh:path rico:identifier ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[a-z]{3}$" ;
+        sh:message "Un idioma se identifica con su código ISO 639-3." ] .

@@ -1,0 +1,454 @@
+{
+  "@context": {
+    "lexvo": "http://lexvo.org/id/iso639-3/",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "rico": "https://www.ica.org/standards/RiC/ontology#",
+    "rst": "https://www.ica.org/standards/RiC/vocabularies/recordSetTypes#",
+    "skos": "http://www.w3.org/2004/02/skos/core#"
+  },
+  "@graph": [
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/municipio",
+      "@type": "rico:PlaceType",
+      "rdfs:label": "Municipio",
+      "rico:name": "Municipio"
+    },
+    {
+      "@id": "http://localhost:8000/id/75211bf1-8f09-4898-a4c5-8907a5de170b",
+      "@type": "rico:Mandate",
+      "rdfs:label": "Acuerdo 12 de 1948",
+      "rico:authorizes": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:hasOrHadMandateType": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/acuerdo"
+      },
+      "rico:issuedBy": {
+        "@id": "http://localhost:8000/id/5ba9df81-1bb3-404d-969f-a96f228fa38f"
+      },
+      "rico:regulatesOrRegulated": {
+        "@id": "http://localhost:8000/id/31330461-491a-4f12-aec3-c0613a22cf6e"
+      },
+      "rico:title": "Acuerdo 12 de 1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/5ba9df81-1bb3-404d-969f-a96f228fa38f",
+      "@type": "rico:CorporateBody",
+      "rdfs:label": "Concejo Municipal de Tunja",
+      "rico:hasOrHadSubordinate": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:name": "Concejo Municipal de Tunja"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/fechas-extremas",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1930–1955",
+      "rico:normalizedDateValue": "1930/1955"
+    },
+    {
+      "@id": "http://localhost:8000/id/9eda454a-3187-427f-870d-03ff694bdcf5",
+      "@type": "rico:Group",
+      "rdfs:label": "Junta de Ornato y Mejoras",
+      "rico:hasSuccessor": {
+        "@id": "http://localhost:8000/id/49821407-b0a8-42c8-a27a-a2f16db5a610"
+      },
+      "rico:name": "Junta de Ornato y Mejoras"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/inicio",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1541",
+      "rico:normalizedDateValue": "1541"
+    },
+    {
+      "@id": "http://localhost:8000/id/84d87d3b-9420-45d3-b0d2-9e4b54b9bb1a",
+      "@type": "rico:RecordPart",
+      "rdfs:label": "Sello de la Alcaldía",
+      "rico:hasDocumentaryFormType": {
+        "@id": "http://localhost:8000/id/fc7b6a72-5b16-45e7-aeda-349b90702513"
+      },
+      "rico:hasOrHadInstantiation": {
+        "@id": "http://localhost:8000/id/772de37d-b857-46ee-a7bf-2f86b0641d6e"
+      },
+      "rico:title": "Sello de la Alcaldía"
+    },
+    {
+      "@id": "http://localhost:8000/id/fc7b6a72-5b16-45e7-aeda-349b90702513",
+      "@type": [
+        "rico:DocumentaryFormType",
+        "skos:Concept"
+      ],
+      "rdfs:label": "Sello",
+      "rico:name": "Sello",
+      "skos:prefLabel": "Sello"
+    },
+    {
+      "@id": "http://localhost:8000/id/4ccecefd-bb01-4211-83c5-3ce37806c49d/fecha",
+      "@type": "rico:Date",
+      "rico:expressedDate": "década de 1950",
+      "rico:normalizedDateValue": "195X"
+    },
+    {
+      "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/inicio",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1948",
+      "rico:normalizedDateValue": "1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/nombre/441c4580-a567-4075-b8e2-0cb733d1b02d",
+      "@type": "rico:AgentName",
+      "rico:textualValue": "Secretaría de Gobierno"
+    },
+    {
+      "@id": "http://localhost:8000/id/9dbb9574-3fbf-43f7-b4d2-8eeeb7eb86d3",
+      "@type": "rico:CorporateBody",
+      "rdfs:label": "Alcaldía Municipal de Tunja",
+      "rico:hasOrHadSubordinate": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:name": "Alcaldía Municipal de Tunja"
+    },
+    {
+      "@id": "http://localhost:8000/id/31330461-491a-4f12-aec3-c0613a22cf6e",
+      "@type": "rico:Activity",
+      "rdfs:label": "Ejercicio de la policía local en 1948",
+      "rico:hasActivityType": {
+        "@id": "http://localhost:8000/id/a2c92796-d80d-4af7-9e63-faadb51f0a9a"
+      },
+      "rico:hasDirectSubevent": {
+        "@id": "http://localhost:8000/id/649f21fb-9da4-42e0-b9e7-cddc015ade8d"
+      },
+      "rico:name": "Ejercicio de la policía local en 1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/49821407-b0a8-42c8-a27a-a2f16db5a610",
+      "@type": "rico:CorporateBody",
+      "rdfs:label": "Secretaría de Obras Públicas",
+      "rico:name": "Secretaría de Obras Públicas"
+    },
+    {
+      "@id": "http://localhost:8000/id/af839432-4a89-4563-8d93-da64f08a55de",
+      "@type": "rico:CorporateBody",
+      "rdfs:label": "Secretaría de Gobierno y Convivencia de Tunja",
+      "rico:name": "Secretaría de Gobierno y Convivencia de Tunja"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/fin",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1819",
+      "rico:normalizedDateValue": "1819"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/acuerdo",
+      "@type": "rico:MandateType",
+      "rdfs:label": "Acuerdo",
+      "rico:name": "Acuerdo"
+    },
+    {
+      "@id": "http://localhost:8000/id/772de37d-b857-46ee-a7bf-2f86b0641d6e",
+      "@type": "rico:Instantiation",
+      "rdfs:label": "Oficio_210_1948_Sello_de_la_Alcaldía.png",
+      "rdfs:seeAlso": {
+        "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/11"
+      },
+      "rico:identifier": "urn:uuid:772de37d-b857-46ee-a7bf-2f86b0641d6e",
+      "rico:instantiationExtent": "8736 bytes; 1 página(s)",
+      "rico:title": "Oficio_210_1948_Sello_de_la_Alcaldía.png"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/idioma/spa",
+      "@type": "rico:Language",
+      "rdfs:label": "español",
+      "rico:identifier": "spa",
+      "rico:name": "español",
+      "skos:exactMatch": {
+        "@id": "lexvo:spa"
+      }
+    },
+    {
+      "@id": "http://localhost:8000/id/b6f8dc06-532a-4a1e-8f66-6bdabc02b6bc",
+      "@type": "rico:Place",
+      "rdfs:label": "Colombia",
+      "rico:containsOrContained": {
+        "@id": "http://localhost:8000/id/faa3e9b0-e329-4a32-bd70-c35ccf74c67c"
+      },
+      "rico:name": "Colombia"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/departamento",
+      "@type": "rico:PlaceType",
+      "rdfs:label": "Departamento",
+      "rico:name": "Departamento"
+    },
+    {
+      "@id": "http://localhost:8000/id/921edc17-975e-4f89-b204-ba93c2436c5b",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1948",
+      "rico:isCreationDateOf": {
+        "@id": "http://localhost:8000/id/3a739dee-65a8-4a85-be3a-0dbe2d4db30f"
+      },
+      "rico:normalizedDateValue": "1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853",
+      "@type": "rico:Place",
+      "rdfs:label": "Tunja",
+      "rico:geographicalCoordinates": "5.535300, -73.367800",
+      "rico:hasOrHadPlaceName": [
+        {
+          "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0"
+        },
+        {
+          "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7"
+        }
+      ],
+      "rico:hasOrHadPlaceType": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/municipio"
+      },
+      "rico:isOrWasLocationOf": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:name": "Tunja"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-identificador/interno",
+      "@type": "rico:IdentifierType",
+      "rdfs:label": "INTERNO",
+      "rico:name": "INTERNO"
+    },
+    {
+      "@id": "http://localhost:8000/id/a7f79738-88fd-4906-b1bb-03ebb59bcb5b",
+      "@type": "rico:Mandate",
+      "rdfs:label": "Ley 4 de 1913",
+      "rico:hasOrHadMandateType": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/ley"
+      },
+      "rico:regulatesOrRegulated": {
+        "@id": "http://localhost:8000/id/75211bf1-8f09-4898-a4c5-8907a5de170b"
+      },
+      "rico:title": "Ley 4 de 1913"
+    },
+    {
+      "@id": "http://localhost:8000/id/92e82a55-b9e3-4324-bf54-e6f699a2d8f1",
+      "@type": "rico:Event",
+      "rdfs:label": "Creación por el Acuerdo 12 del Concejo",
+      "rico:affectsOrAffected": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:isAssociatedWithDate": {
+        "@id": "http://localhost:8000/id/92e82a55-b9e3-4324-bf54-e6f699a2d8f1/fecha"
+      },
+      "rico:name": "Creación por el Acuerdo 12 del Concejo"
+    },
+    {
+      "@id": "http://localhost:8000/id/92e82a55-b9e3-4324-bf54-e6f699a2d8f1/fecha",
+      "@type": "rico:Date",
+      "rico:expressedDate": "12 de marzo de 1948",
+      "rico:normalizedDateValue": "1948-03-12"
+    },
+    {
+      "@id": "http://localhost:8000/id/e6d04b67-1ef5-48cc-a8ad-a7fb8c90463d",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1948",
+      "rico:isDateAssociatedWith": {
+        "@id": "http://localhost:8000/id/649f21fb-9da4-42e0-b9e7-cddc015ade8d"
+      },
+      "rico:normalizedDateValue": "1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/a2c92796-d80d-4af7-9e63-faadb51f0a9a",
+      "@type": [
+        "rico:ActivityType",
+        "skos:Concept"
+      ],
+      "rdfs:label": "Policía local",
+      "rico:name": "Policía local",
+      "skos:broader": {
+        "@id": "http://localhost:8000/id/69f133a9-64a7-4646-9dd2-d5db1b00f061"
+      },
+      "skos:inScheme": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad"
+      },
+      "skos:prefLabel": "Policía local"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/estatuto-juridico/publica",
+      "@type": "rico:LegalStatus",
+      "rdfs:label": "Pública",
+      "rico:name": "Pública"
+    },
+    {
+      "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/identificador/9f776861-83dd-47ce-b4a2-2171dfd582a5",
+      "@type": "rico:Identifier",
+      "rico:hasIdentifierType": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-identificador/interno"
+      },
+      "rico:textualValue": "AMT-SG-01"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad",
+      "@type": "skos:ConceptScheme",
+      "skos:hasTopConcept": {
+        "@id": "http://localhost:8000/id/69f133a9-64a7-4646-9dd2-d5db1b00f061"
+      },
+      "skos:prefLabel": "Tipos de actividad (funciones) · Fondo de prueba · Archivo Municipal"
+    },
+    {
+      "@id": "http://localhost:8000/id/4ccecefd-bb01-4211-83c5-3ce37806c49d",
+      "@type": "rico:Event",
+      "rdfs:label": "Asume la inspección de espectáculos",
+      "rico:affectsOrAffected": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:isAssociatedWithDate": {
+        "@id": "http://localhost:8000/id/4ccecefd-bb01-4211-83c5-3ce37806c49d/fecha"
+      },
+      "rico:name": "Asume la inspección de espectáculos"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0",
+      "@type": "rico:PlaceName",
+      "rico:hasEndDate": {
+        "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0/fin"
+      },
+      "rico:textualValue": "Hunza"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/0f59686b-75f2-40e0-ae36-c75dce43a7d0/fin",
+      "@type": "rico:Date",
+      "rico:expressedDate": "1539",
+      "rico:normalizedDateValue": "1539"
+    },
+    {
+      "@id": "http://localhost:8000/id/3a739dee-65a8-4a85-be3a-0dbe2d4db30f",
+      "@type": "rico:Record",
+      "rdfs:label": "Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948",
+      "rico:conditionsOfAccess": "Consulta libre en la sala de investigación.",
+      "rico:conditionsOfUse": "Reproducción con autorización escrita del archivo.",
+      "rico:documents": {
+        "@id": "http://localhost:8000/id/649f21fb-9da4-42e0-b9e7-cddc015ade8d"
+      },
+      "rico:hasAddressee": {
+        "@id": "http://localhost:8000/id/5ba9df81-1bb3-404d-969f-a96f228fa38f"
+      },
+      "rico:hasCreator": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b"
+      },
+      "rico:hasOrHadConstituent": {
+        "@id": "http://localhost:8000/id/84d87d3b-9420-45d3-b0d2-9e4b54b9bb1a"
+      },
+      "rico:hasOrHadInstantiation": {
+        "@id": "http://localhost:8000/id/54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde"
+      },
+      "rico:hasOrHadLanguage": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/idioma/spa"
+      },
+      "rico:scopeAndContent": "La Secretaría de Gobierno remite al Concejo el informe de permisos para las fiestas de 1948.",
+      "rico:title": "Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde",
+      "@type": "rico:Instantiation",
+      "rdfs:label": "Oficio_210_1948.png",
+      "rdfs:seeAlso": {
+        "@id": "https://www.nationalarchives.gov.uk/PRONOM/fmt/11"
+      },
+      "rico:identifier": "urn:uuid:54ab4c21-2ac0-4c93-ae5a-d8de63c4ccde",
+      "rico:instantiationExtent": "46547 bytes; 1 página(s)",
+      "rico:title": "Oficio_210_1948.png"
+    },
+    {
+      "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b",
+      "@type": "rico:CorporateBody",
+      "rdfs:label": "Secretaría de Gobierno de Tunja",
+      "rico:hasBeginningDate": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/inicio"
+      },
+      "rico:hasOrHadAgentName": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/nombre/441c4580-a567-4075-b8e2-0cb733d1b02d"
+      },
+      "rico:hasOrHadIdentifier": {
+        "@id": "http://localhost:8000/id/79a3769b-b69f-44ef-89c7-ffbc164b239b/identificador/9f776861-83dd-47ce-b4a2-2171dfd582a5"
+      },
+      "rico:hasOrHadLegalStatus": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/estatuto-juridico/publica"
+      },
+      "rico:hasSuccessor": {
+        "@id": "http://localhost:8000/id/af839432-4a89-4563-8d93-da64f08a55de"
+      },
+      "rico:history": "Creada por el Acuerdo 12 de 1948 para atender el orden público y los permisos.",
+      "rico:isAgentAssociatedWithAgent": {
+        "@id": "http://localhost:8000/id/9eda454a-3187-427f-870d-03ff694bdcf5"
+      },
+      "rico:name": "Secretaría de Gobierno de Tunja",
+      "rico:performsOrPerformed": {
+        "@id": "http://localhost:8000/id/31330461-491a-4f12-aec3-c0613a22cf6e"
+      }
+    },
+    {
+      "@id": "http://localhost:8000/id/649f21fb-9da4-42e0-b9e7-cddc015ade8d",
+      "@type": "rico:Activity",
+      "rdfs:label": "Expedición de permisos para las fiestas de 1948",
+      "rico:name": "Expedición de permisos para las fiestas de 1948"
+    },
+    {
+      "@id": "http://localhost:8000/id/69f133a9-64a7-4646-9dd2-d5db1b00f061",
+      "@type": [
+        "rico:ActivityType",
+        "skos:Concept"
+      ],
+      "rdfs:label": "Gobierno municipal",
+      "rico:name": "Gobierno municipal",
+      "skos:inScheme": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/tipos-de-actividad"
+      },
+      "skos:prefLabel": "Gobierno municipal"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-mandato/ley",
+      "@type": "rico:MandateType",
+      "rdfs:label": "Ley",
+      "rico:name": "Ley"
+    },
+    {
+      "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7",
+      "@type": "rico:PlaceName",
+      "rico:hasBeginningDate": {
+        "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/inicio"
+      },
+      "rico:hasEndDate": {
+        "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853/nombre/2b5c7e4f-a006-4d4c-93ef-fe273e567bc7/fin"
+      },
+      "rico:textualValue": "Muy Noble y Muy Leal Ciudad de Tunja"
+    },
+    {
+      "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224",
+      "@type": "rico:RecordSet",
+      "rdfs:label": "Fondo de prueba · Archivo Municipal",
+      "rico:hasCreationDate": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/fechas-extremas"
+      },
+      "rico:hasRecordSetType": {
+        "@id": "rst:Fonds"
+      },
+      "rico:includesOrIncluded": {
+        "@id": "http://localhost:8000/id/3a739dee-65a8-4a85-be3a-0dbe2d4db30f"
+      },
+      "rico:title": "Fondo de prueba · Archivo Municipal"
+    },
+    {
+      "@id": "http://localhost:8000/id/faa3e9b0-e329-4a32-bd70-c35ccf74c67c",
+      "@type": "rico:Place",
+      "rdfs:label": "Boyacá",
+      "rico:containsOrContained": {
+        "@id": "http://localhost:8000/id/f49cca28-310c-471a-be13-d4ef2f7d8853"
+      },
+      "rico:hasOrHadPlaceType": {
+        "@id": "http://localhost:8000/id/5c8cf4d6-152f-41e5-9ecc-e5b2888f9224/vocabulario/tipo-de-lugar/departamento"
+      },
+      "rico:name": "Boyacá"
+    }
+  ]
+}

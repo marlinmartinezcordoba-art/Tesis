@@ -51,6 +51,23 @@ El prompt de vocabularios pide registrar «la entidad que expidió» un mandato.
    - **El OWL dice:** el dominio de `hasOrHadCoordinates` es `PhysicalLocation`, no `Place`. Para un lugar existe `geographicalCoordinates` (A11), de dato. Su nota la recomienda cuando no se usa `PhysicalLocation`.
    - **Decisión:** `rico:geographicalCoordinates`.
 
+## Dos correcciones al propio mapeo, halladas al construir la exportación
+
+Al exportar el fondo y validarlo dato a dato contra el OWL (no solo el mapeo), aparecieron dos errores del mapeo de la entrega anterior. Se corrigieron y la verificación automática ahora los habría detectado:
+
+1. **Código RiC-CM de `rico:title`.**
+   - **El mapeo decía:** RiC-A40.
+   - **RiC-CM 1.0 dice:** RiC-A40 es **Structure**. El OWL anota `rico:title` como «especialización de RiC-A28 (Name)».
+   - **Decisión:** `rico:title` ↔ RiC-A28. `verificar_contra_owl()` ahora compara también el código de cada atributo con el `RiCCMCorrespondingComponent` del OWL, como ya hacía con las relaciones. Con el código viejo, la prueba falla.
+2. **Tipo de mandato.**
+   - **El mapeo decía:** `hasOrHadRuleType` → `RuleType`.
+   - **El OWL dice:** existe `hasOrHadMandateType` (dominio `Mandate`) → `MandateType`, subclase de `RuleType`. RiC-O pide usar la más específica.
+   - **Decisión:** `hasOrHadMandateType`.
+
+Y una omisión explícita nueva: la **estructura interna de un agente** (ISAAR 5.2.7). `rico:structure` solo admite Instantiation y RecordResource. RiC expresa esa estructura con relaciones entre agentes (`hasOrHadSubordinate`), que sí se exportan.
+
+La exportación y su reporte de conformidad están en `documentacion/anexos/rico-ejemplo/`.
+
 ## Datos que RiC-O no tiene dónde poner
 
 Estos datos se guardan en el sistema y no se exportan. La omisión es explícita y no un olvido:
@@ -58,6 +75,7 @@ Estos datos se guardan en el sistema y no se exportan. La omisión es explícita
 - **Calendario de la fecha.** RiC-O no declara calendario. `normalizedDateValue` usa ISO 8601, que es gregoriano. La tesis lo declara como delimitación.
 - **Nivel de detalle, fuentes y fechas de control del registro de autoridad.** Son control interno.
 - **Origen, confianza y estado de revisión de cada dato.** Por regla del sistema nunca salen de él.
+- **Estructura interna de un agente** (ISAAR 5.2.7): ver la sección anterior.
 
 ## Tipos de agrupación
 

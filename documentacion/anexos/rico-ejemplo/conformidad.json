@@ -1,0 +1,55 @@
+{
+  "conforme": true,
+  "ontologia": "RiC-O 1.1 (2025-05-22)",
+  "owl": {
+    "conforme": true,
+    "problemas": []
+  },
+  "shacl": {
+    "conforme": true,
+    "resultados": [],
+    "perfil": "perfil-ricora.shacl.ttl",
+    "formas": 41
+  },
+  "mapeo": {
+    "problemas": []
+  },
+  "sin_propiedad": {
+    "estructura_agente": "ISAAR 5.2.7. rico:structure solo admite Instantiation y RecordResource; RiC expresa la estructura interna de un agente con relaciones entre agentes (hasOrHadSubordinate, que sí se exporta), no con un texto. Se conserva en la ficha.",
+    "calendario": "RiC-O no declara calendario; normalizedDateValue usa ISO 8601 (gregoriano). Delimitación de la tesis.",
+    "nivel_detalle": "Dato de control interno del registro de autoridad.",
+    "fuentes": "RiC-O solo ofrece fuente para relaciones reificadas (isEvidencedBy); se conserva interno.",
+    "origen_confianza": "Procedencia del dato (motor o persona): nunca sale del sistema."
+  },
+  "tripletas": 196,
+  "por_clase": {
+    "Activity": 2,
+    "ActivityType": 2,
+    "AgentName": 1,
+    "CorporateBody": 5,
+    "Date": 9,
+    "DocumentaryFormType": 1,
+    "Event": 2,
+    "Group": 1,
+    "Identifier": 1,
+    "IdentifierType": 1,
+    "Instantiation": 2,
+    "Language": 1,
+    "LegalStatus": 1,
+    "Mandate": 2,
+    "MandateType": 2,
+    "Place": 3,
+    "PlaceName": 2,
+    "PlaceType": 2,
+    "Record": 1,
+    "RecordPart": 1,
+    "RecordSet": 1
+  },
+  "omitidas": {
+    "borradores sin publicar": 1,
+    "descripciones bajo un nivel no exportado": 1,
+    "descripciones con acceso clasificado o reservado": 0,
+    "estructura interna de un agente (sin propiedad en RiC-O)": 1,
+    "relaciones con un extremo no exportado": 2
+  }
+}
