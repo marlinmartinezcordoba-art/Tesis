@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import almacen, formato
+from app.servicios import almacen, formato, mecanismos
 from app.servicios.auditoria import registrar
 
 DPI_PAGINA = 110  # suficiente para ver y recortar en pantalla
@@ -130,6 +130,7 @@ def recortar(db: Session, origen: Instanciacion, zona: dict, nombre: str, usuari
         formato_version=f.version if f else None, formato_mime=f.mime if f else "image/png",
         formato_base=f.base if f else None, formato_no_identificado=not (f and f.identificado),
         herramienta_identificacion=f.herramienta if f else None,
+        mecanismo_identificacion_id=mecanismos.de_identificacion(db, origen.fondo_id, f.herramienta).id if f else None,
         origen_texto="sin_texto", paginas=1, cargado_por_id=usuario_id, procesado_en=ahora(),
         recorte_de_id=origen.id, recorte_zona={"pagina": pagina, "x": x, "y": y, "ancho": ancho, "alto": alto},
     )

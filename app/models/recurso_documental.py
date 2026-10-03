@@ -46,6 +46,7 @@ class RecursoDocumental(Base):
     origen_alcance = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
     confianza_alcance = Column(Float, nullable=True)
     motor = Column(String(120), nullable=True)
+    motor_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)  # RiC-E13
     # Idioma del contenido (ISO 639-3, uno o varios; rico:hasOrHadLanguage),
     # con su procedencia: el motor puede proponerlo.
     idiomas = Column(ARRAY(String(3)), nullable=True)

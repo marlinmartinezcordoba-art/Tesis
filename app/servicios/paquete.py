@@ -50,7 +50,7 @@ from app.models.instanciacion import Instanciacion
 from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
 from app.models.recurso_documental import RecursoDocumental
 from app.models.usuario import Usuario
-from app.servicios import almacen, derechos
+from app.servicios import almacen, derechos, mecanismos
 from app.servicios.auditoria import registrar
 
 PREMIS_NS = "http://www.loc.gov/premis/v3"
@@ -77,7 +77,22 @@ class ErrorPaquete(Exception):
 
 
 def _agente_software(nombre: str) -> dict:
-    return {"tipo_id": ID_SOFTWARE, "id": str(uuid.uuid5(NS_AGENTES, nombre)), "nombre": nombre, "tipo": "software"}
+    """Solo para filas anteriores a la migración 0013 que el trabajador aún
+    no vinculó a su mecanismo: se identifica por su nombre, con aviso."""
+    return {"tipo_id": ID_SOFTWARE, "id": str(uuid.uuid5(NS_AGENTES, nombre)), "nombre": nombre, "tipo": "software",
+            "version": None}
+
+
+def _agente_mecanismo(db: Session, mecanismo_id, respaldo: str | None = None) -> dict | None:
+    """El agente PREMIS de un mecanismo es el del vocabulario del fondo
+    (RiC-E13), con su versión exacta: el mismo identificador en el paquete,
+    en la descripción y en la exportación RDF."""
+    from app.models.descripcion import EntidadVocabulario
+
+    e = mecanismos._vigente(db, db.get(EntidadVocabulario, mecanismo_id)) if mecanismo_id else None
+    if e is not None:
+        return mecanismos.agente_premis(e)
+    return _agente_software(respaldo) if respaldo else None
 
 
 def _agente_persona(db: Session, usuario_id: uuid.UUID | None) -> dict | None:
@@ -100,7 +115,7 @@ def _evento(id_tipo: str, id_valor, tipo: str, fecha: datetime, detalle: str, re
 def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
     """Cadena de eventos PREMIS de la instanciación, en orden de tiempo."""
     yo = str(inst.id)
-    sistema = _agente_software(SISTEMA)
+    sistema = mecanismos.agente_premis(mecanismos.del_sistema(db, inst.fondo_id))
     eventos = []
     if inst.derivada_de_id is None:
         eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "ingestion"), "ingestion", inst.cargado_en,
@@ -118,13 +133,15 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
                                "fallo" if inst.formato_no_identificado else "éxito",
                                f"{inst.formato_puid or 'sin PUID'} · {inst.formato_nombre or 'formato desconocido'}"
                                + (f" · {inst.formato_base}" if inst.formato_base else ""),
-                               [(_agente_software(inst.herramienta_identificacion), "executing program")],
+                               [(_agente_mecanismo(db, inst.mecanismo_identificacion_id,
+                                                   inst.herramienta_identificacion), "executing program")],
                                [(yo, "source")]))
     for c in db.scalars(select(SegundaCopia).where(SegundaCopia.instanciacion_id == inst.id)).all():
         eventos.append(_evento(ID_UUID, c.id, "replication", c.creada_en,
                                f"Segunda copia en «{c.ubicacion}» (motivo: {c.motivo.replace('_', ' ')}).", "éxito",
                                f"{c.algoritmo} {c.huella}",
-                               [(_agente_persona(db, c.creada_por_id), "implementer"), (sistema, "executing program")],
+                               [(_agente_persona(db, c.creada_por_id), "implementer"),
+                                (_agente_mecanismo(db, c.mecanismo_id) or sistema, "executing program")],
                                [(yo, "source")]))
     for v in db.scalars(select(VerificacionIntegridad).where(VerificacionIntegridad.instanciacion_id == inst.id)).all():
         bien = v.resultado == "integra" and v.segunda_copia_resultado in (None, "integra")
@@ -133,7 +150,8 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
                                f"({v.algoritmo}) de la copia primaria y de la segunda copia.",
                                "éxito" if bien else "fallo",
                                f"Copia primaria: {v.resultado}. Segunda copia: {v.segunda_copia_resultado or 'no verificada'}.",
-                               [(_agente_persona(db, v.usuario_id), "implementer"), (sistema, "executing program")],
+                               [(_agente_persona(db, v.usuario_id), "implementer"),
+                                (_agente_mecanismo(db, v.mecanismo_id) or sistema, "executing program")],
                                [(yo, "source")]))
     migraciones = db.scalars(select(Migracion).where((Migracion.instanciacion_origen_id == inst.id)
                                                      | (Migracion.instanciacion_resultado_id == inst.id))).all()
@@ -143,18 +161,21 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
             objetos.append((str(m.instanciacion_resultado_id), "outcome"))
         resultado = {"completada": "éxito", "fallida": "fallo"}.get(m.estado, "en espera")
         agentes = [(_agente_persona(db, m.aprobada_por_id), "authorizer")]
-        if m.herramienta:
-            agentes.append((_agente_software(m.herramienta) if m.modo == "automatica" else
-                            _agente_persona(db, m.aprobada_por_id), "executing program"))
+        if m.modo == "automatica":
+            agentes.append((_agente_mecanismo(db, m.mecanismo_id, m.herramienta), "executing program"))
+        elif m.estado == "completada":  # la conversión la hizo una persona, por fuera
+            agentes.append((_agente_persona(db, m.aprobada_por_id), "executing program"))
         eventos.append(_evento(ID_UUID, m.id, "migration", m.terminada_en or m.aprobada_en,
                                f"Migración {'automática' if m.modo == 'automatica' else 'con archivo convertido por fuera'} "
-                               f"a {m.destino_nombre}, aprobada de forma explícita.", resultado, m.mensaje or m.herramienta,
+                               f"a {m.destino_nombre}, aprobada de forma explícita.", resultado,
+                               m.mensaje or m.parametros or m.herramienta,
                                agentes, objetos))
     for r in db.scalars(select(Restauracion).where(Restauracion.instanciacion_id == inst.id)).all():
         eventos.append(_evento(ID_UUID, r.id, "recovery", r.fecha,
                                f"Copia primaria ({r.estado_previo}) restaurada desde la segunda copia; el archivo "
                                "dañado se conserva en cuarentena.", "éxito", r.ruta_cuarentena,
-                               [(_agente_persona(db, r.usuario_id), "authorizer"), (sistema, "executing program")],
+                               [(_agente_persona(db, r.usuario_id), "authorizer"),
+                                (_agente_mecanismo(db, r.mecanismo_id) or sistema, "executing program")],
                                [(yo, "outcome")]))
     for a in db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.accion == "paquete_exportado",
                                                         RegistroAuditoria.entidad_id == yo)).all():
@@ -210,7 +231,8 @@ def _objeto_premis(raiz, db: Session, inst: Instanciacion, eventos: list[dict], 
         _sub(reg, "formatRegistryKey", inst.formato_puid)
         _sub(reg, "formatRegistryRole", "specification")
     if inst.herramienta_identificacion:
-        _sub(fmt, "formatNote", f"Identificado con {inst.herramienta_identificacion}")
+        _sub(fmt, "formatNote", "Identificado con "
+             + mecanismos.etiqueta(db, inst.mecanismo_identificacion_id, inst.herramienta_identificacion))
     if aplicacion:
         app = _sub(car, "creatingApplication")
         _sub(app, "creatingApplicationName", aplicacion)
@@ -269,6 +291,8 @@ def _agente_premis(raiz, a: dict):
     _identificador(ag, "agentIdentifier", a["tipo_id"], a["id"])
     _sub(ag, "agentName", a["nombre"])
     _sub(ag, "agentType", a["tipo"])
+    if a.get("version"):
+        _sub(ag, "agentVersion", a["version"])  # PREMIS 3
 
 
 def _derechos_premis(raiz, d: dict, inst_id: str):
@@ -363,7 +387,9 @@ def pdi(db: Session, inst: Instanciacion, eventos: list[dict], declaracion: dict
                 "formato": inst.formato_nombre, "version": inst.formato_version, "mime": inst.formato_mime,
                 "registro": "PRONOM", "puid": inst.formato_puid,
                 "enlace": f"https://www.nationalarchives.gov.uk/PRONOM/{inst.formato_puid}" if inst.formato_puid else None,
-                "identificado_con": inst.herramienta_identificacion,
+                "identificado_con": mecanismos.etiqueta(db, inst.mecanismo_identificacion_id,
+                                                        inst.herramienta_identificacion),
+                "mecanismo_identificacion": mecanismos.resumen(db, inst.mecanismo_identificacion_id),
             },
         },
         "informacion_de_descripcion_de_preservacion": {
@@ -392,7 +418,8 @@ def pdi(db: Session, inst: Instanciacion, eventos: list[dict], declaracion: dict
                 "cargado_en": _iso(inst.cargado_en),
                 "eventos": [{"id": e["id"], "tipo": e["tipo"], "fecha": _iso(e["fecha"]), "detalle": e["detalle"],
                              "resultado": e["resultado"],
-                             "agentes": [{"nombre": a["nombre"], "tipo": a["tipo"], "rol": rol} for a, rol in e["agentes"]]}
+                             "agentes": [{"id": a["id"], "nombre": a["nombre"], "tipo": a["tipo"], "version": a.get("version"),
+                                          "rol": rol} for a, rol in e["agentes"]]}
                             for e in eventos],
             },
             "fijeza": {

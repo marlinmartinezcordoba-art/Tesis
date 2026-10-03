@@ -119,6 +119,9 @@ def crear(db: Session, inst: Instanciacion, motivo: str, usuario_id: uuid.UUID |
     finally:
         temporal.unlink(missing_ok=True)  # la copia parcial nunca llegó a ser segunda copia
     copia.huella, copia.tamano_bytes, copia.ultima_verificacion_en = huella, destino.stat().st_size, ahora()
+    from app.servicios import mecanismos  # aquí: mecanismos importa vocabulario
+
+    copia.mecanismo_id = mecanismos.del_sistema(db, inst.fondo_id).id
     anterior = vigente(db, inst.id)
     if anterior is not None:
         anterior.estado, anterior.reemplazada_en = "reemplazada", ahora()

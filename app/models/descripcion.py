@@ -13,6 +13,7 @@ import uuid
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import declared_attr
 
 from app.db.base import Base, ahora
 from app.models.enums import CODIGO_RELACION_RIC, TIPO_RELACION
@@ -60,7 +61,14 @@ class _Procedencia:
 
     origen = Column(Enum(*ORIGEN_DATO, name="origen_dato"), nullable=False, default="persona")
     confianza = Column(Float, nullable=True)  # 0 a 1, tal como la dio el motor
-    motor = Column(String(120), nullable=True)  # qué motor propuso (RiC-E13 Mechanism)
+    # Qué motor propuso: el agente mecanismo (RiC-E13) del vocabulario, con
+    # su versión exacta. `motor` es la etiqueta tal como se vio entonces.
+    motor = Column(String(120), nullable=True)
+
+    @declared_attr
+    def motor_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True, index=True)
+
     estado_revision = Column(Enum(*ESTADO_REVISION, name="estado_revision"), nullable=False, default="validado")
 
 

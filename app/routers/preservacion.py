@@ -104,7 +104,8 @@ def verificar(inst_id: uuid.UUID, request: Request, actor: Actor = Depends(modul
 
 def _migracion_out(db: Session, m: Migracion) -> dict:
     return {"id": str(m.id), "estado": m.estado, "modo": m.modo, "destino": m.destino, "destino_nombre": m.destino_nombre,
-            "mensaje": m.mensaje, "herramienta": m.herramienta,
+            "mensaje": m.mensaje, "herramienta": preservacion.herramienta_de(db, m),
+            "mecanismo": preservacion.mecanismos.resumen(db, m.mecanismo_id), "parametros": m.parametros,
             "nueva_instanciacion": preservacion.detalle(db, db.get(preservacion.Instanciacion, m.instanciacion_resultado_id))
             if m.instanciacion_resultado_id else None}
 

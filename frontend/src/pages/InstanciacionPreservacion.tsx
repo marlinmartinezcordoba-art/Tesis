@@ -6,7 +6,7 @@ import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { fecha, peso } from "@/lib/formato";
 import {
   ACCESOS, BASES_DERECHOS, INTEGRIDAD, REPRODUCCIONES, RIESGO, SEGUNDA_COPIA, type Detalle, type MigracionHist,
-  type ResultadoCopia,
+  type MecanismoBreve, type ResultadoCopia,
 } from "@/lib/preservacion";
 import { useSesion } from "@/lib/sesion";
 
@@ -352,7 +352,7 @@ export function InstanciacionPreservacion() {
             <dd>{d.formato.nombre || "No identificado"}{d.formato.version && ` · versión ${d.formato.version}`}
               {d.formato.puid && <span className="meta"> · PRONOM {d.formato.puid}</span>}</dd>
             <dt>Tipo MIME</dt><dd>{d.formato.mime || "—"}</dd>
-            <dt>Identificado con</dt><dd className="meta">{d.formato.herramienta || "—"}</dd>
+            <dt>Identificado con</dt><dd className="meta"><Mecanismo m={d.formato.mecanismo} texto={d.formato.herramienta} /></dd>
             <dt>Tamaño</dt><dd>{peso(d.tamano_bytes)}{d.paginas ? ` · ${d.paginas} página(s)` : ""}</dd>
             <dt>Huella digital</dt><dd><code className="huella">{d.algoritmo_huella} {d.huella}</code></dd>
             <dt>Aplicación creadora</dt><dd className="meta">{d.aplicacion_creadora || "Desconocida (el archivo llegó por la ingesta)"}</dd>
@@ -369,7 +369,7 @@ export function InstanciacionPreservacion() {
             {d.derivada_de && (
               <><dt>Migrada desde</dt>
                 <dd><Link to={`/preservacion/instanciacion/${d.derivada_de.id}`}>{d.derivada_de.nombre}</Link>
-                  {d.migrada_desde?.herramienta && <span className="meta"> · {d.migrada_desde.herramienta}</span>}</dd></>
+                  {d.migrada_desde?.herramienta && <span className="meta"> · <Mecanismo m={d.migrada_desde.mecanismo} texto={d.migrada_desde.herramienta} /></span>}</dd></>
             )}
           </dl>
         </div>
@@ -459,7 +459,9 @@ export function InstanciacionPreservacion() {
             <div className="fila-principal">
               <div className="nombre">{m.destino_nombre} · {m.modo === "automatica" ? "automática" : "carga manual"}</div>
               <div className="meta">
-                Aprobada por {m.aprobada_por || "—"} el {fecha(m.aprobada_en)}{m.herramienta && ` · ${m.herramienta}`}
+                Aprobada por {m.aprobada_por || "—"} el {fecha(m.aprobada_en)}
+                {m.mecanismo ? <> · ejecutada por <Mecanismo m={m.mecanismo} texto={null} />{m.parametros && ` (${m.parametros})`}</>
+                  : m.herramienta && ` · ${m.herramienta}`}
                 {m.mensaje && ` · ${m.mensaje}`}
               </div>
               {m.resultado && (
@@ -494,5 +496,16 @@ export function InstanciacionPreservacion() {
         </>
       )}
     </>
+  );
+}
+
+// El programa que actuó es un agente del vocabulario del fondo: se enlaza a
+// su ficha (con su versión exacta), no se muestra como texto suelto.
+function Mecanismo({ m, texto }: { m: MecanismoBreve | null; texto: string | null }) {
+  if (!m) return <>{texto || "—"}</>;
+  return (
+    <Link to={`/vocabularios/${m.id}`} title="Agente mecanismo (RiC-E13) del vocabulario del fondo">
+      {m.nombre}{texto && texto !== m.nombre && texto.startsWith(m.nombre) ? texto.slice(m.nombre.length) : ""}
+    </Link>
   );
 }

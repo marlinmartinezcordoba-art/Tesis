@@ -17,7 +17,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.descripcion import EntidadVocabulario, Fecha, Relacion
@@ -419,8 +419,12 @@ def datos_guia(db: Session, fondo: RecursoDocumental) -> dict:
     conteo = defaultdict(int)
     for n in a.nodos.values():
         conteo[n.nivel] += 1
-    activas = db.scalars(select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo.id,
-                                                          EntidadVocabulario.estado == "activa")).all()
+    # Los mecanismos (los programas que actúan en el sistema: el motor,
+    # Siegfried, Ghostscript) no son puntos de acceso del contenido del
+    # fondo: se administran en Vocabularios, pero no van al índice.
+    activas = db.scalars(select(EntidadVocabulario).where(
+        EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
+        or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
     conexiones = vocabulario.conexiones_de(db, [e.id for e in activas])
     principales = defaultdict(list)
     for e in sorted(activas, key=lambda e: -conexiones[e.id]):
@@ -508,8 +512,12 @@ def guia_docx(db: Session, fondo: RecursoDocumental, texto: str) -> bytes:
 
 
 def indice(db: Session, fondo: RecursoDocumental) -> dict:
-    activas = db.scalars(select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo.id,
-                                                          EntidadVocabulario.estado == "activa")).all()
+    # Los mecanismos (los programas que actúan en el sistema: el motor,
+    # Siegfried, Ghostscript) no son puntos de acceso del contenido del
+    # fondo: se administran en Vocabularios, pero no van al índice.
+    activas = db.scalars(select(EntidadVocabulario).where(
+        EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
+        or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
     conexiones = vocabulario.conexiones_de(db, [e.id for e in activas])
     grupos = []
     for clase in ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"):

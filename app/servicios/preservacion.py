@@ -46,7 +46,7 @@ from app.models.instanciacion import Instanciacion
 from app.models.parametro import Parametro
 from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import alertas, almacen, derechos, formato, parametros, riesgo, segunda_copia
+from app.servicios import alertas, almacen, derechos, formato, mecanismos, parametros, riesgo, segunda_copia
 from app.servicios.auditoria import registrar
 
 log = logging.getLogger("ricora.preservacion")
@@ -84,7 +84,16 @@ DESTINOS = {d.clave: d for d in [
 ]}
 
 
-def _pdfa_ghostscript(entrada: Path, salida: Path) -> str:
+@dataclass(frozen=True)
+class Ejecucion:
+    """Quién convirtió (programa y versión exacta, que pasan a ser el agente
+    mecanismo del vocabulario) y qué hizo (parámetros)."""
+    programa: str
+    version: str
+    parametros: str
+
+
+def _pdfa_ghostscript(entrada: Path, salida: Path) -> Ejecucion:
     """PDF/PostScript → PDF/A-2b con Ghostscript, con perfil de color sRGB
     incrustado (OutputIntent), como exige ISO 19005."""
     binario = settings.ghostscript_binario
@@ -114,7 +123,7 @@ def _pdfa_ghostscript(entrada: Path, salida: Path) -> str:
     if r.returncode != 0 or not salida.exists() or salida.stat().st_size == 0:
         raise ErrorPreservacion("Ghostscript no pudo convertir el archivo: "
                                 + r.stderr.decode("utf-8", "replace").strip()[:200])
-    return f"Ghostscript {_version([binario, '--version'])} (pdfwrite, PDF/A-2b, perfil sRGB)"
+    return Ejecucion("Ghostscript", _version([binario, "--version"]), "pdfwrite, PDF/A-2b, perfil sRGB")
 
 
 def _perfil_srgb(binario: str) -> str:
@@ -126,7 +135,7 @@ def _perfil_srgb(binario: str) -> str:
     raise ErrorPreservacion("No se encontró el perfil de color sRGB de Ghostscript.", 503)
 
 
-def _tiff_pillow(entrada: Path, salida: Path) -> str:
+def _tiff_pillow(entrada: Path, salida: Path) -> Ejecucion:
     """Imagen → TIFF sin pérdida (LZW), todas las páginas, con Pillow."""
     import PIL
     from PIL import Image, ImageSequence
@@ -142,7 +151,7 @@ def _tiff_pillow(entrada: Path, salida: Path) -> str:
     if dpi:
         opciones["dpi"] = dpi
     paginas[0].save(salida, format="TIFF", **opciones)
-    return f"Pillow {PIL.__version__} (TIFF, compresión LZW sin pérdida)"
+    return Ejecucion("Pillow", PIL.__version__, "TIFF, compresión LZW sin pérdida")
 
 
 def _version(argumentos: list[str]) -> str:
@@ -157,7 +166,7 @@ class Conversor:
     clave: str
     nombre: str
     destino: str
-    ejecutar: Callable[[Path, Path], str]
+    ejecutar: Callable[[Path, Path], Ejecucion]
 
 
 CONVERSORES = {c.clave: c for c in [
@@ -234,7 +243,8 @@ def verificar(db: Session, inst: Instanciacion, *, origen: str, usuario_id: uuid
     v = VerificacionIntegridad(instanciacion_id=inst.id, resultado=resultado, algoritmo=inst.algoritmo_huella,
                                huella_registrada=inst.huella, huella_calculada=calculada, origen=origen,
                                usuario_id=usuario_id, segunda_copia_id=copia.id if copia else None,
-                               segunda_copia_resultado=res_copia, segunda_copia_huella=huella_copia)
+                               segunda_copia_resultado=res_copia, segunda_copia_huella=huella_copia,
+                               mecanismo_id=mecanismos.del_sistema(db, inst.fondo_id).id)
     db.add(v)
     inst.estado_integridad, inst.ultima_verificacion_en = resultado, ahora()
     if resultado != "integra":
@@ -414,7 +424,9 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
         "id": str(inst.id), "nombre": inst.nombre_original, "fondo_id": str(inst.fondo_id),
         "formato": {"puid": inst.formato_puid, "nombre": inst.formato_nombre, "version": inst.formato_version,
                     "mime": inst.formato_mime, "identificado": not inst.formato_no_identificado,
-                    "herramienta": inst.herramienta_identificacion, "base": inst.formato_base},
+                    "herramienta": mecanismos.etiqueta(db, inst.mecanismo_identificacion_id,
+                                                       inst.herramienta_identificacion),
+                    "mecanismo": mecanismos.resumen(db, inst.mecanismo_identificacion_id), "base": inst.formato_base},
         "tamano_bytes": inst.tamano_bytes, "paginas": inst.paginas,
         "huella": inst.huella, "algoritmo_huella": inst.algoritmo_huella,
         "cargado_en": inst.cargado_en, "estado_integridad": inst.estado_integridad,
@@ -422,7 +434,8 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
         "riesgo": riesgo_de(db, inst),
         "contexto": _contexto(db, inst.derivada_de_id or inst.id),
         "derivada_de": _breve(db.get(Instanciacion, inst.derivada_de_id)) if inst.derivada_de_id else None,
-        "migrada_desde": {"herramienta": origen_migracion.herramienta, "modo": origen_migracion.modo}
+        "migrada_desde": {"herramienta": herramienta_de(db, origen_migracion), "modo": origen_migracion.modo,
+                          "mecanismo": mecanismos.resumen(db, origen_migracion.mecanismo_id)}
         if origen_migracion else None,
         "verificaciones": [{"fecha": v.fecha, "resultado": v.resultado, "origen": v.origen,
                             "segunda_copia": v.segunda_copia_resultado,
@@ -438,7 +451,8 @@ def detalle(db: Session, inst: Instanciacion) -> dict:
         "derechos": derechos.aplicable(db, inst),
         "aplicacion_creadora": aplicacion_creadora(db, inst),
         "migraciones": [{"id": str(m.id), "destino": m.destino, "destino_nombre": m.destino_nombre, "modo": m.modo,
-                         "estado": m.estado, "herramienta": m.herramienta, "mensaje": m.mensaje,
+                         "estado": m.estado, "herramienta": herramienta_de(db, m), "mensaje": m.mensaje,
+                         "mecanismo": mecanismos.resumen(db, m.mecanismo_id), "parametros": m.parametros,
                          "aprobada_por": nombres.get(m.aprobada_por_id), "aprobada_en": m.aprobada_en,
                          "terminada_en": m.terminada_en,
                          "resultado": _breve(db.get(Instanciacion, m.instanciacion_resultado_id))
@@ -455,11 +469,20 @@ def _copia_out(copia: SegundaCopia | None) -> dict:
             "ultima_verificacion_en": copia.ultima_verificacion_en}
 
 
+def herramienta_de(db: Session, m: Migracion) -> str | None:
+    """Para mostrar: el mecanismo vigente y lo que hizo. Las filas
+    anteriores a la migración 0013 conservan su texto hasta vincularse."""
+    nombre = mecanismos.etiqueta(db, m.mecanismo_id)
+    if nombre is None:
+        return m.herramienta or m.parametros
+    return f"{nombre} ({m.parametros})" if m.parametros else nombre
+
+
 def aplicacion_creadora(db: Session, inst: Instanciacion) -> str | None:
     """PREMIS creatingApplication: se conoce cuando el archivo lo produjo
     una migración del sistema; de lo que llega en la ingesta, no."""
     m = db.scalar(select(Migracion).where(Migracion.instanciacion_resultado_id == inst.id))
-    return m.herramienta if m else None
+    return herramienta_de(db, m) if m else None
 
 
 # --- Migración ----------------------------------------------------------------------------------
@@ -488,6 +511,7 @@ def _crear_derivada(db: Session, original: Instanciacion, archivo: BinaryIO, nom
             estado="listo_para_descripcion", paso="terminado", progreso=100, huella=huella_de(absoluta),
             formato_puid=f.puid, formato_nombre=f.nombre, formato_version=f.version, formato_mime=f.mime,
             formato_base=f.base, formato_no_identificado=not f.identificado, herramienta_identificacion=f.herramienta,
+            mecanismo_identificacion_id=mecanismos.de_identificacion(db, original.fondo_id, f.herramienta).id,
             texto_extraido=original.texto_extraido, origen_texto=original.origen_texto, paginas=original.paginas,
             derivada_de_id=original.id, cargado_por_id=usuario_id, procesado_en=ahora())
         db.add(nueva)
@@ -538,7 +562,11 @@ def migrar(db: Session, inst: Instanciacion, destino_clave: str, usuario_id: uui
         salida = Path(carpeta) / f"salida{destino.extension}"
         try:
             almacen.copiar_a(inst.ruta, entrada)  # se convierte una copia: la original no se abre para escribir
-            m.herramienta = conversor.ejecutar(entrada, salida)[:200]
+            hecho = conversor.ejecutar(entrada, salida)
+            # El agente es el mecanismo del vocabulario, con su versión
+            # exacta; nunca el nombre del programa como texto en la migración.
+            m.mecanismo_id = mecanismos.obtener(db, inst.fondo_id, hecho.programa, hecho.version, usuario_id).id
+            m.parametros = hecho.parametros[:200]
             with open(salida, "rb") as archivo:
                 nueva = _crear_derivada(db, inst, archivo, _nombre_derivado(inst.nombre_original, destino), usuario_id,
                                         destino)
@@ -554,7 +582,8 @@ def migrar(db: Session, inst: Instanciacion, destino_clave: str, usuario_id: uui
     m.estado, m.terminada_en, m.instanciacion_resultado_id = "completada", ahora(), nueva.id
     registrar(db, modulo="preservacion", accion="migracion_completada", usuario_id=usuario_id,
               entidad_tipo="instanciacion", entidad_id=inst.id, ip=ip,
-              nuevo={"migracion_id": str(m.id), "resultado_id": str(nueva.id), "herramienta": m.herramienta,
+              nuevo={"migracion_id": str(m.id), "resultado_id": str(nueva.id), "mecanismo_id": str(m.mecanismo_id),
+                     "mecanismo": mecanismos.etiqueta(db, m.mecanismo_id), "parametros": m.parametros,
                      "formato": nueva.formato_puid})
     evaluar_riesgos(db, inst.fondo_id)
     return m
@@ -573,7 +602,7 @@ def cargar_convertido(db: Session, m: Migracion, archivo: BinaryIO, nombre: str,
     except almacen.ExcedeLimite as exc:
         raise ErrorPreservacion("El archivo supera el tamaño máximo permitido.", 413) from exc
     m.estado, m.terminada_en, m.instanciacion_resultado_id = "completada", ahora(), nueva.id
-    m.herramienta = "Conversión externa, cargada por la archivista"
+    m.parametros = "Conversión externa, cargada por la archivista"  # sin mecanismo: la hizo una persona
     registrar(db, modulo="preservacion", accion="migracion_completada", usuario_id=usuario_id,
               entidad_tipo="instanciacion", entidad_id=original.id, ip=ip,
               nuevo={"migracion_id": str(m.id), "resultado_id": str(nueva.id), "modo": "manual",
@@ -611,7 +640,8 @@ def restaurar(db: Session, inst: Instanciacion, usuario_id: uuid.UUID, ip: str |
         raise ErrorPreservacion("La copia restaurada no tiene la huella de la ingesta; no se completó.", 500)
     temporal.replace(primaria)
     r = Restauracion(instanciacion_id=inst.id, segunda_copia_id=copia.id, usuario_id=usuario_id,
-                     estado_previo=inst.estado_integridad, huella_previa=huella_previa, ruta_cuarentena=cuarentena)
+                     estado_previo=inst.estado_integridad, huella_previa=huella_previa, ruta_cuarentena=cuarentena,
+                     mecanismo_id=mecanismos.del_sistema(db, inst.fondo_id).id)
     db.add(r)
     registrar(db, modulo="preservacion", accion="copia_primaria_restaurada", usuario_id=usuario_id,
               entidad_tipo="instanciacion", entidad_id=inst.id, ip=ip, detalle=inst.nombre_original,

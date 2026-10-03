@@ -411,6 +411,8 @@ tests/test_descripcion_v3.py                    v3: 16 pruebas nuevas
 
 **Versión 3: 16 pruebas nuevas** en `tests/test_descripcion_v3.py`. El proyecto completo pasa (238).
 
+**Después de la versión 3 (con la migración 0013 de preservación):** el motor de análisis también es un **agente mecanismo del vocabulario** (RiC-E13), con su versión exacta (el identificador del modelo, por ejemplo `gemini-2.5-flash`). Al publicar, todo dato propuesto por el motor (entidades, relaciones, fechas, actividades y la propia descripción) guarda `motor_id`. Cada evento `decision_ia` cita el `mecanismo_id`. La columna `motor` se conserva como la etiqueta que se vio entonces. Prueba: `tests/test_mecanismos.py::test_lo_que_propone_el_motor_queda_vinculado_a_su_mecanismo`.
+
 | Prueba (prompt v3, §11–12) | Qué comprueba |
 |---|---|
 | Parte documental con recorte | Ve las páginas y su imagen. La parte es de nivel `parte_documental`, está dentro de la unidad y unida por R003; su recorte es una instanciación PNG propia con huella, zona, segunda copia y origen declarado. El original no cambia. La parte sabe de quién es parte, el recorte no aparece en la cola y el tipo de parte queda en el vocabulario. Hay evento `recorte_creado` |

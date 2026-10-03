@@ -289,6 +289,19 @@ def test_indice_agrupa_por_tipo_y_ordena_alfabeticamente(cliente, db, fondo_desc
     assert datos["grupos"][1]["letras"][0]["entidades"][0]["nombre"] == "Boyacá"
 
 
+def test_el_indice_no_lista_los_mecanismos(cliente, db, fondo_descrito, archivista):
+    """Los programas que actúan en el sistema (el motor, Ghostscript) son
+    agentes del vocabulario, pero no puntos de acceso del contenido."""
+    f = fondo_descrito
+    vocabulario.mecanismo(db, fondo_id=f["fondo"].id, nombre="Ghostscript", version="10.05.1")
+    vocabulario.mecanismo(db, fondo_id=f["fondo"].id, nombre="Motor de análisis", version="gemini-2.5-flash")
+    db.commit()
+    datos = cliente.get("/api/instrumentos/indice", headers=archivista, params={"fondo_id": str(f["fondo"].id)}).json()
+    nombres = [e["nombre"] for g in datos["grupos"] for x in g["letras"] for e in x["entidades"]]
+    assert "Alcaldía Municipal" in nombres
+    assert not any("Ghostscript" in n or "Motor de análisis" in n for n in nombres)
+
+
 # --- Regla de procedencia en todo lo exportado ----------------------------------------------------
 
 

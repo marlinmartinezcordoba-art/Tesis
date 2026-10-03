@@ -120,6 +120,7 @@ Este módulo **no crea ni modifica relaciones**. Las recorre:
 - con letra inicial en serif;
 - orden alfabético que ignora tildes y mayúsculas;
 - cada entrada enlaza a su detalle en vocabularios.
+- **no lista los agentes mecanismo** (el motor de análisis, Siegfried, Ghostscript, el propio sistema). Son agentes del vocabulario porque ejecutan acciones técnicas, pero no son puntos de acceso del contenido del fondo. Se agregó al conectar los mecanismos en la migración 0013; prueba `test_el_indice_no_lista_los_mecanismos`.
 
 **Alerta de pendientes:** una por nivel inventariado, con el conteo de la última generación. Se actualiza al regenerar y se cierra sola cuando ya no hay pendientes.
 

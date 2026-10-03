@@ -59,7 +59,9 @@ class Instanciacion(Base):
     formato_mime = Column(String(200), nullable=True)
     formato_base = Column(String(500), nullable=True)  # en qué se basó la identificación
     formato_no_identificado = Column(Boolean, nullable=False, default=False, index=True)
-    herramienta_identificacion = Column(String(200), nullable=True)
+    herramienta_identificacion = Column(String(200), nullable=True)  # etiqueta tal como se vio entonces
+    # El mecanismo (RiC-E13) del vocabulario que identificó el formato.
+    mecanismo_identificacion_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
 
     # Texto para el motor de descripción
     texto_extraido = Column(Text, nullable=True)

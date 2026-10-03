@@ -8,7 +8,9 @@ Trabajador en segundo plano, proceso aparte del servidor web:
 - preservación: cada cierto tiempo (30 días por defecto) recalcula la
   huella de todas las instanciaciones, primaria y segunda copia, y alerta
   si alguna cambió; cada minuto crea las segundas copias que falten
-  (fondos anteriores o cambio del lugar configurado).
+  (fondos anteriores o cambio del lugar configurado);
+- mecanismos: cada minuto vincula a su agente mecanismo del vocabulario
+  las filas guardadas antes de la migración 0013 con el programa como texto.
 Si el OCR de un archivo pesado falla o consume memoria, el servidor web
 sigue respondiendo.
 
@@ -24,7 +26,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import preservacion, procesamiento, sesiones, vocabulario
+from app.servicios import mecanismos, preservacion, procesamiento, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -73,6 +75,10 @@ def main() -> None:
                     if replicadas:
                         log.info("Preservación: %s segunda(s) copia(s) creadas.", replicadas)
                     ultima_replica = time.monotonic()
+                    vinculadas = mecanismos.vincular_anteriores(db)
+                    if vinculadas:
+                        db.commit()
+                        log.info("Mecanismos: %s fila(s) anteriores vinculadas a su agente.", vinculadas)
                 siguiente = procesamiento.tomar_siguiente(db)
                 if siguiente is not None:
                     log.info("Procesando %s", siguiente)

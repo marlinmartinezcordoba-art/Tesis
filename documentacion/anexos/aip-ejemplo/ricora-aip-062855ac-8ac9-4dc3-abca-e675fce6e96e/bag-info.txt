@@ -1,0 +1,6 @@
+Bag-Software-Agent: RICORA (preservación digital)
+Bagging-Date: 2026-10-03
+Payload-Oxum: 106748.4
+External-Identifier: urn:uuid:062855ac-8ac9-4dc3-abca-e675fce6e96e
+External-Description: AIP de la instanciación «Oficio_114_1948.pdf» (RiC-E06)
+Internal-Sender-Identifier: e937ee6e-3737-4b5b-8818-71b5d4c01fb1/2026/10/062855ac-8ac9-4dc3-abca-e675fce6e96e.pdf

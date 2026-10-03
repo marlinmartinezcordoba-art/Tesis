@@ -223,7 +223,9 @@ Las relaciones **generales** son las que no tienen propiedad dedicada en RiC-O. 
 
 Dos versiones del mismo programa nunca se sugieren para fusión.
 
-**Mecanismos.** `vocabulario.mecanismo()` es el único punto de registro. Busca por nombre y versión exactos; si existe lo reutiliza, y si no, lo crea con el servicio único de creación. Preservación lo usa para Ghostscript y descripción para el motor de análisis.
+**Mecanismos.** `vocabulario.mecanismo()` es el único punto de registro. Busca por nombre y versión exactos; si existe lo reutiliza, y si no, lo crea con el servicio único de creación. Preservación lo usa para Ghostscript, Pillow, Siegfried y el propio sistema, y descripción para el motor de análisis (`app/servicios/mecanismos.py`).
+
+> **Corrección.** En la entrega anterior de este documento, esta frase ya decía que preservación y descripción usaban `mecanismo()`, pero **ningún módulo lo llamaba todavía**: el servicio existía y estaba probado, nada más. Se conectó en la versión 2.2 de preservación (migración 0013). Desde entonces cada acción técnica guarda la clave del mecanismo (`mecanismo_id`, `motor_id`) en vez del nombre del programa como texto. La ficha de un mecanismo muestra **cuántas acciones técnicas ejecutó**, y una fusión de dos mecanismos las mueve a la definitiva. Las pruebas están en `tests/test_mecanismos.py`.
 
 ## 9. Flujos
 

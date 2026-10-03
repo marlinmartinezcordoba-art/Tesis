@@ -622,6 +622,12 @@ def ficha(db: Session, e: EntidadVocabulario) -> dict:
         salida["hitos"] = hitos_de(db, e.id)
         salida["existencia_legible"] = fechas.legible(e.existencia_edtf) if e.existencia_edtf else None
         salida["falta_version"] = e.subtipo == "mecanismo" and not e.version
+        if e.subtipo == "mecanismo":
+            from app.servicios.vocabulario import conteo_usos_mecanismo
+
+            # Lo que hizo este programa en el sistema: la prueba de que
+            # preservación y descripción lo reutilizan, no lo copian.
+            salida["usos_tecnicos"] = conteo_usos_mecanismo(db, e.id)
     if e.clase == "lugar":
         salida["contiene"] = [x for x in salida["vinculos"] if x["vinculo"] == "lugar_superior" and x["sentido"] == "directa"]
     if e.clase == "tipo_actividad":

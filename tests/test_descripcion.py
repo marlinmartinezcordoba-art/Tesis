@@ -286,12 +286,18 @@ def test_reutilizar_no_crea_entidad_duplicada(cliente, db, fondo, archivista, ad
     assert r.status_code == 409 and r.json()["coincidencias"][0]["id"] == str(existente.id)
     assert db.scalar(select(func.count()).select_from(RecursoDocumental).where(RecursoDocumental.nivel == "unidad_documental")) == 0
 
-    antes = db.scalar(select(func.count()).select_from(EntidadVocabulario).where(EntidadVocabulario.clase == "agente"))
+    def agentes(subtipo_mecanismo: bool):
+        condicion = (EntidadVocabulario.subtipo == "mecanismo") if subtipo_mecanismo else (
+            EntidadVocabulario.subtipo.is_distinct_from("mecanismo"))
+        return db.scalar(select(func.count()).select_from(EntidadVocabulario).where(
+            EntidadVocabulario.clase == "agente", condicion))
+
+    antes = agentes(False)
     datos["entidades"][0]["reutilizar_id"] = str(existente.id)
     r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos)
     assert r.status_code == 201, r.text
-    despues = db.scalar(select(func.count()).select_from(EntidadVocabulario).where(EntidadVocabulario.clase == "agente"))
-    assert despues == antes + 1  # solo el Gobernador es nuevo
+    assert agentes(False) == antes + 1  # solo el Gobernador es nuevo
+    assert agentes(True) == 1  # y el motor que lo propuso, como mecanismo (una sola vez)
     productor = next(e for e in r.json()["entidades"] if e["codigo_ric"] == "has_creator")
     assert productor["entidad_id"] == str(existente.id)
 

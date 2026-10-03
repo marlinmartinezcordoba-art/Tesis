@@ -240,7 +240,7 @@ def test_migracion_fallida_no_toca_la_original(cliente, db, fondo, archivista, m
 
     def rompe(entrada, salida):
         salida.write_bytes(b"no es un PDF/A")
-        return "conversor roto"
+        return preservacion.Ejecucion("Conversor roto", "0.1", "nada")
 
     monkeypatch.setitem(preservacion.CONVERSORES, "ghostscript_pdfa",
                         preservacion.Conversor("ghostscript_pdfa", "roto", "pdfa_2b", rompe))

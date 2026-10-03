@@ -166,6 +166,9 @@ def fusionar(db: Session, *, definitiva: EntidadVocabulario, absorbida: EntidadV
     formas = db.execute(update(RecursoDocumental).where(RecursoDocumental.forma_documental_id == absorbida.id)
                         .values(forma_documental_id=definitiva.id)).rowcount
     ficha_movida = _fusionar_ficha(db, definitiva, absorbida, usuario_id)
+    # Un mecanismo: las acciones técnicas que ejecutó pasan a la definitiva.
+    if absorbida.clase == "agente" and absorbida.subtipo == "mecanismo":
+        ficha_movida += _mover_usos_mecanismo(db, absorbida.id, definitiva.id)
     # Las que ya se habían fusionado en la absorbida pasan a apuntar a la definitiva.
     db.execute(update(EntidadVocabulario).where(EntidadVocabulario.fusionada_en_id == absorbida.id)
                .values(fusionada_en_id=definitiva.id))
@@ -398,6 +401,36 @@ def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
               entidad_tipo="entidad_vocabulario", entidad_id=e.id, nuevo={"nombre": etiqueta, "version": version},
               detalle=f"Mecanismo «{etiqueta}» registrado en el vocabulario del fondo")
     return e
+
+
+def usos_mecanismo():
+    """(modelo, columna) de cada acción técnica que apunta a un mecanismo."""
+    from app.models.descripcion import Actividad, Fecha
+    from app.models.instanciacion import Instanciacion
+    from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
+
+    return [(Instanciacion, Instanciacion.mecanismo_identificacion_id), (Migracion, Migracion.mecanismo_id),
+            (VerificacionIntegridad, VerificacionIntegridad.mecanismo_id), (SegundaCopia, SegundaCopia.mecanismo_id),
+            (Restauracion, Restauracion.mecanismo_id), (EntidadVocabulario, EntidadVocabulario.motor_id),
+            (Relacion, Relacion.motor_id), (Fecha, Fecha.motor_id), (Actividad, Actividad.motor_id),
+            (RecursoDocumental, RecursoDocumental.motor_id)]
+
+
+def _mover_usos_mecanismo(db: Session, de: uuid.UUID, a: uuid.UUID) -> int:
+    from sqlalchemy import update
+
+    return sum(db.execute(update(modelo).where(columna == de).values({columna.key: a})).rowcount
+               for modelo, columna in usos_mecanismo())
+
+
+def conteo_usos_mecanismo(db: Session, mecanismo_id: uuid.UUID) -> dict[str, int]:
+    """Cuántas acciones técnicas ejecutó el mecanismo, por tabla."""
+    salida = {}
+    for modelo, columna in usos_mecanismo():
+        n = db.scalar(select(func.count()).select_from(modelo).where(columna == mecanismo_id)) or 0
+        if n:
+            salida[modelo.__tablename__ + ("." + columna.key if columna.key != "mecanismo_id" else "")] = n
+    return salida
 
 
 # --- Contexto de vocabulario para el motor de análisis (módulo 2, versión 3) ---------------------

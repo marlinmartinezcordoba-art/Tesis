@@ -58,6 +58,7 @@ class VerificacionIntegridad(Base):
     segunda_copia_id = Column(UUID(as_uuid=True), ForeignKey("segundas_copias.id"), nullable=True)
     segunda_copia_resultado = Column(Enum(*RESULTADO_SEGUNDA_COPIA, name="resultado_segunda_copia"), nullable=True)
     segunda_copia_huella = Column(String(64), nullable=True)
+    mecanismo_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)  # RiC-E13
 
 
 class Migracion(Base):
@@ -69,12 +70,14 @@ class Migracion(Base):
     destino_nombre = Column(String(120), nullable=False)
     modo = Column(Enum(*MODO_MIGRACION, name="modo_migracion"), nullable=False)
     estado = Column(Enum(*ESTADO_MIGRACION, name="estado_migracion"), nullable=False, index=True)
-    herramienta = Column(String(200), nullable=True)
+    herramienta = Column(String(200), nullable=True)  # solo filas anteriores a la migración 0013
+    parametros = Column(String(200), nullable=True)  # qué hizo el programa (no quién)
     mensaje = Column(String(500), nullable=True)
     aprobada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     aprobada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     terminada_en = Column(DateTime(timezone=True), nullable=True)
     instanciacion_resultado_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id"), nullable=True)
+    mecanismo_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)  # RiC-E13
 
 
 class SegundaCopia(Base):
@@ -94,6 +97,7 @@ class SegundaCopia(Base):
     creada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)  # vacío: el sistema
     ultima_verificacion_en = Column(DateTime(timezone=True), nullable=True)
     reemplazada_en = Column(DateTime(timezone=True), nullable=True)
+    mecanismo_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)  # RiC-E13
 
 
 class Restauracion(Base):
@@ -108,6 +112,7 @@ class Restauracion(Base):
     huella_previa = Column(String(64), nullable=True)  # la del archivo dañado, si existía
     # El archivo dañado no se borra: se aparta aquí (relativa al almacenamiento).
     ruta_cuarentena = Column(String(500), nullable=True)
+    mecanismo_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)  # RiC-E13
 
 
 class DeclaracionDerechos(Base):

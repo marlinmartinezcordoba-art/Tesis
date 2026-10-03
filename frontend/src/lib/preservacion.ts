@@ -1,5 +1,8 @@
 export type NivelRiesgo = "bajo" | "medio" | "alto";
 
+// Agente mecanismo (RiC-E13) del vocabulario del fondo, con su versión exacta.
+export interface MecanismoBreve { id: string; nombre: string; version: string | null }
+
 export interface InstBreve {
   id: string;
   nombre: string;
@@ -44,6 +47,8 @@ export interface MigracionHist {
   modo: "automatica" | "manual";
   estado: "en_curso" | "completada" | "fallida" | "esperando_archivo";
   herramienta: string | null;
+  mecanismo: MecanismoBreve | null;
+  parametros: string | null;
   mensaje: string | null;
   aprobada_por: string | null;
   aprobada_en: string;
@@ -56,7 +61,7 @@ export interface Detalle {
   nombre: string;
   fondo_id: string;
   formato: { puid: string | null; nombre: string | null; version: string | null; mime: string | null; identificado: boolean;
-    herramienta: string | null; base: string | null };
+    herramienta: string | null; mecanismo: MecanismoBreve | null; base: string | null };
   tamano_bytes: number;
   paginas: number | null;
   huella: string | null;
@@ -67,7 +72,7 @@ export interface Detalle {
   riesgo: Riesgo;
   contexto: Miga[];
   derivada_de: InstBreve | null;
-  migrada_desde: { herramienta: string | null; modo: string } | null;
+  migrada_desde: { herramienta: string | null; modo: string; mecanismo: MecanismoBreve | null } | null;
   verificaciones: { fecha: string; resultado: "integra" | "alterada" | "ausente"; origen: "periodica" | "manual";
     segunda_copia: ResultadoCopia | null; por: string | null }[];
   migraciones: MigracionHist[];

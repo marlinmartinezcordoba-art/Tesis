@@ -48,6 +48,7 @@ export interface Ficha {
   hitos?: { id: string; tipo: string; descripcion: string; edtf: string; fecha_legible: string; clase_rico: string; propiedad_rico: string }[];
   existencia_legible?: string | null;
   falta_version?: boolean;
+  usos_tecnicos?: Record<string, number>;
   contiene?: Vinculo[];
   skos?: { broader: Breve | null; narrower: Breve[] };
   actividades?: Breve[];
@@ -645,6 +646,7 @@ function FichaAgente(p: Props) {
           )}
         </dl>
         {f.falta_version && <div className="aviso alerta">Falta la versión de este mecanismo: sin ella no se puede atribuir un resultado a una versión precisa.</div>}
+        {f.usos_tecnicos && <UsosTecnicos usos={f.usos_tecnicos} />}
         <h4>Otras formas del nombre</h4>
         <FormasDelNombre ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
         <h4>Identificadores</h4>
@@ -915,4 +917,33 @@ export function FichaAutoridad(p: Props) {
     case "mandato": return <FichaMandato {...p} />;
     default: return <FichaGeneral {...p} />;
   }
+}
+
+// Qué hizo este mecanismo en el sistema: preservación y descripción apuntan
+// a este mismo registro, no guardan el nombre del programa como texto.
+const USO_NOMBRE: Record<string, string> = {
+  "instanciaciones.mecanismo_identificacion_id": "Identificaciones de formato",
+  migraciones: "Migraciones de formato",
+  verificaciones_integridad: "Verificaciones de integridad",
+  segundas_copias: "Segundas copias",
+  restauraciones: "Restauraciones",
+  "entidades_vocabulario.motor_id": "Entidades propuestas",
+  "relaciones.motor_id": "Relaciones propuestas",
+  "fechas.motor_id": "Fechas propuestas",
+  "actividades.motor_id": "Actividades propuestas",
+  "recursos_documentales.motor_id": "Descripciones propuestas",
+};
+
+function UsosTecnicos({ usos }: { usos: Record<string, number> }) {
+  const filas = Object.entries(usos);
+  return (
+    <>
+      <h4>Acciones técnicas que ejecutó</h4>
+      {filas.length === 0 ? <p className="meta">Todavía ninguna.</p> : (
+        <dl className="par-dato">
+          {filas.flatMap(([clave, n]) => [<dt key={clave}>{USO_NOMBRE[clave] || clave}</dt>, <dd key={clave + "-n"}>{n}</dd>])}
+        </dl>
+      )}
+    </>
+  );
 }

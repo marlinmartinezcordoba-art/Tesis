@@ -2,10 +2,10 @@ PAQUETE DE INFORMACIÓN DE ARCHIVO (AIP) · RICORA
 
 Modelo: OAIS (ISO 14721:2012). Convención de empaquetado: BagIt 1.0 (RFC 8493).
 Metadatos de preservación: PREMIS 3.0 (Library of Congress).
-Generado el 2026-10-02T23:31:31+00:00 por Archivista del fondo de prueba.
+Generado el 2026-10-03T05:28:51+00:00 por Archivista del fondo de prueba.
 
 Contenido:
-  contenido/Oficio 114 de 1948.pdf
+  contenido/Oficio_114_1948.pdf
       Información de Contenido: el objeto de datos tal como se custodia.
   metadatos/premis.xml
       PREMIS: Objeto (identificador, formato PRONOM, tamaño, huella,

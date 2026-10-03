@@ -55,7 +55,7 @@ from app.models.enums import URI_RICO
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.models.usuario import Usuario
-from app.servicios import fechas, vocabulario
+from app.servicios import fechas, mecanismos, vocabulario
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
@@ -323,6 +323,7 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
     que quedó de verdad (para comparar con la propuesta del motor)."""
     propuestas = {p["clave"]: p for p in propuesta.get("entidades", []) if p.get("clave")}
     motor = propuesta.get("motor")
+    mecanismos.preparar_motor(db, recurso.fondo_id or recurso.id, motor, usuario_id)
     formas = [e for e in entidades if e.tipo == "forma_documental"]
     if len(formas) > 1:
         raise ErrorDescripcion("Un documento o conjunto tiene una sola forma documental; deje solo una.")
@@ -498,7 +499,9 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
     servidor al abrir el espacio de trabajo, no lo que diga el navegador."""
     if not propuesta.get("disponible"):
         return 0
-    comun = {"modelo": propuesta.get("motor"), "version_prompt": propuesta.get("version_prompt"),
+    motor = mecanismos.preparar_motor(db, recurso.fondo_id or recurso.id, propuesta.get("motor"), usuario_id)
+    comun = {"modelo": propuesta.get("motor"), "mecanismo_id": str(motor.id) if motor else None,
+             "version_prompt": propuesta.get("version_prompt"),
              "fondo_id": str(recurso.fondo_id), "titulo_documento": recurso.titulo}
     n = 0
 
@@ -693,6 +696,8 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
                                            Relacion.estado == "vigente").limit(1)):
         raise ErrorDescripcion("Alguno de estos documentos ya fue descrito.", 409)
     propuesta = _propuesta(trabajo)
+    # El motor que propuso es el agente mecanismo del vocabulario del fondo.
+    mecanismos.preparar_motor(db, trabajo.fondo_id, propuesta.get("motor"), usuario_id)
     superior = _superior(db, trabajo.fondo_id, trabajo.nivel, incluido_en_id)
     origen_titulo, _ = _procedencia(titulo, propuesta.get("titulo") or None, None)
     origen_alcance, confianza_alcance = _procedencia(alcance, propuesta.get("alcance") or None,

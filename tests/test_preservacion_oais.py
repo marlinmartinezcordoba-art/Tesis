@@ -293,7 +293,9 @@ def test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi(cliente, 
     migracion = eventos[tipos.index("migration")]
     roles = {t(a, "p:linkingAgentRole"): t(a, "p:linkingAgentIdentifierType")
              for a in migracion.findall(f"{PREMIS}linkingAgentIdentifier")}
-    assert roles == {"authorizer": "RICORA usuario", "executing program": "RICORA software"}
+    # Quien ejecutó la migración es el mecanismo del vocabulario del fondo
+    # (RiC-E13), identificado por su registro, no por un nombre suelto.
+    assert roles == {"authorizer": "RICORA usuario", "executing program": "RICORA vocabulario"}
     objetos = {t(o, "p:linkingObjectRole"): t(o, "p:linkingObjectIdentifierValue")
                for o in migracion.findall(f"{PREMIS}linkingObjectIdentifier")}
     assert objetos == {"source": str(inst.id), "outcome": m["nueva_instanciacion"]["id"]}
@@ -305,6 +307,9 @@ def test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi(cliente, 
     nombres_software = [t(a, "p:agentName") for a in raiz.findall(f"{PREMIS}agent") if t(a, "p:agentType") == "software"]
     assert any("siegfried" in n.lower() for n in nombres_software)
     assert any("Ghostscript" in n for n in nombres_software)
+    for a in raiz.findall(f"{PREMIS}agent"):
+        if t(a, "p:agentType") == "software":  # cada programa con su versión exacta (PREMIS 3 agentVersion)
+            assert t(a, "p:agentIdentifier/p:agentIdentifierType") == "RICORA vocabulario" and t(a, "p:agentVersion")
     [derecho] = raiz.findall(f"{PREMIS}rights/{PREMIS}rightsStatement")
     assert t(derecho, "p:rightsBasis") == "Statute"
     assert t(derecho, "p:statuteInformation/p:statuteCitation") == "Ley 594 de 2000, art. 27"

@@ -1,6 +1,6 @@
 {
   "informacion_de_contenido": {
-    "objeto_de_datos": "contenido/Oficio 114 de 1948.pdf",
+    "objeto_de_datos": "contenido/Oficio_114_1948.pdf",
     "informacion_de_representacion": {
       "formato": "Acrobat PDF 1.4 - Portable Document Format",
       "version": "1.4",
@@ -8,53 +8,58 @@
       "registro": "PRONOM",
       "puid": "fmt/18",
       "enlace": "https://www.nationalarchives.gov.uk/PRONOM/fmt/18",
-      "identificado_con": "siegfried 1.11.9 · PRONOM DROID_SignatureFile_V125.xml; container-signature-20260119.xml"
+      "identificado_con": "Siegfried 1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)",
+      "mecanismo_identificacion": {
+        "id": "90829f8f-b2fe-4ca0-b21c-cdb30082215a",
+        "nombre": "Siegfried 1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)",
+        "version": "1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)"
+      }
     }
   },
   "informacion_de_descripcion_de_preservacion": {
     "referencia": {
-      "identificador": "9b15297c-7f17-4754-89e2-7c47fbb99a3e",
+      "identificador": "062855ac-8ac9-4dc3-abca-e675fce6e96e",
       "tipo_identificador": "UUID",
-      "urn": "urn:uuid:9b15297c-7f17-4754-89e2-7c47fbb99a3e",
+      "urn": "urn:uuid:062855ac-8ac9-4dc3-abca-e675fce6e96e",
       "entidad_ric": "Instantiation (RiC-E06) · rico:Instantiation",
-      "nombre_original": "Oficio 114 de 1948.pdf",
+      "nombre_original": "Oficio_114_1948.pdf",
       "codigos_de_referencia": [
         "CO.AM.01.003.114"
       ]
     },
     "contexto": {
       "fondo": {
-        "id": "6ed01d42-f2a2-45e7-82d2-11525517fb7f",
+        "id": "e937ee6e-3737-4b5b-8818-71b5d4c01fb1",
         "titulo": "Fondo de prueba · Archivo Municipal"
       },
       "record_resources": [
         {
-          "id": "4a2aa84b-1240-46be-abda-1f84760eb830",
+          "id": "c6e80d5c-08dc-4ede-8e01-c6203dd9fbe2",
           "nivel": "unidad_documental",
           "titulo": "Oficio 114 de 1948",
           "codigo_referencia": "CO.AM.01.003.114",
           "relacion": "RiC-R025 has or had instantiation · rico:hasOrHadInstantiation",
           "jerarquia": [
             {
-              "id": "6ed01d42-f2a2-45e7-82d2-11525517fb7f",
+              "id": "e937ee6e-3737-4b5b-8818-71b5d4c01fb1",
               "nivel": "fondo",
               "titulo": "Fondo de prueba · Archivo Municipal",
               "codigo_referencia": "CO.AM"
             },
             {
-              "id": "6369ee61-de11-42e5-b4c9-12c63d8be246",
+              "id": "2e758f81-acd9-4dca-9687-d08fedc50bfe",
               "nivel": "serie",
               "titulo": "Correspondencia",
               "codigo_referencia": "CO.AM.01"
             },
             {
-              "id": "51313044-28fd-472e-8041-7887748766e7",
+              "id": "0eff8f08-6058-4407-88fe-092cfd6f106a",
               "nivel": "expediente",
               "titulo": "Oficios de la Alcaldía, 1948",
               "codigo_referencia": "CO.AM.01.003"
             },
             {
-              "id": "4a2aa84b-1240-46be-abda-1f84760eb830",
+              "id": "c6e80d5c-08dc-4ede-8e01-c6203dd9fbe2",
               "nivel": "unidad_documental",
               "titulo": "Oficio 114 de 1948",
               "codigo_referencia": "CO.AM.01.003.114"
@@ -66,8 +71,8 @@
       "derivada_de": null,
       "migrada_a": [
         {
-          "id": "6ed2b3a3-3886-43ee-ba9a-9ba48e7aef6b",
-          "nombre": "Oficio 114 de 1948 (PDF/A-2b).pdf",
+          "id": "97c34096-9746-4463-8a3d-94e5fcf6031c",
+          "nombre": "Oficio_114_1948 (PDF/A-2b).pdf",
           "puid": "fmt/477",
           "relacion": "RiC-R015 migrated into · rico:migratedInto"
         }
@@ -75,136 +80,160 @@
     },
     "procedencia": {
       "nota": "Historia de custodia y de eventos técnicos desde el ingreso, tomada de los eventos PREMIS (metadatos/premis.xml).",
-      "cargado_en": "2026-10-02T23:31:28.007915+00:00",
+      "cargado_en": "2026-10-03T05:28:48.330467+00:00",
       "eventos": [
         {
-          "id": "fcc36d8a-2181-5ff3-a595-172a61b3a441",
+          "id": "e56a29f5-8ffc-5a18-ae64-5cacc8634a30",
           "tipo": "ingestion",
-          "fecha": "2026-10-02T23:31:28.007915+00:00",
-          "detalle": "Ingreso del archivo «Oficio 114 de 1948.pdf» al fondo por el módulo de ingesta.",
+          "fecha": "2026-10-03T05:28:48.330467+00:00",
+          "detalle": "Ingreso del archivo «Oficio_114_1948.pdf» al fondo por el módulo de ingesta.",
           "resultado": "éxito",
           "agentes": [
             {
+              "id": "ae0feae9-af37-47c3-9040-f80ddd3ab728",
               "nombre": "Archivista del fondo de prueba",
               "tipo": "person",
+              "version": null,
               "rol": "implementer"
             },
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "5282392d-ca68-5a81-9a11-c438fa3a1498",
+          "id": "7186828b-93d9-59ef-acf6-ba46aeaf0439",
           "tipo": "message digest calculation",
-          "fecha": "2026-10-02T23:31:30.813829+00:00",
+          "fecha": "2026-10-03T05:28:50.913266+00:00",
           "detalle": "Cálculo de la huella digital con SHA-256.",
           "resultado": "éxito",
           "agentes": [
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "55438dc2-bd68-5f56-81b0-6b5a7e4cef9d",
+          "id": "9a6ec45d-c09c-55c0-bb7e-8e4cb58d1a14",
           "tipo": "format identification",
-          "fecha": "2026-10-02T23:31:30.813829+00:00",
+          "fecha": "2026-10-03T05:28:50.913266+00:00",
           "detalle": "Identificación del formato contra el registro PRONOM.",
           "resultado": "éxito",
           "agentes": [
             {
-              "nombre": "siegfried 1.11.9 · PRONOM DROID_SignatureFile_V125.xml; container-signature-20260119.xml",
+              "id": "90829f8f-b2fe-4ca0-b21c-cdb30082215a",
+              "nombre": "Siegfried 1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)",
               "tipo": "software",
+              "version": "1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "30023e2f-97d7-4ae8-9c6e-6b04e03ceafe",
+          "id": "7c31026d-6197-4bed-8aea-0be64d72556d",
           "tipo": "replication",
-          "fecha": "2026-10-02T23:31:30.827081+00:00",
+          "fecha": "2026-10-03T05:28:50.926626+00:00",
           "detalle": "Segunda copia en «/data/segunda_copia» (motivo: ingesta).",
           "resultado": "éxito",
           "agentes": [
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "49e7249f-9b44-47b1-8c2b-d3d9f97e0a2f",
+          "id": "fc0c3fb4-488d-4e8c-980e-d1994941de03",
           "tipo": "fixity check",
-          "fecha": "2026-10-02T23:31:30.856089+00:00",
+          "fecha": "2026-10-03T05:28:50.964409+00:00",
           "detalle": "Verificación de integridad manual (SHA-256) de la copia primaria y de la segunda copia.",
           "resultado": "éxito",
           "agentes": [
             {
+              "id": "ae0feae9-af37-47c3-9040-f80ddd3ab728",
               "nombre": "Archivista del fondo de prueba",
               "tipo": "person",
+              "version": null,
               "rol": "implementer"
             },
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "456019bd-f7d8-4164-9ac7-6618ee2f0385",
+          "id": "68432223-5f13-4e93-aa7c-869e8bd561bd",
           "tipo": "migration",
-          "fecha": "2026-10-02T23:31:31.081610+00:00",
+          "fecha": "2026-10-03T05:28:51.200985+00:00",
           "detalle": "Migración automática a PDF/A-2b (ISO 19005-2), aprobada de forma explícita.",
           "resultado": "éxito",
           "agentes": [
             {
+              "id": "ae0feae9-af37-47c3-9040-f80ddd3ab728",
               "nombre": "Archivista del fondo de prueba",
               "tipo": "person",
+              "version": null,
               "rol": "authorizer"
             },
             {
-              "nombre": "Ghostscript 10.02.1 (pdfwrite, PDF/A-2b, perfil sRGB)",
+              "id": "1b598dea-b010-414d-a724-448ad60417b3",
+              "nombre": "Ghostscript 10.02.1",
               "tipo": "software",
+              "version": "10.02.1",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "0ed8775a-650a-4f12-afbe-638919f5e380",
+          "id": "d187f9a4-293f-432e-a9c0-a46063a61202",
           "tipo": "fixity check",
-          "fecha": "2026-10-02T23:31:31.099464+00:00",
+          "fecha": "2026-10-03T05:28:51.219240+00:00",
           "detalle": "Verificación de integridad periódica (SHA-256) de la copia primaria y de la segunda copia.",
           "resultado": "éxito",
           "agentes": [
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
         },
         {
-          "id": "56",
+          "id": "55",
           "tipo": "information package creation",
-          "fecha": "2026-10-02T23:31:31.103340+00:00",
+          "fecha": "2026-10-03T05:28:51.223018+00:00",
           "detalle": "Exportación del paquete de información de archivo (AIP, BagIt).",
           "resultado": "éxito",
           "agentes": [
             {
+              "id": "ae0feae9-af37-47c3-9040-f80ddd3ab728",
               "nombre": "Archivista del fondo de prueba",
               "tipo": "person",
+              "version": null,
               "rol": "implementer"
             },
             {
-              "nombre": "RICORA (sistema de gestión documental RiC)",
+              "id": "c4ac9e4f-845f-4202-8fef-ad28a830384a",
+              "nombre": "RICORA 2.0.0",
               "tipo": "software",
+              "version": "2.0.0",
               "rol": "executing program"
             }
           ]
@@ -214,23 +243,23 @@
     "fijeza": {
       "algoritmo": "SHA-256",
       "valor": "6b4cac351e06a3683b44ec24e0ddacf44125f1fc608ef8973f28723342450ecb",
-      "registrada_en": "2026-10-02T23:31:30.813829+00:00",
+      "registrada_en": "2026-10-03T05:28:50.913266+00:00",
       "estado_copia_primaria": "integra",
       "segunda_copia": {
         "estado": "sincronizada",
         "ubicacion": "/data/segunda_copia",
         "huella": "6b4cac351e06a3683b44ec24e0ddacf44125f1fc608ef8973f28723342450ecb",
-        "creada_en": "2026-10-02T23:31:30.827081+00:00"
+        "creada_en": "2026-10-03T05:28:50.926626+00:00"
       },
       "verificaciones": [
         {
-          "fecha": "2026-10-02T23:31:30.856089+00:00",
+          "fecha": "2026-10-03T05:28:50.964409+00:00",
           "copia_primaria": "integra",
           "segunda_copia": "integra",
           "origen": "manual"
         },
         {
-          "fecha": "2026-10-02T23:31:31.099464+00:00",
+          "fecha": "2026-10-03T05:28:51.219240+00:00",
           "copia_primaria": "integra",
           "segunda_copia": "integra",
           "origen": "periodica"
@@ -239,9 +268,9 @@
     },
     "derechos_de_acceso": {
       "declaracion": {
-        "id": "c9704af4-d087-42b8-826c-522f05801380",
+        "id": "86e2d88d-e5de-480d-b476-ab9cd06ae966",
         "entidad_tipo": "recurso_documental",
-        "entidad_id": "6ed01d42-f2a2-45e7-82d2-11525517fb7f",
+        "entidad_id": "e937ee6e-3737-4b5b-8818-71b5d4c01fb1",
         "nivel": "fondo",
         "titulo": "Fondo de prueba · Archivo Municipal",
         "base": "estatuto",
@@ -253,7 +282,7 @@
         "fundamento": "Ley 594 de 2000, art. 27 (acceso a documentos de archivo); Ley 1712 de 2014, art. 4",
         "nota": "Fondo histórico sin información clasificada ni reservada identificada.",
         "vigente_hasta": null,
-        "creada_en": "2026-10-02T23:31:30.844980+00:00",
+        "creada_en": "2026-10-03T05:28:50.952241+00:00",
         "heredada": true
       },
       "nota": null

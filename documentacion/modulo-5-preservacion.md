@@ -1,7 +1,16 @@
 # Módulo 5 · Preservación digital
 
-**Versión:** 2 (actualizada según el prompt «Módulo 5, versión actualizada, profunda» y el Plan de Preservación Digital del sistema).
+**Versión:** 2.2 (actualizada según el prompt «Módulo 5, versión actualizada 2», el prompt de vocabularios v2 y el Plan de Preservación Digital del sistema, versión 3).
 **Estado:** entregado, pendiente de validación.
+
+**Qué cambió en la versión 2.2:**
+- **Cada acción técnica apunta al agente mecanismo del vocabulario** (RiC-E13), con su versión exacta: la migración (Ghostscript o Pillow), la identificación de formato (Siegfried con sus firmas PRONOM), la verificación de integridad, la segunda copia y la restauración (el propio sistema, RICORA 2.0.0). Antes se guardaba el nombre del programa como texto libre. Es la brecha que el prompt de vocabularios v2 llamaba «resuelta de forma improvisada dentro de los metadatos de preservación».
+- Si el mecanismo no existe en el vocabulario del fondo, **se crea la primera vez** con el servicio único de vocabularios (`vocabulario.mecanismo()`), con su evento de auditoría. Si existe, se reutiliza. Nunca hay una lógica de registro paralela.
+- En PREMIS, el agente *software* lleva **el identificador del registro del vocabulario** y su `agentVersion`. Es el mismo identificador que usan descripción y la exportación RDF.
+- La tercera decisión del prompt (§5): **herramienta de conversión hacia TIFF**, documentada con su tabla (§19).
+- Las filas anteriores (con el programa en texto) **se vinculan solas** a su mecanismo; el texto que se vio entonces no se borra.
+- Anexo AIP regenerado con los agentes nuevos.
+- El Plan de Preservación versión 3 se comparó con la versión 1: **el texto es idéntico**. No trae requisitos nuevos para este módulo.
 
 **Qué cambió frente a la versión 1:**
 - segunda copia automática de cada archivo, verificada aparte, con su alerta propia;
@@ -85,7 +94,7 @@ Nunca se modifica.
 | | fixity (algoritmo declarado y valor) | `instanciaciones.algoritmo_huella`, `huella` |
 | | size | `tamano_bytes` |
 | | format (nombre, versión, registro PRONOM) | `formato_*` (Siegfried, en la ingesta) |
-| | creatingApplication | la herramienta de la migración que lo produjo, si la hubo |
+| | creatingApplication | el mecanismo de la migración que lo produjo, con su versión y sus parámetros, si la hubo |
 | | originalName | `nombre_original` |
 | | storage ×2 | ruta de la copia primaria y de la segunda copia, con su estado |
 | | relationship | *derivation*: *has source* / *is source of* (migraciones) |
@@ -96,7 +105,7 @@ Nunca se modifica.
 | | recovery | `restauraciones` |
 | | information package creation | registro de auditoría `paquete_exportado` |
 | **Agente** | person | el usuario que actuó |
-| | software | RICORA, Siegfried con su versión de firmas, Ghostscript, Pillow |
+| | software | **el agente mecanismo del vocabulario del fondo** (RiC-E13): RICORA 2.0.0, Siegfried con la versión de sus firmas, Ghostscript, Pillow. `agentIdentifierType` = «RICORA vocabulario», `agentIdentifierValue` = su identificador, `agentVersion` = su versión exacta |
 | **Derechos** | rightsStatement | `declaraciones_derechos`: base, fundamento, actos permitidos o negados |
 
 Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprueba una migración o una restauración) y *executing program*. Así se lee en el registro **cuándo actuó una persona y cuándo el sistema solo**.
@@ -106,6 +115,18 @@ Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprue
 - **RiC-R015 *migrated into*** (`rico:migratedInto`): original → migrada. Va en la PDI (Contexto) y en PREMIS (*derivation*).
 - **RiC-R025 *has or had instantiation*** (`rico:hasOrHadInstantiation`): Record → instanciación. Es la base del Contexto del paquete.
 - **RiC-R024 *includes*** (jerarquía `incluido_en_id`): fondo › serie › expediente › documento. Sirve para el Contexto y para heredar los derechos.
+
+**Agente mecanismo (versión 2.2).** Lo define el módulo de vocabularios (RiC-E13 *Mechanism*, `rico:Mechanism`, versión en `rico:technicalCharacteristics`, RiC-A41). Este módulo solo lo **usa**:
+
+| Acción técnica | Columna | Mecanismo |
+|---|---|---|
+| Identificación de formato (ingesta, migración, recorte) | `instanciaciones.mecanismo_identificacion_id` | Siegfried 1.11.9 (firmas DROID V125 y de contenedor) |
+| Migración automática | `migraciones.mecanismo_id` | Ghostscript 10.x (PDF/A-2b) o Pillow 12.x (TIFF) |
+| Verificación de integridad | `verificaciones_integridad.mecanismo_id` | RICORA 2.0.0 |
+| Segunda copia | `segundas_copias.mecanismo_id` | RICORA 2.0.0 |
+| Restauración | `restauraciones.mecanismo_id` | RICORA 2.0.0 (la aprueba una persona: *authorizer*) |
+
+Una migración con archivo convertido por fuera **no tiene mecanismo**: la ejecutó una persona, y así queda en PREMIS.
 
 ## 8. Funcionalidades
 
@@ -219,6 +240,14 @@ Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprue
 - En `parametros`: `preservacion_segunda_ubicacion`, validado contra los lugares declarados.
 - Tipo de alerta nuevo: `segunda_copia_alterada`.
 
+**Migración 0013 (versión 2.2)** (reversible):
+
+- columna `mecanismo_id` (clave foránea a `entidades_vocabulario`) en `migraciones`, `verificaciones_integridad`, `segundas_copias` y `restauraciones`;
+- `instanciaciones.mecanismo_identificacion_id`;
+- `motor_id` en `entidades_vocabulario`, `relaciones`, `fechas`, `actividades` y `recursos_documentales` (descripción: el motor de análisis también es un mecanismo);
+- `migraciones.parametros`: qué hizo el programa («pdfwrite, PDF/A-2b, perfil sRGB»), separado de quién lo hizo;
+- `migraciones.herramienta` queda **solo para las filas anteriores**: no se borra, es lo que se vio entonces.
+
 **Nada se borra:**
 - una segunda copia reemplazada conserva su archivo;
 - una declaración de derechos reemplazada queda con `vigente = false`;
@@ -229,9 +258,9 @@ Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprue
 | Método y ruta | Permiso | Qué hace |
 |---|---|---|
 | `GET /api/preservacion/panel?fondo_id` | preservación: consultar | Resumen (con alerta de segunda copia) y lista de atención |
-| `GET /api/preservacion/instanciacion/{id}` | preservación: consultar | Ficha PREMIS, **estado de la segunda copia**, derechos, verificaciones, restauraciones y migraciones |
+| `GET /api/preservacion/instanciacion/{id}` | preservación: consultar | Ficha PREMIS, **estado de la segunda copia**, derechos, verificaciones, restauraciones y migraciones. **v2.2:** `formato.mecanismo` y `migraciones[].mecanismo` |
 | `POST …/instanciacion/{id}/verificar` | preservación: trabajar | Verifica la primaria y la segunda copia; devuelve los dos resultados |
-| `POST …/instanciacion/{id}/migrar` | preservación: trabajar | Sin cambios de contrato. Ahora la nueva instanciación también recibe su segunda copia |
+| `POST …/instanciacion/{id}/migrar` | preservación: trabajar | Sin cambios de contrato. La nueva instanciación recibe su segunda copia. **v2.2:** la respuesta suma `mecanismo` (`id`, `nombre`, `version`) y `parametros` |
 | `POST …/instanciacion/{id}/migrar/cargar` | preservación: trabajar | Sin cambios de contrato |
 | `POST …/instanciacion/{id}/restaurar` | preservación: trabajar | `{aprobada: true}`. Restaura la primaria desde la segunda copia |
 | `POST …/instanciacion/{id}/segunda-copia/reponer` | preservación: trabajar | `{aprobada: true}`. Rehace la segunda copia |
@@ -265,7 +294,8 @@ Los roles de agente quedan explícitos: *implementer*, *authorizer* (quien aprue
 | `copia_primaria_restaurada` | Antes (estado y huella del dañado) y después (de qué copia, dónde quedó la cuarentena) |
 | `derechos_declarados` | Antes y después (acceso y fundamento) |
 | `paquete_exportado` | Alcance (instanciación o expediente), convención y versión PREMIS. Uno por cada instanciación incluida |
-| `migracion_aprobada`, `migracion_completada`, `migracion_fallida` | Como en la versión 1 |
+| `migracion_aprobada`, `migracion_completada`, `migracion_fallida` | Como en la versión 1. **v2.2:** `migracion_completada` guarda `mecanismo_id`, su nombre y los parámetros |
+| `mecanismo_registrado` (módulo vocabularios) | La primera vez que un programa con una versión dada actúa en el fondo: nombre y versión |
 | `parametro_cambiado` | Frecuencia, tabla de formatos o lugar de la segunda copia, antes y después |
 
 Las acciones nuevas tienen nombre legible en el panel de Auditoría. Dos de ellas suman grupos nuevos al consolidado semanal: «Restauraciones» y «Paquetes de preservación».
@@ -302,6 +332,7 @@ Las acciones nuevas tienen nombre legible en el panel de Auditoría. Dos de ella
 - `servicios/preservacion.py`: verificación dual, restauración, reposición, copias pendientes.
 - `servicios/derechos.py`: declaración y herencia.
 - `servicios/paquete.py`: eventos y agentes, PREMIS XML, PDI, BagIt, exportación individual y por expediente.
+- `servicios/mecanismos.py` (versión 2.2): traduce «programa + versión» al agente mecanismo del vocabulario; vincula las filas anteriores.
 
 ### Decisiones
 
@@ -309,6 +340,10 @@ Las acciones nuevas tienen nombre legible en el panel de Auditoría. Dos de ella
 |---|---|---|---|---|
 | **Herramienta de identificación de formato** (prompt §5, primera) | **DROID** 6.x (The National Archives, Java, interfaz gráfica y línea de órdenes); **Siegfried** (Go, mismas firmas PRONOM de DROID, incluidas las de contenedor); FIDO (Python, firmas propias derivadas de PRONOM) | **Siegfried 1.11.9**, firmas DROID V125 y de contenedor 2026-01 | Da el **mismo resultado PRONOM que DROID**, porque usa sus mismos archivos de firmas. No exige una máquina Java, que pesa 200–400 MB de memoria en un servidor de 2 GB. Es un binario de 12 MB con salida JSON, fácil de invocar desde Python y de fijar en la imagen. Deja en cada identificación su versión y la de las firmas: es el agente *software* del evento PREMIS *format identification*. Además **valida el resultado de cada migración** (por ejemplo, que el PDF/A salga como `fmt/477`). DROID es la referencia institucional, pero su peso no se justifica en un sistema académico de un solo fondo | Es un binario externo: si falta, la ingesta deja el documento en error con un mensaje claro y la migración falla sin tocar nada. Las firmas quedan fijas en la versión de la imagen y se actualizan al reconstruirla. Siegfried no tiene interfaz gráfica, pero aquí no hace falta |
 | **Empaquetado del AIP** (prompt §5, segunda) | **BagIt 1.0** (RFC 8493): carpeta `data/` + manifiestos de huellas + `bag-info.txt`; **METS** (Library of Congress): un XML que describe la estructura, con PREMIS embebido en `amdSec`; METS dentro de BagIt (como hace Archivematica) | **BagIt 1.0**, con PREMIS 3.0 en XML y la PDI en JSON dentro de `data/metadatos/` | Para **un solo fondo académico**, BagIt da lo esencial: fijeza verificable de cada archivo con cualquier validador, estándar IETF, implementación de unas 40 líneas sin dependencias nuevas y validación automática en las pruebas con la herramienta de la Library of Congress. METS es más expresivo (mapas estructurales, varias representaciones, perfiles), pero su valor aparece con objetos complejos (libros digitalizados página a página, colecciones de miles de objetos) y exige elegir o redactar un perfil, más un validador de esquema y de perfil. Aquí cada instanciación es un solo archivo: METS describiría con mucha más complejidad lo mismo que el manifiesto BagIt. La estructura OAIS (Información de Contenido + PDI con sus cinco categorías) se respeta explícitamente en las carpetas y en `pdi.json` | Un sistema de destino que exija METS (por ejemplo, un archivo nacional con perfil propio) necesitaría una transformación. La mitigación natural es la de Archivematica: un `METS.xml` dentro de la misma bolsa. Es aditivo y no rompe lo que hay |
+| **Conversión hacia PDF/A** (prompt §5, tercera, primera mitad) | Ghostscript (`pdfwrite` con `-dPDFA`); LibreOffice en modo sin pantalla (solo desde formatos de oficina); OCRmyPDF (usa Ghostscript por dentro y añade OCR); pdfa-converter de pago | **Ghostscript**, como fija el prompt y el Plan: PDF/A-2b con perfil sRGB incrustado (OutputIntent) | Ya era la herramienta del sistema. Es libre (AGPL), está en los repositorios de Debian, convierte PDF y PostScript y produce PDF/A-2b que Siegfried reconoce como `fmt/477`. El sistema **comprueba el resultado con Siegfried** antes de aceptarlo | Ghostscript no **valida** PDF/A: produce el archivo, pero no lo certifica. La validación formal con veraPDF sigue pendiente (§22). Si el PDF de origen tiene fuentes sin incrustar, la conversión puede fallar: la migración queda «fallida», con su mensaje, y la original intacta |
+| **Conversión hacia TIFF** (prompt §5, tercera, segunda mitad) | **Pillow** (biblioteca de imágenes de Python, ya instalada para el OCR y los recortes); ImageMagick (`convert`, binario externo); libvips (rápido y de poca memoria, binario externo); GDAL (orientado a imágenes geográficas); Ghostscript (`tiff24nc`, solo desde PDF) | **Pillow 12.3.0**: TIFF con compresión LZW sin pérdida, todas las páginas, conserva la resolución (dpi) | No suma ninguna dependencia: el sistema ya la usa. Es libre (licencia HPND), se fija por versión en `requirements.txt` y la versión exacta queda en el mecanismo. Cubre lo que tiene el fondo de prueba: JPEG, PNG, GIF y TIFF de varias páginas. LZW es sin pérdida y lo leen todos los visores. ImageMagick hace lo mismo con más formatos, pero es otro binario con un historial largo de fallos de seguridad al abrir imágenes (ImageTragick) y exige una política de seguridad propia. libvips conviene para imágenes muy grandes (planos, mapas), que el fondo de prueba no tiene | Pillow no conserva los metadatos EXIF o XMP de la imagen original (sí la resolución). Como la original no se toca, esos metadatos siguen disponibles en ella. Con imágenes de más de 100 megapíxeles, Pillow las carga enteras en memoria: si el fondo las incorpora, la tabla de formatos permite cambiar de conversor sin tocar el código de la migración |
+| **Cómo queda el agente de cada acción técnica** (versión 2.2) | Nombre del programa como texto en cada fila (lo que había); una tabla propia de «programas» en preservación; **clave foránea al agente mecanismo del vocabulario del fondo**; relación RiC genérica en la tabla `relaciones` | **Clave foránea** (`mecanismo_id`) a `entidades_vocabulario`, creada o reutilizada por `vocabulario.mecanismo()` | Es lo que pide el prompt de vocabularios v2: el mismo mecanismo que se administra en vocabularios es el que preservación y descripción reutilizan. Una tabla propia duplicaría el registro. Una relación en `relaciones` exigiría inventar una relación RiC entre un evento y un agente, y RiC-O 1.1 no modela eventos PREMIS. La clave foránea es directa, se consulta sin cruces y se mueve sola en una fusión. La versión del programa es parte de la identidad: Ghostscript 10.02.1 y 10.05.1 son mecanismos distintos | Cada fondo tiene sus propios mecanismos: Ghostscript 10.05.1 aparece una vez por fondo. Es coherente con que el vocabulario es por fondo. Las acciones de ingreso y de huella (anteriores a la identificación) usan el mecanismo del sistema en su versión actual, porque no guardan uno propio |
+| **Versión exacta de Siegfried** (versión 2.2) | Solo la versión del programa; **programa más archivos de firmas** | «1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)» | El mismo Siegfried con otras firmas puede identificar distinto el mismo archivo. Para atribuir un resultado hay que saber las dos | Al actualizar las firmas aparece un mecanismo nuevo en el vocabulario. Es lo correcto: es otra versión del identificador |
 | **Segundo lugar de almacenamiento** (prompt §8 y §14) | Otra carpeta del mismo volumen; **volumen Docker propio** en el mismo servidor; un Volume de bloques de DigitalOcean (pago); almacenamiento de objetos S3 o Spaces (pago); un segundo servidor | **Volumen Docker propio `segunda_copia`** montado en `/data/segunda_copia`, declarado con `RICORA_SEGUNDA_COPIA` y elegido por el administrador entre los lugares declarados | Sin costo, como exige el proyecto. Separa la segunda copia del almacenamiento primario a nivel de volumen: protege de **borrados accidentales, corrupción de archivos y errores de software** sobre la carpeta primaria, que son los incidentes más comunes. Queda **configurable**: en producción se monta otro disco o un servidor de archivos (NFS, SMB) en una ruta, se declara en `RICORA_SEGUNDA_COPIA` y se elige en la pantalla. Las copias se crean solas en el lugar nuevo y las del anterior se conservan | **En esta primera versión vive en el mismo disco físico del Droplet.** No protege de la pérdida del disco ni del servidor. La pantalla de configuración lo dice («mismo disco que la primaria»). El Plan de Preservación debe exigir, para producción real, un lugar en otro equipo, más un respaldo externo periódico de la base de datos |
 | Serialización de la PDI | XML propio; PREMIS para todo; **JSON con las cinco categorías como claves** | **JSON** (`pdi.json`) junto a `premis.xml` | La PDI de OAIS no tiene esquema normativo propio: es un modelo de información. Lo verificable de procedencia y fijeza ya va en PREMIS XML validado. El JSON hace explícitas las cinco categorías con sus nombres (lo pide el prompt §7), es legible por personas y por programas, y lleva el contexto RiC (jerarquía, R025, R015) que PREMIS no modela | No es un estándar de intercambio. Si un destino lo exige, el contexto RiC saldrá de la exportación RDF (fuera de este módulo) |
 | Alcance de los derechos | Solo por instanciación; solo por fondo; **por instanciación o por cualquier nivel, heredado hacia abajo** | **Herencia por niveles**: aplica la declaración propia o la del nivel más cercano hacia arriba | Es como trabaja el archivista: el acceso se decide por fondo o por serie y se exceptúa un expediente o un documento. Con una declaración en el fondo, todos los paquetes tienen su entidad Derechos | No es un gestor de derechos de autor (el prompt §11 lo excluye). Las fechas de vigencia se registran pero no se hacen cumplir solas |
@@ -337,6 +372,10 @@ Dockerfile, docker-compose.yml                  volumen segunda_copia
 scripts/validar_premis.py                       PREMIS contra el XSD oficial (integración continua)
 scripts/generar_anexo_aip.py                    produce el anexo de la tesis
 tests/test_preservacion_oais.py                 11 pruebas nuevas
+alembic/versions/0013_mecanismos_reutilizados.py   v2.2: mecanismo_id y motor_id
+app/servicios/mecanismos.py                     v2.2: agente mecanismo de cada acción técnica
+app/servicios/vocabulario.py                    v2.2: la fusión mueve las acciones técnicas; conteo de usos
+tests/test_mecanismos.py                        v2.2: 8 pruebas
 documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 ```
 
@@ -360,6 +399,19 @@ documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 | No se empaqueta un archivo alterado | 409 y ningún evento de exportación |
 | Permisos de las acciones nuevas | El revisor recibe 403 en exportar (las dos), restaurar, reponer y derechos; sin sesión, 401. La configuración del lugar da 403 al archivista |
 
+**Pruebas de la versión 2.2** (`tests/test_mecanismos.py`, 8 pruebas, más una en `tests/test_instrumentos.py`; el proyecto llega a **247**):
+
+| Prueba | Qué comprueba |
+|---|---|
+| **Migración automática vinculada a Ghostscript con su versión exacta** (prompt §13, última) | El agente es un registro del vocabulario del fondo, subtipo mecanismo, con la versión que da `gs --version`. La migración no guarda el nombre del programa (`herramienta` vacía), solo sus parámetros. Lo creó el servicio de vocabularios, con su evento `mecanismo_registrado`. La auditoría de la migración cita su `mecanismo_id`. Una segunda migración **reutiliza** el mismo registro (uno solo en el fondo). En el PREMIS del paquete, el *executing program* de la migración es ese identificador y su agente lleva `agentVersion` |
+| Un mecanismo ya registrado se reutiliza | Si la archivista ya lo había registrado a mano, la migración lo usa |
+| La migración manual no inventa un mecanismo | Con archivo convertido por fuera, `mecanismo` es nulo |
+| Identificación, verificación y segunda copia | Siegfried con «firmas» en su versión; RICORA 2.0.0 en la verificación y en la copia; la ficha del mecanismo cuenta sus acciones técnicas |
+| Lo que propone el motor queda vinculado | Ninguna fila con `motor` sin `motor_id` en cinco tablas; las decisiones de IA citan el mecanismo |
+| Fusionar dos mecanismos | Las acciones técnicas pasan a la definitiva, y lo que se registre después también |
+| Filas anteriores | Se vinculan sin borrar su texto; idempotente |
+| Lectura de versiones | Programa, versión y parámetros; versión de Siegfried con sus firmas |
+
 **Pruebas de mutación** (se rompe el código a propósito y se comprueba que alguna prueba falle):
 
 | Mutación | Resultado |
@@ -370,6 +422,9 @@ documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 | Omitir los Derechos en PREMIS | Detectada |
 | Omitir una instanciación del expediente | Detectada |
 | Borrar el archivo dañado al restaurar (en vez de apartarlo) | Detectada |
+| v2.2: guardar el nombre de Ghostscript en la migración en vez del mecanismo | Detectada |
+| v2.2: no vincular al motor lo que propuso | Detectada |
+| v2.2: no mover las acciones técnicas al fusionar mecanismos | Detectada |
 
 **Verificación visual** en navegador real:
 - ficha con la segunda copia alterada: insignia roja, aviso rojo, tarjeta de contingencia;
@@ -391,9 +446,12 @@ documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 | AIP de una instanciación válido según la convención, con el original, los 4 conjuntos PREMIS y las 5 categorías de la PDI | ✓ |
 | AIP del expediente con todas sus instanciaciones, sin omitir ninguna | ✓ |
 | Configuración: error de permisos a quien no es administrador | ✓ |
-| Las dos decisiones de §5 documentadas con tabla completa | ✓ (§19) |
+| Las decisiones de §5 documentadas con tabla completa | ✓ (§19: las tres) |
 | Segundo lugar de almacenamiento documentado en la Definición de Terminado | ✓ (§19 y abajo) |
-| Un AIP real del fondo de prueba conservado como anexo | ✓ (§23) |
+| Un AIP real del fondo de prueba conservado como anexo | ✓ (§23, regenerado en la versión 2.2) |
+| **v2.2:** el evento técnico de una migración automática queda vinculado al mecanismo Ghostscript del vocabulario, con su versión exacta, nunca a un nombre en texto | ✓ (`tests/test_mecanismos.py`) |
+| **v2.2:** si el mecanismo no existe, se crea con el servicio de vocabularios, sin lógica paralela | ✓ |
+| **v2.2:** las tres decisiones de §5 documentadas (identificación, empaquetado, conversión PDF/A y TIFF) | ✓ (§19) |
 
 **Definición de Terminado: el segundo lugar de almacenamiento.** En esta primera versión es el **volumen Docker `segunda_copia`**, montado en `/data/segunda_copia` en los contenedores `web` y `trabajador`. Está separado del volumen `almacen` de la copia primaria, pero en el mismo disco del servidor. Es configurable sin tocar código:
 1. quien opera el servidor monta otro disco o un servidor de archivos;
@@ -406,6 +464,7 @@ documentacion/anexos/aip-ejemplo/               el AIP real (zip y carpeta)
 - **La segunda copia no es todavía independiente del disco.** Para la sustentación, conviene decirlo así: «protege de la alteración y del borrado de archivos, no de la pérdida del servidor». La independencia física es una decisión de infraestructura, con costo, que el sistema ya soporta.
 - **La base de datos no tiene segunda copia.** Los metadatos viven en PostgreSQL. El AIP los lleva consigo, pero un respaldo periódico de la base sigue siendo política del Plan, fuera de este módulo.
 - **PDF/A sin validación formal con veraPDF** (como en la versión 1).
+- **Las acciones de ingreso y de cálculo de huella** usan el mecanismo del sistema en su versión actual: no guardaron uno propio en su momento. Las demás (identificación, verificación, copia, migración, restauración) guardan el suyo.
 - **Anexo generado en el entorno de desarrollo.** Tiene el mismo código, la misma versión de Siegfried y la misma estructura de carpetas que el servidor. Ghostscript es 10.02.1 aquí y 10.05.1 en el servidor. En el servidor se obtiene uno igual con un clic en «Exportar paquete de preservación».
 - **Validación contra el esquema PREMIS oficial: hecha.** En el entorno de desarrollo loc.gov está bloqueado, así que corre en GitHub Actions. En la ejecución del commit 40ea1e6, el PREMIS producido por las pruebas y el del anexo salieron **válidos** contra `premis-v3-0.xsd`. El despliegue confirmó Ghostscript 10.05.1 → `fmt/477` en el servidor.
 
@@ -445,8 +504,12 @@ Objeto      urn:uuid:…  premis:file  fmt/18 «Acrobat PDF 1.4»  71 071 bytes 
 Eventos     ingestion → message digest calculation → format identification → replication
             → fixity check (manual: primaria íntegra, segunda copia íntegra) → migration (authorizer: persona;
               executing program: Ghostscript; source → outcome) → fixity check (periódica) → information package creation
-Agentes     person «Archivista del fondo de prueba» · software RICORA · software siegfried 1.11.9 (firmas V125)
-            · software Ghostscript (pdfwrite, PDF/A-2b, perfil sRGB)
+Agentes     person «Archivista del fondo de prueba»
+            · software «RICORA 2.0.0»                agentVersion 2.0.0
+            · software «Siegfried 1.11.9 (firmas DROID_SignatureFile_V125, container-signature-20260119)»
+            · software «Ghostscript 10.02.1»         agentVersion 10.02.1
+            (cada software: agentIdentifierType «RICORA vocabulario», el identificador de su registro
+             en el vocabulario del fondo; la migración dice además sus parámetros: pdfwrite, PDF/A-2b, perfil sRGB)
 Derechos    Statute · co · «Ley 594 de 2000, art. 27; Ley 1712 de 2014, art. 4» · disseminate Allow · replicate Allow
 Contexto    Fondo CO.AM › Serie CO.AM.01 › Expediente CO.AM.01.003 (Record Set, RiC-E03)
             › Documento CO.AM.01.003.114 (Record, RiC-E04) ─ rico:hasOrHadInstantiation (R025) → esta Instantiation (RiC-E06)

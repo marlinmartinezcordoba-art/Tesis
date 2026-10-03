@@ -1,4 +1,0 @@
-ce17f7b96c374552da1c5e444ac4e0f4c22c0488af3c1568bcbbfa119b910ee1  data/LEEME.txt
-6b4cac351e06a3683b44ec24e0ddacf44125f1fc608ef8973f28723342450ecb  data/contenido/Oficio 114 de 1948.pdf
-16736b5e1866ba6dddf346e182f41726dc49daf4e5081806597d0e62da8a4455  data/metadatos/pdi.json
-72354e3a7177bc1a8c6d1b4e3c00fecff0dae7d724a453211dd409afc3c776fc  data/metadatos/premis.xml

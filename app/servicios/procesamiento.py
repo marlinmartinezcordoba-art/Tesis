@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import alertas, almacen, formato, parametros, segunda_copia, texto
+from app.servicios import alertas, almacen, formato, mecanismos, parametros, segunda_copia, texto
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -139,6 +139,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         inst.formato_mime, inst.formato_base = f.mime, f.base
         inst.formato_no_identificado = not f.identificado
         inst.herramienta_identificacion = f.herramienta
+        # Quién identificó: el mecanismo del vocabulario (Siegfried con su
+        # versión y sus firmas PRONOM), no solo el texto.
+        inst.mecanismo_identificacion_id = mecanismos.de_identificacion(db, inst.fondo_id, f.herramienta).id
 
         # 4. Texto para el motor de descripción.
         _avance(db, inst, "texto", 0, "Extrayendo texto")
@@ -216,6 +219,7 @@ def reiniciar(inst: Instanciacion) -> None:
     inst.duplicado_confirmado = False
     inst.formato_puid = inst.formato_nombre = inst.formato_version = None
     inst.formato_mime = inst.formato_base = inst.herramienta_identificacion = None
+    inst.mecanismo_identificacion_id = None
     inst.formato_no_identificado = False
     inst.texto_extraido = None
     inst.origen_texto = None

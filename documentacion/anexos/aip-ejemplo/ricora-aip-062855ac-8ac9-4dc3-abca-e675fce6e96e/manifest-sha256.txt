@@ -1,0 +1,4 @@
+d361c21f35a6bafab069fe4a5f3e59d440e9ce4d91813585f3278d6b01add0dd  data/LEEME.txt
+6b4cac351e06a3683b44ec24e0ddacf44125f1fc608ef8973f28723342450ecb  data/contenido/Oficio_114_1948.pdf
+af2157842125b255c774f57b4b5a46643962b01c44a97d5056bcd2cdc191d720  data/metadatos/pdi.json
+67f593aa0be812bebb419dee8d96e87a823adac72f9382368aa1dcf413f7acf5  data/metadatos/premis.xml
