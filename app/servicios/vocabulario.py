@@ -462,9 +462,13 @@ def usos_mecanismo():
     """(modelo, columna) de cada acción técnica que apunta a un mecanismo."""
     from app.models.descripcion import Actividad, Fecha
     from app.models.instanciacion import Instanciacion
-    from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
+    from app.models.preservacion import ComprobacionTecnica, Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
 
-    return [(Instanciacion, Instanciacion.mecanismo_identificacion_id), (Migracion, Migracion.mecanismo_id),
+    return [(Instanciacion, Instanciacion.mecanismo_identificacion_id),
+            # Extracción de texto, recortes y comprobaciones técnicas (bloque 5): sin ellas,
+            # una fusión dejaba esas acciones colgadas del mecanismo absorbido.
+            (Instanciacion, Instanciacion.mecanismo_texto_id), (Instanciacion, Instanciacion.mecanismo_creacion_id),
+            (ComprobacionTecnica, ComprobacionTecnica.mecanismo_id), (Migracion, Migracion.mecanismo_id),
             (VerificacionIntegridad, VerificacionIntegridad.mecanismo_id), (SegundaCopia, SegundaCopia.mecanismo_id),
             (Restauracion, Restauracion.mecanismo_id), (EntidadVocabulario, EntidadVocabulario.motor_id),
             (Relacion, Relacion.motor_id), (Fecha, Fecha.motor_id), (Actividad, Actividad.motor_id),
@@ -486,6 +490,44 @@ def conteo_usos_mecanismo(db: Session, mecanismo_id: uuid.UUID) -> dict[str, int
         if n:
             salida[modelo.__tablename__ + ("." + columna.key if columna.key != "mecanismo_id" else "")] = n
     return salida
+
+
+# Nombre legible de cada acción técnica, para la lista de mecanismos.
+ACCION_DE_USO = {
+    "mecanismo_identificacion_id": "identificación de formato", "mecanismo_texto_id": "extracción de texto",
+    "mecanismo_creacion_id": "recortes", "comprobaciones_tecnicas": "validaciones y antivirus",
+    "migraciones": "migraciones", "verificaciones_integridad": "verificaciones de integridad",
+    "segundas_copias": "segundas copias", "restauraciones": "restauraciones",
+}
+
+
+def resumen_mecanismo(db: Session, mecanismo_id: uuid.UUID) -> dict:
+    """Qué hizo el mecanismo y sobre cuántos archivos distintos (no sobre
+    descripciones: actúa sobre las instanciaciones)."""
+    from sqlalchemy import union
+
+    from app.models.instanciacion import Instanciacion
+
+    acciones: dict[str, int] = {}
+    consultas = []
+    for modelo, columna in usos_mecanismo():
+        n = db.scalar(select(func.count()).select_from(modelo).where(columna == mecanismo_id)) or 0
+        if not n:
+            continue
+        if columna.key == "motor_id":
+            nombre = "descripciones propuestas" if modelo is RecursoDocumental else None
+            if nombre:
+                acciones[nombre] = acciones.get(nombre, 0) + n
+            continue
+        nombre = ACCION_DE_USO.get(columna.key) or ACCION_DE_USO.get(modelo.__tablename__, modelo.__tablename__)
+        acciones[nombre] = acciones.get(nombre, 0) + n
+        archivo = (Instanciacion.id if modelo is Instanciacion else
+                   getattr(modelo, "instanciacion_origen_id", None) or getattr(modelo, "instanciacion_id"))
+        consultas.append(select(archivo.label("i")).where(columna == mecanismo_id))
+    archivos = 0
+    if consultas:
+        archivos = db.scalar(select(func.count()).select_from(union(*consultas).subquery())) or 0
+    return {"archivos": archivos, "acciones": acciones}
 
 
 # --- Contexto de vocabulario para el motor de análisis (módulo 2, versión 3) ---------------------

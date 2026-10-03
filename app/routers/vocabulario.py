@@ -43,6 +43,10 @@ class EntidadOut(BaseModel):
     fusionada_en: dict | None = None
     nivel_detalle: str | None = None  # solo agentes
     version: str | None = None  # solo mecanismos
+    # Solo mecanismos: actúan sobre archivos, no sobre descripciones (el «0
+    # documentos» de antes era engañoso).
+    archivos: int | None = None
+    acciones: dict[str, int] | None = None
 
 
 class NombreIn(BaseModel):
@@ -109,10 +113,20 @@ class ParametrosFusion(BaseModel):
 
 def _entidad_out(db: Session, e: EntidadVocabulario, conexiones: int) -> EntidadOut:
     destino = db.get(EntidadVocabulario, e.fusionada_en_id) if e.fusionada_en_id else None
-    return EntidadOut(id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
+    usos = vocabulario.resumen_mecanismo(db, e.id) if e.subtipo == "mecanismo" else {}
+    return EntidadOut(**usos,id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
                       fusionada_en={"id": str(destino.id), "nombre": destino.nombre} if destino else None,
                       nivel_detalle=e.nivel_detalle if e.clase in ("agente", "tipo_actividad") else None,
                       version=e.version if e.subtipo == "mecanismo" else None)
+
+
+def _no_mecanismo(e: EntidadVocabulario) -> None:
+    """Un mecanismo (software) no se edita a mano: su nombre y su versión los
+    registra el sistema cuando el programa actúa. No tiene ficha ISAAR."""
+    if e.clase == "agente" and e.subtipo == "mecanismo":
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Un mecanismo (software) es de solo consulta: el sistema lo registra con su versión "
+                                   "exacta cuando actúa. No lleva formas del nombre, identificadores, hitos ni vínculos.")
 
 
 def _entidad_o_404(db: Session, entidad_id: uuid.UUID) -> EntidadVocabulario:
@@ -130,9 +144,17 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
            estado: Literal["activa", "fusionada"] = "activa",
            orden: Literal["conexiones_desc", "conexiones_asc", "nombre"] = "conexiones_desc",
            nivel_detalle: Literal["minimo", "parcial", "completo"] | None = None,
+           mecanismos: Literal["excluir", "solo", "incluir"] = "excluir",
            db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     consulta = select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.estado == estado)
+    # Los mecanismos (software, RiC-E13) son agentes en RiC, pero no autoridades
+    # ISAAR: no se mezclan con personas e instituciones; tienen su propio filtro.
+    es_mecanismo = EntidadVocabulario.subtipo == "mecanismo"
+    if mecanismos == "excluir":
+        consulta = consulta.where(or_(EntidadVocabulario.subtipo.is_(None), ~es_mecanismo))
+    elif mecanismos == "solo":
+        consulta = consulta.where(es_mecanismo)
     if clase:
         consulta = consulta.where(EntidadVocabulario.clase == clase)
     if nivel_detalle:
@@ -265,6 +287,7 @@ def enriquecer(entidad_id: uuid.UUID, cambios: dict, request: Request,
 def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
                    actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     _activa_o_409(e)
     try:
         autoridad.agregar_nombre(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
@@ -280,6 +303,7 @@ def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
 def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request: Request,
                           actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     _activa_o_409(e)
     if e.clase != "agente":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Los identificadores se registran en agentes.")
@@ -326,6 +350,7 @@ def crear_regla(datos: ReglaIn, request: Request, actor: Actor = Depends(acceso_
 def agregar_hito(entidad_id: uuid.UUID, datos: HitoIn, request: Request,
                  actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     _activa_o_409(e)
     try:
         autoridad.agregar_hito(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
@@ -342,6 +367,7 @@ def anular_accesorio(entidad_id: uuid.UUID, clase: Literal["nombre", "identifica
                      request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
                      db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     try:
         autoridad.anular_accesorio(db, e, clase, registro_id, actor.id, ip=ip_de(request))
     except autoridad.ErrorAutoridad as exc:
@@ -357,6 +383,7 @@ def anular_accesorio(entidad_id: uuid.UUID, clase: Literal["nombre", "identifica
 def vincular(entidad_id: uuid.UUID, datos: VinculoIn, request: Request,
              actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     _activa_o_409(e)
     try:
         autoridad.vincular(db, tipo=datos.tipo, desde=e, con_tipo=datos.con_tipo, con_id=datos.con_id,
@@ -386,6 +413,7 @@ def anular_vinculo(entidad_id: uuid.UUID, relacion_id: uuid.UUID, request: Reque
 def concepto_superior(entidad_id: uuid.UUID, datos: SuperiorIn, request: Request,
                       actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
+    _no_mecanismo(e)
     _activa_o_409(e)
     try:
         autoridad.fijar_concepto_superior(db, e, datos.superior_id, actor.id, ip=ip_de(request))
@@ -401,6 +429,8 @@ def concepto_superior(entidad_id: uuid.UUID, datos: SuperiorIn, request: Request
 def relacionar_agentes(entidad_id: uuid.UUID, datos: RelacionAgentesIn, request: Request,
                        actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     origen, destino = _entidad_o_404(db, entidad_id), _entidad_o_404(db, datos.destino_id)
+    _no_mecanismo(origen)
+    _no_mecanismo(destino)
     try:
         vocabulario.relacionar_agentes(db, origen=origen, destino=destino, tipo=datos.tipo, usuario_id=actor.id,
                                        fecha_edtf=datos.fecha_edtf, nota=datos.nota, ip=ip_de(request))

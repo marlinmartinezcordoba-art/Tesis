@@ -9,7 +9,7 @@ import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { NIVEL_FICHA } from "@/components/FichaAutoridad";
 import {
-  CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, claseRicDe, conexionesTexto,
+  CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, accionesTexto, claseRicDe, conexionesTexto, esMecanismo,
   type ClaseVocabulario, type EntidadVocabulario, type ParametrosFusion, type Sugerencia,
 } from "@/lib/vocabulario";
 
@@ -198,6 +198,8 @@ export function Vocabularios() {
   const puede = tienePermiso(usuario, "vocabularios", "escribir");
   const pestana = useVista<"vocabulario" | "sugerencias">("/vocabularios");
   const [clase, setClase] = useState<ClaseVocabulario | "">("");
+  // Los mecanismos (software, RiC-E13) no son autoridades ISAAR: van en su propio filtro.
+  const [mecanismos, setMecanismos] = useState(false);
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<Orden>("conexiones_desc");
   const [fusionadas, setFusionadas] = useState(false);
@@ -212,15 +214,18 @@ export function Vocabularios() {
   const cargarEntidades = useCallback(async () => {
     if (!fondo) return;
     const params = new URLSearchParams({ fondo_id: fondo.id, orden, estado: fusionadas ? "fusionada" : "activa" });
-    if (clase) params.set("clase", clase);
-    if (clase === "agente" && nivel) params.set("nivel_detalle", nivel);
+    if (mecanismos) {
+      params.set("clase", "agente");
+      params.set("mecanismos", "solo");
+    } else if (clase) params.set("clase", clase);
+    if (!mecanismos && clase === "agente" && nivel) params.set("nivel_detalle", nivel);
     if (q.trim()) params.set("q", q.trim());
     try {
       setEntidades(await pedir<EntidadVocabulario[]>(`/api/vocabulario?${params}`));
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el vocabulario.");
     }
-  }, [fondo, clase, q, orden, fusionadas, nivel]);
+  }, [fondo, clase, q, orden, fusionadas, nivel, mecanismos]);
 
   const cargarSugerencias = useCallback(async () => {
     if (!fondo) return;
@@ -274,11 +279,16 @@ export function Vocabularios() {
           </p>
           <div className="opciones" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 10 }}>
             {(["", ...CLASES] as (ClaseVocabulario | "")[]).map((c) => (
-              <label key={c || "todos"} className={clase === c ? "elegida" : ""}>
-                <input type="radio" name="clase" checked={clase === c} onChange={() => setClase(c)} />
+              <label key={c || "todos"} className={!mecanismos && clase === c ? "elegida" : ""}>
+                <input type="radio" name="clase" checked={!mecanismos && clase === c}
+                       onChange={() => { setMecanismos(false); setClase(c); }} />
                 {c ? CLASE_NOMBRE_PLURAL[c] : "Todos"}
               </label>
             ))}
+            <label className={mecanismos ? "elegida" : ""} title="Programas que actuaron sobre los archivos (RiC-E13)">
+              <input type="radio" name="clase" checked={mecanismos} onChange={() => { setMecanismos(true); setNivel(""); }} />
+              Mecanismos (software)
+            </label>
           </div>
           <div className="filtros">
             <input className="entrada" type="search" placeholder="Buscar por nombre…" aria-label="Buscar por nombre"
@@ -291,7 +301,7 @@ export function Vocabularios() {
             <label className="pastilla">
               <input type="checkbox" checked={fusionadas} onChange={(e) => setFusionadas(e.target.checked)} /> Ver fusionadas
             </label>
-            {clase === "agente" && (
+            {clase === "agente" && !mecanismos && (
               <select className="selector" aria-label="Nivel de detalle" value={nivel}
                       onChange={(e) => setNivel(e.target.value as typeof nivel)}>
                 <option value="">Cualquier nivel de detalle</option>
@@ -318,14 +328,22 @@ export function Vocabularios() {
               {entidades === null ? "Cargando…" : `${entidades.length} entidad${entidades.length === 1 ? "" : "es"}${fusionadas ? " fusionadas" : ""}`}
             </div>
             {entidades !== null && entidades.length === 0 && (
-              q || clase || nivel || fusionadas ? (
+              q || clase || nivel || fusionadas || mecanismos ? (
                 <EstadoVacio icono="filtro" titulo="Ninguna entidad cumple el filtro activo"
                              texto={fusionadas && !q && !clase && !nivel ? "No hay entidades fusionadas en este fondo." : "La lista no está vacía por un error: el filtro no deja pasar nada."}
-                             accion={{ texto: "Limpiar filtro", alHacer: () => { setQ(""); setClase(""); setNivel(""); setFusionadas(false); } }} />
+                             accion={{ texto: "Limpiar filtro", alHacer: () => { setQ(""); setClase(""); setNivel(""); setFusionadas(false); setMecanismos(false); } }} />
               ) : (
                 <EstadoVacio icono="lista" titulo="El vocabulario del fondo está vacío"
                              texto="Se llena solo, a medida que se publican descripciones: cada agente, lugar o forma documental confirmado queda aquí una sola vez." />
               )
+            )}
+            {mecanismos && (
+              <div className="pista" style={{ padding: "10px 16px" }}>
+                Programas que actuaron sobre los archivos del fondo, cada uno con su versión exacta: identificar el
+                formato, extraer el texto, validar, migrar, copiar o proponer la descripción. En RiC son agentes
+                (rico:Mechanism) y salen en el grafo, en el RDF y en el PREMIS; aquí son de solo consulta porque los
+                registra el sistema, no una persona.
+              </div>
             )}
             {entidades?.map((e) => (
               <Link to={`/vocabularios/${e.id}`} className="fila fila-enlace" key={e.id}>
@@ -334,16 +352,19 @@ export function Vocabularios() {
                   <div className="nombre">{e.nombre}</div>
                   <div className="meta">
                     {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}
-                    {e.version ? `versión ${e.version} · ` : ""}{claseRicDe(e)}
+                    {e.version ? `versión ${e.version} · ` : esMecanismo(e) ? "sin versión · " : ""}{claseRicDe(e)}
                     {e.fusionada_en && ` · fusionada en «${e.fusionada_en.nombre}»`}
+                    {esMecanismo(e) && <> · {accionesTexto(e.acciones)}</>}
                   </div>
                 </div>
-                {e.nivel_detalle && (
+                {e.nivel_detalle && !esMecanismo(e) && (
                   <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`}>
                     {NIVEL_FICHA[e.nivel_detalle] || e.nivel_detalle}
                   </span>
                 )}
-                <span className="meta">{conexionesTexto(e.conexiones)}</span>
+                <span className="meta">
+                  {esMecanismo(e) ? `${e.archivos ?? 0} archivo${e.archivos === 1 ? "" : "s"}` : conexionesTexto(e.conexiones)}
+                </span>
               </Link>
             ))}
           </div>

@@ -147,6 +147,11 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
                ip: str | None = None) -> dict:
     """Aplica los campos de enriquecimiento permitidos para la clase y deja
     en auditoría solo lo que cambió, con el valor anterior y el nuevo."""
+    if e.clase == "agente" and e.subtipo == "mecanismo" and (set(cambios) - {"version"} or e.version):
+        # Solo consulta: el sistema lo registra con su versión cuando actúa. La única
+        # edición es completar la versión que llegó vacía (VOC-07).
+        raise ErrorAutoridad("Un mecanismo (software) es de solo consulta: su nombre y su versión los registra el "
+                             "sistema. Solo se completa la versión cuando llegó vacía.")
     permitidos = campos_de(e)
     extra = [c for c in cambios if c not in permitidos]
     if extra:

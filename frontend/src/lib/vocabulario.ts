@@ -10,6 +10,16 @@ export interface EntidadVocabulario {
   fusionada_en: { id: string; nombre: string } | null;
   nivel_detalle: "minimo" | "completo" | null;
   version: string | null;
+  // Solo mecanismos (software): sobre cuántos archivos actuó y qué hizo.
+  archivos?: number | null;
+  acciones?: Record<string, number> | null;
+}
+
+export const esMecanismo = (e: { subtipo: string | null }) => e.subtipo === "mecanismo";
+
+export function accionesTexto(acciones: Record<string, number> | null | undefined): string {
+  const partes = Object.entries(acciones || {}).map(([a, n]) => `${a}: ${n}`);
+  return partes.length ? partes.join(" · ") : "todavía no ha actuado";
 }
 
 export interface Sugerencia {

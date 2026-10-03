@@ -7,7 +7,9 @@ import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
-import { CLASE_INSIGNIA, CLASE_NOMBRE, claseRicDe, conexionesTexto, type EntidadVocabulario } from "@/lib/vocabulario";
+import {
+  CLASE_INSIGNIA, CLASE_NOMBRE, claseRicDe, conexionesTexto, esMecanismo, type EntidadVocabulario,
+} from "@/lib/vocabulario";
 
 interface Documento {
   id: string;
@@ -158,6 +160,55 @@ function ListaDocumentos({ documentos, enlace }: { documentos: Documento[]; enla
   );
 }
 
+// Un mecanismo (software, RiC-E13) es de solo consulta: no tiene ficha ISAAR. Lo
+// único que una persona completa es la versión, si el programa no la informó (VOC-07).
+function FichaMecanismo({ entidad, puede, alCambiar }: {
+  entidad: EntidadVocabulario; puede: boolean; alCambiar: (aviso: string) => void;
+}) {
+  const [version, setVersion] = useState("");
+  const [error, setError] = useState("");
+  async function completar() {
+    setError("");
+    try {
+      await pedir(`/api/vocabulario/${entidad.id}`, { method: "PATCH", body: JSON.stringify({ version: version.trim() }) });
+      alCambiar("Versión registrada.");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar la versión.");
+    }
+  }
+  const acciones = Object.entries(entidad.acciones || {});
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Mecanismo (software) · solo consulta</div>
+      <div className="tarjeta-cuerpo">
+        <p className="pista" style={{ marginTop: 0 }}>
+          Programa que actuó sobre los archivos del fondo. El sistema lo registra solo, con su versión exacta, cada vez
+          que el programa actúa; por eso no se edita a mano ni lleva ficha de autoridad ISAAR (que es para
+          instituciones, personas y familias). En RiC es un agente (rico:Mechanism): sale en el grafo, en el RDF y en el
+          PREMIS de cada archivo que tocó.
+        </p>
+        <dl className="par-dato">
+          <dt>Versión</dt>
+          <dd>
+            {entidad.version || <span className="insignia alerta">Sin versión</span>}
+            {!entidad.version && puede && (
+              <span className="acciones" style={{ marginLeft: 8 }}>
+                <input className="entrada" style={{ width: 200 }} placeholder="Versión exacta" aria-label="Versión exacta"
+                       value={version} onChange={(e) => setVersion(e.target.value)} />
+                <button type="button" className="boton chico" disabled={!version.trim()} onClick={completar}>Completar</button>
+              </span>
+            )}
+          </dd>
+          <dt>Archivos sobre los que actuó</dt><dd>{entidad.archivos ?? 0}</dd>
+          <dt>Qué hizo</dt>
+          <dd>{acciones.length ? acciones.map(([a, n]) => `${a}: ${n}`).join(" · ") : "Todavía no ha actuado."}</dd>
+        </dl>
+        {error && <div className="aviso error">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
 export function EntidadVocabularioDetalle() {
   const { id = "" } = useParams();
   const navegar = useNavigate();
@@ -209,7 +260,9 @@ export function EntidadVocabularioDetalle() {
       <p className="sub">
         <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span>{" "}
         {e.subtipo && <span className="insignia neutra-borde">{SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}{" "}
-        <code className="rico">{claseRicDe(e)}</code> · {conexionesTexto(e.conexiones)} conectado{e.conexiones === 1 ? "" : "s"} ·
+        <code className="rico">{claseRicDe(e)}</code> ·{" "}
+        {esMecanismo(e) ? `${e.archivos ?? 0} archivo${e.archivos === 1 ? "" : "s"} procesado${e.archivos === 1 ? "" : "s"}`
+          : `${conexionesTexto(e.conexiones)} conectado${e.conexiones === 1 ? "" : "s"}`} ·
         registrada {fecha(detalle.creada_en)}
       </p>
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
@@ -220,12 +273,15 @@ export function EntidadVocabularioDetalle() {
         </div>
       )}
 
-      {fondo && (
+      {fondo && esMecanismo(e) && (
+        <FichaMecanismo entidad={e} puede={puede} alCambiar={(texto) => { setAviso(texto); cargar(); }} />
+      )}
+      {fondo && !esMecanismo(e) && (
         <FichaAutoridad entidad={e} ficha={detalle.ficha} fondoId={fondo.id} puede={puede}
                         alCambiar={(texto) => { if (texto) setAviso(texto); cargar(); }} />
       )}
 
-      <div className="tarjeta">
+      {!esMecanismo(e) && <div className="tarjeta">
         <div className="tarjeta-cab">
           <span>Documentos conectados · {detalle.documentos.length}</span>
         </div>
@@ -233,7 +289,7 @@ export function EntidadVocabularioDetalle() {
           <div className="vacio">{e.estado === "fusionada" ? "Sus documentos pasaron a la entidad definitiva." : "Ningún documento publicado la menciona."}</div>
         )}
         <ListaDocumentos documentos={detalle.documentos} enlace={enlace} />
-      </div>
+      </div>}
 
       {detalle.documentos_historicos.length > 0 && (
         <div className="tarjeta">
