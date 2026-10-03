@@ -28,7 +28,7 @@ from app.models.descripcion import EntidadVocabulario, Fecha, Hito, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
-from app.servicios import conformidad_rico, exportacion_rico, parametros
+from app.servicios import alertas, conformidad_rico, exportacion_rico, parametros
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/exportacion", tags=["Exportación RiC-O"])
@@ -49,13 +49,28 @@ def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonl
     fondo, ex = _exportacion(db, actor, fondo_id, incluir_restringidos)
     cuerpo = exportacion_rico.serializar(ex.grafo, formato)
     _, tipo, extension = exportacion_rico.FORMATOS[formato]
+    # Cada descarga completa se valida (OWL y SHACL) y el resultado queda en la
+    # auditoría (hallazgo O-32). No se niega la descarga: los datos son de la
+    # entidad; se marca y se avisa a la administración para corregir el defecto.
+    owl = conformidad_rico.verificar_owl(ex.grafo)
+    shacl = conformidad_rico.validar_shacl(ex.grafo)
+    conforme = not owl and shacl["conforme"]
     registrar(db, modulo="instrumentos", accion="rdf_exportado", usuario_id=actor.id, entidad_tipo="recurso_documental",
               entidad_id=fondo.id, ip=ip_de(request), detalle=fondo.titulo,
-              nuevo={"formato": formato, "incluir_restringidos": incluir_restringidos, **ex.resumen()})
+              nuevo={"formato": formato, "incluir_restringidos": incluir_restringidos, "conforme": conforme,
+                     "problemas_owl": len(owl), "resultados_shacl": len(shacl["resultados"]), **ex.resumen()})
+    if not conforme:
+        alertas.crear(db, tipo="exportacion_no_conforme", severidad="media", modulo="instrumentos",
+                      entidad_tipo="recurso_documental", entidad_id=fondo.id, fondo_id=fondo.id,
+                      mensaje=f"La exportación RiC-O de «{fondo.titulo}» no pasó la validación: "
+                              f"{len(owl)} problemas OWL y {len(shacl['resultados'])} resultados SHACL. "
+                              "Revise el reporte de conformidad.",
+                      detalle={"owl": owl[:20], "shacl": shacl["resultados"][:20]})
     db.commit()
     nombre = re.sub(r"[^A-Za-z0-9_-]+", "-", fondo.titulo).strip("-")[:60] or "fondo"
     return Response(cuerpo, media_type=tipo,
-                    headers={"Content-Disposition": f'attachment; filename="ricora-rico-{nombre}.{extension}"'})
+                    headers={"Content-Disposition": f'attachment; filename="ricora-rico-{nombre}.{extension}"',
+                             "X-RICORA-Conformidad": "conforme" if conforme else "no-conforme"})
 
 
 @router.get("/conformidad", summary="Conformidad de la exportación con RiC-O 1.1 (OWL y SHACL)")

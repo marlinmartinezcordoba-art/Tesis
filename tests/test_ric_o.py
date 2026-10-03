@@ -103,3 +103,12 @@ def test_el_perfil_de_cardinalidades_esta_escrito_y_documentado():
     for clave, (regla, razon) in ric_o.PERFIL_CARDINALIDAD.items():
         assert len(regla) > 10 and len(razon) > 20, clave
         assert regla in anexo, f"{clave} no está en el anexo de verificación"
+
+
+def test_la_exportacion_no_escribe_nombres_rico_sueltos():
+    """O-12: todo nombre de RiC-O que usa la exportación sale del mapeo único."""
+    import re
+    from pathlib import Path
+
+    fuente = (Path(__file__).resolve().parent.parent / "app" / "servicios" / "exportacion_rico.py").read_text()
+    assert not re.findall(r"\bRICO\.[A-Za-z]+", fuente)

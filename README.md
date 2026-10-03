@@ -42,10 +42,11 @@ export DATABASE_URL=postgresql+psycopg2://ricora:ricora@localhost:5432/ricora RI
 cd frontend && npm install && npm run dev        # interfaz en :5173
 ```
 
-Para las pruebas del servidor (304) se necesita PostgreSQL con un usuario que pueda crear bases de datos, y Siegfried, Tesseract y Ghostscript instalados (las pruebas usan las herramientas reales):
+Para las pruebas del servidor se necesita PostgreSQL **en marcha** (`service postgresql start`) con un usuario que pueda crear bases de datos (crea y rehace `ricora_pruebas`), y Siegfried, Tesseract y Ghostscript instalados (las pruebas usan las herramientas reales). Si PostgreSQL está detenido, las pruebas que usan la base fallan con `Connection refused`; las que no la usan (el mapeo RiC-O, por ejemplo) corren igual:
 
 ```bash
 .venv/bin/python -m pytest tests
+.venv/bin/python -m pytest tests/test_ric_o.py   # mapeo RiC-O contra el OWL, sin PostgreSQL
 cd frontend && npm test   # pruebas de la interfaz (árbol de navegación), sin servidor
 ```
 

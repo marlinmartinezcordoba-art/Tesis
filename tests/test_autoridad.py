@@ -175,7 +175,7 @@ def test_identificador_externo_conserva_su_esquema_y_se_distingue_del_interno(cl
     assert cliente.post(f"/api/vocabulario/{a.id}/identificadores", headers=archivista,
                         json={"esquema": "interno", "valor": "AGT-0007"}).status_code == 201
     ids = {i["esquema"]: i for i in ficha(cliente, archivista, a)["ficha"]["identificadores"]}
-    assert ids["wikidata"]["externo"] is True and ids["wikidata"]["uri"] == "https://www.wikidata.org/entity/Q318229"
+    assert ids["wikidata"]["externo"] is True and ids["wikidata"]["uri"] == "http://www.wikidata.org/entity/Q318229"
     assert ids["interno"]["externo"] is False and ids["interno"]["uri"] is None
     # Validación de forma y sin repetir.
     assert cliente.post(f"/api/vocabulario/{a.id}/identificadores", headers=archivista,

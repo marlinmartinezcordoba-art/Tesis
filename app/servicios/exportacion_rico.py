@@ -245,7 +245,7 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
 
     def tipo_tecnico(clave, nombre):
         """Tipo de la acción técnica, en el mismo esquema SKOS de los tipos de actividad del fondo."""
-        concepto = _concepto(ex, "tipo-de-accion-tecnica", clave, RICO.ActivityType, nombre)
+        concepto = _concepto(ex, "tipo-de-accion-tecnica", clave, RICO[ric_o.CLASE_VOCABULARIO["tipo_actividad"]], nombre)
         esquema = uri(ex.fondo.id, "tipos-de-actividad")
         g.add((esquema, RDF.type, SKOS.ConceptScheme))
         g.add((esquema, SKOS.prefLabel, Literal(f"Tipos de actividad (funciones) · {ex.fondo.titulo}")))
@@ -255,7 +255,7 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
         return concepto
 
     def accion(nodo, nombre, quien, archivo, cuando, clave_tipo, nombre_tipo):
-        g.add((nodo, RDF.type, RICO.Activity))
+        g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["actividad"]]))
         g.add((nodo, tipo, tipo_tecnico(clave_tipo, nombre_tipo)))
         g.add((nodo, RDFS.label, Literal(nombre)))
         g.add((nodo, _a("nombre"), Literal(nombre)))
@@ -353,7 +353,7 @@ def _relacion(ex: Exportacion, rel: Relacion, extremos) -> None:
 def _fecha_libre(ex: Exportacion, sujeto: URIRef, predicado: URIRef, nodo: URIRef, expresada: str | None,
                  edtf: str | None) -> None:
     g = ex.grafo
-    g.add((nodo, RDF.type, RICO.Date))
+    g.add((nodo, RDF.type, RICO[ric_o.CLASE_NODO["fecha"]]))
     if expresada:
         g.add((nodo, _a("fecha_expresada"), Literal(expresada)))
     if edtf:
@@ -376,7 +376,7 @@ def _periodo(ex: Exportacion, sujeto: URIRef, edtf: str | None) -> None:
                 _fecha_libre(ex, sujeto, _apoyo(clave)[0], URIRef(f"{sujeto}/{clave}"),
                              fechas.legible(parte), parte)
     else:
-        _fecha_libre(ex, sujeto, RICO.isAssociatedWithDate, URIRef(f"{sujeto}/fecha"), fechas.legible(edtf), edtf)
+        _fecha_libre(ex, sujeto, _apoyo("fecha_asociada")[0], URIRef(f"{sujeto}/fecha"), fechas.legible(edtf), edtf)
 
 
 def _concepto(ex: Exportacion, grupo: str, clave: str, clase: URIRef, etiqueta: str) -> URIRef:
@@ -388,12 +388,25 @@ def _concepto(ex: Exportacion, grupo: str, clave: str, clase: URIRef, etiqueta: 
     return nodo
 
 
+# ISO 639-3 → BCP 47: la etiqueta de idioma de un literal usa el código de
+# dos letras cuando existe (BCP 47 prefiere «es» a «spa»); si no, el de tres.
+_ISO_639_1 = {"spa": "es", "lat": "la", "eng": "en", "fra": "fr", "por": "pt", "ita": "it", "deu": "de",
+              "que": "qu", "cat": "ca", "glg": "gl", "eus": "eu", "nld": "nl", "grc": "grc"}
+
+
+def bcp47(codigo: str | None) -> str | None:
+    if not codigo:
+        return None
+    codigo = codigo.strip().lower()
+    return _ISO_639_1.get(codigo, codigo) if re.fullmatch(r"[a-z]{2,3}", codigo) else None
+
+
 def _idioma(ex: Exportacion, codigo: str) -> URIRef:
     from app.servicios.motor import IDIOMAS
 
     nodo = uri(ex.fondo.id, "vocabulario", "idioma", codigo)
     g = ex.grafo
-    g.add((nodo, RDF.type, RICO.Language))
+    g.add((nodo, RDF.type, RICO[ric_o.APOYO["idioma_registro"][2]]))
     g.add((nodo, _a("identificador"), Literal(codigo)))
     nombre = IDIOMAS.get(codigo)
     if nombre:
@@ -409,7 +422,7 @@ def _tipo_agrupacion(ex: Exportacion, nivel: str) -> URIRef:
         return RST[oficial]
     # Sección y subserie no tienen individuo oficial en recordSetTypes:
     # concepto propio del sistema, emparentado con el oficial más cercano.
-    nodo = _concepto(ex, "tipo-de-agrupacion", nivel, RICO.RecordSetType, NOMBRE_NIVEL[nivel])
+    nodo = _concepto(ex, "tipo-de-agrupacion", nivel, RICO[ric_o.APOYO["tipo_agrupacion"][2]], NOMBRE_NIVEL[nivel])
     ex.grafo.add((nodo, SKOS.broadMatch, RST[ric_o.TIPO_AGRUPACION_PROPIO[nivel]]))
     return nodo
 
@@ -435,11 +448,18 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
         ex.nodos.setdefault(forma, ("entidad_vocabulario", None))
     if r.historia_archivistica:  # ISAD-G 3.2.3 (hallazgo DES-06)
         g.add((s, _a("historia"), Literal(r.historia_archivistica)))
-    idioma = _apoyo("idioma_agrupacion" if clase == "RecordSet" else "idioma_registro")[0]
+    if clase == "RecordSet":
+        # Un solo idioma declarado: todos sus miembros; varios: algunos en cada uno (O-26).
+        idioma = _apoyo("idioma_agrupacion" if len(r.idiomas or []) <= 1 else "idioma_agrupacion_parcial")[0]
+    else:
+        idioma = _apoyo("idioma_registro")[0]
     for codigo in r.idiomas or []:
         g.add((s, idioma, _idioma(ex, codigo)))
     if r.fechas_extremas or r.fechas_extremas_edtf:
-        _fecha_libre(ex, s, RICO.hasCreationDate, URIRef(f"{s}/fechas-extremas"), r.fechas_extremas,
+        # Fechas extremas de una agrupación: las de creación de todos sus
+        # miembros (no la «creación» del conjunto); de un documento, la suya.
+        clave = "fechas_extremas" if clase == "RecordSet" else "fecha_creacion"
+        _fecha_libre(ex, s, _apoyo(clave)[0], URIRef(f"{s}/fechas-extremas"), r.fechas_extremas,
                      r.fechas_extremas_edtf)
     # Jerarquía: de incluido_en_id (siempre está), no solo de las filas de relación.
     if r.id != ex.fondo.id and r.incluido_en_id in recursos:
@@ -511,7 +531,7 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
                                                         NombreEntidad.estado == "vigente")).all():
             nodo = URIRef(f"{s}/nombre/{n.id}")
             g.add((nodo, RDF.type, clase_nombre))
-            g.add((nodo, _a("valor_textual"), Literal(n.nombre, lang=n.idioma or None)))
+            g.add((nodo, _a("valor_textual"), Literal(n.nombre, lang=bcp47(n.idioma))))
             g.add((s, prop, nodo))
             if n.vigencia_edtf:
                 _periodo(ex, nodo, n.vigencia_edtf)
@@ -521,7 +541,7 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
     for i in db.scalars(select(IdentificadorEntidad).where(IdentificadorEntidad.entidad_id == e.id,
                                                            IdentificadorEntidad.estado == "vigente")).all():
         nodo = URIRef(f"{s}/identificador/{i.id}")
-        g.add((nodo, RDF.type, RICO.Identifier))
+        g.add((nodo, RDF.type, RICO[ric_o.APOYO["identificador_externo"][2]]))
         g.add((nodo, _a("valor_textual"), Literal(i.valor)))
         prop_tipo, clase_tipo = _apoyo("tipo_identificador")
         g.add((nodo, prop_tipo, _concepto(ex, "tipo-de-identificador", i.esquema, clase_tipo, i.esquema.upper())))
@@ -553,7 +573,7 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
 def _fecha(ex: Exportacion, f: Fecha) -> None:
     g = ex.grafo
     s = uri(f.id)
-    g.add((s, RDF.type, RICO.Date))
+    g.add((s, RDF.type, RICO[ric_o.CLASE_NODO["fecha"]]))
     g.add((s, _a("fecha_expresada"), Literal(f.expresion)))
     if f.edtf:
         g.add((s, _a("fecha_normalizada"), Literal(f.edtf)))
@@ -568,7 +588,7 @@ def _fecha(ex: Exportacion, f: Fecha) -> None:
 def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
     g = ex.grafo
     s = uri(i.id)
-    g.add((s, RDF.type, RICO.Instantiation))
+    g.add((s, RDF.type, RICO[ric_o.CLASE_NODO["instanciacion"]]))
     g.add((s, _a("titulo"), Literal(i.nombre_original)))
     g.add((s, RDFS.label, Literal(i.nombre_original)))
     g.add((s, _a("identificador"), Literal(f"urn:uuid:{i.id}")))

@@ -260,6 +260,46 @@ CIERRES: dict[str, Cierre] = {
         "Códigos sin mapeo declarados como reservados con su motivo; la exportación distingue «sin mapeo en el "
         "sistema» de «sin propiedad en RiC-O».",
         ("tests/test_ric_o.py::test_cada_codigo_del_catalogo_esta_mapeado_y_escrito_o_reservado_con_motivo",)),
+    "O-12": Cierre(
+        date(2026, 10, 3),
+        "La exportación ya no escribe nombres de RiC-O sueltos: toda clase y propiedad sale del mapeo único "
+        "(ric_o.APOYO, CLASE_NODO, CLASE_VOCABULARIO). Las fechas extremas de una agrupación salen como "
+        "hasOrHadAllMembersWithCreationDate; la de un documento, como hasCreationDate.",
+        ("tests/test_ric_o.py::test_la_exportacion_no_escribe_nombres_rico_sueltos",
+         "tests/test_cierre_bloque2.py::test_fechas_extremas_de_una_agrupacion_son_las_de_sus_miembros")),
+    "O-26": Cierre(
+        date(2026, 10, 3),
+        "Una agrupación con un solo idioma declara hasOrHadAllMembersWithLanguage; con varios, "
+        "hasOrHadSomeMembersWithLanguage (no todos sus documentos están en cada idioma).",
+        ("tests/test_cierre_bloque2.py::test_agrupacion_con_un_idioma_dice_todos_sus_miembros",
+         "tests/test_cierre_bloque2.py::test_agrupacion_con_varios_idiomas_dice_algunos_miembros")),
+    "O-30": Cierre(
+        date(2026, 10, 3),
+        "owl:sameAs apunta a la URI canónica de cada autoridad (http para Wikidata, VIAF y LC). El idioma de una "
+        "forma del nombre se valida contra ISO 639-3 y se serializa en BCP 47 («spa» → @es).",
+        ("tests/test_cierre_bloque2.py::test_uri_externa_es_la_canonica_de_cada_autoridad",
+         "tests/test_cierre_bloque2.py::test_idioma_iso_639_3_se_convierte_a_bcp47",
+         "tests/test_cierre_bloque2.py::test_nombre_con_idioma_invalido_se_rechaza",
+         "tests/test_cierre_bloque2.py::test_nombre_en_espanol_sale_con_etiqueta_es")),
+    "O-31": Cierre(
+        date(2026, 10, 3),
+        "Las 15 relaciones sin aserción propia tienen su tripleta comprobada en el RDF, creadas con los servicios "
+        "del sistema (incluida occupiesOrOccupied, que ahora crea el vínculo «ocupa cargo»). La base de pruebas "
+        "dejó de ser autouse: el mapeo RiC-O se prueba sin PostgreSQL; el requisito quedó en el README.",
+        ("tests/test_cierre_o31.py::test_las_quince_relaciones_tienen_tripleta_propia",
+         "tests/test_cierre_o31.py::test_las_propiedades_de_cada_relacion_estan_en_el_owl",
+         "tests/test_cierre_o31.py::test_la_exportacion_del_fondo_completo_sigue_conforme",
+         "tests/test_cierre_o31.py::test_las_pruebas_del_mapeo_corren_sin_postgresql")),
+    "O-32": Cierre(
+        date(2026, 10, 3),
+        "Formas SHACL nuevas: Event, Identifier, AgentName, PlaceName y el título de Instantiation; pr:Mechanism "
+        "tiene focos. Cada descarga completa se valida (OWL y SHACL), el resultado queda en la auditoría y en la "
+        "cabecera X-RICORA-Conformidad, y si no es conforme se crea una alerta y la interfaz lo avisa.",
+        ("tests/test_cierre_o32.py::test_cada_clase_emitida_tiene_su_forma",
+         "tests/test_cierre_o32.py::test_nombre_de_lugar_sin_valor_no_es_conforme",
+         "tests/test_cierre_o32.py::test_el_mecanismo_tiene_focos_en_la_exportacion",
+         "tests/test_cierre_o32.py::test_cada_descarga_completa_valida_y_lo_deja_en_la_auditoria",
+         "tests/test_cierre_o32.py::test_una_descarga_no_conforme_se_sirve_marcada_y_con_alerta")),
 }
 
 

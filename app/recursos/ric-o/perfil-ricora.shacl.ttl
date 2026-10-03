@@ -52,6 +52,9 @@ pr:RecordPart a sh:NodeShape ;
 
 pr:Instantiation a sh:NodeShape ;
     sh:targetClass rico:Instantiation ;
+    sh:property [
+        sh:path rico:title ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Toda instanciación lleva su nombre (el del archivo o el del original físico)." ] ;
     sh:property [ sh:path rico:identifier ; sh:minCount 1 ; sh:pattern "^urn:uuid:[0-9a-f-]{36}$" ] ;
     # Es la instanciación de una descripción, o salió de migrar otra.
     sh:or ( [ sh:path [ sh:inversePath rico:hasOrHadInstantiation ] ; sh:minCount 1 ]
@@ -67,6 +70,23 @@ pr:Agent a sh:NodeShape ;
     sh:property [ sh:path rico:hasOrHadAgentName ; sh:class rico:AgentName ] ;
     sh:property [ sh:path rico:hasOrHadLegalStatus ; sh:maxCount 1 ; sh:class rico:LegalStatus ] .
 
+pr:AgentName a sh:NodeShape ;
+    sh:targetClass rico:AgentName ;
+    sh:property [
+        sh:path rico:textualValue ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Cada forma del nombre de un agente tiene su texto (ISAAR(CPF) 5.1.3-5.1.5)." ] .
+
+pr:Identifier a sh:NodeShape ;
+    sh:targetClass rico:Identifier ;
+    sh:property [
+        sh:path rico:textualValue ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Un identificador tiene su valor." ] ;
+    sh:property [
+        sh:path rico:hasIdentifierType ; sh:minCount 1 ; sh:maxCount 1 ; sh:class rico:IdentifierType ;
+        sh:message "Un identificador declara su esquema (Wikidata, VIAF, ISNI, interno…)." ] .
+
+# El mecanismo solo se exporta cuando actuó sobre un archivo exportado
+# (identificación de formato, migración): esta forma tiene focos (O-19, O-32).
 pr:Mechanism a sh:NodeShape ;
     sh:targetClass rico:Mechanism ;
     sh:property [
@@ -81,6 +101,22 @@ pr:Place a sh:NodeShape ;
         sh:pattern "^-?([0-8]?[0-9](\\.[0-9]+)?|90(\\.0+)?), -?(1[0-7][0-9]|[0-9]?[0-9])(\\.[0-9]+)?$|^-?([0-8]?[0-9](\\.[0-9]+)?|90(\\.0+)?), -?180(\\.0+)?$" ;
         sh:message "Coordenadas WGS 84 «latitud, longitud» en grados decimales." ] ;
     sh:property [ sh:path rico:hasOrHadPlaceType ; sh:maxCount 1 ; sh:class rico:PlaceType ] .
+
+pr:PlaceName a sh:NodeShape ;
+    sh:targetClass rico:PlaceName ;
+    sh:property [
+        sh:path rico:textualValue ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Cada forma del nombre de un lugar tiene su texto." ] .
+
+# Hitos de la línea de tiempo institucional. rico:Activity es subclase de
+# rico:Event: la actividad no exige afectar a algo; el hito, sí.
+pr:Event a sh:NodeShape ;
+    sh:targetClass rico:Event ;
+    sh:property [ sh:path rico:name ; sh:minCount 1 ;
+        sh:message "Todo hito o evento tiene una descripción breve." ] ;
+    sh:or ( [ sh:class rico:Activity ]
+            [ sh:path rico:affectsOrAffected ; sh:minCount 1 ] ) ;
+    sh:message "Un hito afecta al menos a un agente o descripción (RiC-R059)." .
 
 pr:Activity a sh:NodeShape ;
     sh:targetClass rico:Activity ;

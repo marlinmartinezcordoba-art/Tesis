@@ -49,8 +49,12 @@ CONTRASENA = "Archivo2026seguro"
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def base_de_pruebas():
+    """Crea la base de pruebas con las migraciones. Requiere PostgreSQL en
+    marcha (``service postgresql start``). Solo la piden las pruebas que usan
+    la base (a través de ``db``): las del mapeo RiC-O, EDTF y demás funciones
+    puras corren sin PostgreSQL (hallazgo O-31)."""
     url = make_url(settings.database_url)
     administracion = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     with administracion.connect() as con:
@@ -64,7 +68,7 @@ def base_de_pruebas():
 
 
 @pytest.fixture()
-def db():
+def db(base_de_pruebas):
     conexion = engine.connect()
     transaccion = conexion.begin()
     sesion = Session(bind=conexion, join_transaction_mode="create_savepoint", expire_on_commit=False)

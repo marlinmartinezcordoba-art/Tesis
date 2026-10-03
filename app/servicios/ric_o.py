@@ -307,6 +307,14 @@ ATRIBUTOS = {
 APOYO = {
     "idioma_registro": ("hasOrHadLanguage", ("Record", "RecordPart", *AGENTES), "Language"),
     "idioma_agrupacion": ("hasOrHadAllMembersWithLanguage", ("RecordSet",), "Language"),
+    # Varios idiomas en una agrupación: no todos los miembros están en cada uno (hallazgo O-26).
+    "idioma_agrupacion_parcial": ("hasOrHadSomeMembersWithLanguage", ("RecordSet",), "Language"),
+    # Fechas (hallazgo O-12): la de creación de un documento o archivo; las
+    # extremas de una agrupación (fechas de creación de todos sus miembros);
+    # la fecha asociada a cualquier cosa (periodo de un hito, de un agente…).
+    "fecha_creacion": ("hasCreationDate", RECURSOS + ("Instantiation",), "Date"),
+    "fechas_extremas": ("hasOrHadAllMembersWithCreationDate", ("RecordSet",), "Date"),
+    "fecha_asociada": ("isAssociatedWithDate", ("Thing",), "Date"),
     "tipo_lugar": ("hasOrHadPlaceType", ("Place",), "PlaceType"),
     "tipo_soporte": ("hasCarrierType", ("Instantiation",), "CarrierType"),
     "tipo_regla": ("hasOrHadRuleType", ("Rule",), "RuleType"),

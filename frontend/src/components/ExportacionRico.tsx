@@ -30,12 +30,17 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
   const [incluir, setIncluir] = useState(false);
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
+  const [aviso, setAviso] = useState("");
 
   async function bajar(formato: "turtle" | "jsonld") {
     setOcupado(formato);
     setError("");
+    setAviso("");
     try {
-      await descargar(`/api/exportacion/rdf?fondo_id=${fondo.id}&formato=${formato}&incluir_restringidos=${incluir}`);
+      const cabeceras = await descargar(`/api/exportacion/rdf?fondo_id=${fondo.id}&formato=${formato}&incluir_restringidos=${incluir}`);
+      // Cada descarga se valida en el servidor (OWL y SHACL); si no pasó, se avisa aquí.
+      if (cabeceras.get("X-RICORA-Conformidad") === "no-conforme")
+        setAviso("El archivo se descargó, pero no pasó la validación RiC-O. Quedó una alerta para la administración; use «Validar conformidad» para ver el detalle.");
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo exportar.");
     } finally {
@@ -75,6 +80,7 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
         Cada descripción publicada, su contexto y sus instanciaciones, con una URI propia.
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
+      {aviso && <div className="aviso" role="status">{aviso}</div>}
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Exportar</div>

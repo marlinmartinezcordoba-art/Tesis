@@ -137,7 +137,7 @@ def test_contexto_agentes_lugar_funciones_actividad_mandato(db, fondo_rico):
     assert (u(f["o114"].id), RICO.hasCreator, alcaldia) in g
     assert (alcaldia, RDF.type, RICO.CorporateBody) in g and (alcaldia, RICO.name, Literal("Alcaldía Municipal")) in g
     assert (alcaldia, RICO.history, Literal("Creada en 1539.")) in g
-    assert (alcaldia, OWL.sameAs, URIRef("https://www.wikidata.org/entity/Q1000000")) in g
+    assert (alcaldia, OWL.sameAs, URIRef("http://www.wikidata.org/entity/Q1000000")) in g
     nombre = g.value(alcaldia, RICO.hasOrHadAgentName)
     assert (nombre, RDF.type, RICO.AgentName) in g and (nombre, RICO.textualValue, Literal("Cabildo de Tunja")) in g
     inicio = g.value(alcaldia, RICO.hasBeginningDate)

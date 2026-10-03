@@ -204,7 +204,13 @@ def agregar_nombre(db: Session, e: EntidadVocabulario, *, tipo: str, nombre: str
         except fechas.FechaInvalida as exc:
             raise ErrorAutoridad(str(exc)) from exc
         vigencia, inicio, fin = i.edtf, i.inicio, i.fin
-    n = NombreEntidad(entidad_id=e.id, tipo=tipo, nombre=nombre, idioma=_texto(idioma, 12), regla=_texto(regla, 120),
+    from app.servicios.motor import idiomas_validos
+
+    idioma = _texto(idioma, 12)
+    if idioma and idiomas_validos([idioma]) != [idioma.lower()]:
+        raise ErrorAutoridad("El idioma de una forma del nombre se indica con su código ISO 639-3 (spa, lat, eng…).")
+    n = NombreEntidad(entidad_id=e.id, tipo=tipo, nombre=nombre, idioma=idioma.lower() if idioma else None,
+                      regla=_texto(regla, 120),
                       vigencia_edtf=vigencia, inicio=inicio, fin=fin, creado_por_id=usuario_id)
     db.add(n)
     db.flush()
@@ -243,11 +249,16 @@ def agregar_identificador(db: Session, e: EntidadVocabulario, *, esquema: str, v
     return i
 
 
+# URI de entidad canónicas que publica cada autoridad (hallazgo O-30): en RDF
+# http://…/Q42 y https://…/Q42 son nodos distintos, así que owl:sameAs debe
+# apuntar exactamente al que la autoridad usa en su propio grafo. Wikidata,
+# VIAF y la Library of Congress publican sus entidades con «http»; ISNI, con
+# «https» en su servicio de datos enlazados.
 URI_EXTERNA = {
-    "viaf": "https://viaf.org/viaf/{}",
-    "wikidata": "https://www.wikidata.org/entity/{}",
+    "viaf": "http://viaf.org/viaf/{}",
+    "wikidata": "http://www.wikidata.org/entity/{}",
     "isni": "https://isni.org/isni/{}",
-    "lcnaf": "https://id.loc.gov/authorities/names/{}",
+    "lcnaf": "http://id.loc.gov/authorities/names/{}",
 }
 
 
