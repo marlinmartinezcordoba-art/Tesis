@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
+import { Ayuda } from "@/components/Ayuda";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -189,6 +190,7 @@ export function Marco({ children }: { children: ReactNode }) {
         </div>
         {children}
       </main>
+      <Ayuda />
     </div>
   );
 }

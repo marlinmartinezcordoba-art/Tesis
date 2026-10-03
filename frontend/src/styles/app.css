@@ -441,3 +441,22 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 /* Evaluación ciega: documento y descripción lado a lado; en pantallas angostas, uno debajo del otro. */
 .evaluacion-columnas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 @media (max-width: 860px) { .evaluacion-columnas { grid-template-columns: 1fr; } }
+
+/* Ayuda: ambulancia flotante y tarjeta de pasos de cada pantalla. */
+.ambulancia { position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 45; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: #1f2a37; border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.12); display: grid; place-items: center; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.ambulancia:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+.ambulancia:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ambulancia svg { width: 32px; height: 24px; }
+.ayuda-tarjeta { position: fixed; right: 1.4rem; bottom: calc(1.4rem + 66px); z-index: 46; width: 360px; max-width: calc(100vw - 32px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 18px 20px 14px; }
+.ayuda-tarjeta h3 { margin: 4px 28px 8px 0; font-size: 1rem; line-height: 1.35; }
+.ayuda-tarjeta p { margin: 0 0 14px; font-size: .86rem; line-height: 1.5; color: var(--muted); }
+.ayuda-modulo { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.ayuda-cerrar { position: absolute; top: 8px; right: 10px; width: 28px; height: 28px; border: 0; background: none; color: var(--muted); font-size: 1.3rem; line-height: 1; cursor: pointer; border-radius: 6px; }
+.ayuda-cerrar:hover { color: var(--ink); background: var(--bg); }
+.ayuda-pie { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .76rem; color: var(--muted); }
+.ayuda-pie > div { display: flex; gap: 6px; }
+@media (max-width: 640px) {
+  .ambulancia { right: 16px; bottom: 16px; }
+  .ayuda-tarjeta { right: 16px; bottom: 82px; }
+}
+@media print { .ambulancia, .ayuda-tarjeta { display: none; } }
