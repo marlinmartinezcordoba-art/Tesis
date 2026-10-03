@@ -308,3 +308,26 @@ def test_el_panel_de_filtros_ofrece_solo_las_relaciones_que_el_fondo_usa(cliente
     assert {f["clave"] for f in o["familias"]} >= {"RecordSet", "Record", "Agent", "Place", "Activity", "Date", "Instantiation"}
     raices = [r["etiqueta"] for r in o["raices"]]
     assert raices[0] == "Correspondencia municipal" and "Borrador" not in raices
+
+
+# --- Resumen del fondo (portada del catálogo) -----------------------------------------------------
+
+
+def test_resumen_del_fondo_y_coherencia_de_fechas(cliente, db, fondo_descrito, archivista, consulta, admin):
+    f = fondo_descrito
+    fondo = db.get(RecursoDocumental, f["fondo"].id)
+    fondo.fechas_extremas = "1968–1975"  # declaradas al registrar; los documentos son de 1948 y 1949
+    db.commit()
+    r = cliente.get("/api/instrumentos/resumen", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
+    assert {n["nombre"]: n["cantidad"] for n in r["niveles"]} == {"Serie": 1, "Expediente": 2, "Unidad documental": 2}
+    assert r["archivos"] == 1 and r["descripciones"] == 5
+    assert r["productores"][0] == {"id": str(f["alcaldia"].id), "nombre": ALCALDIA, "documentos": 3}
+    assert [x["nombre"] for x in r["lugares"]] == ["Boyacá"] and [x["nombre"] for x in r["formas"]] == ["Oficio"]
+    assert r["fechas"] == {"declaradas": "1968–1975", "documentos": "1948–1949", "coinciden": False}
+    # Lo reservado no cuenta para quien no es archivista.
+    db.add(DeclaracionDerechos(fondo_id=fondo.id, entidad_tipo="recurso_documental", entidad_id=f["exp48"].id,
+                               base="estatuto", acceso="reservado", reproduccion="no_permitida",
+                               fundamento="Ley 1712 de 2014, art. 19", creada_por_id=admin.id))
+    db.commit()
+    lector = cliente.get("/api/instrumentos/resumen", headers=consulta, params={"fondo_id": str(fondo.id)}).json()
+    assert lector["descripciones"] == 2 and lector["archivos"] == 0

@@ -252,3 +252,17 @@ Se comprobó que las pruebas **detectan una falla**: al quitar la expansión aut
 | Pruebas de interfaz | Ninguna (como antes); Playwright en el CI; **Vitest con Testing Library** | **Vitest** | El prompt exige probar el árbol. Vitest corre en segundos, sin navegador ni servidor, y es gratuito | Simula el DOM: no prueba el CSS. Para eso están las capturas |
 | Propósito de los instrumentos | Solo cuando el resultado es corto; **siempre** | **Siempre** | Es una línea al final. Detectar «corto» en cuatro instrumentos distintos agregaba lógica sin beneficio | Ninguno |
 | Aviso de correo cerrado | En el servidor (por usuario); **en el navegador** | **Navegador** | Es una preferencia de lectura, no un dato del sistema. Si el navegador no guarda nada, el aviso vuelve completo | Cambiar de navegador lo muestra otra vez completo |
+
+---
+
+## Ajustes posteriores pedidos por la autora (versión 1.1)
+
+Pedidos después de usar la versión 1 en una pantalla de 600 px de alto.
+
+| Pedido | Qué se hizo | Por qué |
+|---|---|---|
+| «No quiero esos espacios en blanco»: franja vacía a la derecha | El contenido usa **todo el ancho** (se quitó el máximo de 1060 px) | En pantallas anchas sobraba una columna entera |
+| Reubicar la ambulancia | Pasa a la **barra superior**, junto a Alertas; su tarjeta se abre debajo | Flotando abajo a la derecha necesitaba que esa franja quedara libre |
+| El grafo en pantalla completa se cortaba y no se podía bajar | El lienzo se ajusta al **alto de la ventana** (`calc(100vh − …)`), en vista normal y en pantalla completa; en pantalla completa se oculta el título para ganar espacio | Medía 600 px fijos: en una pantalla de 600 px de alto no cabía |
+| Instrumentos mostraba tarjetas que repetían los submódulos | Se quitaron. En su lugar, en la portada del fondo: **Resumen del fondo**. Muestra la composición por nivel y los archivos, los productores, los lugares más citados y las formas documentales. **Avisa si las fechas de los documentos quedan fuera de las fechas extremas declaradas del fondo** (`GET /api/instrumentos/resumen`) | Las tarjetas eran redundantes con el árbol (desviación consciente de §9 del prompt). El resumen aporta información que no está en ninguna otra pantalla |
+| ¿Panel consolidado y Mi trazabilidad son lo mismo? | **No son lo mismo**: uno es el registro de cada acción propia y el otro, un resumen por persona y por semana. Se **unificaron en una sola entrada, «Trazabilidad»**, con dos modos: «Mis acciones» y «Equipo por semana». El segundo solo se ofrece a quien ve toda la auditoría | Son dos miradas sobre lo mismo, la trazabilidad; dos entradas del menú lo hacían parecer duplicado. Auditoría pasa de 4 a 3 vistas |

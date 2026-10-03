@@ -480,30 +480,54 @@ function Indice({ fondo }: { fondo: { id: string; titulo: string } }) {
 
 // --- Contenido de apoyo: accesos a las otras vistas y propósito de cada instrumento -------------------
 
-const trazoAtajo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-const ATAJOS: { vista: Pestana; nombre: string; frase: string; icono: JSX.Element }[] = [
-  { vista: "grafo", nombre: "Grafo", frase: "El fondo como red de entidades y relaciones RiC, para recorrer su contexto.",
-    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><circle cx="12" cy="6" r="2.2" /><circle cx="6" cy="17" r="2.2" /><circle cx="18" cy="17" r="2.2" /><path d="M10.5 7.5L7.5 15M13.5 7.5l3 7.5M8.2 17h7.6" /></svg> },
-  { vista: "inventario", nombre: "Inventario", frase: "El inventario documental (FUID) para el control interno.",
-    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 10h16M4 15h16M10 4v16" /></svg> },
-  { vista: "guia", nombre: "Guía", frase: "Una presentación del fondo en prosa, para un lector externo.",
-    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M5 5h6a2 2 0 012 2v12a2 2 0 00-2-2H5zM19 5h-6a2 2 0 00-2 2v12a2 2 0 012-2h6z" /></svg> },
-  { vista: "indice", nombre: "Índice", frase: "Agentes, lugares y formas documentales en orden alfabético.",
-    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg> },
-  { vista: "rico", nombre: "RiC-O", frase: "El fondo en datos enlazados (Turtle o JSON-LD), validado contra la ontología.",
-    icono: <svg viewBox="0 0 24 24" {...trazoAtajo}><path d="M9 7l-5 5 5 5M15 7l5 5-5 5" /></svg> },
-];
+interface ResumenFondoDatos {
+  niveles: { nivel: string; nombre: string; cantidad: number }[];
+  descripciones: number; archivos: number;
+  productores: { id: string; nombre: string; documentos: number }[];
+  lugares: { id: string; nombre: string; documentos: number }[];
+  formas: { id: string; nombre: string; documentos: number }[];
+  fechas: { declaradas: string; documentos: string; coinciden: boolean } | null;
+}
 
-function AtajosInstrumentos() {
+// Portada del fondo en el catálogo: lo que el fondo contiene y quién lo
+// produjo, leído de lo descrito (no repite los submódulos del menú).
+function ResumenFondo({ fondoId }: { fondoId: string }) {
+  const [r, setR] = useState<ResumenFondoDatos | null>(null);
+  useEffect(() => {
+    pedir<ResumenFondoDatos>(`/api/instrumentos/resumen?fondo_id=${fondoId}`).then(setR).catch(() => setR(null));
+  }, [fondoId]);
+  if (!r) return null;
+  const lista = (titulo: string, filas: ResumenFondoDatos["productores"], vacio: string) => (
+    <div className="resumen-bloque">
+      <h3>{titulo}</h3>
+      {filas.length === 0 ? <p className="meta">{vacio}</p> : (
+        <ul>{filas.map((f) => <li key={f.id}><span>{f.nombre}</span><span className="meta">{f.documentos} doc.</span></li>)}</ul>
+      )}
+    </div>
+  );
   return (
-    <nav className="tarjetas-atajo" aria-label="Otras vistas de Instrumentos">
-      {ATAJOS.map((a) => (
-        <Link key={a.vista} to={`/instrumentos?vista=${a.vista}`} className="tarjeta-atajo">
-          {a.icono}
-          <div><strong>{a.nombre}</strong><span>{a.frase}</span></div>
-        </Link>
-      ))}
-    </nav>
+    <div className="tarjeta resumen-fondo">
+      <div className="tarjeta-cab">Resumen del fondo</div>
+      {r.fechas && !r.fechas.coinciden && (
+        <div className="aviso alerta" role="status" style={{ margin: "12px 14px 0" }}>
+          Las fechas de los documentos descritos ({r.fechas.documentos}) quedan fuera de las fechas extremas declaradas al
+          registrar el fondo ({r.fechas.declaradas}). Revise cuál de las dos es la correcta.
+        </div>
+      )}
+      <div className="resumen-rejilla">
+        <div className="resumen-bloque">
+          <h3>Composición</h3>
+          <ul>
+            {r.niveles.map((n) => <li key={n.nivel}><span>{n.nombre}</span><span className="meta">{n.cantidad}</span></li>)}
+            <li><span>Archivos digitales</span><span className="meta">{r.archivos}</span></li>
+          </ul>
+          {r.descripciones === 0 && <p className="meta">Todavía no hay descripciones publicadas.</p>}
+        </div>
+        {lista("Productores", r.productores, "Ningún productor registrado todavía.")}
+        {lista("Lugares más citados", r.lugares, "Ningún lugar citado todavía.")}
+        {lista("Formas documentales", r.formas, "Ninguna forma documental registrada.")}
+      </div>
+    </div>
   );
 }
 
@@ -565,7 +589,7 @@ export function Instrumentos() {
           {pestana === "catalogo" && (
             <>
               <Catalogo nivel={nivel} ir={(id) => cambiar({ nodo: id })} abrir={(id) => cambiar({ ficha: id })} />
-              {nivel.hijos.length < 6 && <AtajosInstrumentos />}
+              {nivel.actual.nivel === "fondo" && <ResumenFondo fondoId={nivel.fondo.id} />}
             </>
           )}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}

@@ -196,16 +196,18 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "auditoria:propia": {
-    titulo: "Auditoría · Mi trazabilidad",
+    titulo: "Auditoría · Trazabilidad · Mis acciones",
     pasos: [
       { titulo: "Todo lo que usted hizo en el sistema.",
-        texto: "En orden, con fecha, módulo y detalle. Nadie puede editar ni borrar estos registros." },
-      { titulo: "Filtre.",
-        texto: "Por tipo de acción (incluidas sus decisiones frente al motor de IA) y por fechas." },
+        texto: "En orden, con fecha, módulo y detalle. Nadie puede editar ni borrar estos registros. Se ven las 15 más recientes." },
+      { titulo: "Filtre y exporte.",
+        texto: "Por tipo de acción y por fechas. «Exportar todo a Excel» trae todo lo que cumple el filtro, no solo lo visible." },
+      { titulo: "¿Y el equipo?",
+        texto: "Si usted ve toda la auditoría, arriba a la derecha está «Equipo por semana»: el resumen de cada persona." },
     ],
   },
   "auditoria:consolidado": {
-    titulo: "Auditoría · Panel consolidado",
+    titulo: "Auditoría · Trazabilidad · Equipo por semana",
     pasos: [
       { titulo: "La semana de cada persona del equipo.",
         texto: "Días trabajados, horas conectadas y acciones por tipo. Son datos objetivos, no una calificación." },

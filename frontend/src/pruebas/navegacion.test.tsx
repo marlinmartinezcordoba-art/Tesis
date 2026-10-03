@@ -94,7 +94,7 @@ describe("árbol de submódulos", () => {
     expect(screen.getByRole("link", { name: "Auditoría" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Usuarios" })).toBeNull(); // solo la administración
     expect(vistasDe("/preservacion", CONSULTA).map((v) => v.vista)).toEqual(["panel"]);
-    expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "consolidado", "decisiones", "hallazgos"]);
+    expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
     // Evaluación no tiene vistas internas: enlace simple también para la administración.
     cleanup();
     montar("/evaluacion");

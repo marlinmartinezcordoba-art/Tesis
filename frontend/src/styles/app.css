@@ -136,7 +136,8 @@ button { font-family: inherit; }
 .subvistas a.active::before { background: var(--side-fg); width: 3px; }
 .pie-lateral b { color: var(--side-fg); }
 .pie-lateral { margin-top: auto; padding: 10px 8px 0; border-top: 1px solid var(--side-line); font-size: .76rem; color: var(--side-muted); line-height: 1.5; }
-.contenido { flex: 1; min-width: 0; padding: 22px 26px 60px; max-width: 1060px; }
+/* El contenido usa todo el ancho disponible: sin franja vacía a la derecha. */
+.contenido { flex: 1; min-width: 0; padding: 22px 26px 60px; }
 .superior { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .persona { position: relative; }
 .persona > button { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); background: none; border: 0; cursor: pointer; padding: 4px; border-radius: 8px; }
@@ -428,6 +429,9 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .fila-fechas label { display: flex; flex-direction: column; gap: 3px; }
 .fila-fechas input { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; background: var(--bg); color: var(--ink); }
 .segmentado { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.segmentado a { padding: 8px 12px; font-size: .82rem; color: var(--muted); text-decoration: none; }
+.segmentado a + a { border-left: 1px solid var(--line); }
+.segmentado a.elegido { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
 .segmentado button { border: 0; background: none; font: inherit; font-size: .82rem; padding: 8px 12px; cursor: pointer; color: var(--muted); }
 .segmentado button + button { border-left: 1px solid var(--line); }
 .segmentado button.elegido { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
@@ -438,7 +442,8 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .grafo-y-detalle.recargando .svg-grafo { opacity: .65; transition: opacity .2s; }
 .contenedor-lienzo { position: relative; }
 .lienzo-grafo { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.svg-grafo { display: block; width: 100%; height: 600px; cursor: grab; touch-action: none; user-select: none; transition: opacity .2s; }
+/* El lienzo se ajusta al alto de la ventana: en una pantalla baja no se corta. */
+.svg-grafo { display: block; width: 100%; height: clamp(360px, calc(100vh - 250px), 780px); cursor: grab; touch-action: none; user-select: none; transition: opacity .2s; }
 .svg-grafo:active { cursor: grabbing; }
 .leyenda-grafo { position: absolute; top: 10px; left: 10px; z-index: 2; display: flex; flex-direction: column; gap: 4px; font-size: .74rem; color: var(--ink);
   background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; pointer-events: auto; }
@@ -491,10 +496,14 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
   box-shadow: 0 8px 20px rgba(0,0,0,.14); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; white-space: nowrap; font-size: .82rem; }
 
 /* Pantalla completa: el lienzo ocupa la ventana; barra lateral y detalle se ocultan. */
-.vista-grafo.completa { position: fixed; inset: 0; z-index: 44; background: var(--bg); padding: 14px 16px; display: flex; flex-direction: column; }
-.vista-grafo.completa .grafo-y-detalle { flex: 1; grid-template-columns: minmax(0, 1fr); }
-.vista-grafo.completa .contenedor-lienzo, .vista-grafo.completa .lienzo-grafo { height: 100%; }
-.vista-grafo.completa .svg-grafo { height: 100%; min-height: 300px; }
+.vista-grafo.completa { position: fixed; inset: 0; z-index: 44; background: var(--bg); padding: 12px 16px; display: flex; flex-direction: column; overflow: hidden; }
+.vista-grafo.completa .cabecera-nivel h1 { display: none; }
+.vista-grafo.completa .cabecera-nivel, .vista-grafo.completa .barra-grafo { margin-bottom: 8px; flex: 0 0 auto; }
+.vista-grafo.completa .aviso { flex: 0 0 auto; margin-bottom: 8px; }
+.vista-grafo.completa .grafo-y-detalle { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; }
+.vista-grafo.completa .contenedor-lienzo { flex: 1; min-height: 0; display: flex; }
+.vista-grafo.completa .lienzo-grafo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.vista-grafo.completa .svg-grafo { flex: 1; height: auto; min-height: 0; }
 body.grafo-completo .ambulancia { display: none; }
 
 /* Estado vacío con mensaje y acción (componente compartido). */
@@ -558,12 +567,14 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .evaluacion-columnas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 @media (max-width: 860px) { .evaluacion-columnas { grid-template-columns: 1fr; } }
 
-/* Ayuda: ambulancia flotante y tarjeta de pasos de cada pantalla. */
-.ambulancia { position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 45; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: #1f2a37; border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.12); display: grid; place-items: center; cursor: pointer; transition: transform .15s, box-shadow .15s; }
-.ambulancia:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.18); }
-.ambulancia:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.ambulancia svg { width: 32px; height: 24px; }
-.ayuda-tarjeta { position: fixed; right: 1.4rem; bottom: calc(1.4rem + 66px); z-index: 46; width: 360px; max-width: calc(100vw - 32px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 18px 20px 14px; }
+/* Ayuda: la ambulancia vive en la barra superior (junto a Alertas), no
+   flotando: así no hace falta reservar una franja vacía a la derecha. */
+.ambulancia { position: relative; width: 40px; height: 34px; border-radius: 999px; background: #fff; color: #1f2a37; border: 1px solid var(--line); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.ambulancia:hover { border-color: var(--muted); }
+.ambulancia[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.ambulancia:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ambulancia svg { width: 26px; height: 20px; }
+.ayuda-tarjeta { position: fixed; right: 26px; top: 70px; z-index: 46; width: 360px; max-width: calc(100vw - 32px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 18px 20px 14px; }
 .ayuda-tarjeta h3 { margin: 4px 28px 8px 0; font-size: 1rem; line-height: 1.35; }
 .ayuda-tarjeta p { margin: 0 0 14px; font-size: .86rem; line-height: 1.5; color: var(--muted); }
 .ayuda-modulo { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
@@ -571,10 +582,7 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .ayuda-cerrar:hover { color: var(--ink); background: var(--bg); }
 .ayuda-pie { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .76rem; color: var(--muted); }
 .ayuda-pie > div { display: flex; gap: 6px; }
-@media (max-width: 640px) {
-  .ambulancia { right: 16px; bottom: 16px; }
-  .ayuda-tarjeta { right: 16px; bottom: 82px; }
-}
+@media (max-width: 760px) { .ayuda-tarjeta { right: 16px; top: 120px; } }
 @media print { .ambulancia, .ayuda-tarjeta { display: none; } }
 
 /* Historial reciente con exportación completa, y acciones sobre una vista. */
@@ -626,3 +634,13 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .aviso-discreto .enlace { font-size: .8rem; }
 .aviso .cerrar-aviso { float: right; background: none; border: 0; font-size: 1.1rem; line-height: 1; cursor: pointer; color: inherit; margin-left: 10px; }
 .fila .insignia.recortada { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Resumen del fondo (portada del catálogo). */
+.resumen-fondo { margin-top: 16px; }
+.resumen-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 22px; padding: 12px 16px 14px; }
+.resumen-bloque h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 6px 0 6px; }
+.resumen-bloque ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: .86rem; }
+.resumen-bloque li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--line); padding-bottom: 3px; }
+
+/* En pantallas angostas ningún control de filtro se sale del ancho. */
+@media (max-width: 760px) { .filtros .selector, .filtros select, .filtros .pastilla { max-width: 100%; min-width: 0; } }

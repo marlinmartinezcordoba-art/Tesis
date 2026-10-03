@@ -36,7 +36,6 @@ interface Entrada {
   vistas?: Vista[];
 }
 
-const veTodaAuditoria = (u: UsuarioBreve) => u.es_administrador || u.permisos?.auditoria === "todo";
 
 // Solo aparecen los módulos ya construidos; cada módulo nuevo se agrega
 // aquí cuando se entrega, en el orden de la barra del diseño consolidado:
@@ -57,8 +56,8 @@ const ENTRADAS: Entrada[] = [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
   { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria", vistas: [
-    { vista: "propia", nombre: "Mi trazabilidad" },
-    { vista: "consolidado", nombre: "Panel consolidado", permitir: veTodaAuditoria },
+    // Trazabilidad reúne «Mis acciones» y «Equipo por semana» (?vista=consolidado).
+    { vista: "propia", nombre: "Trazabilidad" },
     { vista: "decisiones", nombre: "Decisiones de IA", permitir: (u) => u.es_administrador },
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
   // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
@@ -294,13 +293,13 @@ export function Marco({ children }: { children: ReactNode }) {
         <div className="superior">
           <SelectorFondo />
           <div className="superior-derecha">
+            <Ayuda />
             <AvisoAlertas />
             <MenuPersona />
           </div>
         </div>
         {children}
       </main>
-      <Ayuda />
     </div>
   );
 }

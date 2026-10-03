@@ -138,6 +138,14 @@ def _documento_publicado(db: Session, instanciacion_id: uuid.UUID) -> None:
         raise previsualizacion.ErrorPrevisualizacion("El documento no existe en el catálogo.", 404)
 
 
+@router.get("/resumen", summary="Resumen del fondo: composición, productores, lugares, formas, archivos y fechas")
+def resumen(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import resumen_fondo
+
+    return resumen_fondo.resumen(db, fondo_o_404(db, fondo_id),
+                                 actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
+
+
 @router.get("/indice", summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
 def indice(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     return instrumentos.indice(db, fondo_o_404(db, fondo_id))

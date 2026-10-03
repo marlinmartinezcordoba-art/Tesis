@@ -6,6 +6,7 @@ import {
   type PropiedadRico,
 } from "@/lib/auditoria";
 import { Hallazgos } from "@/components/Hallazgos";
+import { useSesion } from "@/lib/sesion";
 import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
 import { useVista } from "@/components/Marco";
@@ -87,7 +88,6 @@ function MiTrazabilidad() {
 
   return (
     <>
-      <h1>Mi trazabilidad</h1>
       <p className="sub">Todo lo que usted hizo en el sistema, en orden cronológico. Cada acción quedó registrada de forma
         permanente: nadie, ni la administración, puede modificarla ni borrarla.</p>
       <div className="filtros">
@@ -196,9 +196,8 @@ function PanelConsolidado() {
 
   return (
     <>
-      <h1>Panel consolidado semanal</h1>
-      <p className="sub">Datos objetivos de conexión y de acciones registradas, por persona. No es una calificación ni un
-        ranking. Horario de {datos?.semana.zona_horaria || "Bogotá"}.</p>
+      <p className="sub">Por persona y por semana: días trabajados, horas conectada y cantidad de acciones. Son datos
+        objetivos, no una calificación ni un ranking. Horario de {datos?.semana.zona_horaria || "Bogotá"}.</p>
       <div className="filtros" style={{ alignItems: "center" }}>
         <button type="button" className="boton chico" disabled={!datos} onClick={() => datos && setSemana(datos.semana.anterior)}>‹ Semana anterior</button>
         <strong>{datos ? `${diaLargo.format(new Date(datos.semana.lunes))} – ${diaLargo.format(new Date(datos.semana.domingo))}` : "…"}</strong>
@@ -369,14 +368,33 @@ function DecisionesIA() {
   );
 }
 
-export function Auditoria() {
-  const pestana = useVista<"propia" | "consolidado" | "decisiones" | "hallazgos">("/auditoria");
+// Trazabilidad: una sola entrada con dos modos. «Mis acciones» es el
+// registro de cada acción propia; «Equipo por semana» resume, por persona,
+// días, horas y cantidad de acciones (solo para quien ve toda la auditoría).
+function Trazabilidad() {
+  const { usuario } = useSesion();
+  const veTodo = !!usuario && (usuario.es_administrador || usuario.permisos?.auditoria === "todo");
+  const [parametros] = useSearchParams();
+  const equipo = veTodo && parametros.get("vista") === "consolidado";
   return (
     <>
-      {pestana === "propia" ? <MiTrazabilidad /> : pestana === "consolidado" ? <PanelConsolidado />
-        : pestana === "hallazgos" ? <Hallazgos /> : <DecisionesIA />}
+      <div className="cabecera-nivel" style={{ marginBottom: 6 }}>
+        <h1>Trazabilidad</h1>
+        {veTodo && (
+          <div className="segmentado" role="radiogroup" aria-label="Qué trazabilidad ver">
+            <Link to="/auditoria" role="radio" aria-checked={!equipo} className={equipo ? "" : "elegido"}>Mis acciones</Link>
+            <Link to="/auditoria?vista=consolidado" role="radio" aria-checked={equipo} className={equipo ? "elegido" : ""}>Equipo por semana</Link>
+          </div>
+        )}
+      </div>
+      {equipo ? <PanelConsolidado /> : <MiTrazabilidad />}
     </>
   );
+}
+
+export function Auditoria() {
+  const pestana = useVista<"propia" | "decisiones" | "hallazgos">("/auditoria");
+  return pestana === "propia" ? <Trazabilidad /> : pestana === "hallazgos" ? <Hallazgos /> : <DecisionesIA />;
 }
 
 // --- Trazabilidad por entidad -------------------------------------------------------------------
