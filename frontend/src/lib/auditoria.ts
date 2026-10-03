@@ -48,7 +48,11 @@ export interface FilaConsolidado {
 export interface Consolidado {
   semana: { lunes: string; domingo: string; anterior: string; siguiente: string | null; zona_horaria: string };
   filas: FilaConsolidado[];
+  revisiones: Revision[];
 }
+
+/** Constancia de que alguien revisó el registro de la semana (NDSA, Control, nivel 4). */
+export interface Revision { fecha: string; por: string | null; nota: string | null }
 
 export interface Desglose {
   usuario: { id: string; nombre: string };

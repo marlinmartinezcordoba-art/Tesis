@@ -19,7 +19,7 @@ Instantiation (RiC-E06), nunca en el Record Resource.
 
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base, ahora
@@ -163,3 +163,29 @@ class RespaldoBaseDatos(Base):
     descargado_en = Column(DateTime(timezone=True), nullable=True)  # última copia llevada fuera del servidor
     descargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     depurado_en = Column(DateTime(timezone=True), nullable=True)  # el archivo salió por la retención; la fila queda
+
+
+TIPO_COMPROBACION = ("antivirus", "validacion")
+RESULTADO_COMPROBACION = ("limpio", "infectado", "conforme", "no_conforme", "error", "no_disponible")
+
+
+class ComprobacionTecnica(Base):
+    """Antivirus (ClamAV) y validación de formato (veraPDF para PDF/A,
+    JHOVE para TIFF): eventos PREMIS «virus check» y «validation», con el
+    mecanismo y su versión (hallazgos PRE-09 y PRE-13). «no_disponible»
+    dice la verdad cuando la herramienta no está instalada: nunca se da por
+    hecha una comprobación que no ocurrió."""
+
+    __tablename__ = "comprobaciones_tecnicas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    instanciacion_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id"), nullable=False, index=True)
+    tipo = Column(Enum(*TIPO_COMPROBACION, name="tipo_comprobacion"), nullable=False)
+    herramienta = Column(String(60), nullable=False)
+    mecanismo_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
+    resultado = Column(Enum(*RESULTADO_COMPROBACION, name="resultado_comprobacion"), nullable=False)
+    perfil = Column(String(60), nullable=True)  # «PDF/A-2B», «TIFF-hul»
+    resumen = Column(Text, nullable=True)
+    detalle = Column(JSONB, nullable=True)
+    origen = Column(String(20), nullable=False)  # ingesta, migracion, manual
+    realizada_en = Column(DateTime(timezone=True), nullable=False, default=ahora)

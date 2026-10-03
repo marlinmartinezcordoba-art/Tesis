@@ -46,6 +46,7 @@ app.include_router(instrumentos.router)
 app.include_router(preservacion.router)
 app.include_router(auditoria.router)
 app.include_router(auditoria.gestion)
+app.include_router(auditoria.revision)
 app.include_router(exportacion.router)
 app.include_router(grafo.router)
 app.include_router(evaluacion.router)
@@ -76,6 +77,7 @@ RUTAS_PUBLICAS = {
     "/api/publico/ley1712",
     "/api/publico/iiif/{recurso_id}/manifest",
     "/api/publico/iiif/imagen/{instanciacion_id}/{pagina}.png",
+    "/api/publico/dip/{recurso_id}",
 }
 
 

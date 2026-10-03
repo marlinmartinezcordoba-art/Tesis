@@ -101,5 +101,14 @@ class Instanciacion(Base):
     cargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     cargado_en = Column(DateTime(timezone=True), default=ahora, nullable=False, index=True)
     procesado_en = Column(DateTime(timezone=True), nullable=True)
+    # Hora exacta de cada paso de la ingesta, para los eventos PREMIS (hallazgo PRE-02).
+    huella_en = Column(DateTime(timezone=True), nullable=True)
+    formato_en = Column(DateTime(timezone=True), nullable=True)
+    texto_en = Column(DateTime(timezone=True), nullable=True)
+    # Programa que creó el archivo cuando no vino de la ingesta (un recorte:
+    # Pillow con su versión), hallazgo PRE-06.
+    mecanismo_creacion_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
+    # Programa que extrajo el texto (Tesseract con su versión, o pypdfium2 para la capa de texto).
+    mecanismo_texto_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
 
     __table_args__ = (Index("ix_instanciaciones_fondo_huella", "fondo_id", "huella"),)

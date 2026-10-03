@@ -288,14 +288,17 @@ def test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi(cliente, 
                  "migration", "information package creation"):
         assert tipo in tipos, tipo
     for e in eventos:  # cada evento con fecha, resultado, agente y objeto
-        assert t(e, "p:eventDateTime") and t(e, "p:eventOutcomeInformation/p:eventOutcome") in ("éxito", "fallo")
+        # Términos del diccionario PREMIS, en inglés (hallazgo PRE-02).
+        assert t(e, "p:eventDateTime") and t(e, "p:eventOutcomeInformation/p:eventOutcome") in (
+            "success", "failure", "warning")
         assert e.findall(f"{PREMIS}linkingAgentIdentifier") and e.findall(f"{PREMIS}linkingObjectIdentifier")
     migracion = eventos[tipos.index("migration")]
     roles = {t(a, "p:linkingAgentRole"): t(a, "p:linkingAgentIdentifierType")
              for a in migracion.findall(f"{PREMIS}linkingAgentIdentifier")}
     # Quien ejecutó la migración es el mecanismo del vocabulario del fondo
     # (RiC-E13), identificado por su registro, no por un nombre suelto.
-    assert roles == {"authorizer": "RICORA usuario", "executing program": "RICORA vocabulario"}
+    # La persona también es un agente del vocabulario del fondo, no una cuenta (hallazgo PRE-04).
+    assert roles == {"authorizer": "RICORA vocabulario", "executing program": "RICORA vocabulario"}
     objetos = {t(o, "p:linkingObjectRole"): t(o, "p:linkingObjectIdentifierValue")
                for o in migracion.findall(f"{PREMIS}linkingObjectIdentifier")}
     assert objetos == {"source": str(inst.id), "outcome": m["nueva_instanciacion"]["id"]}

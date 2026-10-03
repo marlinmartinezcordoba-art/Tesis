@@ -41,10 +41,11 @@ COMPROMETIDAS = {
     "auditoria": ["hallazgo_creado", "hallazgo_actualizado"],
 }
 # Cuántas veces, cuando no es una: las decisiones (una por propuesta del
-# motor, más título y alcance), los mecanismos (Siegfried, RICORA, el motor
-# y Ghostscript, cada uno una sola vez) y la segunda copia (de la original y
+# motor, más título y alcance), los mecanismos (Siegfried, RICORA, el motor,
+# Ghostscript, pypdfium2 para la capa de texto y veraPDF para validar el
+# PDF/A, cada uno una sola vez; PRE-02 y PRE-09) y la segunda copia (de la original y
 # de la migrada).
-VECES = {"inicio_sesion": 2, "decision_ia": len(RESPUESTA_UNO["entidades"]) + 2, "mecanismo_registrado": 4,
+VECES = {"inicio_sesion": 2, "decision_ia": len(RESPUESTA_UNO["entidades"]) + 2, "mecanismo_registrado": 6,
          "segunda_copia_creada": 2}
 
 
@@ -324,10 +325,11 @@ def test_administrador_ve_toda_la_historia_y_consulta_no_entra(cliente, db, cabe
 def test_ningun_evento_se_edita_ni_se_borra_por_ninguna_ruta(cliente, db, cabeceras_admin):
     rutas = [r for r in app.routes if getattr(r, "path", "").startswith("/api/auditoria")]
     # Solo se escriben los hallazgos de conformidad y las etiquetas de versión
-    # (prompt v7); ninguna ruta escribe en el registro.
+    # (prompt v7), y se agrega la constancia de revisión del consolidado
+    # (NDSA, PRE-13: un evento nuevo); ninguna ruta edita ni borra el registro.
     escritura = {r.path for r in rutas if not r.methods <= {"GET", "HEAD"}}
     assert rutas and escritura == {"/api/auditoria/hallazgos", "/api/auditoria/hallazgos/{hallazgo_id}",
-                                   "/api/auditoria/versiones-prompt/{version}"}
+                                   "/api/auditoria/versiones-prompt/{version}", "/api/auditoria/consolidado/revisado"}
     registrar(db, modulo="ingesta", accion="documento_cargado", usuario_id=None, entidad_tipo="instanciacion",
               entidad_id="doc-1")
     db.commit()

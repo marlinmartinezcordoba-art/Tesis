@@ -55,7 +55,7 @@ from app.servicios.auditoria import registrar
 
 PREMIS_NS = "http://www.loc.gov/premis/v3"
 XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
-PREMIS_ESQUEMA = "https://www.loc.gov/standards/premis/premis.xsd"
+PREMIS_ESQUEMA = "https://www.loc.gov/standards/premis/v3/premis-v3-0.xsd"  # versión fijada (PRE-01)
 P = f"{{{PREMIS_NS}}}"
 NS_AGENTES = uuid.UUID("6f1c2a52-3c1e-4b8e-9a51-7d0f2b9c4e11")  # espacio fijo para identificar software
 
@@ -95,20 +95,28 @@ def _agente_mecanismo(db: Session, mecanismo_id, respaldo: str | None = None) ->
     return _agente_software(respaldo) if respaldo else None
 
 
-def _agente_persona(db: Session, usuario_id: uuid.UUID | None) -> dict | None:
-    if usuario_id is None:
-        return None
-    u = db.get(Usuario, usuario_id)
-    return {"tipo_id": ID_USUARIO, "id": str(usuario_id), "nombre": u.nombre if u else "Usuario", "tipo": "person"}
+def _agente_persona(db: Session, usuario_id: uuid.UUID | None, fondo_id: uuid.UUID) -> dict | None:
+    """La persona como agente del vocabulario del fondo, no como cuenta de
+    acceso (hallazgo PRE-04): el mismo identificador en el PREMIS y en RiC."""
+    from app.servicios import personas
+
+    return personas.agente_premis(db, usuario_id, fondo_id)
 
 
 SISTEMA = f"{settings.nombre_sistema} (sistema de gestión documental RiC)"
 
 
+# Resultado del evento en los términos del diccionario PREMIS (en inglés, para
+# que otro sistema lo interprete; hallazgo PRE-02). Las URI de los
+# vocabularios de id.loc.gov no se pudieron verificar desde el entorno de
+# desarrollo y no se escriben sin verificar.
+RESULTADO_PREMIS = {"éxito": "success", "fallo": "failure", "en espera": "pending", "aviso": "warning"}
+
+
 def _evento(id_tipo: str, id_valor, tipo: str, fecha: datetime, detalle: str, resultado: str,
             nota: str | None, agentes: list[tuple[dict | None, str]], objetos: list[tuple[str, str]]) -> dict:
     return {"tipo_id": id_tipo, "id": str(id_valor), "tipo": tipo, "fecha": fecha, "detalle": detalle,
-            "resultado": resultado, "nota": nota, "agentes": [(a, rol) for a, rol in agentes if a is not None],
+            "resultado": RESULTADO_PREMIS.get(resultado, resultado), "nota": nota, "agentes": [(a, rol) for a, rol in agentes if a is not None],
             "objetos": objetos}
 
 
@@ -117,19 +125,53 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
     yo = str(inst.id)
     sistema = mecanismos.agente_premis(mecanismos.del_sistema(db, inst.fondo_id))
     eventos = []
-    if inst.derivada_de_id is None:
+    if inst.recorte_de_id is not None:
+        # Un recorte no ingresó por la ingesta: lo creó una persona con un
+        # programa a partir de otro archivo (hallazgo PRE-06).
+        eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "creation"), "creation", inst.cargado_en,
+                               f"Recorte «{inst.nombre_original}» creado a partir de otra instanciación "
+                               f"(página {(inst.recorte_zona or {}).get('pagina', '?')}) para describir una parte "
+                               "documental.", "éxito", None,
+                               [(_agente_persona(db, inst.cargado_por_id, inst.fondo_id), "implementer"),
+                                (_agente_mecanismo(db, inst.mecanismo_creacion_id), "executing program")],
+                               [(str(inst.recorte_de_id), "source"), (yo, "outcome")]))
+    elif inst.derivada_de_id is None:
         eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "ingestion"), "ingestion", inst.cargado_en,
                                f"Ingreso del archivo «{inst.nombre_original}» al fondo por el módulo de ingesta.",
                                "éxito", None,
-                               [(_agente_persona(db, inst.cargado_por_id), "implementer"), (sistema, "executing program")],
+                               [(_agente_persona(db, inst.cargado_por_id, inst.fondo_id), "implementer"), (sistema, "executing program")],
                                [(yo, "outcome")]))
+    # Hora exacta de cada paso (PRE-02); las filas anteriores a la migración 0030 usan la del fin del proceso.
     fecha_proceso = inst.procesado_en or inst.cargado_en
     eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "message digest calculation"), "message digest calculation",
-                           fecha_proceso, f"Cálculo de la huella digital con {inst.algoritmo_huella}.", "éxito",
-                           inst.huella, [(sistema, "executing program")], [(yo, "source")]))
+                           inst.huella_en or fecha_proceso, f"Cálculo de la huella digital con {inst.algoritmo_huella}.",
+                           "éxito", inst.huella, [(sistema, "executing program")], [(yo, "source")]))
+    if inst.texto_en and inst.origen_texto in ("ocr", "capa_de_texto"):
+        eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "metadata extraction"), "metadata extraction",
+                               inst.texto_en,
+                               "Extracción del texto para la descripción: "
+                               + ("reconocimiento óptico de caracteres (OCR)." if inst.origen_texto == "ocr"
+                                  else "capa de texto del PDF."),
+                               "aviso" if inst.ocr_baja_confianza else "éxito",
+                               (f"Confianza media del OCR: {inst.confianza_ocr} sobre 100 ({inst.palabras_ocr} palabras)."
+                                if inst.confianza_ocr is not None else None),
+                               [(_agente_mecanismo(db, inst.mecanismo_texto_id) or sistema, "executing program")],
+                               [(yo, "source")]))
+    from app.models.preservacion import ComprobacionTecnica
+
+    for c in db.scalars(select(ComprobacionTecnica).where(ComprobacionTecnica.instanciacion_id == inst.id)).all():
+        tipo = "virus check" if c.tipo == "antivirus" else "validation"
+        resultado = {"limpio": "éxito", "conforme": "éxito", "infectado": "fallo", "no_conforme": "fallo"}.get(
+            c.resultado, "aviso")
+        eventos.append(_evento(ID_UUID, c.id, tipo, c.realizada_en,
+                               (f"Análisis antivirus con {c.herramienta}." if c.tipo == "antivirus"
+                                else f"Validación formal del formato ({c.perfil}) con {c.herramienta}."),
+                               resultado, c.resumen,
+                               [(_agente_mecanismo(db, c.mecanismo_id, c.herramienta), "executing program")],
+                               [(yo, "source")]))
     if inst.herramienta_identificacion:
         eventos.append(_evento(ID_UUID, uuid.uuid5(inst.id, "format identification"), "format identification",
-                               fecha_proceso, "Identificación del formato contra el registro PRONOM.",
+                               inst.formato_en or fecha_proceso, "Identificación del formato contra el registro PRONOM.",
                                "fallo" if inst.formato_no_identificado else "éxito",
                                f"{inst.formato_puid or 'sin PUID'} · {inst.formato_nombre or 'formato desconocido'}"
                                + (f" · {inst.formato_base}" if inst.formato_base else ""),
@@ -140,7 +182,7 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
         eventos.append(_evento(ID_UUID, c.id, "replication", c.creada_en,
                                f"Segunda copia en «{c.ubicacion}» (motivo: {c.motivo.replace('_', ' ')}).", "éxito",
                                f"{c.algoritmo} {c.huella}",
-                               [(_agente_persona(db, c.creada_por_id), "implementer"),
+                               [(_agente_persona(db, c.creada_por_id, inst.fondo_id), "implementer"),
                                 (_agente_mecanismo(db, c.mecanismo_id) or sistema, "executing program")],
                                [(yo, "source")]))
     for v in db.scalars(select(VerificacionIntegridad).where(VerificacionIntegridad.instanciacion_id == inst.id)).all():
@@ -150,7 +192,7 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
                                f"({v.algoritmo}) de la copia primaria y de la segunda copia.",
                                "éxito" if bien else "fallo",
                                f"Copia primaria: {v.resultado}. Segunda copia: {v.segunda_copia_resultado or 'no verificada'}.",
-                               [(_agente_persona(db, v.usuario_id), "implementer"),
+                               [(_agente_persona(db, v.usuario_id, inst.fondo_id), "implementer"),
                                 (_agente_mecanismo(db, v.mecanismo_id) or sistema, "executing program")],
                                [(yo, "source")]))
     migraciones = db.scalars(select(Migracion).where((Migracion.instanciacion_origen_id == inst.id)
@@ -160,11 +202,11 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
         if m.instanciacion_resultado_id:
             objetos.append((str(m.instanciacion_resultado_id), "outcome"))
         resultado = {"completada": "éxito", "fallida": "fallo"}.get(m.estado, "en espera")
-        agentes = [(_agente_persona(db, m.aprobada_por_id), "authorizer")]
+        agentes = [(_agente_persona(db, m.aprobada_por_id, inst.fondo_id), "authorizer")]
         if m.modo == "automatica":
             agentes.append((_agente_mecanismo(db, m.mecanismo_id, m.herramienta), "executing program"))
         elif m.estado == "completada":  # la conversión la hizo una persona, por fuera
-            agentes.append((_agente_persona(db, m.aprobada_por_id), "executing program"))
+            agentes.append((_agente_persona(db, m.aprobada_por_id, inst.fondo_id), "executing program"))
         eventos.append(_evento(ID_UUID, m.id, "migration", m.terminada_en or m.aprobada_en,
                                f"Migración {'automática' if m.modo == 'automatica' else 'con archivo convertido por fuera'} "
                                f"a {m.destino_nombre}, aprobada de forma explícita.", resultado,
@@ -174,14 +216,14 @@ def eventos_de(db: Session, inst: Instanciacion) -> list[dict]:
         eventos.append(_evento(ID_UUID, r.id, "recovery", r.fecha,
                                f"Copia primaria ({r.estado_previo}) restaurada desde la segunda copia; el archivo "
                                "dañado se conserva en cuarentena.", "éxito", r.ruta_cuarentena,
-                               [(_agente_persona(db, r.usuario_id), "authorizer"),
+                               [(_agente_persona(db, r.usuario_id, inst.fondo_id), "authorizer"),
                                 (_agente_mecanismo(db, r.mecanismo_id) or sistema, "executing program")],
                                [(yo, "outcome")]))
     for a in db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.accion == "paquete_exportado",
                                                         RegistroAuditoria.entidad_id == yo)).all():
         eventos.append(_evento(ID_AUDITORIA, a.id, "information package creation", a.fecha,
                                "Exportación del paquete de información de archivo (AIP, BagIt).", "éxito", None,
-                               [(_agente_persona(db, a.usuario_id), "implementer"), (sistema, "executing program")],
+                               [(_agente_persona(db, a.usuario_id, inst.fondo_id), "implementer"), (sistema, "executing program")],
                                [(yo, "source")]))
     return sorted(eventos, key=lambda e: e["fecha"])
 
@@ -206,7 +248,7 @@ def _identificador(padre, nombre: str, tipo: str, valor: str, roles: list[str] =
 
 
 def _fecha(f: datetime | None) -> str:
-    return f.isoformat(timespec="seconds") if f else ""
+    return f.isoformat(timespec="microseconds") if f else ""
 
 
 def _objeto_premis(raiz, db: Session, inst: Instanciacion, eventos: list[dict], declaracion: dict | None,
@@ -254,12 +296,14 @@ def _objeto_premis(raiz, db: Session, inst: Instanciacion, eventos: list[dict], 
         _sub(loc, "contentLocationType", "ruta en el servidor")
         _sub(loc, "contentLocationValue", str(segunda_copia.ruta_absoluta(copia)))
         _sub(alm, "storageMedium", f"Segunda copia · {copia.ubicacion} · estado: {copia.estado}")
-    if inst.derivada_de_id:
-        rel = _sub(obj, "relationship")
-        _sub(rel, "relationshipType", "derivation")
-        _sub(rel, "relationshipSubType", "has source")
-        _identificador(rel, "relatedObjectIdentifier", ID_UUID, str(inst.derivada_de_id))
-    for hija in db.scalars(select(Instanciacion.id).where(Instanciacion.derivada_de_id == inst.id)).all():
+    for fuente in (inst.derivada_de_id, inst.recorte_de_id):  # migración o recorte (PRE-06)
+        if fuente:
+            rel = _sub(obj, "relationship")
+            _sub(rel, "relationshipType", "derivation")
+            _sub(rel, "relationshipSubType", "has source")
+            _identificador(rel, "relatedObjectIdentifier", ID_UUID, str(fuente))
+    for hija in db.scalars(select(Instanciacion.id).where((Instanciacion.derivada_de_id == inst.id)
+                                                          | (Instanciacion.recorte_de_id == inst.id))).all():
         rel = _sub(obj, "relationship")
         _sub(rel, "relationshipType", "derivation")
         _sub(rel, "relationshipSubType", "is source of")
@@ -444,7 +488,9 @@ def pdi(db: Session, inst: Instanciacion, eventos: list[dict], declaracion: dict
 
 
 def nombre_seguro(nombre: str) -> str:
-    base = re.sub(r"[^\w .()\-]", "_", nombre.replace("\\", "/").rsplit("/", 1)[-1]).strip(" .")
+    # Las barras se reemplazan, no se cortan: «Oficio (PDF/A-2b).pdf» no puede
+    # quedar como «A-2b).pdf»; y sin barras no hay forma de salir de la carpeta.
+    base = re.sub(r"[^\w .()\-]", "_", nombre).strip(" .")
     return (base or "archivo")[:150]
 
 

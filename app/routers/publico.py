@@ -12,7 +12,8 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 
 from app.core.permisos import Actor
@@ -22,7 +23,7 @@ from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.exportacion import _actor_si_hay
 from app.routers.fondos import fondo_o_404
-from app.servicios import conformidad_rico, derechos, exportacion_rico, intercambio, ley1712, parametros, sparql
+from app.servicios import conformidad_rico, derechos, dip, exportacion_rico, intercambio, ley1712, parametros, sparql
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/publico", tags=["Datos abiertos"])
@@ -170,3 +171,23 @@ def _es_publico(db: Session, r: RecursoDocumental) -> bool:
     if r.publicado_en is None:
         return False
     return r.id in _visibles(db, db.get(RecursoDocumental, r.fondo_id)).nodos
+
+
+# --- DIP (OAIS) ------------------------------------------------------------------------------------
+
+
+@router.get("/dip/{recurso_id}", summary="Paquete de difusión (DIP) de una descripción pública: copia de acceso, "
+                                          "ISAD(G), RiC-O, IIIF y huellas")
+def paquete_difusion(recurso_id: uuid.UUID, request: Request, actor: Actor | None = Depends(acceso_publico),
+                     db: Session = Depends(get_db)):
+    r = _recurso_publico(db, recurso_id)
+    try:
+        ruta = dip.armar(db, r, exportacion_rico.base().removesuffix("/id/"))
+    except dip.ErrorDip as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    registrar(db, modulo="instrumentos", accion="dip_entregado", usuario_id=actor.id if actor else None,
+              entidad_tipo="recurso_documental", entidad_id=r.id, ip=ip_de(request), detalle=r.titulo,
+              nuevo={"sin_sesion": actor is None})
+    db.commit()
+    return FileResponse(ruta, media_type="application/zip", filename=f"ricora-dip-{r.id}.zip",
+                        background=BackgroundTask(ruta.unlink, missing_ok=True))

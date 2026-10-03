@@ -50,11 +50,13 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "parametro_cambiado": ("Cambió un parámetro", "Administración"),
     "fondo_registrado": ("Registró un fondo", "Administración"),
     "alerta_atendida": ("Atendió una alerta", "Alertas atendidas"),
+    "consolidado_revisado": ("Revisó el registro de auditoría de la semana", None),
     # Ingesta
     "documento_cargado": ("Cargó un documento", "Documentos cargados"),
     "lote_creado": ("Abrió un lote de transferencia", "Lotes abiertos"),
     "rdf_publico_descargado": ("Descargó el RDF público del fondo", None),
     "ead3_exportado": ("Exportó el fondo en EAD3", None),
+    "dip_entregado": ("Descargó el paquete de difusión (DIP) de una descripción", None),
     "lote_acta_fijada": ("Indicó el acta escaneada de un lote", None),
     "lote_confirmado": ("Confirmó un lote: paquete de envío y acuse de recibo", "Lotes recibidos"),
     "lote_anulado": ("Anuló un lote de transferencia", None),
@@ -428,3 +430,12 @@ def desglose(db: Session, usuario: Usuario, dia: date) -> dict:
                        "acciones": dict(durante)})
     return {"usuario": {"id": str(usuario.id), "nombre": usuario.nombre}, "semana": lunes.isoformat(),
             "sesiones": salida, "segundos_conectado": sum(s["segundos"] for s in salida)}
+
+
+def revisiones_de(db: Session, lunes: date) -> list[dict]:
+    """Constancias de revisión del registro de esa semana (NDSA, Control, nivel 4)."""
+    filas = db.execute(select(RegistroAuditoria, Usuario.nombre).outerjoin(Usuario, Usuario.id == RegistroAuditoria.usuario_id)
+                       .where(RegistroAuditoria.accion == "consolidado_revisado",
+                              RegistroAuditoria.entidad_id == lunes.isoformat())
+                       .order_by(RegistroAuditoria.fecha)).all()
+    return [{"fecha": r.fecha, "por": nombre, "nota": (r.valor_nuevo or {}).get("nota")} for r, nombre in filas]

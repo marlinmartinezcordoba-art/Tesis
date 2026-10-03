@@ -13,7 +13,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ from app.db.session import get_db
 from app.models.preservacion import Migracion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
-from app.servicios import derechos, paquete, parametros, preservacion, respaldo, segunda_copia
+from app.servicios import comprobaciones, derechos, ndsa, paquete, parametros, preservacion, respaldo, segunda_copia
 from app.servicios.auditoria import ip_de
 
 router = APIRouter(prefix="/api/preservacion", tags=["Módulo 5 · Preservación"])
@@ -175,6 +175,32 @@ def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = 
 @router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones")
 def detalle(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     return preservacion.detalle(db, _inst(db, inst_id))
+
+
+@router.get("/instanciacion/{inst_id}/premis", summary="PREMIS 3.0 de la instanciación (XML, validado contra el XSD)")
+def premis(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    from app.servicios.preservacion import aplicacion_creadora
+
+    inst = _inst(db, inst_id)
+    xml = paquete.premis_xml(db, inst, paquete.eventos_de(db, inst), derechos.aplicable(db, inst),
+                             aplicacion_creadora(db, inst))
+    return Response(xml, media_type="application/xml",
+                    headers={"Content-Disposition": f'inline; filename="premis-{inst.id}.xml"'})
+
+
+@router.get("/instanciacion/{inst_id}/comprobaciones", summary="Antivirus y validación de formato de la instanciación")
+def ver_comprobaciones(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    inst = _inst(db, inst_id)
+    return [{"tipo": c.tipo, "herramienta": c.herramienta, "resultado": c.resultado, "perfil": c.perfil,
+             "resumen": c.resumen, "detalle": c.detalle, "origen": c.origen, "realizada_en": c.realizada_en}
+            for c in (comprobaciones.ultima(db, inst.id, t) for t in ("antivirus", "validacion")) if c is not None]
+
+
+@router.get("/ndsa", summary="Niveles NDSA 2.0 por área, calculados del estado real del sistema")
+def niveles_ndsa(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    return {"version": "NDSA Levels of Digital Preservation 2.0 (2019)",
+            "regla": "Un nivel cuenta solo si se cumplen todos sus requisitos y los de los niveles inferiores.",
+            "areas": ndsa.niveles(db)}
 
 
 @router.post("/instanciacion/{inst_id}/verificar", summary="Verificar la integridad ahora")

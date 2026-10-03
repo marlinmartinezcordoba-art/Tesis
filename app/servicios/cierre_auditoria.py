@@ -430,6 +430,83 @@ CIERRES: dict[str, Cierre] = {
         date(2026, 10, 3),
         'Índice de información clasificada y reservada (Ley 1712, art. 20; columnas del Decreto 1081 de 2015) en JSON y hoja de cálculo, con el estado de cada reserva (vencida: art. 22) y sin revelar el contenido. Los demás puntos de la lista se cerraron en INS-01 a INS-06.',
         ('tests/test_cierre_bloque4_ins.py::test_indice_ley_1712_lista_lo_reservado_con_fundamento_y_plazo',)),
+    # --- Bloque 5 · Preservación ------------------------------------------------------------------
+    "PRE-01": Cierre(
+        date(2026, 10, 3),
+        "El PREMIS de cada instanciación se consulta por API, sin armar el paquete "
+        "(GET /api/preservacion/instanciacion/{id}/premis), con schemaLocation fijado a premis-v3-0.xsd. Los "
+        "eventos nuevos (OCR, recorte, antivirus, validación) se validan en la CI contra el esquema oficial.",
+        ("tests/test_cierre_bloque5.py::test_premis_de_una_instanciacion_por_api_con_esquema_fijado",
+         "tests/test_preservacion_oais.py::test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi")),
+    "PRE-02": Cierre(
+        date(2026, 10, 3),
+        "Hora exacta de cada paso de la ingesta (huella_en, formato_en, texto_en) con microsegundos en el PREMIS; "
+        "eventOutcome con los términos del diccionario PREMIS (success, failure, warning, pending); evento "
+        "«metadata extraction» para el OCR (Tesseract con su versión e idioma) y para la capa de texto "
+        "(pypdfium2); eventos «virus check» y «validation». Sin URI de id.loc.gov: no se pudieron verificar "
+        "desde el entorno y no se escriben sin verificar (decisión documentada).",
+        ("tests/test_cierre_bloque5.py::test_eventos_de_ingesta_con_hora_por_paso_y_extraccion_de_texto",
+         "tests/test_cierre_bloque5.py::test_capa_de_texto_del_pdf_tambien_es_un_evento",
+         "tests/test_preservacion_oais.py::test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi")),
+    "PRE-04": Cierre(
+        date(2026, 10, 3),
+        "La persona de cada evento PREMIS es un agente persona del vocabulario del fondo (agentIdentifierType "
+        "«RICORA vocabulario»), unido a la cuenta por el identificador interno «usuario:<id>» y creado una sola "
+        "vez: el mismo identificador en el PREMIS y en el grafo RiC.",
+        ("tests/test_cierre_bloque5.py::test_la_persona_del_premis_es_un_agente_persona_del_vocabulario",
+         "tests/test_preservacion_oais.py::test_paquete_de_una_instanciacion_es_bagit_valido_con_premis_y_pdi")),
+    "PRE-06": Cierre(
+        date(2026, 10, 3),
+        "El recorte ya no afirma un ingreso: su PREMIS lleva un evento «creation» con la persona que lo hizo y el "
+        "mecanismo Pillow con su versión, y una relationship derivation / has source hacia el original (que, a "
+        "su vez, lo declara como «is source of»).",
+        ("tests/test_cierre_bloque5.py::test_recorte_tiene_evento_de_creacion_con_pillow_y_relacion_con_su_fuente",)),
+    "PRE-09": Cierre(
+        date(2026, 10, 3),
+        "veraPDF 1.28 (PDF/A) y JHOVE 1.32 con TIFF-hul (TIFF) en la imagen, con versiones fijas desde Maven "
+        "Central. Validan en la ingesta y después de cada migración; el resultado queda como evento PREMIS "
+        "«validation» con su mecanismo y versión. El riesgo bajo de un PDF/A o un TIFF exige una validación "
+        "conforme: un archivo que solo declara ser PDF/A queda en riesgo medio con alerta. Sin validador "
+        "instalado se registra «no disponible», nunca «conforme».",
+        ("tests/test_cierre_bloque5.py::test_migracion_a_pdfa_se_valida_con_verapdf_y_queda_en_el_premis",
+         "tests/test_cierre_bloque5.py::test_pdf_que_solo_declara_ser_pdfa_no_es_riesgo_bajo",
+         "tests/test_cierre_bloque5.py::test_tiff_se_valida_con_jhove",
+         "tests/test_cierre_bloque5.py::test_sin_validadores_no_se_da_por_validado",
+         "tests/test_preservacion.py::test_migracion_soportada_crea_nueva_instanciacion_sin_tocar_la_original")),
+    "PRE-12": Cierre(
+        date(2026, 10, 3),
+        "Paquete de difusión (DIP) de cada descripción pública (GET /api/publico/dip/{id}): copia de acceso "
+        "(la migración vigente), ficha ISAD(G), RiC-O, manifiesto IIIF, huellas y LEEME. Lo restringido por su "
+        "declaración de derechos se deja fuera y solo se dice cuántos. Misma regla de acceso que los datos "
+        "abiertos (INS-01).",
+        ("tests/test_cierre_bloque5.py::test_dip_lleva_la_copia_de_acceso_publica_y_deja_fuera_lo_reservado",
+         "tests/test_cierre_bloque5.py::test_dip_sin_sesion_cuando_la_publicacion_esta_encendida")),
+    "PRE-13": Cierre(
+        date(2026, 10, 3),
+        "Niveles NDSA 2.0 calculados desde el estado real (GET /api/preservacion/ndsa y tarjeta en Preservación), "
+        "con la regla acumulativa. Se cerraron las acciones de código: antivirus ClamAV en la ingesta con "
+        "cuarentena (apagado por defecto por memoria, RICORA_ANTIVIRUS=1), veraPDF y JHOVE, y constancia de "
+        "revisión periódica del registro de auditoría (Control, nivel 4).",
+        ("tests/test_cierre_bloque5.py::test_niveles_ndsa_calculados_y_acumulativos",
+         "tests/test_cierre_bloque5.py::test_archivo_infectado_va_a_cuarentena_y_no_sigue",
+         "tests/test_cierre_bloque5.py::test_archivo_limpio_sigue_con_su_evento_virus_check",
+         "tests/test_cierre_bloque5.py::test_antivirus_apagado_no_analiza",
+         "tests/test_cierre_bloque5.py::test_constancia_de_revision_del_registro_completa_control_nivel_4"),
+        pendiente="Almacenamiento sigue en nivel 0 mientras la segunda copia comparta disco con la primaria "
+                  "(PRE-07), y la copia geográfica del contenido no existe. Es infraestructura; el cálculo lo "
+                  "mostrará solo cuando cambie."),
+    "PRE-14": Cierre(
+        date(2026, 10, 3),
+        "Los compromisos incumplidos del prompt de preservación quedan cumplidos con sus pruebas: agente persona "
+        "del vocabulario (PRE-04), fecha y hora exactas (PRE-02), procedencia de recortes y OCR (PRE-06, "
+        "PRE-02), reanudación de la verificación (PRE-08), veraPDF/JHOVE (PRE-09) y simulacro de restauración "
+        "de la base (PRE-10). Las comprobaciones técnicas también se consultan por API.",
+        ("tests/test_cierre_bloque5.py::test_comprobaciones_por_api",
+         "tests/test_cierre_bloque5.py::test_la_persona_del_premis_es_un_agente_persona_del_vocabulario",
+         "tests/test_cierre_bloque5.py::test_recorte_tiene_evento_de_creacion_con_pillow_y_relacion_con_su_fuente",
+         "tests/test_cierre_bloque5.py::test_migracion_a_pdfa_se_valida_con_verapdf_y_queda_en_el_premis",
+         "tests/test_cierre_pre08.py::test_un_reinicio_a_mitad_de_pasada_no_salta_ningun_archivo",
+         "tests/test_cierre_pre10.py::test_respaldo_con_simulacro_correcto_y_huella")),
 }
 
 

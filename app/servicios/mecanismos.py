@@ -14,6 +14,7 @@ lo reutiliza es vocabulario.mecanismo(), el servicio único de registro.
 
 import re
 import uuid
+from functools import lru_cache
 
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
@@ -99,6 +100,34 @@ def version_siegfried(herramienta: str) -> tuple[str, str | None]:
         nombres = [re.sub(r"\.xml$", "", f.strip()) for f in firmas.split(";") if f.strip()]
         version = f"{version} (firmas {', '.join(nombres)})"
     return "Siegfried", version[:120]
+
+
+@lru_cache(maxsize=1)
+def _version_tesseract() -> str | None:
+    import subprocess
+
+    try:
+        r = subprocess.run(["tesseract", "--version"], capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    primera = (r.stdout or r.stderr).decode("utf-8", "replace").splitlines()
+    m = re.match(r"tesseract\s+v?(\S+)", primera[0]) if primera else None
+    return m.group(1) if m else None
+
+
+def de_texto(origen: str | None) -> tuple[str, str] | None:
+    """(programa, versión) que extrajo el texto del archivo (hallazgo PRE-02)."""
+    if origen == "ocr":
+        version = _version_tesseract()
+        return ("Tesseract", f"{version} ({settings.idioma_ocr})") if version else None
+    if origen == "capa_de_texto":
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            return "pypdfium2", version("pypdfium2")
+        except PackageNotFoundError:
+            return None
+    return None
 
 
 def de_identificacion(db: Session, fondo_id: uuid.UUID, herramienta: str | None) -> EntidadVocabulario | None:

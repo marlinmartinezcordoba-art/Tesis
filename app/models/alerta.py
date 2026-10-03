@@ -22,6 +22,8 @@ TIPO_ALERTA = (
     "huella_referencia_alterada",  # preservación: la huella de la base no coincide con el manifiesto independiente
     "exportacion_no_conforme",  # instrumentos: una descarga RiC-O no pasó la validación OWL/SHACL
     "mecanismo_sin_version",  # vocabularios: un programa actuó sin declarar su versión exacta
+    "archivo_infectado",  # ingesta: ClamAV detectó una amenaza; el archivo quedó en cuarentena
+    "validacion_formato_fallida",  # preservación: veraPDF o JHOVE dicen que el formato no es conforme
 )
 
 

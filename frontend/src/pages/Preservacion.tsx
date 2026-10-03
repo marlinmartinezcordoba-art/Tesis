@@ -90,9 +90,49 @@ export function PanelPreservacion() {
             ))}
           </div>
           <LineaTiempo fondoId={fondo.id} />
+          <NivelesNdsa />
         </>
       )}
     </>
+  );
+}
+
+// --- Niveles NDSA 2.0, calculados (PRE-13) ----------------------------------------------------------
+
+interface RequisitoNdsa { requisito: string; cumple: boolean; evidencia: string }
+interface AreaNdsa { area: string; nivel: number; requisitos: RequisitoNdsa[][]; falta_para_el_siguiente: string[] }
+
+function NivelesNdsa() {
+  const [areas, setAreas] = useState<AreaNdsa[] | null>(null);
+  useEffect(() => {
+    pedir<{ areas: AreaNdsa[] }>("/api/preservacion/ndsa").then((d) => setAreas(d.areas)).catch(() => setAreas(null));
+  }, []);
+  if (!areas) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Niveles NDSA 2.0 · calculados del estado real del sistema</div>
+      <p className="sub" style={{ margin: "0 16px 8px" }}>
+        Un nivel cuenta solo si se cumplen todos sus requisitos y los de los niveles inferiores.
+      </p>
+      {areas.map((a) => (
+        <details key={a.area} className="fila" style={{ display: "block" }}>
+          <summary>
+            <strong>{a.area}</strong> · nivel {a.nivel} de 4
+            {a.falta_para_el_siguiente.length > 0 && <span className="meta"> · falta: {a.falta_para_el_siguiente.join("; ")}</span>}
+          </summary>
+          {a.requisitos.map((nivel, i) => (
+            <ul key={i} style={{ margin: "4px 0 4px 16px" }}>
+              {nivel.map((r) => (
+                <li key={r.requisito}>
+                  <span className={`insignia ${r.cumple ? "bien" : "alerta"}`}>{r.cumple ? "Cumple" : "No cumple"}</span>{" "}
+                  Nivel {i + 1}: {r.requisito} <span className="meta">({r.evidencia})</span>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </details>
+      ))}
+    </div>
   );
 }
 

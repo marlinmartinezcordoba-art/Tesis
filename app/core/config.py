@@ -60,6 +60,13 @@ class Settings:
     # con el archivo de firmas (default.sig).
     siegfried_binario: str = os.getenv("RICORA_SIEGFRIED", "sf")
     siegfried_home: str = os.getenv("RICORA_SIEGFRIED_HOME", "/opt/siegfried")
+    # Antivirus (ClamAV) y validadores de formato (veraPDF, JHOVE; hallazgos PRE-09 y PRE-13).
+    # Apagado por defecto: con las firmas oficiales, ClamAV ocupa cerca de 1 GB de memoria.
+    antivirus: bool = os.getenv("RICORA_ANTIVIRUS", "0") == "1"
+    clamscan: str = os.getenv("RICORA_CLAMSCAN", "clamscan")
+    clamav_firmas: str | None = os.getenv("RICORA_CLAMAV_FIRMAS") or None  # vacío: la base del sistema (freshclam)
+    java: str = os.getenv("RICORA_JAVA", "java")
+    directorio_validadores: str = os.getenv("RICORA_VALIDADORES", "/opt/validadores")
     # Preservación: conversión a PDF/A.
     ghostscript_binario: str = os.getenv("RICORA_GHOSTSCRIPT", "gs")
     # Idioma del reconocimiento óptico de caracteres (Tesseract).

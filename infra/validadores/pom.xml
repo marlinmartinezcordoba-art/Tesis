@@ -1,0 +1,12 @@
+<!-- Validadores de formato de RICORA (hallazgo PRE-09): veraPDF (PDF/A, ISO 19005)
+     y JHOVE con su módulo TIFF. Se resuelven desde Maven Central al construir la imagen:
+     mvn -q dependency:copy-dependencies -DoutputDirectory=/opt/validadores/lib -->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>ricora</groupId><artifactId>validadores</artifactId><version>1</version>
+  <dependencies>
+    <dependency><groupId>org.verapdf.apps</groupId><artifactId>greenfield-apps</artifactId><version>1.28.2</version></dependency>
+    <dependency><groupId>org.openpreservation.jhove</groupId><artifactId>jhove-apps</artifactId><version>1.32.1</version></dependency>
+    <dependency><groupId>org.openpreservation.jhove.modules</groupId><artifactId>tiff-hul</artifactId><version>1.9.5</version></dependency>
+  </dependencies>
+</project>

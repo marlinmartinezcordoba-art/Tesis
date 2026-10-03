@@ -16,9 +16,10 @@ from datetime import timedelta
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import alertas, almacen, formato, mecanismos, parametros, segunda_copia, texto
+from app.servicios import alertas, almacen, comprobaciones, formato, mecanismos, parametros, segunda_copia, texto
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -80,6 +81,7 @@ def _huella(db: Session, inst: Instanciacion) -> None:
                 ultimo = porcentaje
     inst.huella = sha.hexdigest()
     inst.algoritmo_huella = "SHA-256"
+    inst.huella_en = ahora()  # hora exacta del evento PREMIS (PRE-02)
 
 
 def duplicado_de(db: Session, inst: Instanciacion) -> Instanciacion | None:
@@ -120,6 +122,15 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
             _avance(db, inst, "huella", 0, "Calculando huella digital (SHA-256)")
             _huella(db, inst)
 
+        # 1 bis. Antivirus (NDSA, Integridad, nivel 1; hallazgo PRE-13): un
+        # archivo infectado pasa a cuarentena y no sigue el flujo.
+        if settings.antivirus and comprobaciones.ultima(db, inst.id, "antivirus") is None:
+            analisis = comprobaciones.antivirus(db, inst, "ingesta")
+            if analisis.resultado == "infectado":
+                comprobaciones.poner_en_cuarentena(db, inst, analisis)
+                db.commit()
+                return
+
         # 2. Duplicado exacto: se detiene hasta que el archivista decida.
         _avance(db, inst, "duplicados", 0, "Buscando duplicados en el fondo")
         if not inst.duplicado_confirmado:
@@ -142,6 +153,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         # Quién identificó: el mecanismo del vocabulario (Siegfried con su
         # versión y sus firmas PRONOM), no solo el texto.
         inst.mecanismo_identificacion_id = mecanismos.de_identificacion(db, inst.fondo_id, f.herramienta).id
+        inst.formato_en = ahora()
+        # 3 bis. Validación formal de lo que dice ser PDF/A o TIFF (veraPDF, JHOVE; hallazgo PRE-09).
+        comprobaciones.validar(db, inst, "ingesta")
 
         # 4. Texto para el motor de descripción.
         _avance(db, inst, "texto", 0, "Extrayendo texto")
@@ -149,6 +163,10 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
                           lambda p, d: _avance(db, inst, "texto", p, d))
         inst.texto_extraido, inst.origen_texto, inst.paginas = t.contenido, t.origen, t.paginas
         inst.confianza_ocr, inst.palabras_ocr = t.confianza_ocr, t.palabras_ocr
+        inst.texto_en = ahora()
+        programa = mecanismos.de_texto(t.origen)
+        if programa:
+            inst.mecanismo_texto_id = mecanismos.obtener(db, inst.fondo_id, *programa).id
         umbral = int(parametros.leer(db, "ingesta_umbral_ocr"))
         inst.ocr_baja_confianza = t.confianza_ocr is not None and t.confianza_ocr < umbral
 
@@ -215,6 +233,7 @@ def reiniciar(inst: Instanciacion) -> None:
     inst.tomado_en = None
     inst.mensaje_error = None
     inst.huella = None
+    inst.huella_en = inst.formato_en = inst.texto_en = None
     inst.duplicado_de_id = None
     inst.duplicado_confirmado = False
     inst.formato_puid = inst.formato_nombre = inst.formato_version = None

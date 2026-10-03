@@ -46,7 +46,7 @@ from app.models.instanciacion import Instanciacion
 from app.models.parametro import Parametro
 from app.models.preservacion import Migracion, Restauracion, SegundaCopia, VerificacionIntegridad
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import alertas, almacen, derechos, formato, mecanismos, parametros, riesgo, segunda_copia
+from app.servicios import alertas, almacen, comprobaciones, derechos, formato, mecanismos, parametros, riesgo, segunda_copia
 from app.servicios.auditoria import registrar
 
 log = logging.getLogger("ricora.preservacion")
@@ -357,14 +357,33 @@ def revisar_atraso(db: Session, dias: int) -> int:
 # --- Riesgo de obsolescencia (al panel central de alertas) -----------------------------------------
 
 
-def riesgo_de(db: Session, inst: Instanciacion) -> dict:
+def _riesgo_validado(db: Session, inst: Instanciacion) -> riesgo.Riesgo:
+    """El riesgo de la tabla, salvo que el formato se declare de
+    conservación (PDF/A, TIFF) sin una validación conforme: entonces no es
+    «bajo» hasta que veraPDF o JHOVE lo confirmen (hallazgo PRE-09)."""
     r = riesgo.evaluar(inst.formato_puid, inst.formato_mime, not inst.formato_no_identificado)
+    if r.nivel != "bajo" or inst.formato_puid not in (riesgo.PDFA | riesgo.TIFF):
+        return r
+    v = comprobaciones.ultima(db, inst.id, "validacion")
+    nombre = "PDF/A (veraPDF)" if inst.formato_puid in riesgo.PDFA else "TIFF (JHOVE)"
+    if v is not None and v.resultado == "conforme":
+        return riesgo.Riesgo("bajo", f"{r.razon} Validado como {v.perfil} con {v.herramienta}.", None)
+    if v is not None and v.resultado == "no_conforme":
+        return riesgo.Riesgo("medio", f"Declara ser {nombre.split(' ')[0]}, pero la validación formal dice: {v.resumen}",
+                             "Volver a convertir el archivo y validar el resultado.", r.destino_sugerido)
+    return riesgo.Riesgo("medio", f"Declara ser {nombre.split(' ')[0]}, pero todavía no se validó con "
+                                  f"{nombre.split('(')[1].rstrip(')')}"
+                                  + (f" ({v.resumen})" if v is not None else "") + ".",
+                         "Validar el archivo para confirmar que cumple la norma.", r.destino_sugerido)
+
+
+def riesgo_de(db: Session, inst: Instanciacion) -> dict:
+    r = _riesgo_validado(db, inst)
     mitigado_por = None
     if r.nivel != "bajo":
         derivada = db.scalar(select(Instanciacion).where(Instanciacion.derivada_de_id == inst.id)
                              .order_by(Instanciacion.cargado_en.desc()))
-        if derivada is not None and riesgo.evaluar(derivada.formato_puid, derivada.formato_mime,
-                                                   not derivada.formato_no_identificado).nivel == "bajo":
+        if derivada is not None and _riesgo_validado(db, derivada).nivel == "bajo":
             mitigado_por = {"id": str(derivada.id), "nombre": derivada.nombre_original}
     return {"nivel": r.nivel, "razon": r.razon, "recomendacion": r.recomendacion, "destino_sugerido": r.destino_sugerido,
             "mitigado_por": mitigado_por}
@@ -576,6 +595,9 @@ def _crear_derivada(db: Session, original: Instanciacion, archivo: BinaryIO, nom
                         destino_id=nueva.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
                         origen="persona", confirmada_por_id=usuario_id))
     segunda_copia.asegurar(db, nueva, "migracion")  # su propia segunda copia, sin acción manual
+    # El resultado se valida formalmente (veraPDF, JHOVE; hallazgo PRE-09): que
+    # Siegfried lo reconozca como PDF/A solo dice que lo declara.
+    comprobaciones.validar(db, nueva, "migracion")
     return nueva
 
 

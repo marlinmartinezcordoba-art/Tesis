@@ -31,4 +31,6 @@ export const TIPO_ALERTA: Record<string, string> = {
   huella_referencia_alterada: "Huella de referencia alterada",
   exportacion_no_conforme: "Exportación RiC-O no conforme",
   mecanismo_sin_version: "Mecanismo sin versión",
+  archivo_infectado: "Archivo infectado (en cuarentena)",
+  validacion_formato_fallida: "Formato no conforme (validación)",
 };

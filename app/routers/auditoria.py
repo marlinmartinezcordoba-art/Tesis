@@ -10,7 +10,9 @@ Módulo transversal de auditoría: consulta del registro.
 
 El registro no se escribe por HTTP: los módulos llaman a
 servicios/auditoria.registrar() dentro del mismo proceso. Ninguna ruta de
-este archivo modifica ni borra eventos.
+este archivo modifica ni borra eventos. La única que agrega uno es la
+constancia de revisión del consolidado semanal (NDSA, Control, nivel 4;
+hallazgo PRE-13): un evento nuevo, no un cambio de los existentes.
 """
 
 import uuid
@@ -28,7 +30,7 @@ from app.db.session import get_db
 from app.models.hallazgo import COMPONENTES, HallazgoConformidad
 from app.models.usuario import Usuario
 from app.servicios import decisiones_ia, hallazgos, trazabilidad
-from app.servicios.auditoria import ip_de
+from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
                    dependencies=[Depends(acceso_modulo("auditoria"))])
@@ -101,7 +103,36 @@ def _dia(semana: date | None) -> date:
 
 @router.get("/consolidado", summary="Panel semanal por persona: días, horas conectadas y acciones")
 def consolidado(semana: date | None = None, _: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
-    return trazabilidad.consolidado(db, _dia(semana))
+    datos = trazabilidad.consolidado(db, _dia(semana))
+    return datos | {"revisiones": trazabilidad.revisiones_de(db, trazabilidad.lunes_de(_dia(semana)))}
+
+
+class RevisionIn(BaseModel):
+    semana: date | None = None
+    nota: str | None = Field(default=None, max_length=1000)
+
+
+def _revisor_del_registro(actor: Actor = Depends(ve_todo)) -> Actor:
+    if not actor.puede("auditoria", "leer"):
+        raise sin_permiso()
+    return actor
+
+
+# La constancia de revisión no escribe en el módulo (que es de solo lectura
+# para todos los roles): la deja quien lee todo el registro.
+revision = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
+                     dependencies=[Depends(_revisor_del_registro)])
+
+
+@revision.post("/consolidado/revisado", summary="Dejar constancia de que se revisó el registro de la semana")
+def marcar_revisado(datos: RevisionIn, request: Request, actor: Actor = Depends(_revisor_del_registro),
+                    db: Session = Depends(get_db)):
+    lunes = trazabilidad.lunes_de(_dia(datos.semana))
+    registrar(db, modulo="auditoria", accion="consolidado_revisado", usuario_id=actor.id, entidad_tipo="semana",
+              entidad_id=lunes.isoformat(), ip=ip_de(request), detalle=f"Semana del {lunes.isoformat()}",
+              nuevo={"semana": lunes.isoformat(), "nota": datos.nota})
+    db.commit()
+    return {"revisiones": trazabilidad.revisiones_de(db, lunes)}
 
 
 @router.get("/panel-consolidado/exportar", summary="La semana seleccionada completa (personas y sesiones), en Excel")

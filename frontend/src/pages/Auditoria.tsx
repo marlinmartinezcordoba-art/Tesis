@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
 import {
   MODULO_NOMBRE, MOTIVO_CIERRE, duracion, valor, type Cambio, type Consolidado, type Desglose, type Evento,
-  type PropiedadRico,
+  type PropiedadRico, type Revision,
 } from "@/lib/auditoria";
 import { Hallazgos } from "@/components/Hallazgos";
 import { useSesion } from "@/lib/sesion";
@@ -183,6 +183,36 @@ function FilaPersona({ f, semana }: { f: Consolidado["filas"][number]; semana: s
   );
 }
 
+function RevisionSemana({ lunes, revisiones, alCambiar }: {
+  lunes: string; revisiones: Revision[]; alCambiar: (r: Revision[]) => void;
+}) {
+  const [nota, setNota] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  async function marcar() {
+    setOcupado(true);
+    try {
+      const r = await pedir<{ revisiones: Revision[] }>("/api/auditoria/consolidado/revisado", {
+        method: "POST", body: JSON.stringify({ semana: lunes, nota: nota.trim() || null }),
+      });
+      alCambiar(r.revisiones);
+      setNota("");
+    } finally { setOcupado(false); }
+  }
+  return (
+    <div className="aviso proceso" role="status">
+      {revisiones.length === 0
+        ? "Nadie ha dejado constancia de revisar el registro de esta semana. "
+        : `Revisada por ${revisiones.map((r) => `${r.por || "—"} (${new Date(r.fecha).toLocaleDateString("es-CO")})`).join(", ")}. `}
+      La revisión periódica del registro es el nivel 4 de Control en NDSA.
+      <div className="filtros" style={{ marginTop: 8 }}>
+        <input type="text" placeholder="Nota (opcional): qué se revisó o qué se encontró" value={nota} maxLength={1000}
+               onChange={(e) => setNota(e.target.value)} aria-label="Nota de la revisión" style={{ flex: 1 }} />
+        <button type="button" className="boton chico" disabled={ocupado} onClick={marcar}>Dejar constancia de revisión</button>
+      </div>
+    </div>
+  );
+}
+
 function PanelConsolidado() {
   const [semana, setSemana] = useState("");
   const [datos, setDatos] = useState<Consolidado | null>(null);
@@ -207,6 +237,8 @@ function PanelConsolidado() {
         <ExportarExcel ruta={`/api/auditoria/panel-consolidado/exportar${datos ? `?semana=${datos.semana.lunes}` : ""}`} deshabilitado={!datos} />
       </div>
       {error && <div className="aviso error">{error}</div>}
+      {datos && <RevisionSemana lunes={datos.semana.lunes} revisiones={datos.revisiones}
+                                alCambiar={(revisiones) => setDatos({ ...datos, revisiones })} />}
       <div className="tarjeta tabla-desplazable">
         <table className="tabla-permisos tabla-consolidado">
           <thead><tr><th>Persona</th><th className="numero">Días hábiles</th><th className="numero">Horas conectada</th><th>Acciones</th></tr></thead>

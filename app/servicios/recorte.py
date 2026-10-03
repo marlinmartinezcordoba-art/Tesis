@@ -17,6 +17,7 @@ import io
 import uuid
 from pathlib import Path
 
+import PIL
 from sqlalchemy.orm import Session
 
 from app.db.base import ahora
@@ -134,6 +135,8 @@ def recortar(db: Session, origen: Instanciacion, zona: dict, nombre: str, usuari
         mecanismo_identificacion_id=mecanismos.de_identificacion(db, origen.fondo_id, f.herramienta).id if f else None,
         origen_texto="sin_texto", paginas=1, cargado_por_id=usuario_id, procesado_en=ahora(),
         recorte_de_id=origen.id, recorte_zona={"pagina": pagina, "x": x, "y": y, "ancho": ancho, "alto": alto},
+        # Quién lo creó (hallazgo PRE-06): Pillow con su versión, no la ingesta.
+        mecanismo_creacion_id=mecanismos.obtener(db, origen.fondo_id, "Pillow", PIL.__version__).id,
     )
     db.add(inst)
     db.flush()
