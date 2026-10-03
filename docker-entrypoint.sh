@@ -30,6 +30,9 @@ fi
 echo "Aplicando migraciones..."
 alembic upgrade head
 
+# Panel de hallazgos: siembra y cierres de la auditoría de conformidad RiC.
+python -m app.servicios.cierre_auditoria
+
 # Solo detrás de Caddy (HTTPS) se confía en la IP que informa el proxy; si
 # la aplicación está expuesta directamente, nadie puede falsificar su IP
 # con un encabezado para saltarse los límites de intentos.

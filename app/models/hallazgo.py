@@ -21,6 +21,8 @@ class HallazgoConformidad(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     numero = Column(Integer, nullable=False, unique=True)  # para citarlo («hallazgo 4»)
+    # Identificador con que lo levantó una auditoría externa al panel (p. ej. «INS-02»).
+    referencia = Column(String(12), nullable=True, unique=True)
     titulo = Column(String(300), nullable=False)  # no se edita después de creado
     descripcion = Column(Text, nullable=False)  # tampoco
     componentes = Column(ARRAY(String(20)), nullable=False)

@@ -28,10 +28,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.descripcion import Actividad, EntidadVocabulario, Fecha, Relacion, TrabajoDescripcion
-from app.models.enums import URI_RICO
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import exportacion_rico, fechas, ric_o, vocabulario
+from app.servicios import derechos, exportacion_rico, fechas, ric_o, vocabulario
 from app.servicios.decisiones_ia import SUBTIPO_NOMBRE
 from app.servicios.instrumentos import ETIQUETA_RELACION, NIVEL_NOMBRE, ErrorInstrumento, sin_campos_internos
 
@@ -217,6 +216,9 @@ class _Contexto:
             i = self._instancias.get(ident)
             if i is None or i.fondo_id != fid or i.estado != "listo_para_descripcion":
                 return None
+            # Un archivo bajo reserva vigente (propia o heredada) no se nombra a quien no es archivista.
+            if not self.ver_restringidos and derechos.instanciacion_restringida(self.db, i):
+                return None
             return {"tipo": tipo, "clase": "instanciacion", "familia": "Instantiation", "etiqueta": i.nombre_original,
                     # La copia que nace de una migración de formato (p. ej. PDF/A) no es un duplicado:
                     # es la versión de conservación del original, que nunca se borra.
@@ -282,10 +284,7 @@ def _pasa(n: dict, f: Filtros) -> bool:
 
 def uri_rico(codigo: str) -> str | None:
     """La propiedad RiC-O del código, del mapeo único que usa la exportación."""
-    if codigo == "forma_documental":
-        return "rico:hasOrHadDocumentaryFormType"
-    p = ric_o.propiedad(codigo)
-    return f"rico:{p.rico}" if p is not None else URI_RICO.get(codigo)
+    return ric_o.uri(codigo)
 
 
 def _arista(desde: str, hacia: str, codigo: str) -> dict:

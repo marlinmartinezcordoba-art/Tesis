@@ -15,13 +15,20 @@ Qué se exporta:
 Qué no se exporta nunca:
 - la procedencia del dato (origen, confianza, motor, fragmento citado): la
   regla de procedencia del sistema;
-- los agentes mecanismo (los programas que actúan en el sistema): son
-  procedencia técnica, no contexto del fondo;
+- el motor de análisis y la procedencia de cada dato. Los agentes
+  mecanismo que actuaron sobre un archivo exportado (el identificador de
+  formato, el conversor a PDF/A) sí salen, como rico:Mechanism con su
+  versión (rico:technicalCharacteristics) y la acción técnica que ejecutaron
+  (rico:Activity que afecta al archivo): hallazgos CM-11 y O-19;
 - los borradores sin publicar;
 - lo que ric_o.SIN_PROPIEDAD declara sin propiedad en RiC-O (calendario,
   nivel de detalle, fuentes, estructura interna del agente);
-- por defecto, las descripciones con acceso clasificado o reservado
-  (Ley 1712 de 2014), propio o heredado de un nivel superior.
+- por defecto, lo que tenga acceso clasificado o reservado vigente (Ley
+  1712 de 2014): las descripciones, propio o heredado de un nivel
+  superior; los archivos (instanciaciones), por su declaración propia o
+  heredada; y las entidades del vocabulario que solo citan documentos que
+  no se exportan (su nombre también es reservado). Una reserva con plazo
+  vencido ya no restringe (art. 22).
 
 Cada omisión queda contada en `omitidas`, para el reporte de conformidad.
 """
@@ -38,15 +45,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.descripcion import EntidadVocabulario, Fecha, Hito, IdentificadorEntidad, NombreEntidad, Relacion
 from app.models.instanciacion import Instanciacion
-from app.models.preservacion import DeclaracionDerechos
+from app.models.preservacion import DeclaracionDerechos, Migracion
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import fechas, ric_o
+from app.servicios import derechos, fechas, ric_o, vocabulario
 
 RICO = Namespace(ric_o.RICO)
 RST = Namespace(ric_o.RST)
 SKOS = Namespace(ric_o.SKOS)
 LEXVO = Namespace("http://lexvo.org/id/iso639-3/")
-ACCESO_RESTRINGIDO = ("clasificado", "reservado")
 
 NOMBRE_NIVEL = {"fondo": "Fondo", "seccion": "Sección", "serie": "Serie", "subserie": "Subserie",
                 "expediente": "Expediente"}
@@ -99,14 +105,14 @@ def _restringidas(db: Session, recursos: dict[uuid.UUID, RecursoDocumental]) -> 
     """Descripciones con acceso clasificado o reservado, propio o heredado
     del nivel superior más cercano que tenga declaración (la misma regla de
     herencia de la declaración de derechos de preservación)."""
-    declaradas = {d.entidad_id: d.acceso for d in db.scalars(select(DeclaracionDerechos).where(
+    declaradas = {d.entidad_id: derechos.restringe(d) for d in db.scalars(select(DeclaracionDerechos).where(
         DeclaracionDerechos.entidad_id.in_(list(recursos)), DeclaracionDerechos.vigente.is_(True))).all()}
     salida = set()
     for r in recursos.values():
         actual = r
         while actual is not None:
             if actual.id in declaradas:
-                if declaradas[actual.id] in ACCESO_RESTRINGIDO:
+                if declaradas[actual.id]:
                     salida.add(r.id)
                 break
             actual = recursos.get(actual.incluido_en_id) if actual.incluido_en_id and actual.id != actual.fondo_id else None
@@ -148,6 +154,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
     recursos = _recursos(db, fondo, incluir_restringidos, ex.omitidas)
     for r in recursos.values():
         _recurso(ex, r, recursos)
+    vedadas = set() if incluir_restringidos else _entidades_vedadas(db, fondo, recursos)
 
     # Relaciones vigentes alrededor de las descripciones, y de ahí hacia el
     # contexto (agente → agente, actividad → tipo, mandato → mandato…).
@@ -167,7 +174,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
             vistas.add(rel.id)
             extremos = []
             for tipo, ident in ((rel.origen_tipo, rel.origen_id), (rel.destino_tipo, rel.destino_id)):
-                nodo = _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias)
+                nodo = _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias, incluir_restringidos, vedadas)
                 if nodo is None:
                     break
                 extremos.append((tipo, ident, nodo))
@@ -202,14 +209,69 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
         _fecha(ex, f)
     for i in instancias.values():
         _instanciacion(ex, i)
+    _acciones_tecnicas(db, ex, instancias, entidades)
     return ex
 
 
-def _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias):
+def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades: dict) -> None:
+    """Identificación de formato y migraciones de cada archivo exportado,
+    como Activity ejercida por su Mechanism (con versión)."""
+    g = ex.grafo
+    afecta = RICO[ric_o.ACCION_TECNICA["afecta"].rico]
+    ejerce = RICO[ric_o.PROPIEDADES["performs_or_performed"].rico]
+    inicio = _apoyo("inicio")[0]
+
+    def mecanismo(ident):
+        if ident is None:
+            return None
+        m = entidades.get(ident) or db.get(EntidadVocabulario, ident)
+        if m is None or m.estado != "activa" or m.subtipo != "mecanismo":
+            return None
+        if ident not in entidades:
+            entidades[ident] = m
+            _entidad(db, ex, m, entidades)
+        return uri(m.id)
+
+    def accion(nodo, nombre, quien, archivo, cuando):
+        g.add((nodo, RDF.type, RICO.Activity))
+        g.add((nodo, RDFS.label, Literal(nombre)))
+        g.add((nodo, _a("nombre"), Literal(nombre)))
+        g.add((nodo, afecta, uri(archivo)))
+        if quien is not None:
+            g.add((quien, ejerce, nodo))
+        if cuando is not None:
+            _fecha_libre(ex, nodo, inicio, URIRef(f"{nodo}/fecha"), None, cuando.date().isoformat())
+
+    for i in instancias.values():
+        if i.formato_puid or i.mecanismo_identificacion_id:
+            accion(uri(i.id, "identificacion-de-formato"),
+                   f"Identificación de formato de «{i.nombre_original}»" + (f" ({i.formato_puid})" if i.formato_puid else ""),
+                   mecanismo(i.mecanismo_identificacion_id), i.id, i.procesado_en or i.cargado_en)
+    for m in db.scalars(select(Migracion).where(Migracion.instanciacion_origen_id.in_(list(instancias)),
+                                                Migracion.estado == "completada")).all():
+        origen = instancias[m.instanciacion_origen_id]
+        accion(uri(origen.id, "migracion", m.id), f"Migración de «{origen.nombre_original}» a {m.destino_nombre}",
+               mecanismo(m.mecanismo_id), origen.id, m.terminada_en or m.aprobada_en)
+
+
+def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) -> set[uuid.UUID]:
+    """Entidades del vocabulario que citan documentos, pero ninguno que se
+    exporte: solo las conocen documentos reservados, clasificados o sin
+    publicar, así que su nombre tampoco sale (la misma regla del grafo).
+    Una entidad que no cita ningún documento (una institución antecesora,
+    un mandato) es contexto puro y sí se exporta."""
+    ids = list(db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo.id)))
+    visibles = set(recursos) - {fondo.id}
+    return {e for e, docs in vocabulario._documentos_por_entidad(db, ids).items() if docs and not docs & visibles}
+
+
+def _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias, incluir_restringidos=True, vedadas=frozenset()):
     if tipo == "recurso_documental":
         return recursos.get(ident)
     if tipo == "entidad_vocabulario":
         if ident not in entidades:
+            if ident in vedadas:
+                return None
             e = db.get(EntidadVocabulario, ident)
             if e is None or e.estado != "activa" or e.subtipo == "mecanismo":
                 return None
@@ -225,7 +287,7 @@ def _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias):
     if tipo == "instanciacion":
         if ident not in instancias:
             i = db.get(Instanciacion, ident)
-            if i is None:
+            if i is None or (not incluir_restringidos and derechos.instanciacion_restringida(db, i)):
                 return None
             instancias[ident] = i
         return instancias[ident]
@@ -377,6 +439,8 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
             g.add((s, SKOS[ric_o.SKOS_BROADER], uri(e.concepto_superior_id)))
         elif not e.concepto_superior_id:
             g.add((esquema, SKOS.hasTopConcept, s))
+    if e.subtipo == "mecanismo" and e.version:
+        g.add((s, _a("version_mecanismo"), Literal(e.version)))
     if e.historia and e.clase in ("agente", "lugar", "actividad", "mandato"):
         g.add((s, _a("historia"), Literal(e.historia)))
     if e.contexto_general:

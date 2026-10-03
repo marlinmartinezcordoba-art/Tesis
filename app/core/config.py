@@ -42,6 +42,19 @@ class Settings:
     ubicaciones_segunda_copia: list[Path] = [Path(p) for p in os.getenv(
         "RICORA_SEGUNDA_COPIA", "/data/segunda_copia").split(os.pathsep) if p.strip()]
 
+    # La web monta la segunda copia en solo lectura: nunca escribe en ella
+    # (la crea el trabajador). Así un error de la aplicación web no puede
+    # dañar a la vez las dos copias.
+    segunda_copia_solo_lectura: bool = os.getenv("RICORA_SEGUNDA_COPIA_SOLO_LECTURA", "0") == "1"
+
+    # Respaldo de la base de datos (pg_dump) y su simulacro de restauración.
+    # En producción real, un disco o almacenamiento de otro equipo montado
+    # aquí; además, el administrador descarga cada cierto tiempo el último
+    # respaldo a su propio equipo (copia fuera del servidor, sin costo).
+    directorio_respaldo: Path = Path(os.getenv("RICORA_RESPALDO", "/data/respaldo"))
+    pg_dump: str = os.getenv("RICORA_PG_DUMP", "pg_dump")
+    pg_restore: str = os.getenv("RICORA_PG_RESTORE", "pg_restore")
+
     # --- Ingesta ---
     # Identificador de formato contra PRONOM (Siegfried): binario y carpeta
     # con el archivo de firmas (default.sig).

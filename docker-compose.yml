@@ -35,13 +35,17 @@ services:
       DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
       RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
+      RICORA_RESPALDO: /data/respaldo
+      RICORA_SEGUNDA_COPIA_SOLO_LECTURA: "1"
     # Con HTTPS (perfil «https») la aplicación solo escucha dentro del
     # servidor y Caddy la publica en los puertos 80 y 443.
     ports:
       - "${RICORA_WEB_BIND:-0.0.0.0}:${RICORA_PUERTO:-8080}:8000"
     volumes:
       - almacen:/data/almacen
-      - segunda_copia:/data/segunda_copia
+      # Solo lectura: la web nunca escribe en la segunda copia (la crea el trabajador).
+      - segunda_copia:/data/segunda_copia:ro
+      - respaldo:/data/respaldo
     depends_on:
       bd:
         condition: service_healthy
@@ -59,9 +63,11 @@ services:
       DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
       RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
+      RICORA_RESPALDO: /data/respaldo
     volumes:
       - almacen:/data/almacen
       - segunda_copia:/data/segunda_copia
+      - respaldo:/data/respaldo
     depends_on:
       bd:
         condition: service_healthy
@@ -94,5 +100,9 @@ volumes:
   # del servidor. Para una copia de verdad independiente, monte aquí otro
   # disco o un servidor de archivos (ver documentacion/modulo-5-preservacion.md).
   segunda_copia:
+  # Respaldos de la base de datos (pg_dump) con su simulacro de restauración.
+  # Mismo disco que la base: por eso el sistema exige además que el
+  # administrador descargue el respaldo a otro equipo cada cierto tiempo.
+  respaldo:
   caddy_data:
   caddy_config:

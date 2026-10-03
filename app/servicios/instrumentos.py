@@ -207,7 +207,7 @@ def ficha(db: Session, recurso: RecursoDocumental, ver_restringidos: bool = True
     a = arbol(db, fondo, ver_restringidos)
     if recurso.id not in a.nodos:
         raise ErrorInstrumento("Esa descripción no está publicada o no se puede consultar.", 404)
-    base = consulta.ficha_publica(db, recurso)
+    base = consulta.ficha_publica(db, recurso, set(a.nodos), ver_restringidos)
     ids = [uuid.UUID(e["entidad_id"]) for e in base["entidades"]]
     forma = db.get(EntidadVocabulario, recurso.forma_documental_id) if recurso.forma_documental_id else None
     if forma:

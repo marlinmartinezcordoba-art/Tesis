@@ -7,17 +7,41 @@ campo interno nuevo no puede colarse por descuido. Origen, confianza,
 motor, estado de revisión y fragmentos citados no salen jamás de aquí.
 """
 
+import uuid
+
 from sqlalchemy.orm import Session
 
+from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
+from app.servicios import derechos
 from app.servicios.descripcion import detalle
 
 CAMPOS_PROHIBIDOS = {"origen", "confianza", "motor", "estado_revision", "origen_titulo", "origen_alcance",
                      "confianza_alcance", "fragmento", "documento_id", "origen_idiomas", "confianza_idiomas"}
 
 
-def ficha_publica(db: Session, recurso: RecursoDocumental) -> dict:
+def ficha_publica(db: Session, recurso: RecursoDocumental, visibles: set[uuid.UUID],
+                  ver_restringidos: bool) -> dict:
+    """`visibles`: las descripciones que quien consulta puede ver (el árbol
+    del catálogo con su regla de publicación y de reserva). Las partes, la
+    secuencia y el nivel superior solo se nombran si están entre ellas, y
+    un archivo bajo reserva vigente no se lista a quien no es archivista:
+    el título de una parte reservada o el nombre de un archivo reservado
+    pueden ser, en sí mismos, información reservada (Ley 1712, art. 19)."""
     d = detalle(db, recurso)
+
+    def archivo_visible(i: dict) -> bool:
+        if ver_restringidos:
+            return True
+        inst = db.get(Instanciacion, uuid.UUID(i["id"]))
+        return inst is not None and not derechos.instanciacion_restringida(db, inst)
+
+    d["instanciaciones"] = [i for i in d["instanciaciones"] if archivo_visible(i)]
+    d["partes"] = [{**p, "instanciaciones": [i for i in p["instanciaciones"] if archivo_visible(i)]}
+                   for p in d["partes"] if uuid.UUID(p["id"]) in visibles]
+    d["secuencia"] = [x for x in d["secuencia"] if uuid.UUID(x["id"]) in visibles]
+    if d["parte_de"] and uuid.UUID(d["parte_de"]["id"]) not in visibles:
+        d["parte_de"] = None
     return {
         "id": d["id"],
         "nivel": d["nivel"],

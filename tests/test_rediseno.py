@@ -155,6 +155,7 @@ def test_productividad_y_descritas_en_excel(cliente, db, fondo, admin, archivist
 def test_linea_de_tiempo_de_preservacion(cliente, db, fondo, archivista):
     e = cliente.get("/api/preservacion/eventos-recientes", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
     assert e == {"verificacion": None, "migracion": None, "restauracion": None, "simulacro_base_de_datos": None}
+    # (el simulacro de la base tiene su propia prueba: tests/test_cierre_pre10.py)
     inst = ingresar_archivo(cliente, db, archivista, fondo, "oficio.pdf", archivos.pdf_con_texto())
     assert cliente.post(f"/api/preservacion/instanciacion/{inst.id}/verificar", headers=archivista).status_code == 200
     e = cliente.get("/api/preservacion/eventos-recientes", headers=archivista, params={"fondo_id": str(fondo.id)}).json()

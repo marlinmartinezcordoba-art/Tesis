@@ -642,7 +642,7 @@ function FichaAgente(p: Props) {
           <dt>Forma autorizada del nombre</dt><dd><b>{e.nombre}</b> <span className="meta">(se corrige desde la descripción, que la verifica contra el vocabulario)</span></dd>
           {e.subtipo === "mecanismo" && (
             <TextoEditable etiqueta="Versión exacta (obligatoria)" campo="version" valor={f.campos.version} {...comun}
-                           pista="La versión del modelo o del programa: se exporta como rico:technicalCharacteristics." />
+                           pista="La versión del modelo o del programa. Si el mecanismo actuó sobre un archivo publicado (identificar su formato, convertirlo), se exporta con esa acción como rico:technicalCharacteristics; el motor de análisis no se exporta, porque es procedencia del dato." />
           )}
         </dl>
         {f.falta_version && <div className="aviso alerta">Falta la versión de este mecanismo: sin ella no se puede atribuir un resultado a una versión precisa.</div>}
@@ -875,7 +875,7 @@ function FichaMandato(p: Props) {
     <>
       <Area titulo="Datos del mandato" insignia={<code className="rico">{f.clase_rico}</code>}>
         <dl className="par-dato">
-          <dt>Tipo de instrumento <code className="rico">rico:hasOrHadRuleType</code></dt><dd>{e.subtipo ? SUBTIPO_NOMBRE[e.subtipo] || e.subtipo : "—"}</dd>
+          <dt>Tipo de instrumento <code className="rico">rico:hasOrHadMandateType</code></dt><dd>{e.subtipo ? SUBTIPO_NOMBRE[e.subtipo] || e.subtipo : "—"}</dd>
           <dt>Fecha de expedición</dt><dd>{f.expedicion?.fecha_legible || <span className="meta">Sin fecha</span>}</dd>
         </dl>
         <h4>Entidad que lo expidió</h4>

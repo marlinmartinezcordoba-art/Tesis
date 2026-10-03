@@ -31,7 +31,7 @@ class ErrorHallazgo(ValueError):
 
 
 def out(h: HallazgoConformidad) -> dict:
-    return {"id": str(h.id), "numero": h.numero, "titulo": h.titulo, "descripcion": h.descripcion,
+    return {"id": str(h.id), "numero": h.numero, "referencia": h.referencia, "titulo": h.titulo, "descripcion": h.descripcion,
             "componentes": list(h.componentes), "estado": h.estado, "estado_nombre": ESTADO_NOMBRE[h.estado],
             "abierto_en": h.abierto_en, "cerrado_en": h.cerrado_en, "accion": h.accion,
             "creado_en": h.creado_en, "actualizado_en": h.actualizado_en}

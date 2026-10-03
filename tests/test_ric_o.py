@@ -47,3 +47,33 @@ def test_grupo_se_instancia_directamente():
 def test_etiquetas_oficiales_en_espanol():
     assert ric_o.etiqueta_es("RecordPart") == "Componente documental"
     assert ric_o.etiqueta("has_or_had_holder") == "rico:hasOrHadHolder"
+
+
+def test_ningun_nombre_rico_escrito_en_el_codigo_o_la_interfaz_es_ajeno_al_owl():
+    """Hallazgo O-28: toda cadena «rico:X» que el sistema muestra (API, hojas
+    de cálculo, interfaz, perfil SHACL) existe en el OWL oficial de RiC-O 1.1."""
+    import re
+    from pathlib import Path
+
+    from rdflib import URIRef
+
+    raiz = Path(__file__).resolve().parent.parent
+    owl = ric_o._owl()
+    definidos = {str(s).split("#")[-1] for s in owl.subjects() if isinstance(s, URIRef) and str(s).startswith(ric_o.RICO)}
+    hallados = {}
+    for carpeta, patrones in (("app", ("*.py", "*.ttl")), ("frontend/src", ("*.ts", "*.tsx"))):
+        for patron in patrones:
+            for archivo in (raiz / carpeta).rglob(patron):
+                if "recursos/ric-o" in str(archivo):
+                    continue
+                for nombre in re.findall(r"rico:([A-Za-z][A-Za-z0-9]*)", archivo.read_text(encoding="utf-8")):
+                    hallados.setdefault(nombre, str(archivo.relative_to(raiz)))
+    ajenos = {n: a for n, a in hallados.items() if n not in definidos}
+    assert len(hallados) > 30
+    assert not ajenos, ajenos
+
+
+def test_uri_de_la_forma_documental_es_la_del_owl():
+    assert ric_o.uri("forma_documental") == "rico:hasDocumentaryFormType"
+    assert ric_o.uri("has_successor") == "rico:hasSuccessor" and ric_o.uri_inversa("has_successor") == "rico:isSuccessorOf"
+    assert ric_o.uri("no_existe") is None

@@ -7,6 +7,14 @@ configurado, se le calcula la huella y solo si coincide con la registrada
 en la ingesta se le da su nombre definitivo. Nunca se borra una copia: si
 se rehace o si el administrador cambia el lugar, la anterior queda
 «reemplazada» con su archivo intacto.
+
+Independencia (hallazgo PRE-07):
+- cada lugar lleva, por fondo, un manifiesto de solo anexar
+  (manifiestos/<fondo>/manifest-sha256.txt) con la huella de cada copia que
+  se escribe: una referencia que no vive en la base de datos, para
+  distinguir un archivo alterado de una huella de referencia alterada;
+- con RICORA_SEGUNDA_COPIA_SOLO_LECTURA=1 (la web, en docker-compose) este
+  proceso no escribe nunca en la segunda copia: la crea el trabajador.
 """
 
 import hashlib
@@ -59,7 +67,7 @@ def ubicacion_actual(db: Session) -> Path:
 def estado_ubicacion(u: Path) -> dict:
     existe = u.is_dir()
     libre = shutil.disk_usage(u).free if existe else None
-    return {"ruta": str(u), "existe": existe, "escribible": existe and os.access(u, os.W_OK), "libre_bytes": libre,
+    return {"ruta": str(u), "existe": existe, "escribible": existe and (solo_lectura() or os.access(u, os.W_OK)), "libre_bytes": libre,
             "mismo_disco_que_primaria": existe and almacen.raiz().exists()
             and os.stat(u).st_dev == os.stat(almacen.raiz()).st_dev}
 
@@ -98,11 +106,43 @@ def comprobar(copia: SegundaCopia | None, huella_esperada: str) -> tuple[str, st
     return ("integra" if calculada == huella_esperada else "alterada"), calculada
 
 
+def _manifiesto(raiz: Path, fondo_id) -> Path:
+    return raiz / "manifiestos" / str(fondo_id) / "manifest-sha256.txt"
+
+
+def _anexar_al_manifiesto(raiz: Path, inst: Instanciacion, copia: SegundaCopia) -> None:
+    ruta = _manifiesto(raiz, inst.fondo_id)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    with ruta.open("a", encoding="utf-8") as f:  # solo anexar: nada se reescribe
+        f.write(f"{copia.huella}  {copia.ruta}  {inst.id}  {ahora().isoformat()}\n")
+
+
+def huella_de_manifiesto(inst: Instanciacion) -> str | None:
+    """La última huella anotada para esta instanciación en los manifiestos
+    de los lugares de segunda copia (fuera de la base de datos)."""
+    encontrada = None
+    for raiz in ubicaciones():
+        ruta = _manifiesto(raiz, inst.fondo_id)
+        if not ruta.is_file():
+            continue
+        for linea in ruta.read_text(encoding="utf-8").splitlines():
+            partes = linea.split()
+            if len(partes) >= 3 and partes[2] == str(inst.id):
+                encontrada = partes[0]
+    return encontrada
+
+
+def solo_lectura() -> bool:
+    return settings.segunda_copia_solo_lectura
+
+
 def crear(db: Session, inst: Instanciacion, motivo: str, usuario_id: uuid.UUID | None = None,
           ip: str | None = None) -> SegundaCopia:
     """Copia la primaria al lugar configurado. Si la copia escrita no tiene
     la huella de la ingesta (la primaria cambió), no se guarda nada y se
     lanza ErrorSegundaCopia: nunca se replica un archivo alterado."""
+    if solo_lectura():
+        raise ErrorSegundaCopia("Este proceso no escribe en la segunda copia: la crea el trabajador.")
     raiz = ubicacion_actual(db)
     copia = SegundaCopia(id=uuid.uuid4(), instanciacion_id=inst.id, ubicacion=str(raiz), motivo=motivo,
                          creada_por_id=usuario_id, algoritmo=inst.algoritmo_huella, estado="sincronizada")
@@ -119,6 +159,7 @@ def crear(db: Session, inst: Instanciacion, motivo: str, usuario_id: uuid.UUID |
     finally:
         temporal.unlink(missing_ok=True)  # la copia parcial nunca llegó a ser segunda copia
     copia.huella, copia.tamano_bytes, copia.ultima_verificacion_en = huella, destino.stat().st_size, ahora()
+    _anexar_al_manifiesto(raiz, inst, copia)
     from app.servicios import mecanismos  # aquí: mecanismos importa vocabulario
 
     copia.mecanismo_id = mecanismos.del_sistema(db, inst.fondo_id).id
@@ -140,6 +181,8 @@ def asegurar(db: Session, inst: Instanciacion, motivo: str, usuario_id: uuid.UUI
     demás (la ingesta o la migración ya terminaron bien)."""
     from app.servicios import alertas
 
+    if solo_lectura():
+        return vigente(db, inst.id)  # el trabajador la crea en su próxima vuelta (cada minuto)
     try:
         actual = vigente(db, inst.id)
         if actual is not None and actual.ubicacion == str(ubicacion_actual(db)):

@@ -35,7 +35,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import BinaryIO, Callable
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -237,6 +237,18 @@ def verificar(db: Session, inst: Instanciacion, *, origen: str, usuario_id: uuid
         calculada, resultado = None, "ausente"
     copia = segunda_copia.vigente(db, inst.id)
     res_copia, huella_copia = segunda_copia.comprobar(copia, inst.huella)
+    # Referencia independiente de la base (manifiesto de la segunda copia):
+    # si no coincide con la huella registrada, lo alterado es la referencia.
+    referencia = segunda_copia.huella_de_manifiesto(inst)
+    if referencia is not None and referencia != inst.huella:
+        archivos_bien = calculada == referencia and (huella_copia in (None, referencia))
+        alertas.crear(db, tipo="huella_referencia_alterada", severidad="alta", modulo="preservacion",
+                      entidad_tipo="instanciacion", entidad_id=inst.id, fondo_id=inst.fondo_id,
+                      mensaje=(f"«{inst.nombre_original}»: la huella registrada en la base no coincide con el manifiesto "
+                               "de la segunda copia" + (". Los archivos coinciden con el manifiesto: lo alterado es "
+                                                        "la base de datos, no el documento." if archivos_bien else ".")),
+                      detalle={"huella_base": inst.huella, "huella_manifiesto": referencia, "huella_primaria": calculada,
+                               "huella_segunda_copia": huella_copia})
     if res_copia == "sin_copia" and resultado == "integra":
         copia = segunda_copia.asegurar(db, inst, "pendiente")
         res_copia, huella_copia = segunda_copia.comprobar(copia, inst.huella)
@@ -281,30 +293,65 @@ def _verificables(db: Session):
 CLAVE_ULTIMA_VERIFICACION = "preservacion_ultima_verificacion"
 
 
-def verificacion_periodica(db: Session) -> int | None:
-    """La llama el trabajador en cada vuelta. Si pasó la frecuencia
-    configurada desde la última pasada, verifica todo el fondo. Devuelve
-    cuántas instanciaciones verificó, o None si no tocaba."""
+LOTE_VERIFICACION = 20
+MARGEN_ATRASO = timedelta(days=2)
+
+
+def vencidas(db: Session, dias: int):
+    """Instanciaciones cuya última verificación es más vieja que la
+    frecuencia (o que nunca se verificaron)."""
+    limite = ahora() - timedelta(days=dias)
+    return _verificables(db).where(or_(Instanciacion.ultima_verificacion_en.is_(None),
+                                       Instanciacion.ultima_verificacion_en < limite))
+
+
+def verificacion_periodica(db: Session, lote: int = LOTE_VERIFICACION) -> int | None:
+    """La llama el trabajador en cada vuelta. Verifica por antigüedad, en
+    lotes: toma las instanciaciones que llevan más de N días sin
+    verificarse (las más viejas primero). Así un reinicio del trabajador a
+    mitad de camino no salta nada: en la vuelta siguiente sigue con las que
+    faltan (hallazgo PRE-08). Devuelve cuántas verificó, o None si ninguna
+    estaba vencida."""
     dias = int(parametros.leer(db, "preservacion_frecuencia_dias"))
-    fila = db.get(Parametro, CLAVE_ULTIMA_VERIFICACION)
-    if fila is not None and ahora() - datetime.fromisoformat(fila.valor) < timedelta(days=dias):
+    ids = db.scalars(vencidas(db, dias).with_only_columns(Instanciacion.id)
+                     .order_by(Instanciacion.ultima_verificacion_en.asc().nulls_first(), Instanciacion.id)
+                     .limit(lote)).all()
+    revisar_atraso(db, dias)
+    if not ids:
+        db.commit()
         return None
-    # Se marca el inicio antes de recorrer: si el trabajador se reinicia a
-    # mitad de camino, no vuelve a empezar de inmediato.
+    for inst_id in ids:
+        inst = db.get(Instanciacion, inst_id)
+        verificar(db, inst, origen="periodica")
+        db.commit()
+    fila = db.get(Parametro, CLAVE_ULTIMA_VERIFICACION)
     if fila is None:
         db.add(Parametro(clave=CLAVE_ULTIMA_VERIFICACION, valor=ahora().isoformat()))
     else:
         fila.valor = ahora().isoformat()
-    db.commit()
-    n = 0
-    for inst_id in db.scalars(_verificables(db).with_only_columns(Instanciacion.id)).all():
-        inst = db.get(Instanciacion, inst_id)
-        verificar(db, inst, origen="periodica")
-        db.commit()
-        n += 1
     evaluar_riesgos(db)
     db.commit()
-    return n
+    return len(ids)
+
+
+def revisar_atraso(db: Session, dias: int) -> int:
+    """Alerta si hay instanciaciones sin verificar más allá de la frecuencia
+    y un margen: señal de que el trabajador no está corriendo. Se resuelve
+    sola cuando ya no queda ninguna atrasada."""
+    limite = ahora() - timedelta(days=dias) - MARGEN_ATRASO
+    atrasadas = db.scalar(select(func.count()).select_from(_verificables(db).where(
+        or_(Instanciacion.ultima_verificacion_en < limite,
+            and_(Instanciacion.ultima_verificacion_en.is_(None), Instanciacion.cargado_en < limite))).subquery()))
+    pendiente = alertas.pendiente(db, "verificacion_atrasada", "verificacion_periodica")
+    if atrasadas:
+        alertas.crear(db, tipo="verificacion_atrasada", severidad="alta", modulo="preservacion",
+                      entidad_tipo="verificacion_periodica", entidad_id="verificacion_periodica",
+                      mensaje=f"{atrasadas} archivo(s) llevan más de {dias} días sin verificar su integridad. "
+                              "Revise que el trabajador esté en marcha.", detalle={"atrasadas": atrasadas})
+    elif pendiente is not None:
+        alertas.atender(db, pendiente, None, "Resuelta sola: ya no hay archivos con la verificación atrasada.")
+    db.flush()
+    return atrasadas
 
 
 # --- Riesgo de obsolescencia (al panel central de alertas) -----------------------------------------
@@ -657,7 +704,7 @@ def restaurar(db: Session, inst: Instanciacion, usuario_id: uuid.UUID, ip: str |
 
 
 def reponer_segunda_copia(db: Session, inst: Instanciacion, usuario_id: uuid.UUID,
-                          ip: str | None = None) -> SegundaCopia:
+                          ip: str | None = None) -> SegundaCopia | None:
     """La segunda copia alterada o perdida se rehace desde la primaria
     íntegra. La copia dañada no se borra: queda «reemplazada»."""
     try:
@@ -666,6 +713,17 @@ def reponer_segunda_copia(db: Session, inst: Instanciacion, usuario_id: uuid.UUI
         calculada = None
     if calculada != inst.huella:
         raise ErrorPreservacion("La copia primaria no está íntegra: primero restáurela.", 409)
+    if segunda_copia.solo_lectura():
+        # La web no escribe en la segunda copia: se aparta la dañada (no se
+        # borra) y el trabajador crea la nueva en su próxima vuelta.
+        danada = segunda_copia.vigente(db, inst.id)
+        if danada is not None:
+            danada.estado, danada.reemplazada_en = "reemplazada", ahora()
+        registrar(db, modulo="preservacion", accion="segunda_copia_reposicion_encargada", usuario_id=usuario_id,
+                  entidad_tipo="instanciacion", entidad_id=inst.id, ip=ip, detalle=inst.nombre_original,
+                  nuevo={"reemplazada": str(danada.id) if danada else None})
+        db.flush()
+        return None
     try:
         copia = segunda_copia.crear(db, inst, "reposicion", usuario_id, ip)
     except (segunda_copia.ErrorSegundaCopia, OSError) as exc:

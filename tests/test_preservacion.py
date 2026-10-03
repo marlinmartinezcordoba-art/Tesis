@@ -121,27 +121,29 @@ def test_archivo_alterado_queda_en_historial_y_alerta_alta(cliente, db, fondo, a
 
 
 def test_verificacion_periodica_respeta_la_frecuencia(cliente, db, fondo, archivista):
-    ingresar_archivo(cliente, db, archivista, fondo, "a.pdf", archivos.pdf_con_texto("uno"))
-    ingresar_archivo(cliente, db, archivista, fondo, "b.txt", archivos.txt("dos"))
-    assert preservacion.verificacion_periodica(db) == 2  # primera vez: corre
-    assert preservacion.verificacion_periodica(db) is None  # recién hecha: no corre
-    marca = db.get(Parametro, preservacion.CLAVE_ULTIMA_VERIFICACION)
-    marca.valor = (ahora() - timedelta(days=29, hours=23)).isoformat()  # 30 días por defecto: aún no
+    """Por antigüedad de cada archivo (hallazgo PRE-08): se verifica lo que
+    lleva más de N días sin verificar; lo verificado hace poco espera."""
+    a = ingresar_archivo(cliente, db, archivista, fondo, "a.pdf", archivos.pdf_con_texto("uno"))
+    b = ingresar_archivo(cliente, db, archivista, fondo, "b.txt", archivos.txt("dos"))
+    assert preservacion.verificacion_periodica(db) == 2  # nunca verificados: corre
+    assert preservacion.verificacion_periodica(db) is None  # recién hechos: no corre
+    a.ultima_verificacion_en = ahora() - timedelta(days=29, hours=23)  # 30 días por defecto: aún no
+    b.ultima_verificacion_en = ahora() - timedelta(days=29, hours=23)
     db.commit()
     assert preservacion.verificacion_periodica(db) is None
-    marca.valor = (ahora() - timedelta(days=30, minutes=1)).isoformat()
+    a.ultima_verificacion_en = ahora() - timedelta(days=30, minutes=1)
     db.commit()
-    assert preservacion.verificacion_periodica(db) == 2
+    assert preservacion.verificacion_periodica(db) == 1  # solo el vencido
     # Con frecuencia semanal, a los 8 días vuelve a correr; a los 6, no.
     db.add(Parametro(clave="preservacion_frecuencia_dias", valor=7))
-    marca.valor = (ahora() - timedelta(days=6)).isoformat()
+    a.ultima_verificacion_en = b.ultima_verificacion_en = ahora() - timedelta(days=6)
     db.commit()
     assert preservacion.verificacion_periodica(db) is None
-    marca.valor = (ahora() - timedelta(days=8)).isoformat()
+    a.ultima_verificacion_en = b.ultima_verificacion_en = ahora() - timedelta(days=8)
     db.commit()
     assert preservacion.verificacion_periodica(db) == 2
     periodicas = db.scalars(select(VerificacionIntegridad).where(VerificacionIntegridad.origen == "periodica")).all()
-    assert len(periodicas) == 6 and all(v.resultado == "integra" for v in periodicas)
+    assert len(periodicas) == 5 and all(v.resultado == "integra" for v in periodicas)
 
 
 # --- Riesgo de obsolescencia --------------------------------------------------------------------

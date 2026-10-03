@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { dia, peso } from "@/lib/formato";
@@ -102,7 +102,8 @@ interface Eventos {
   verificacion: { fecha: string; resultados: Record<string, number> } | null;
   migracion: { fecha: string; estado: string; destino: string; archivo: string } | null;
   restauracion: { fecha: string; estado_previo: string; archivo: string } | null;
-  simulacro_base_de_datos: null;
+  simulacro_base_de_datos: { fecha: string; estado: "correcto" | "fallido"; respaldo_en: string;
+    tablas: Record<string, number> | null; descargado_en: string | null } | null;
 }
 
 const ICONO_EVENTO = {
@@ -144,13 +145,99 @@ function LineaTiempo({ fondoId }: { fondoId: string }) {
         <Evento estado={e.restauracion ? "alerta" : "neutro"} titulo="Última restauración desde la segunda copia">
           {e.restauracion ? <>{dia(e.restauracion.fecha)} · «{e.restauracion.archivo}» estaba {e.restauracion.estado_previo}</> : "Nunca hizo falta restaurar un archivo."}
         </Evento>
-        <Evento estado="neutro" titulo="Simulacro de restauración de la base de datos">
-          Pendiente: el respaldo probado de la base de datos todavía no está construido en el sistema.
+        <Evento estado={!e.simulacro_base_de_datos ? "alerta" : e.simulacro_base_de_datos.estado === "correcto" ? "bien" : "error"}
+                titulo="Último simulacro de restauración de la base de datos">
+          {e.simulacro_base_de_datos
+            ? <>{dia(e.simulacro_base_de_datos.fecha)} · {e.simulacro_base_de_datos.estado === "correcto"
+                ? `restaurado entero (${e.simulacro_base_de_datos.tablas?.recursos_documentales ?? 0} descripciones, ${e.simulacro_base_de_datos.tablas?.instanciaciones ?? 0} archivos)`
+                : "falló: revise Configuración › Respaldos"}
+                {" · "}{e.simulacro_base_de_datos.descargado_en ? `copia fuera del servidor el ${dia(e.simulacro_base_de_datos.descargado_en)}` : "aún sin copia fuera del servidor"}</>
+            : "Todavía no hay respaldo: el sistema lo hace solo en las próximas horas."}
         </Evento>
       </ol>
     </div>
   );
 }
+// --- Respaldos de la base de datos (solo administrador) ------------------------------------------
+
+interface Respaldo {
+  id: string; iniciado_en: string; origen: string; estado: "en_curso" | "correcto" | "fallido";
+  archivo: string | null; tamano_bytes: number | null; huella: string | null; error: string | null;
+  simulacro_estado: "correcto" | "fallido" | null; simulacro_error: string | null;
+  descargado_en: string | null; depurado_en: string | null; destino: string;
+}
+
+function Respaldos() {
+  const [datos, setDatos] = useState<{ respaldos: Respaldo[]; frecuencia_horas: number; dias_copia_externa: number } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [aviso, setAviso] = useState<{ tipo: "bien" | "error"; texto: string } | null>(null);
+  const cargar = useCallback(() => {
+    pedir<typeof datos>("/api/preservacion/respaldos").then(setDatos).catch(() => setDatos(null));
+  }, []);
+  useEffect(cargar, [cargar]);
+
+  async function ahora() {
+    setOcupado(true); setAviso(null);
+    try {
+      const r = await pedir<Respaldo>("/api/preservacion/respaldos", { method: "POST" });
+      setAviso(r.simulacro_estado === "correcto"
+        ? { tipo: "bien", texto: "Respaldo hecho y restaurado de prueba sin diferencias." }
+        : { tipo: "error", texto: `El respaldo o su simulacro falló: ${r.error || r.simulacro_error || "revise el registro"}` });
+      cargar();
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo respaldar." });
+    } finally { setOcupado(false); }
+  }
+
+  async function bajar(r: Respaldo) {
+    try {
+      const h = await descargar(`/api/preservacion/respaldos/${r.id}/descargar`);
+      setAviso({ tipo: "bien", texto: `Descargado. Guárdelo fuera del servidor; su huella SHA-256 es ${h.get("X-Huella-SHA256")}.` });
+      cargar();
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo descargar." });
+    }
+  }
+
+  if (!datos) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">
+        <span>Respaldos de la base de datos</span>
+        <button type="button" className="boton chico" disabled={ocupado} onClick={ahora}>{ocupado ? "Respaldando…" : "Respaldar ahora"}</button>
+      </div>
+      <div className="tarjeta-cuerpo">
+        <p className="sub" style={{ marginTop: 0 }}>
+          Cada {datos.frecuencia_horas} h el sistema vuelca la base y la restaura de prueba en una base aparte para comprobar
+          que el respaldo sirve. El volcado queda en el mismo servidor: descárguelo a otro equipo al menos cada{" "}
+          {datos.dias_copia_externa} días, o el sistema le avisará.
+        </p>
+        {aviso && <div className={`aviso ${aviso.tipo}`} role="status">{aviso.texto}</div>}
+        {datos.respaldos.length === 0 ? <div className="vacio">Todavía no hay respaldos.</div> : (
+          <div className="tabla-desplazable">
+            <table className="tabla">
+              <thead><tr><th>Fecha</th><th>Respaldo</th><th>Simulacro</th><th>Tamaño</th><th>Fuera del servidor</th><th /></tr></thead>
+              <tbody>
+                {datos.respaldos.slice(0, 10).map((r) => (
+                  <tr key={r.id}>
+                    <td>{dia(r.iniciado_en)}</td>
+                    <td><span className={`insignia ${r.estado === "correcto" ? "bien" : r.estado === "fallido" ? "error" : ""}`}>{r.estado}</span></td>
+                    <td>{r.simulacro_estado ? <span className={`insignia ${r.simulacro_estado === "correcto" ? "bien" : "error"}`}>{r.simulacro_estado}</span> : "—"}</td>
+                    <td>{r.tamano_bytes ? peso(r.tamano_bytes) : "—"}</td>
+                    <td>{r.descargado_en ? dia(r.descargado_en) : "—"}</td>
+                    <td>{r.estado === "correcto" && !r.depurado_en && (
+                      <button type="button" className="boton chico" onClick={() => bajar(r)}>Descargar</button>)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ESTADO_MIGRACION: Record<string, string> = { completada: "completada", fallida: "fallida", en_curso: "en curso", esperando_archivo: "esperando el archivo convertido" };
 
 // --- Configuración (solo administrador) --------------------------------------------------------
@@ -213,6 +300,8 @@ export function ConfiguracionPreservacion() {
       {!conf.herramientas.ghostscript && (
         <div className="aviso alerta">Ghostscript no está instalado en este servidor: la conversión a PDF/A no funcionará.</div>
       )}
+
+      <Respaldos />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Frecuencia de la verificación de integridad</div>

@@ -25,7 +25,7 @@ from app.db.session import get_db
 from app.models.preservacion import Migracion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
-from app.servicios import derechos, paquete, parametros, preservacion, segunda_copia
+from app.servicios import derechos, paquete, parametros, preservacion, respaldo, segunda_copia
 from app.servicios.auditoria import ip_de
 
 router = APIRouter(prefix="/api/preservacion", tags=["Módulo 5 · Preservación"])
@@ -115,9 +115,61 @@ def eventos_recientes(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Sessi
                       "archivo": db.get(Instanciacion, m.instanciacion_origen_id).nombre_original} if m else None,
         "restauracion": {"fecha": r.fecha, "estado_previo": r.estado_previo,
                          "archivo": db.get(Instanciacion, r.instanciacion_id).nombre_original} if r else None,
-        # El respaldo probado de la base de datos (con simulacro de restauración) aún no existe en el sistema.
-        "simulacro_base_de_datos": None,
+        # El último respaldo de la base con simulacro de restauración (PRE-10).
+        "simulacro_base_de_datos": _simulacro_reciente(db),
     }
+
+
+def _simulacro_reciente(db: Session) -> dict | None:
+    from sqlalchemy import select
+
+    from app.models.preservacion import RespaldoBaseDatos
+
+    r = db.scalars(select(RespaldoBaseDatos).where(RespaldoBaseDatos.simulacro_en.is_not(None))
+                   .order_by(RespaldoBaseDatos.simulacro_en.desc()).limit(1)).first()
+    if r is None:
+        return None
+    return {"fecha": r.simulacro_en, "estado": r.simulacro_estado, "respaldo_en": r.iniciado_en,
+            "tablas": (r.simulacro_detalle or {}).get("tablas"), "descargado_en": r.descargado_en}
+
+
+# --- Respaldo de la base de datos y simulacro de restauración (PRE-10) ------------------------------
+
+
+@router.get("/respaldos", summary="Respaldos de la base de datos y sus simulacros de restauración")
+def respaldos(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    from sqlalchemy import select
+
+    from app.models.preservacion import RespaldoBaseDatos
+
+    filas = db.scalars(select(RespaldoBaseDatos).order_by(RespaldoBaseDatos.iniciado_en.desc()).limit(60)).all()
+    return {"respaldos": [respaldo.out(r) for r in filas],
+            "frecuencia_horas": parametros.leer(db, "respaldo_frecuencia_horas"),
+            "dias_copia_externa": parametros.leer(db, "respaldo_dias_copia_externa")}
+
+
+@router.post("/respaldos", summary="Respaldar la base ahora y probar su restauración (administrador)")
+async def respaldar_ahora(request: Request, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    r = await run_in_threadpool(respaldo.respaldar_y_probar, db, "manual", actor.id)
+    db.commit()
+    return respaldo.out(r)
+
+
+@router.get("/respaldos/{respaldo_id}/descargar", summary="Descargar un respaldo fuera del servidor (administrador)")
+def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                       db: Session = Depends(get_db)):
+    from pathlib import Path
+
+    from app.models.preservacion import RespaldoBaseDatos
+
+    r = db.get(RespaldoBaseDatos, respaldo_id)
+    if r is None or r.estado != "correcto" or r.depurado_en is not None or not r.archivo or not Path(r.archivo).exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ese respaldo no está disponible en el servidor.")
+    respaldo.registrar_descarga(db, r, actor.id, ip_de(request))
+    db.commit()
+    # La huella va en el encabezado: quien lo guarde puede comprobar que llegó entero.
+    return FileResponse(r.archivo, filename=Path(r.archivo).name, media_type="application/octet-stream",
+                        headers={"X-Huella-SHA256": r.huella or ""})
 
 
 @router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones")

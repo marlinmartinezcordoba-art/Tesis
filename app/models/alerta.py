@@ -15,6 +15,11 @@ TIPO_ALERTA = (
     "integridad_alterada",  # preservación
     "riesgo_obsolescencia",  # preservación
     "segunda_copia_alterada",  # preservación: la segunda copia cambió, falta o no se pudo crear
+    "respaldo_fallido",  # preservación: el respaldo de la base o su simulacro de restauración falló
+    "respaldo_atrasado",  # preservación: no hay un respaldo probado reciente
+    "respaldo_sin_copia_externa",  # preservación: nadie se llevó el respaldo fuera del servidor
+    "verificacion_atrasada",
+    "huella_referencia_alterada",  # preservación: la huella de la base no coincide con el manifiesto independiente  # preservación: hay instanciaciones sin verificar dentro del plazo
 )
 
 

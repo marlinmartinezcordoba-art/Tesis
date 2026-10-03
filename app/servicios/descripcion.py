@@ -51,11 +51,10 @@ from app.db.base import ahora
 from app.models.descripcion import (
     Actividad, EntidadVocabulario, Fecha, Relacion, TrabajoDescripcion, TrabajoInstanciacion,
 )
-from app.models.enums import URI_RICO
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.models.usuario import Usuario
-from app.servicios import fechas, mecanismos, vocabulario
+from app.servicios import fechas, mecanismos, ric_o, vocabulario
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
@@ -844,7 +843,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
             continue
         entidades.append({
             "relacion_id": str(r.id), "entidad_id": str(nodo_id), "tipo": tipo, "valor": valor, "subtipo": subtipo,
-            "rol": r.rol, "codigo_ric": r.codigo_ric, "uri_rico": URI_RICO.get(r.codigo_ric),
+            "rol": r.rol, "codigo_ric": r.codigo_ric, "uri_rico": ric_o.uri(r.codigo_ric),
             "fragmento": r.fragmento, "documento_id": str(r.fragmento_instanciacion_id) if r.fragmento_instanciacion_id else None,
             "origen": r.origen, "confianza": r.confianza, "motor": r.motor, "estado_revision": r.estado_revision, **extra,
         })

@@ -109,6 +109,10 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "copia_primaria_restaurada": ("Restauró la copia primaria desde la segunda copia", "Restauraciones"),
     "derechos_declarados": ("Declaró derechos", "Declaraciones de derechos"),
     "paquete_exportado": ("Exportó un paquete de preservación (AIP)", "Paquetes de preservación"),
+    "segunda_copia_reposicion_encargada": ("Encargó rehacer una segunda copia", None),
+    "respaldo_bd": ("Respaldó la base de datos", "Respaldos de la base de datos"),
+    "simulacro_restauracion": ("Probó restaurar un respaldo de la base", None),
+    "respaldo_descargado": ("Descargó un respaldo fuera del servidor", None),
 }
 
 

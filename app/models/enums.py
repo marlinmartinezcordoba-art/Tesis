@@ -13,11 +13,8 @@ SOPORTE_DOCUMENTO = ("fisico", "digital_nativo", "digitalizado")
 # Instanciación — tipo de copia (sección 09, bloque Instanciación)
 TIPO_COPIA = ("master_preservacion", "copia_acceso")
 
-# Instanciación — condición de acceso (sección 09, bloque Instanciación;
-# conecta con Ley 1712 de 2014 sobre transparencia y acceso a la información
-# pública — la clasificación real de cada documento es una decisión
-# archivística, este campo solo la registra)
-CONDICION_ACCESO = ("abierto", "restringido", "reservado")
+# La condición de acceso (Ley 1712 de 2014) vive en una sola parte: la
+# declaración de derechos (models/preservacion.py, servicios/derechos.py).
 
 # Agente — tipo de agente (sección 09, bloque Agente; subtipos de la clase
 # Agent en RiC-CM 1.0: Person (RiC-E08) y Group (RiC-E09) con CorporateBody
@@ -133,34 +130,8 @@ CODIGO_RELACION_RIC = (
     "issued_by",  # RiC-R065 — mandato → entidad que lo expidió
 )
 
-# Rango de cada código: URI en RiC-O 1.1, para la exportación.
-URI_RICO = {
-    "has_creator": "rico:hasCreator",
-    "has_sender": "rico:hasSender",
-    "has_addressee": "rico:hasAddressee",
-    "includes_or_included": "rico:includesOrIncluded",
-    "is_creation_date_of": "rico:isCreationDateOf",
-    "has_or_had_instantiation": "rico:hasOrHadInstantiation",
-    "documents": "rico:documents",
-    "has_or_had_subject": "rico:hasOrHadSubject",
-    "has_activity_type": "rico:hasActivityType",
-    "performs_or_performed": "rico:performsOrPerformed",
-    "regulates_or_regulated": "rico:regulatesOrRegulated",
-    "authorizes": "rico:authorizes",
-    "has_or_had_subordinate": "rico:hasOrHadSubordinate",
-    "has_successor": "rico:hasSuccessor",
-    "is_agent_associated_with_agent": "rico:isAgentAssociatedWithAgent",
-    "is_date_associated_with": "rico:isDateAssociatedWith",
-    "migrated_into": "rico:migratedInto",
-}
-
-# Inversa declarada en RiC-O 1.1 (owl:inverseOf) de las relaciones entre
-# agentes: se guarda una sola fila y la inversa se lee de ella.
-INVERSA_RICO = {
-    "has_or_had_subordinate": "rico:isOrWasSubordinateTo",
-    "has_successor": "rico:isSuccessorOf",
-    "is_agent_associated_with_agent": "rico:isAgentAssociatedWithAgent",  # simétrica
-}
+# Los nombres de RiC-O de cada código (y su inversa) viven solo en
+# app/servicios/ric_o.py: ric_o.uri() y ric_o.uri_inversa().
 
 # Relación — de dónde salió la propuesta (CC-05, CC-08)
 ORIGEN_DECISION = ("propuesta_ia", "correccion_manual")

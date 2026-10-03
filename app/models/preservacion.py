@@ -20,7 +20,7 @@ Instantiation (RiC-E06), nunca en el Record Resource.
 import uuid
 
 from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base, ahora
 
@@ -132,3 +132,34 @@ class DeclaracionDerechos(Base):
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     creada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     reemplazada_en = Column(DateTime(timezone=True), nullable=True)
+
+
+ESTADO_RESPALDO = ("en_curso", "correcto", "fallido")
+ESTADO_SIMULACRO = ("correcto", "fallido")
+
+
+class RespaldoBaseDatos(Base):
+    """Respaldo de la base de datos (OAIS Gestión de Datos; NDSA
+    Almacenamiento y Metadatos) y su simulacro de restauración: el volcado
+    se restaura en una base efímera y se comparan los conteos y la huella de
+    las tablas clave con los que tenía la base en el instante del volcado.
+    Un respaldo sin restauración probada no cuenta como respaldo."""
+
+    __tablename__ = "respaldos_bd"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    iniciado_en = Column(DateTime(timezone=True), default=ahora, nullable=False, index=True)
+    terminado_en = Column(DateTime(timezone=True), nullable=True)
+    origen = Column(String(20), nullable=False, default="periodico")  # periodico | manual
+    estado = Column(Enum(*ESTADO_RESPALDO, name="estado_respaldo"), nullable=False, default="en_curso")
+    archivo = Column(String(300), nullable=True)  # ruta del volcado (formato personalizado de pg_dump)
+    tamano_bytes = Column(BigInteger, nullable=True)
+    huella = Column(String(64), nullable=True)  # SHA-256 del volcado
+    conteos = Column(JSONB, nullable=True)  # tabla → filas, y la huella de las huellas de fijeza
+    error = Column(String(1000), nullable=True)
+    simulacro_en = Column(DateTime(timezone=True), nullable=True)
+    simulacro_estado = Column(Enum(*ESTADO_SIMULACRO, name="estado_simulacro"), nullable=True)
+    simulacro_detalle = Column(JSONB, nullable=True)  # lo restaurado frente a lo esperado
+    descargado_en = Column(DateTime(timezone=True), nullable=True)  # última copia llevada fuera del servidor
+    descargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    depurado_en = Column(DateTime(timezone=True), nullable=True)  # el archivo salió por la retención; la fila queda

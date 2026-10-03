@@ -32,6 +32,9 @@ BASE_PREMIS = {"estatuto": "Statute", "licencia": "License", "derecho_de_autor":
                "politica_institucional": "Institutional policy", "otra": "Other"}
 ACCESO_NOMBRE = {"publico": "Acceso público", "clasificado": "Información clasificada (Ley 1712 de 2014, art. 18)",
                  "reservado": "Información reservada (Ley 1712 de 2014, art. 19)"}
+# Ley 1712 de 2014: lo que no se entrega a quien no es del equipo de archivo.
+ACCESO_RESTRINGIDO = ("clasificado", "reservado")
+
 REPRODUCCION_NOMBRE = {"permitida": "Reproducción permitida", "condicionada": "Reproducción con condiciones",
                        "no_permitida": "Reproducción no permitida"}
 
@@ -41,12 +44,46 @@ def _vigente(db: Session, entidad_id: uuid.UUID) -> DeclaracionDerechos | None:
                                                        DeclaracionDerechos.vigente.is_(True)))
 
 
+def restringe(d: DeclaracionDerechos | None, hoy: date | None = None) -> bool:
+    """¿Esta declaración impide hoy la consulta pública? Una reserva con plazo
+    vencido ya no restringe: la Ley 1712, art. 22, fija su duración y al
+    vencer el documento vuelve a ser público sin trámite. La declaración no
+    se toca (la historia queda); solo deja de aplicarse."""
+    if d is None or d.acceso not in ACCESO_RESTRINGIDO:
+        return False
+    return d.vigente_hasta is None or d.vigente_hasta >= (hoy or date.today())
+
+
+def declaracion_que_rige(db: Session, inst: Instanciacion) -> tuple[DeclaracionDerechos | None, str | None, str | None]:
+    """La declaración que rige el archivo (la propia o la heredada del nivel
+    más cercano hacia arriba), con el nivel y el título de donde viene."""
+    propia = _vigente(db, inst.id)
+    if propia is not None:
+        return propia, "instanciacion", inst.nombre_original
+    for recurso in recursos_de(db, inst):
+        actual = recurso
+        while actual is not None:
+            d = _vigente(db, actual.id)
+            if d is not None:
+                return d, actual.nivel, actual.titulo
+            actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id else None
+    fondo = db.get(RecursoDocumental, inst.fondo_id)
+    d = _vigente(db, fondo.id) if fondo else None
+    return (d, "fondo", fondo.titulo) if d else (None, None, None)
+
+
+def instanciacion_restringida(db: Session, inst: Instanciacion) -> bool:
+    """¿El archivo está hoy bajo reserva o clasificación, propia o heredada?"""
+    return restringe(declaracion_que_rige(db, inst)[0])
+
+
 def out(d: DeclaracionDerechos, nivel: str | None = None, titulo: str | None = None) -> dict:
     return {"id": str(d.id), "entidad_tipo": d.entidad_tipo, "entidad_id": str(d.entidad_id), "nivel": nivel,
             "titulo": titulo, "base": d.base, "base_nombre": BASE_NOMBRE[d.base], "acceso": d.acceso,
             "acceso_nombre": ACCESO_NOMBRE[d.acceso], "reproduccion": d.reproduccion,
             "reproduccion_nombre": REPRODUCCION_NOMBRE[d.reproduccion], "fundamento": d.fundamento, "nota": d.nota,
-            "vigente_hasta": d.vigente_hasta, "creada_en": d.creada_en}
+            "vigente_hasta": d.vigente_hasta, "vencida": d.acceso in ACCESO_RESTRINGIDO and not restringe(d),
+            "creada_en": d.creada_en}
 
 
 def recursos_de(db: Session, inst: Instanciacion) -> list[RecursoDocumental]:
@@ -62,19 +99,10 @@ def recursos_de(db: Session, inst: Instanciacion) -> list[RecursoDocumental]:
 
 def aplicable(db: Session, inst: Instanciacion) -> dict | None:
     """La declaración que rige este archivo y de dónde viene."""
-    propia = _vigente(db, inst.id)
-    if propia is not None:
-        return out(propia, "instanciacion", inst.nombre_original) | {"heredada": False}
-    for recurso in recursos_de(db, inst):
-        actual = recurso
-        while actual is not None:
-            d = _vigente(db, actual.id)
-            if d is not None:
-                return out(d, actual.nivel, actual.titulo) | {"heredada": True}
-            actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id else None
-    fondo = db.get(RecursoDocumental, inst.fondo_id)
-    d = _vigente(db, fondo.id) if fondo else None
-    return out(d, "fondo", fondo.titulo) | {"heredada": True} if d else None
+    d, nivel, titulo = declaracion_que_rige(db, inst)
+    if d is None:
+        return None
+    return out(d, nivel, titulo) | {"heredada": nivel != "instanciacion", "restringe": restringe(d)}
 
 
 def declarar(db: Session, *, entidad_tipo: str, entidad_id: uuid.UUID, base: str, acceso: str, reproduccion: str,

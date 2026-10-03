@@ -291,7 +291,7 @@ export function InstanciacionPreservacion() {
         { method: "POST", body: JSON.stringify({ aprobada: true }) });
       terminar(accion === "restaurar"
         ? "Copia primaria restaurada desde la segunda copia. El archivo dañado quedó apartado en cuarentena, sin borrarse."
-        : "Segunda copia rehecha desde la primaria. La copia dañada se conserva como «reemplazada».");
+        : "Segunda copia encargada: la copia dañada se conserva como «reemplazada» y la nueva queda lista en menos de un minuto.");
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo completar la acción.");
     } finally {

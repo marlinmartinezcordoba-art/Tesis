@@ -41,6 +41,15 @@ DEFINICIONES: dict[str, Definicion] = {
     "preservacion_formatos": Definicion(None, lambda v: _formatos(v), "Formatos soportados para migración automática."),
     "preservacion_segunda_ubicacion": Definicion(None, lambda v: _segunda_ubicacion(v),
                                                  "Lugar donde se guarda la segunda copia de cada instanciación."),
+    "respaldo_frecuencia_horas": Definicion(24, _entero_entre(1, 720),
+                                            "Cada cuántas horas se respalda la base de datos (con su simulacro "
+                                            "de restauración)."),
+    "respaldo_retencion": Definicion(30, _entero_entre(3, 3650),
+                                     "Cuántos volcados de la base se conservan en el servidor; los anteriores se "
+                                     "retiran del disco, pero su registro queda."),
+    "respaldo_dias_copia_externa": Definicion(7, _entero_entre(1, 90),
+                                              "Cada cuántos días, como máximo, alguien debe llevarse el último "
+                                              "respaldo fuera del servidor."),
     "rdf_uris_publicas": Definicion(False, lambda v: None if isinstance(v, bool) else "Debe ser verdadero o falso.",
                                     "Si las URI de RiC-O (/id/…) se resuelven sin iniciar sesión. Apagado por "
                                     "defecto: encenderlo publica en internet lo descrito con acceso público."),

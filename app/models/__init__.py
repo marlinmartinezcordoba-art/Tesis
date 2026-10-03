@@ -11,7 +11,7 @@ from app.models.descripcion import (  # noqa: F401
 from app.models.instanciacion import Instanciacion  # noqa: F401
 from app.models.parametro import Parametro  # noqa: F401
 from app.models.preservacion import (  # noqa: F401
-    DeclaracionDerechos, Migracion, Restauracion, SegundaCopia, VerificacionIntegridad,
+    DeclaracionDerechos, Migracion, RespaldoBaseDatos, Restauracion, SegundaCopia, VerificacionIntegridad,
 )
 from app.models.recurso_documental import RecursoDocumental  # noqa: F401
 from app.models.rol import Rol  # noqa: F401

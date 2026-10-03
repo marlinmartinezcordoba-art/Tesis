@@ -17,7 +17,6 @@ from app.core.permisos import Actor
 from app.models.instanciacion import Instanciacion
 from app.servicios import derechos, recorte
 
-ACCESO_RESTRINGIDO = ("clasificado", "reservado")
 
 
 class ErrorPrevisualizacion(Exception):
@@ -35,7 +34,7 @@ def documento(db: Session, actor: Actor, instanciacion_id: uuid.UUID) -> Instanc
     if inst is None or inst.estado in ("descartado",):
         raise ErrorPrevisualizacion("El documento no existe.", 404)
     declaracion = derechos.aplicable(db, inst)
-    if declaracion and declaracion["acceso"] in ACCESO_RESTRINGIDO and not es_archivista(actor):
+    if declaracion and declaracion["restringe"] and not es_archivista(actor):
         raise ErrorPrevisualizacion(
             f"Documento con acceso {declaracion['acceso_nombre'].lower()}: solo lo ve el equipo de archivo.", 403)
     return inst

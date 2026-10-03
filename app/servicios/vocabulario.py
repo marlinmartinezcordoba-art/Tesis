@@ -351,7 +351,7 @@ def relacionar_agentes(db: Session, *, origen: EntidadVocabulario, destino: Enti
 def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
     """Las relaciones del agente leídas en los dos sentidos, con la inversa
     cuando el agente es el destino."""
-    from app.models.enums import INVERSA_RICO, URI_RICO
+    from app.servicios import ric_o
 
     codigos = [c for c, _, _ in RELACION_AGENTES.values()]
     filas = db.scalars(select(Relacion).where(Relacion.codigo_ric.in_(codigos), Relacion.estado == "vigente",
@@ -364,7 +364,7 @@ def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
         otro = db.get(EntidadVocabulario, r.destino_id if es_origen else r.origen_id)
         salida.append({"relacion_id": str(r.id), "tipo": tipo, "codigo_ric": r.codigo_ric,
                        "etiqueta": directa.split(": ")[1] if es_origen else inversa,
-                       "uri_rico": URI_RICO[r.codigo_ric] if es_origen else INVERSA_RICO[r.codigo_ric],
+                       "uri_rico": ric_o.uri(r.codigo_ric) if es_origen else ric_o.uri_inversa(r.codigo_ric),
                        "con": {"id": str(otro.id), "nombre": otro.nombre, "subtipo": otro.subtipo} if otro else None})
     return salida
 

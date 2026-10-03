@@ -9,6 +9,8 @@ Trabajador en segundo plano, proceso aparte del servidor web:
   huella de todas las instanciaciones, primaria y segunda copia, y alerta
   si alguna cambió; cada minuto crea las segundas copias que falten
   (fondos anteriores o cambio del lugar configurado);
+- respaldo: cada cierto tiempo (24 h por defecto) vuelca la base de datos
+  y prueba restaurarla en una base efímera (hallazgo PRE-10);
 - mecanismos: cada minuto vincula a su agente mecanismo del vocabulario
   las filas guardadas antes de la migración 0013 con el programa como texto.
 Si el OCR de un archivo pesado falla o consume memoria, el servidor web
@@ -26,7 +28,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import mecanismos, preservacion, procesamiento, sesiones, vocabulario
+from app.servicios import mecanismos, preservacion, procesamiento, respaldo, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -70,6 +72,10 @@ def main() -> None:
                 verificadas = preservacion.verificacion_periodica(db)
                 if verificadas is not None:
                     log.info("Preservación: %s instanciación(es) verificadas.", verificadas)
+                # Respaldo de la base con su simulacro de restauración.
+                hecho = respaldo.periodico(db)
+                if hecho is not None:
+                    log.info("Respaldo de la base: %s, simulacro %s.", hecho.estado, hecho.simulacro_estado)
                 if time.monotonic() - ultima_replica >= 60:
                     replicadas = preservacion.replicar_pendientes(db)
                     if replicadas:

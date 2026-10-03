@@ -26,8 +26,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     RICORA_SIEGFRIED=/usr/local/bin/sf \
     RICORA_SIEGFRIED_HOME=/opt/siegfried
 # OCR: Tesseract con el idioma español. Preservación: Ghostscript (PDF → PDF/A).
+# Respaldo de la base: pg_dump y pg_restore de PostgreSQL 16, la misma
+# versión del servidor (el cliente de Debian es 15 y no vuelca un servidor
+# 16), desde el repositorio oficial de PostgreSQL.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa ghostscript \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa ghostscript curl ca-certificates \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=siegfried /go/bin/sf /usr/local/bin/sf
 COPY --from=siegfried /opt/siegfried /opt/siegfried
@@ -39,7 +47,7 @@ COPY alembic ./alembic
 COPY app ./app
 COPY --from=interfaz /interfaz/dist ./interfaz
 RUN useradd --create-home --uid 1000 ricora \
-    && mkdir -p /data/almacen /data/segunda_copia \
+    && mkdir -p /data/almacen /data/segunda_copia /data/respaldo \
     && chown -R ricora:ricora /data \
     && chmod +x docker-entrypoint.sh
 USER ricora

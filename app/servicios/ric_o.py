@@ -204,6 +204,18 @@ PROPIEDADES: dict[str, Propiedad] = {
 }
 
 # Atributos (propiedades de dato) que el sistema exporta.
+# Acciones técnicas sobre una instanciación (identificación de formato,
+# migración): una Activity que ejerce el agente Mechanism (performsOrPerformed)
+# y que afecta al archivo. No es una relación que el archivista declare: se
+# deriva de los eventos PREMIS al exportar (hallazgos CM-11, CM-22, O-19).
+ACCION_TECNICA: dict[str, Propiedad] = {
+    "afecta": Propiedad("affectsOrAffected", "RiC-R059", ("Activity",), ("Instantiation",), "isOrWasAffectedBy",
+                        estado="general",
+                        nota="RiC-O no tiene una propiedad dedicada a «la acción técnica se hizo sobre este "
+                             "archivo»; R059 (el evento tuvo un impacto significativo en la cosa) es la más "
+                             "cercana y su rango es Thing."),
+}
+
 ATRIBUTOS = {
     # rico:title especializa RiC-A28 Name (RiC-A40 es Structure: corregido
     # al comprobar los códigos de atributo contra el OWL).
@@ -325,6 +337,27 @@ SKOS_BROADER = "broader"  # jerarquía función/subfunción: SKOS, no RiC-O
 SKOS_NARROWER = "narrower"
 
 
+def uri(codigo: str | None) -> str | None:
+    """«rico:…» de un código de relación o de un apoyo (p. ej. la forma
+    documental), para mostrarlo en la API, en las hojas de cálculo y en la
+    interfaz. Única fuente: nadie escribe un nombre de RiC-O a mano."""
+    if not codigo:
+        return None
+    p = PROPIEDADES.get(codigo)
+    if p is not None:
+        return f"rico:{p.rico}"
+    if codigo in APOYO:
+        return f"rico:{APOYO[codigo][0]}"
+    return None
+
+
+def uri_inversa(codigo: str) -> str | None:
+    """La inversa declarada en el OWL (owl:inverseOf), para leer una fila
+    desde su destino."""
+    p = PROPIEDADES.get(codigo)
+    return f"rico:{p.inversa}" if p is not None and p.inversa else None
+
+
 def propiedad(codigo: str) -> Propiedad | None:
     return PROPIEDADES.get(codigo)
 
@@ -410,7 +443,7 @@ def verificar_contra_owl() -> list[str]:
     def cubre(admitidas_owl: set[str], usadas: tuple[str, ...]) -> list[str]:
         return [u for u in usadas if not (_ancestros(g, u) & admitidas_owl)]
 
-    for codigo, p in PROPIEDADES.items():
+    for codigo, p in {**PROPIEDADES, **{f"accion_tecnica.{k}": v for k, v in ACCION_TECNICA.items()}}.items():
         u = URIRef(RICO + p.rico)
         if not existe(p.rico, OWL.ObjectProperty):
             problemas.append(f"{codigo}: rico:{p.rico} no existe como propiedad de objeto.")

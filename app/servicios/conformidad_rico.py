@@ -50,19 +50,29 @@ def formas() -> Graph:
                                                                                 fechas._CONJUNTO)))))
     g.add((propiedad, SH.message, Literal("La fecha normalizada es EDTF del subconjunto del sistema "
                                           "(servicios/fechas.py).")))
-    for codigo, p in sorted(ric_o.PROPIEDADES.items()):
+    # Una forma por propiedad de RiC-O: si dos usos del mapeo comparten la
+    # propiedad (el hito y la acción técnica usan affectsOrAffected), la
+    # forma admite la unión de sus orígenes y de sus destinos.
+    usos: dict[str, list] = {}
+    for codigo, p in sorted({**ric_o.PROPIEDADES, **{f"accion_tecnica.{k}": v
+                                                     for k, v in ric_o.ACCION_TECNICA.items()}}.items()):
+        usos.setdefault(p.rico, []).append((codigo, p))
+    for rico, lista in sorted(usos.items()):
+        codigo, p = lista[0]
+        origen = tuple(dict.fromkeys(c for _, q in lista for c in q.origen))
+        destino = tuple(dict.fromkeys(c for _, q in lista for c in q.destino))
         forma = PR[f"relacion-{codigo}"]
         g.add((forma, RDF.type, SH.NodeShape))
-        g.add((forma, SH.targetSubjectsOf, RICO[p.rico]))
-        g.add((forma, SH.message, Literal(f"rico:{p.rico} ({p.codigo_cm or 'sin código RiC-CM'}): "
-                                          f"origen admitido {', '.join(p.origen)}; destino {', '.join(p.destino)}.")))
-        if "Thing" not in p.origen:
-            g.add((forma, SH["or"], _lista(g, [_clase(g, c) for c in p.origen])))
-        if "Thing" not in p.destino:
+        g.add((forma, SH.targetSubjectsOf, RICO[rico]))
+        g.add((forma, SH.message, Literal(f"rico:{rico} ({p.codigo_cm or 'sin código RiC-CM'}): "
+                                          f"origen admitido {', '.join(origen)}; destino {', '.join(destino)}.")))
+        if "Thing" not in origen:
+            g.add((forma, SH["or"], _lista(g, [_clase(g, c) for c in origen])))
+        if "Thing" not in destino:
             propiedad = BNode()
             g.add((forma, SH.property, propiedad))
-            g.add((propiedad, SH.path, RICO[p.rico]))
-            g.add((propiedad, SH["or"], _lista(g, [_clase(g, c) for c in p.destino])))
+            g.add((propiedad, SH.path, RICO[rico]))
+            g.add((propiedad, SH["or"], _lista(g, [_clase(g, c) for c in destino])))
     return g
 
 
