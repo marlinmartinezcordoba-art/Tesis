@@ -40,3 +40,8 @@ tzdata==2025.2
 # en el primer módulo que los necesite.
 # celery==5.4.0
 # redis==5.0.8
+
+# RiC-O: lectura del archivo OWL oficial (verificación del mapeo),
+# exportación RDF (Turtle y JSON-LD) y validación SHACL de lo exportado.
+rdflib==7.6.0
+pyshacl==0.40.1

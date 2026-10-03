@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
-import { fecha, peso } from "@/lib/formato";
+import { confianzaTexto, fecha, peso } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 
 interface PorDescribir {
@@ -13,6 +13,8 @@ interface PorDescribir {
   formato: string | null;
   expediente: string | null;
   origen_texto: string | null;
+  confianza_ocr: number | null;
+  ocr_baja_confianza: boolean;
   cargado_en: string;
   en_edicion_por: string | null;
 }
@@ -48,6 +50,8 @@ export function Descripcion() {
   const [abriendo, setAbriendo] = useState(false);
   const [error, setError] = useState("");
   const aviso = (ubicacion.state as { aviso?: string } | null)?.aviso;
+  // Desde el panel de alertas se llega con ?documento=<id>: esa fila se resalta.
+  const resaltado = new URLSearchParams(ubicacion.search).get("documento");
 
   const cargar = useCallback(async () => {
     if (!fondo) return;
@@ -120,7 +124,7 @@ export function Descripcion() {
               <div className="vacio">No hay documentos por describir. Los que termina de procesar la ingesta aparecen aquí solos.</div>
             )}
             {cola?.map((d) => (
-              <div className="fila" key={d.id}>
+              <div className={`fila${resaltado === d.id ? " resaltada" : ""}`} key={d.id}>
                 {puede && (
                   <input type="checkbox" aria-label={`Seleccionar ${d.nombre}`} disabled={!!d.en_edicion_por}
                          checked={seleccion.includes(d.id)} onChange={() => alternar(d.id)} />
@@ -130,9 +134,11 @@ export function Descripcion() {
                   <div className="nombre">{d.nombre}</div>
                   <div className="meta">
                     {d.expediente ? `Expediente: ${d.expediente}` : "Sin expediente asignado"} · {peso(d.tamano_bytes)}
-                    {d.origen_texto && ` · ${TEXTO[d.origen_texto] || d.origen_texto}`} · cargado {fecha(d.cargado_en)}
+                    {d.origen_texto && ` · ${TEXTO[d.origen_texto] || d.origen_texto}`}
+                    {d.confianza_ocr !== null && ` (confianza ${confianzaTexto(d.confianza_ocr)})`} · cargado {fecha(d.cargado_en)}
                   </div>
                 </div>
+                {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR con confianza baja</span>}
                 {d.en_edicion_por ? (
                   <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
                 ) : puede && (

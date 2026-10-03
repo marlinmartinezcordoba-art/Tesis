@@ -1,3 +1,4 @@
+import { confianzaTexto } from "@/lib/formato";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { SelectorFecha } from "@/components/SelectorFecha";
@@ -32,7 +33,11 @@ interface Espacio {
   trabajo_id: string;
   nivel: string;
   fondo: { id: string; titulo: string };
-  documentos: { id: string; nombre: string; texto: string; origen_texto: string | null; expediente_destino_id: string | null }[];
+  documentos: {
+    id: string; nombre: string; texto: string; origen_texto: string | null; expediente_destino_id: string | null;
+    confianza_ocr: number | null; ocr_baja_confianza: boolean;
+  }[];
+  umbral_ocr: number;
   propuesta: {
     titulo: string;
     alcance: string;
@@ -290,7 +295,17 @@ export function EspacioTrabajo() {
         <div className="panel-doc">
           {espacio.documentos.map((d) => (
             <div key={d.id} className="doc">
-              <div className="docname">{d.nombre} — texto extraído{d.origen_texto === "ocr" ? " por OCR" : ""}</div>
+              <div className="docname">
+                {d.nombre} — texto extraído{d.origen_texto === "ocr" ? " por OCR" : ""}
+                {d.confianza_ocr !== null && <> · confianza {confianzaTexto(d.confianza_ocr)}</>}
+              </div>
+              {d.ocr_baja_confianza && (
+                <div className="aviso alerta" role="note">
+                  La lectura automática de este documento tuvo confianza {confianzaTexto(d.confianza_ocr ?? 0)}, por debajo
+                  del umbral de {espacio.umbral_ocr}. La transcripción puede tener errores: compare con la imagen antes de
+                  aceptar lo que el motor propuso a partir de ella.
+                </div>
+              )}
               {d.texto ? (
                 <TextoResaltado texto={d.texto} marcas={marcasPorDocumento[d.id] || []} activa={activa}
                                 alElegir={(c) => elegir(c, true)} />

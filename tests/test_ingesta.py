@@ -410,3 +410,77 @@ def test_revisor_solo_consulta_la_cola(cliente, db, fondo, archivista):
     db.commit()
     assert cliente.post(f"/api/alertas/{alerta.id}/atender", headers=cabeceras, json={}).status_code == 403
     assert inst(db, r["id"]).estado == "error"
+
+
+# --- Confianza del OCR (versión actualizada del módulo 1, sección 3bis) ---
+
+
+def test_ocr_guarda_su_confianza_como_promedio_por_palabra(cliente, db, fondo, archivista, monkeypatch):
+    # El promedio se calcula sobre la confianza de cada palabra que da Tesseract.
+    capturadas = []
+    original = texto.promedio
+
+    def espia(lecturas):
+        capturadas.extend(c for lectura in lecturas for c in lectura.confianzas)
+        return original(lecturas)
+
+    monkeypatch.setattr(texto, "promedio", espia)
+    [r] = cargar(cliente, archivista, fondo, ("oficio_114.png", archivos.png_con_texto()))
+    procesamiento.procesar_pendientes(db)
+    i = inst(db, r["id"])
+    assert i.origen_texto == "ocr" and capturadas
+    assert i.confianza_ocr == pytest.approx(round(sum(capturadas) / len(capturadas), 1))
+    assert i.palabras_ocr == len(capturadas)
+    assert i.confianza_ocr >= 70 and i.ocr_baja_confianza is False
+    alertas = cliente.get("/api/alertas", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
+    assert not [a for a in alertas if a["entidad_id"] == r["id"]]
+
+
+def test_documento_con_capa_de_texto_deja_la_confianza_vacia_y_no_en_cero(cliente, db, fondo, archivista):
+    [r] = cargar(cliente, archivista, fondo, ("oficio.pdf", archivos.pdf_con_texto()))
+    procesamiento.procesar_pendientes(db)
+    i = inst(db, r["id"])
+    assert i.origen_texto == "capa_de_texto"
+    assert i.confianza_ocr is None and i.palabras_ocr is None and i.ocr_baja_confianza is False
+
+
+def test_confianza_bajo_el_umbral_marca_alerta_sin_bloquear(cliente, db, fondo, archivista):
+    [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
+    procesamiento.procesar_pendientes(db)
+    i = inst(db, r["id"])
+    # La marca no detiene nada: el documento sigue a descripción.
+    assert i.estado == "listo_para_descripcion"
+    assert i.confianza_ocr is not None and i.confianza_ocr < 70 and i.ocr_baja_confianza is True
+    alertas = cliente.get("/api/alertas", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
+    [alerta] = [a for a in alertas if a["entidad_id"] == r["id"]]
+    assert alerta["tipo"] == "ocr_baja_confianza" and "copia_borrosa.png" in alerta["mensaje"]
+    # La descripción recibe la confianza y la marca junto al documento.
+    [fila] = [d for d in cliente.get("/api/descripcion/cola", headers=archivista,
+                                     params={"fondo_id": str(fondo.id)}).json() if d["id"] == r["id"]]
+    assert fila["ocr_baja_confianza"] is True and fila["confianza_ocr"] == i.confianza_ocr
+
+
+def test_el_umbral_es_configurable_y_solo_lo_cambia_el_administrador(cliente, db, fondo, archivista, cabeceras_admin):
+    assert cliente.get("/api/ingesta/umbral-ocr", headers=archivista).json() == {"umbral": 70}
+    assert cliente.put("/api/ingesta/umbral-ocr", headers=archivista, json={"umbral": 50}).status_code == 403
+    assert cliente.put("/api/ingesta/umbral-ocr", headers=cabeceras_admin, json={"umbral": 101}).status_code == 422
+    assert cliente.put("/api/ingesta/umbral-ocr", headers=cabeceras_admin, json={"umbral": 40}).json() == {"umbral": 40}
+    assert len(eventos(db, "parametro_cambiado", "ingesta_umbral_ocr")) == 1
+    # Con umbral 40, la misma copia borrosa ya no queda marcada.
+    [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
+    procesamiento.procesar_pendientes(db)
+    assert inst(db, r["id"]).ocr_baja_confianza is False
+
+
+def test_ocr_sin_palabras_reconocidas_es_confianza_cero():
+    # Cero significa extracción fallida, distinto de vacío (no aplicó).
+    assert texto.promedio([texto.Lectura("", [])]) == (0.0, 0)
+    assert texto.promedio([texto.Lectura("a", [90.0]), texto.Lectura("b", [50.0, 70.0])]) == (70.0, 3)
+
+
+def test_reintento_recalcula_la_confianza(cliente, db, fondo, archivista):
+    [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
+    procesamiento.procesar_pendientes(db)
+    i = inst(db, r["id"])
+    procesamiento.reiniciar(i)
+    assert i.confianza_ocr is None and i.ocr_baja_confianza is False

@@ -23,7 +23,8 @@ from app.models.instanciacion import ESTADOS_COLA, Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
-from app.schemas.ingesta import CargaOut, ColaOut, ElementoCola, LimiteIn, LimiteOut, Referencia, ResultadoCarga
+from app.schemas.ingesta import (CargaOut, ColaOut, ElementoCola, LimiteIn, LimiteOut, Referencia, ResultadoCarga,
+                                 UmbralOcrIn, UmbralOcrOut)
 from app.servicios import almacen, parametros, procesamiento
 from app.servicios.auditoria import ip_de, registrar
 
@@ -53,6 +54,23 @@ def cambiar_limite(datos: LimiteIn, request: Request, actor: Actor = Depends(sol
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     db.commit()
     return limite(db)
+
+
+@router.get("/umbral-ocr", response_model=UmbralOcrOut, summary="Confianza mínima del OCR (sobre 100)")
+def umbral_ocr(db: Session = Depends(get_db)):
+    return UmbralOcrOut(umbral=int(parametros.leer(db, "ingesta_umbral_ocr")))
+
+
+@router.put("/umbral-ocr", response_model=UmbralOcrOut,
+            summary="Cambiar la confianza mínima del OCR (solo administrador; rige para lo que se procese después)")
+def cambiar_umbral_ocr(datos: UmbralOcrIn, request: Request, actor: Actor = Depends(solo_administrador),
+                       db: Session = Depends(get_db)):
+    try:
+        parametros.cambiar(db, "ingesta_umbral_ocr", datos.umbral, actor.id, "ingesta", ip=ip_de(request))
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return umbral_ocr(db)
 
 
 # --- Carga -------------------------------------------------------------------------

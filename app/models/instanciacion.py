@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base, ahora
@@ -65,6 +65,13 @@ class Instanciacion(Base):
     texto_extraido = Column(Text, nullable=True)
     origen_texto = Column(Enum(*ORIGEN_TEXTO, name="origen_texto"), nullable=True)
     paginas = Column(Integer, nullable=True)
+    # Confianza del OCR (0 a 100), promedio por palabra de Tesseract. Vacía
+    # cuando no hubo OCR (el documento traía capa de texto): cero sería una
+    # extracción fallida, vacío es «no aplica».
+    confianza_ocr = Column(Float, nullable=True)
+    palabras_ocr = Column(Integer, nullable=True)
+    # Bajo el umbral configurable: señal para leer con cuidado, nunca un bloqueo.
+    ocr_baja_confianza = Column(Boolean, nullable=False, default=False, server_default="false", index=True)
 
     # Preservación (módulo 5): estado de la última verificación de
     # integridad y, si esta instanciación salió de una migración, de cuál.

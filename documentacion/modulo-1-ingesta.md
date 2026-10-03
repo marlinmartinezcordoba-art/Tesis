@@ -1,6 +1,12 @@
 # Módulo 1 · Ingesta y digitalización
 
-**Estado:** entregado, pendiente de validación.
+**Estado:** versión 1.1 (confianza del reconocimiento óptico de caracteres), pendiente de validación.
+
+**Qué cambió en la versión 1.1.** Antes, el OCR extraía el texto pero no guardaba qué tan confiable era la lectura. Ahora:
+
+- cada documento leído por OCR guarda su confianza (0 a 100);
+- si queda por debajo de un umbral configurable, recibe la marca `ocr_baja_confianza` y aparece en el panel de alertas;
+- descripción muestra la confianza y una advertencia junto al texto, antes de que el archivista valide cualquier propuesta del motor.
 
 ---
 
@@ -86,7 +92,13 @@ Sin una ingesta confiable, el resto del sistema trabaja sobre archivos sin integ
 
   Se considera no identificado si Siegfried no encuentra firma, o si solo coincide la extensión del nombre: eso no es una identificación contra las firmas del registro.
 - **Errores legibles:** archivo dañado, vacío o ilegible, PDF protegido, herramienta no disponible en el servidor. Nunca se muestra una traza técnica.
-- **Parámetro configurable:** límite por archivo, 500 MB por defecto. Solo el administrador lo cambia, en la misma pantalla de carga.
+- **Confianza del OCR (versión 1.1):**
+  - Tesseract devuelve, en la misma pasada que el texto, una tabla con la confianza de cada palabra;
+  - la confianza del documento es el promedio de todas sus palabras en todas sus páginas, de 0 a 100, y se guarda junto con cuántas palabras la sostienen;
+  - si el documento traía capa de texto, el campo queda **vacío**, no en cero: cero significa que el OCR no reconoció nada; vacío, que no se usó OCR;
+  - por debajo del umbral, el documento recibe la marca `ocr_baja_confianza` y una alerta ámbar, con un enlace directo a la cola de descripción;
+  - la marca nunca detiene la transición a `listo_para_descripcion`: es una señal para leer con cuidado, no un bloqueo.
+- **Parámetros configurables:** límite por archivo (500 MB por defecto) y confianza mínima del OCR (70 sobre 100 por defecto). Solo el administrador los cambia, en la misma pantalla de carga. El umbral nuevo rige para lo que se procese después; lo ya procesado conserva su marca.
 - **Almacenamiento** en `DIRECTORIO_ALMACENAMIENTO`, con el nombre propio de la instanciación (nunca el nombre original).
 - **Panel central de alertas:** pendientes y atendidas; una alerta se marca atendida con una nota y nunca se borra.
 
@@ -140,14 +152,14 @@ En todas las pantallas del sistema la barra superior muestra el **fondo activo**
 
 ## 12. Modelo de datos
 
-Migración `alembic/versions/0002_ingesta.py`.
+Migraciones `alembic/versions/0002_ingesta.py` y `0010_ocr_y_codigos_ric_o.py` (versión 1.1).
 
 | Tabla | Campos clave |
 |---|---|
 | `recursos_documentales` | id, nivel (fondo…unidad_documental), titulo, fechas_extremas, incluido_en_id, fondo_id, creado_por_id. Descripción la ampliará |
-| `instanciaciones` | fondo_id, expediente_destino_id, nombre_original, ruta, tamano_bytes, **estado**, paso, progreso, detalle_paso, tomado_en, intentos, mensaje_error, **huella**, algoritmo_huella, duplicado_de_id, duplicado_confirmado, **formato_puid, formato_nombre, formato_version, formato_mime, formato_base, formato_no_identificado, herramienta_identificacion**, texto_extraido, origen_texto, paginas, cargado_por_id, cargado_en, procesado_en |
+| `instanciaciones` | fondo_id, expediente_destino_id, nombre_original, ruta, tamano_bytes, **estado**, paso, progreso, detalle_paso, tomado_en, intentos, mensaje_error, **huella**, algoritmo_huella, duplicado_de_id, duplicado_confirmado, **formato_puid, formato_nombre, formato_version, formato_mime, formato_base, formato_no_identificado, herramienta_identificacion**, texto_extraido, origen_texto, paginas, **confianza_ocr, palabras_ocr, ocr_baja_confianza** (1.1), cargado_por_id, cargado_en, procesado_en |
 | `alertas` | tipo, severidad, modulo, fondo_id, entidad_tipo, entidad_id, mensaje, detalle, creada_en, atendida_en, atendida_por_id, nota_atencion. Índice único parcial: nunca dos alertas pendientes del mismo tipo sobre la misma entidad |
-| `parametros` | clave, valor (JSON), actualizado_en, actualizado_por_id. Semilla: `ingesta_limite_mb = 500` |
+| `parametros` | clave, valor (JSON), actualizado_en, actualizado_por_id. Valores por defecto: `ingesta_limite_mb = 500`, `ingesta_umbral_ocr = 70` |
 
 `herramienta_identificacion` guarda con qué se identificó el formato, por ejemplo «siegfried 1.11.9 · PRONOM DROID_SignatureFile_V125.xml; container-signature-20260119.xml». Es trazabilidad PREMIS: el módulo de preservación sabrá contra qué versión del registro se identificó cada archivo.
 
@@ -163,6 +175,7 @@ Todas bajo `/api`.
 | `DELETE /ingesta/{id}` | Archivista, administrador | Cancela un duplicado o descarta un error: elimina el registro y el archivo |
 | `POST /ingesta/{id}/reintentar` | Archivista, administrador | Reprocesa desde el principio un documento en error |
 | `GET /ingesta/limite` / `PUT /ingesta/limite` | Lectura: ingesta. Cambio: solo administrador | Tamaño máximo por archivo |
+| `GET /ingesta/umbral-ocr` / `PUT /ingesta/umbral-ocr` | Lectura: ingesta. Cambio: solo administrador | Confianza mínima del OCR, de 0 a 100 (1.1). El cambio queda en auditoría con el valor anterior y el nuevo |
 | `GET /fondos`, `POST /fondos`, `GET /fondos/{id}/expedientes` | Leer: cualquier sesión. Registrar: administrador | Fondos y expedientes de destino |
 | `GET /alertas?fondo_id=&atendidas=`, `POST /alertas/{id}/atender` | Leer: archivista, administrador, revisor. Atender: archivista, administrador | Panel central de alertas |
 
@@ -221,7 +234,10 @@ En el registro único, de solo anexar:
 | **Herramienta de identificación de formato contra PRONOM** (exigida por el prompt, §7) | (a) **DROID** 6.x (Archivos Nacionales del Reino Unido, Java, se invoca como proceso externo); (b) **Siegfried** (binario Go, mismas firmas DROID de PRONOM, incluidas las de contenedor); (c) **FIDO** (Python, Open Preservation Foundation) | **(b) Siegfried 1.11.9** con firmas DROID V125 y contenedor 20260119 | Da el mismo resultado PRONOM que DROID sin exigir Java: DROID necesita una JVM de 200–400 MB de memoria, que en un servidor de 2 GB compite con la base de datos y el OCR. Es un solo binario de 12 MB, rápido en lotes, con salida JSON fácil de leer. Se compila en la imagen desde el código fuente, con la versión fija. FIDO es más lento y su soporte de firmas de contenedor es menor | Dependencia de un binario externo (no una librería nativa de Python): si falta, el documento queda en error con el mensaje «Avise al administrador», nunca identificado a medias. Las firmas quedan congeladas en la versión de la imagen; actualizarlas es subir `SIEGFRIED_VERSION` en el Dockerfile |
 | Cuándo se considera «no identificado» | Solo si Siegfried dice `UNKNOWN`; también cuando la coincidencia es solo por extensión | **También solo por extensión** | Una coincidencia por el nombre del archivo no es una identificación contra el registro; el prompt prohíbe identificar por extensión | Algún formato legítimo sin firma en PRONOM queda marcado. Es justamente lo que el panel debe mostrar para revisión |
 | Procesamiento asíncrono | FastAPI BackgroundTasks (dentro del proceso web); Celery + Redis; **trabajador propio que consulta la base de datos** | **Trabajador propio** | El estado `procesando` ya es la cola, así que no hace falta otra. Sobrevive reinicios (BackgroundTasks pierde el trabajo). No suma Redis ni Celery (unos 100 MB) al servidor de 2 GB. Un fallo del OCR no tumba la web | Procesa de a un documento; un lote grande de PDF escaneados tarda (unos 5–10 s por página en 1 vCPU). Si hiciera falta paralelismo, basta levantar otro trabajador: `SKIP LOCKED` ya lo admite |
-| OCR | Tesseract (CLI); servicios en la nube; modelos de IA local | **Tesseract 5, idioma español** | Libre, sin costo, sin enviar documentos fuera del servidor, maduro para texto impreso | Rinde mal con manuscritos; la calidad del texto se verá en descripción |
+| **Motor de OCR, con confianza real por palabra** (prompt 1.1, §7, segunda decisión) | (a) **Tesseract 5**: confianza por palabra en su salida TSV, local, sin costo; (b) **servicio en la nube** (Google Document AI, AWS Textract, Azure): mejor con manuscritos, cobra por página y saca el documento del servidor; (c) **solución mixta**: Tesseract para lo mecanografiado y nube para lo manuscrito | **(a) Tesseract 5, idioma español, salidas `txt` y `tsv` en una sola pasada** | Cumple el requisito no negociable de una confianza real por palabra. Se mantienen dos reglas del proyecto: ningún recurso pagado y ningún documento enviado fuera sin necesidad. La solución mixta exigiría pagar por página y decidir antes qué documento es manuscrito. En cambio, la confianza misma hace esa separación: un manuscrito mal leído queda bajo el umbral y llega marcado a descripción | Con manuscritos, la transcripción será pobre. El sistema no lo oculta: los marca. Si la evaluación de la tesis muestra que el fondo es mayoritariamente manuscrito, la opción (c) queda como trabajo futuro y se documenta como limitación |
+| Cómo resumir la confianza de un documento | Promedio por palabra; por línea; mediana; mínimo por página | **Promedio por palabra de todas las páginas, con el número de palabras** | Es lo que pide el prompt. Se guarda también cuántas palabras lo sostienen: un 90 sobre tres palabras no vale lo mismo que sobre tres mil | Un documento largo con una página muy mala puede quedar sobre el umbral; se verá en el texto, pero no en la marca. Si pasa en el fondo de prueba, se agrega la peor página como dato aparte |
+| Documento sin OCR | Confianza 0; 100; vacío | **Vacío** | Cero significaría una extracción fallida; vacío dice que no aplicó, como exige el prompt | Ninguno |
+| Documentos leídos por OCR antes de la versión 1.1 | Inventar un valor; dejarlos vacíos | **Vacíos** | No se inventa una confianza que no se midió; un reintento la calcula | Hasta reprocesarlos, no aparecen como dudosos |
 | Texto y páginas de PDF | poppler (`pdftotext`, `pdftoppm`); **pypdfium2** | **pypdfium2** | Librería de Python con PDFium incluido: extrae la capa de texto y pasa cada página a imagen sin programas externos, página por página y sin cargar el PDF entero en memoria | Un PDF con capa de texto muy pobre (menos de 25 caracteres por página) se trata como escaneado y pasa por OCR |
 | Mecanismo de alertas del panel central (el prompt 4 pide decidirlo; se necesitaba ya aquí) | Entidad propia `Alerta`; reutilizar auditoría filtrando por tipo de evento | **Entidad propia** | Una alerta tiene ciclo de vida (pendiente → atendida, con quién y nota), y la auditoría es de solo anexar e inmutable. Mezclarlas obligaría a reconstruir el estado a partir de eventos en cada consulta. Sirve igual para preservación e instrumentos | El módulo de instrumentos debe reutilizar esta tabla, no reabrir la decisión |
 | Quién crea el fondo | Descripción; el administrador | **El administrador** (botón en Ingesta) | El fondo es el punto de partida: sin él no hay dónde cargar ni contra qué buscar duplicados. Descripción creará los niveles inferiores | Si usted prefiere otro lugar para registrar fondos, es un cambio de pantalla, no de datos |
@@ -232,7 +248,7 @@ En el registro único, de solo anexar:
 app/models/instanciacion.py, recurso_documental.py, alerta.py, parametro.py
 app/servicios/almacen.py        guardar por bloques, rutas seguras, borrar
 app/servicios/formato.py        Siegfried / PRONOM
-app/servicios/texto.py          capa de texto, OCR página por página
+app/servicios/texto.py          capa de texto, OCR página por página con confianza por palabra
 app/servicios/procesamiento.py  los 4 pasos, estados, errores legibles
 app/servicios/alertas.py        panel central (crear, atender)
 app/servicios/parametros.py     parámetros del administrador
@@ -243,7 +259,7 @@ frontend/src/pages/Ingesta.tsx, Alertas.tsx; lib/fondo.tsx; components/Registrar
 
 ## 21. Pruebas
 
-25 pruebas en `tests/test_ingesta.py` (75 en total en el proyecto), **con Siegfried y Tesseract reales**, sin simulación. Si faltan las herramientas, las pruebas fallan: no se saltan. Se exigen en GitHub Actions antes de cada despliegue.
+31 pruebas en `tests/test_ingesta.py`, **con Siegfried y Tesseract reales**, sin simulación. Si faltan las herramientas, las pruebas fallan: no se saltan. Se exigen en GitHub Actions antes de cada despliegue.
 
 - **Carga única hasta listo:** huella SHA-256 correcta, PUID `x-fmt/111`, herramienta registrada, texto, archivo guardado con nombre propio, evento de auditoría.
 - **Tipos de archivo:** PDF digital con capa de texto; PDF escaneado con OCR (reconoce «ARCHIVO MUNICIPAL»); imagen PNG con OCR.
@@ -265,6 +281,13 @@ frontend/src/pages/Ingesta.tsx, Alertas.tsx; lib/fondo.tsx; components/Registrar
   - no se puede descartar ni reintentar lo que ya está listo;
   - sin Siegfried, el error dice «Avise al administrador».
 - **La cola nunca devuelve** un documento en `listo_para_descripcion`.
+- **Confianza del OCR (1.1):**
+  - la confianza guardada es exactamente el promedio de las confianzas por palabra que dio Tesseract, y el número de palabras coincide;
+  - un PDF con capa de texto deja la confianza vacía, no en cero;
+  - una copia borrosa (confianza cercana a 56) queda marcada, aparece en el panel de alertas, llega igual a descripción y la cola de descripción recibe la confianza y la marca;
+  - un OCR que no reconoce ninguna palabra da 0, distinto de vacío;
+  - el umbral vale 70 por defecto; solo el administrador lo cambia (403 para el archivista, 422 fuera de 0 a 100), el cambio queda en auditoría, y con umbral 40 la misma copia ya no queda marcada;
+  - el reintento borra la confianza anterior para volver a calcularla.
 - **Trabajador:** no toma un documento que otro está procesando, y retoma uno abandonado hace más de 10 minutos.
 - **Expedientes y fondos:** expediente de destino opcional; el de otro fondo se rechaza; solo el administrador registra fondos, sin nombres repetidos.
 - **Permisos:**
@@ -301,6 +324,10 @@ frontend/src/pages/Ingesta.tsx, Alertas.tsx; lib/fondo.tsx; components/Registrar
 | El panel central de alertas ya muestra el formato no identificado | ✓ |
 | Auditoría registra cada carga, confirmación de duplicado y descarte | ✓ |
 | Límite configurable (500 MB por defecto) y `DIRECTORIO_ALMACENAMIENTO` reutilizado | ✓ |
+| (1.1) Todo texto por OCR guarda su confianza como promedio por palabra; con capa de texto queda vacío, no en cero | ✓ |
+| (1.1) Umbral configurable, 70 por defecto; la marca `ocr_baja_confianza` aparece en el panel de alertas y no bloquea | ✓ |
+| (1.1) Descripción muestra la confianza y la advertencia junto al texto | ✓ |
+| (1.1) Motor de OCR documentado con tabla de decisión, considerando el fondo mixto | ✓ (§19) |
 
 **Pendiente honesto.** La imagen Docker instala Tesseract desde los repositorios de Debian. En el entorno donde se construyó no se pudo comprobar ese paso, porque la red bloquea esos servidores; sí se comprobaron la compilación de Siegfried en Docker y el funcionamiento de ambas herramientas fuera de Docker. El registro del despliegue imprime la versión de Siegfried y los idiomas de Tesseract instalados en el servidor, como verificación.
 
@@ -314,6 +341,17 @@ Instantiation 7f3c…  estado: listo_para_descripcion
   formato: fmt/18 · Acrobat PDF 1.4 · application/pdf   (PRONOM, siegfried 1.11.9, DROID V125)
   tamaño: 671 B · huella SHA-256: 4b1e…      cargado: 30-09-2026 por Marlín Martínez
   texto: capa_de_texto, 1 página             record_resource: (ninguno aún: lo crea descripción)
+  confianza OCR: (vacía: no hubo OCR)
 ```
+
+Una copia borrosa del mismo oficio, leída por OCR, queda así:
+
+```
+Instantiation 2a91…  estado: listo_para_descripcion
+  texto: ocr, 1 página · confianza OCR 56,3 / 100 sobre 9 palabras · ocr_baja_confianza: sí (umbral 70)
+  alerta: «copia_borrosa.png: el texto se leyó por OCR con confianza 56,3 sobre 100 (umbral 70)…»
+```
+
+La confianza es un dato técnico de la Instantiation, no del contenido. Califica la transcripción derivada del soporte y no se exporta con la descripción.
 
 Esto es la separación de RiC-CM entre el contenido intelectual (Record) y su soporte técnico (Instantiation): el mismo oficio podrá tener después una segunda Instantiation (por ejemplo, su migración a PDF/A en preservación) sin duplicar su descripción.

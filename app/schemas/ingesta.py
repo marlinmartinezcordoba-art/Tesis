@@ -40,6 +40,14 @@ class LimiteIn(BaseModel):
     limite_mb: int
 
 
+class UmbralOcrOut(BaseModel):
+    umbral: int
+
+
+class UmbralOcrIn(BaseModel):
+    umbral: int = Field(ge=0, le=100)
+
+
 class ResultadoCarga(BaseModel):
     nombre: str
     aceptado: bool

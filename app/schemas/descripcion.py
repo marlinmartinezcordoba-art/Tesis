@@ -15,6 +15,8 @@ class ElementoPorDescribir(BaseModel):
     formato: str | None
     expediente: str | None
     origen_texto: str | None
+    confianza_ocr: float | None = None
+    ocr_baja_confianza: bool = False
     cargado_en: datetime
     en_edicion_por: str | None
 

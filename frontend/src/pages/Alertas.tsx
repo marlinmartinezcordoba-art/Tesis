@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
@@ -15,6 +16,8 @@ interface Alerta {
   atendida_en: string | null;
   atendida_por: string | null;
   nota_atencion: string | null;
+  entidad_tipo: string;
+  entidad_id: string;
 }
 
 const CLASE: Record<Alerta["severidad"], string> = { alta: "error", media: "alerta", baja: "proceso" };
@@ -24,6 +27,7 @@ const MODULO: Record<string, string> = {
 };
 const TIPO: Record<string, string> = {
   formato_no_identificado: "Formato no identificado",
+  ocr_baja_confianza: "OCR con confianza baja",
   inventario_campos_pendientes: "Campos pendientes del inventario",
   integridad_alterada: "Alerta de integridad",
   riesgo_obsolescencia: "Riesgo de obsolescencia",
@@ -98,6 +102,9 @@ export function Alertas() {
                 </div>
               </div>
               <span className={`insignia ${CLASE[a.severidad]}`}>Severidad {a.severidad}</span>
+              {a.tipo === "ocr_baja_confianza" && vista === "pendientes" && (
+                <Link className="boton chico" to={`/descripcion?documento=${a.entidad_id}`}>Ir a describir</Link>
+              )}
               {vista === "pendientes" && puedeAtender && (
                 <button type="button" className="boton chico" onClick={() => atender(a)}>Marcar atendida</button>
               )}

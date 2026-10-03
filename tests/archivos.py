@@ -51,6 +51,23 @@ def png_con_texto() -> bytes:
     return salida.getvalue()
 
 
+def png_degradado() -> bytes:
+    """Imagen con el mismo texto, borrosa y con manchas, como una copia mala:
+    Tesseract la lee, pero con confianza baja (alrededor de 56 sobre 100)."""
+    import random
+
+    from PIL import ImageFilter
+
+    img = _imagen_con_texto().resize((850, 350)).filter(ImageFilter.GaussianBlur(2))
+    azar = random.Random(7)
+    px = img.load()
+    for _ in range(15000):
+        px[azar.randrange(850), azar.randrange(350)] = azar.choice((0, 255))
+    salida = io.BytesIO()
+    img.save(salida, format="PNG")
+    return salida.getvalue()
+
+
 def pdf_escaneado() -> bytes:
     """PDF sin capa de texto: una imagen de página, como sale de un escáner."""
     salida = io.BytesIO()

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import alertas, almacen, formato, segunda_copia, texto
+from app.servicios import alertas, almacen, formato, parametros, segunda_copia, texto
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -106,6 +106,10 @@ def _error(db: Session, inst: Instanciacion, mensaje: str) -> None:
     db.commit()
 
 
+def _cifra(valor: float | None) -> str:
+    return f"{valor:.1f}".replace(".", ",") if valor is not None else "—"
+
+
 def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
     inst = db.get(Instanciacion, instanciacion_id)
     if inst is None or inst.estado != "procesando":
@@ -141,6 +145,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         t = texto.extraer(almacen.ruta_absoluta(inst.ruta), f.mime,
                           lambda p, d: _avance(db, inst, "texto", p, d))
         inst.texto_extraido, inst.origen_texto, inst.paginas = t.contenido, t.origen, t.paginas
+        inst.confianza_ocr, inst.palabras_ocr = t.confianza_ocr, t.palabras_ocr
+        umbral = int(parametros.leer(db, "ingesta_umbral_ocr"))
+        inst.ocr_baja_confianza = t.confianza_ocr is not None and t.confianza_ocr < umbral
 
         # Listo: desde aquí lo muestra descripción, por su estado.
         inst.estado = "listo_para_descripcion"
@@ -160,6 +167,14 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
                 mensaje=f"«{inst.nombre_original}»: el formato no se pudo identificar contra el registro PRONOM. "
                         "Requiere revisión manual de preservación.",
                 detalle={"formato_probable": inst.formato_nombre, "base": inst.formato_base},
+            )
+        if inst.ocr_baja_confianza:
+            alertas.crear(
+                db, tipo="ocr_baja_confianza", severidad="media", modulo="ingesta",
+                entidad_tipo="instanciacion", entidad_id=inst.id, fondo_id=inst.fondo_id,
+                mensaje=f"«{inst.nombre_original}»: el texto se leyó por OCR con confianza {_cifra(inst.confianza_ocr)} "
+                        f"sobre 100 (umbral {umbral}). Lea la transcripción con cuidado antes de validar la descripción.",
+                detalle={"confianza_ocr": inst.confianza_ocr, "umbral": umbral, "palabras": inst.palabras_ocr},
             )
         db.commit()
     except texto.ArchivoIlegible as exc:
@@ -205,3 +220,6 @@ def reiniciar(inst: Instanciacion) -> None:
     inst.texto_extraido = None
     inst.origen_texto = None
     inst.paginas = None
+    inst.confianza_ocr = None
+    inst.palabras_ocr = None
+    inst.ocr_baja_confianza = False

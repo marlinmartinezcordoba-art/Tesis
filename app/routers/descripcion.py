@@ -28,7 +28,7 @@ from app.routers.fondos import fondo_o_404
 from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
-from app.servicios import consulta, descripcion, motor, vocabulario
+from app.servicios import consulta, descripcion, motor, parametros, vocabulario
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -49,8 +49,11 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "fondo": {"id": str(fondo.id), "titulo": fondo.titulo},
         "recurso_id": str(trabajo.recurso_id) if trabajo.recurso_id else None,
         "documentos": [{"id": str(d.id), "nombre": d.nombre_original, "texto": d.texto_extraido or "",
-                        "origen_texto": d.origen_texto, "expediente_destino_id": str(d.expediente_destino_id) if d.expediente_destino_id else None}
+                        "origen_texto": d.origen_texto, "confianza_ocr": d.confianza_ocr,
+                        "ocr_baja_confianza": d.ocr_baja_confianza,
+                        "expediente_destino_id": str(d.expediente_destino_id) if d.expediente_destino_id else None}
                        for d in documentos],
+        "umbral_ocr": int(parametros.leer(db, "ingesta_umbral_ocr")),
         "propuesta": json.loads(trabajo.propuesta) if trabajo.propuesta else None,
         "minutos_bloqueo": settings.minutos_bloqueo_descripcion,
         "umbral_confianza": settings.umbral_confianza,
@@ -69,7 +72,8 @@ def cola(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
         RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel == "expediente"))}
     return [ElementoPorDescribir(
         id=i.id, nombre=i.nombre_original, tamano_bytes=i.tamano_bytes, formato=i.formato_nombre,
-        expediente=expedientes.get(i.expediente_destino_id), origen_texto=i.origen_texto, cargado_en=i.cargado_en,
+        expediente=expedientes.get(i.expediente_destino_id), origen_texto=i.origen_texto,
+        confianza_ocr=i.confianza_ocr, ocr_baja_confianza=i.ocr_baja_confianza, cargado_en=i.cargado_en,
         en_edicion_por=quien) for i, quien in filas]
 
 

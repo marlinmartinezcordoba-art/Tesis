@@ -121,6 +121,16 @@ CODIGO_RELACION_RIC = (
     "has_successor",  # RiC-R016 — Agent → Agent que lo sucede
     "is_agent_associated_with_agent",  # RiC-R044 — vínculo entre agentes sin jerarquía ni sucesión
     "is_date_associated_with",  # RiC-R068 — Date → la Activity (u otra cosa) que fecha
+    # -- verificación contra el OWL de RiC-O 1.1 de los trece puntos que el
+    #    anexo de mapeo dejó pendientes (documentacion/anexos/
+    #    verificacion-ric-o-1-1.md); propiedad exacta en servicios/ric_o.py --
+    "has_or_had_holder",  # RiC-R039i — Record Resource o Instantiation → agente custodio
+    "precedes_or_preceded",  # RiC-R008 — un documento precede a otro de la misma serie
+    "has_direct_subevent",  # rico:hasDirectSubevent — actividad mayor → sub-actividad
+    "contains_or_contained",  # RiC-R007 — lugar que contiene a otro
+    "affects_or_affected",  # RiC-R059 — hito institucional (Event) → agente cuya historia marca
+    "is_related_to",  # RiC-R001 — tipo de actividad (función) ↔ serie que produce (sin propiedad dedicada)
+    "issued_by",  # RiC-R065 — mandato → entidad que lo expidió
 )
 
 # Rango de cada código: URI en RiC-O 1.1, para la exportación.

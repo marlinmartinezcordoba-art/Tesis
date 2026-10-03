@@ -187,6 +187,7 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
             </button>
           </p>
         )}
+        {esAdmin && <UmbralOcr />}
         {esAdmin && cambiandoLimite && (
           <form className="acciones" onSubmit={guardarLimite} style={{ alignItems: "center" }}>
             <input className="entrada" style={{ width: 110 }} type="number" min={1} max={20000} required
@@ -496,5 +497,50 @@ export function Ingesta() {
                    alCambiar={(m) => { setMensaje(m); cargarCola(); }} />
       )}
     </>
+  );
+}
+
+// Confianza mínima del OCR: por debajo, el documento se marca para leerlo con
+// cuidado (aparece en el panel de alertas y en el espacio de descripción).
+function UmbralOcr() {
+  const [umbral, setUmbral] = useState<number | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    pedir<{ umbral: number }>("/api/ingesta/umbral-ocr").then((r) => setUmbral(r.umbral)).catch(() => undefined);
+  }, []);
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      const r = await pedir<{ umbral: number }>("/api/ingesta/umbral-ocr", {
+        method: "PUT", body: JSON.stringify({ umbral: Number(valor) }),
+      });
+      setUmbral(r.umbral);
+      setEditando(false);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo cambiar el umbral.");
+    }
+  }
+
+  if (umbral === null) return null;
+  return editando ? (
+    <form className="acciones" onSubmit={guardar} style={{ alignItems: "center" }}>
+      <label className="pista" style={{ margin: 0 }} htmlFor="umbral-ocr">Confianza mínima del OCR</label>
+      <input id="umbral-ocr" className="entrada" style={{ width: 80 }} type="number" min={0} max={100} required
+             value={valor} onChange={(e) => setValor(e.target.value)} />
+      <span className="pista" style={{ margin: 0 }}>/ 100</span>
+      <button className="boton chico primario" type="submit">Guardar</button>
+      <button className="boton chico" type="button" onClick={() => setEditando(false)}>Cancelar</button>
+      {error && <span className="pista" style={{ color: "var(--danger)", margin: 0 }}>{error}</span>}
+    </form>
+  ) : (
+    <p className="pista" style={{ margin: 0 }}>
+      Confianza mínima del OCR: <b>{umbral} / 100</b>.{" "}
+      <button type="button" className="enlace" onClick={() => { setValor(String(umbral)); setEditando(true); }}>Cambiar</button>
+    </p>
   );
 }

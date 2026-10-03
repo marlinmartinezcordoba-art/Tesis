@@ -25,3 +25,8 @@ export function peso(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${numero.format(bytes / 1024 / 1024)} MB`;
   return `${numero.format(bytes / 1024 / 1024 / 1024)} GB`;
 }
+
+// Confianza del OCR, sobre 100, con coma decimal.
+export function confianzaTexto(c: number): string {
+  return `${c.toLocaleString("es-CO", { maximumFractionDigits: 1 })} / 100`;
+}
