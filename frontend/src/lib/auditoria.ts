@@ -1,7 +1,17 @@
+// Propiedad de RiC-O de un cambio o de una relación, del mapeo único del
+// sistema: verificada contra el OWL, sin propiedad en RiC-O, o texto
+// libre cuya propiedad no está confirmada (nunca se inventa un nombre).
+export interface PropiedadRico {
+  nombre: string | null;
+  estado: "verificada" | "general" | "sin_propiedad" | "literal_pendiente";
+  codigo_cm?: string | null;
+}
+
 export interface Cambio {
   campo: string;
   antes: unknown;
   despues: unknown;
+  propiedad_rico?: PropiedadRico | null;
 }
 
 export interface Evento {
@@ -15,6 +25,7 @@ export interface Evento {
   entidad_tipo: string | null;
   entidad_id: string | null;
   detalle: string | null;
+  propiedad_rico?: PropiedadRico | null;
   cambios: Cambio[];
 }
 

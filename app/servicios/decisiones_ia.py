@@ -21,7 +21,7 @@ from app.servicios.trazabilidad import _zona
 DECISIONES = ("aceptada", "corregida", "rechazada", "agregada")
 TIPO_NOMBRE = {"agente": "Agente", "lugar": "Lugar", "fecha": "Fecha", "forma_documental": "Forma documental",
                "actividad": "Actividad", "tipo_actividad": "Tipo de actividad", "mandato": "Mandato o norma",
-               "titulo": "Título", "alcance": "Alcance y contenido"}
+               "titulo": "Título", "alcance": "Alcance y contenido", "idioma": "Idioma"}
 DECISION_NOMBRE = {"aceptada": "Aceptada", "corregida": "Corregida", "rechazada": "Rechazada",
                    "agregada": "Agregada por la archivista"}
 
@@ -78,12 +78,32 @@ def _texto(valores: dict | None) -> str | None:
     return " · ".join(partes) or None
 
 
-def fila(e: RegistroAuditoria, nombres: dict) -> dict:
+def _rico(n: dict) -> tuple[str | None, dict | None]:
+    """Clase RiC-O de lo propuesto y propiedad que la decisión afecta, del
+    mapeo único. Las decisiones anteriores a la versión 7 no guardaron el
+    código de la relación: se reconstruye con la misma regla de la
+    publicación (rol → relación), nunca se inventa."""
+    from app.servicios import ric_o
+    from app.servicios.descripcion import codigo_de_decision
+
+    tipo = n.get("tipo")
+    datos = n.get("final") or n.get("propuesto") or {}
+    clase = ric_o.clase_de_decision(tipo, n.get("subtipo") or datos.get("subtipo"))
+    if tipo in ("titulo", "alcance", "idioma"):
+        return clase, ric_o.propiedad_de_campo(tipo)
+    codigo = n.get("codigo_ric") or codigo_de_decision(tipo, datos | {"clave": n.get("clave")})
+    return clase, ric_o.propiedad_de_codigo(codigo)
+
+
+def fila(e: RegistroAuditoria, nombres: dict, etiquetas: dict | None = None) -> dict:
     n = e.valor_nuevo or {}
+    clase, propiedad = _rico(n)
     return {"id": e.id, "fecha": e.fecha, "documento": {"id": e.entidad_id, "titulo": n.get("titulo_documento")},
             "tipo": n.get("tipo"), "tipo_nombre": TIPO_NOMBRE.get(n.get("tipo"), n.get("tipo")),
+            "clase_rico": clase, "propiedad_rico": propiedad,
             "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")), "final": _texto(n.get("final")),
             "confianza": n.get("confianza"), "modelo": n.get("modelo"), "version_prompt": n.get("version_prompt"),
+            "version_etiqueta": (etiquetas or {}).get(n.get("version_prompt")),
             "por": nombres.get(e.usuario_id)}
 
 
@@ -99,8 +119,11 @@ def _conteos(lista: list[dict]) -> dict:
 
 
 def consultar(db: Session, limite: int = 500, **filtros) -> dict:
+    from app.servicios.hallazgos import etiquetas as etiquetas_version
+
     nombres = dict(db.execute(select(Usuario.id, Usuario.nombre)).all())
-    filas = [fila(e, nombres) for e in eventos(db, **filtros)]
+    etiquetas = etiquetas_version(db)
+    filas = [fila(e, nombres, etiquetas) for e in eventos(db, **filtros)]
     por_tipo = {}
     for t in TIPO_NOMBRE:
         del_tipo = [f for f in filas if f["tipo"] == t]
@@ -109,6 +132,7 @@ def consultar(db: Session, limite: int = 500, **filtros) -> dict:
     return {"resumen": _conteos(filas), "por_tipo": list(por_tipo.values()),
             "modelos": sorted({f["modelo"] for f in filas if f["modelo"]}),
             "versiones_prompt": sorted({f["version_prompt"] for f in filas if f["version_prompt"]}),
+            "etiquetas_version": etiquetas,
             "total": len(filas), "filas": filas[:limite]}
 
 
@@ -130,12 +154,14 @@ def hoja_de_calculo(db: Session, **filtros) -> bytes:
     resumen.append(["Modelos", ", ".join(datos["modelos"])])
     resumen.append(["Versiones de la instrucción", ", ".join(datos["versiones_prompt"])])
     detalle = libro.create_sheet("Decisiones")
-    detalle.append(["Fecha", "Documento", "Tipo", "Propuesto por el motor", "Valor final", "Decisión", "Confianza",
-                    "Modelo", "Versión de la instrucción", "Archivista"])
+    detalle.append(["Fecha", "Documento", "Tipo", "Clase RiC-O", "Propuesto por el motor", "Valor final", "Decisión",
+                    "Propiedad RiC-O", "Confianza", "Modelo", "Versión de la instrucción", "Etiqueta", "Archivista"])
     for f in datos["filas"]:
+        prop = f["propiedad_rico"] or {}
         detalle.append([f["fecha"].astimezone(_zona()).replace(tzinfo=None), f["documento"]["titulo"], f["tipo_nombre"],
-                        f["propuesto"], f["final"], DECISION_NOMBRE.get(f["decision"], f["decision"]), f["confianza"],
-                        f["modelo"], f["version_prompt"], f["por"]])
+                        f["clase_rico"], f["propuesto"], f["final"], DECISION_NOMBRE.get(f["decision"], f["decision"]),
+                        prop.get("nombre") or ("literal pendiente de confirmación" if prop else None), f["confianza"],
+                        f["modelo"], f["version_prompt"], f["version_etiqueta"], f["por"]])
     for hoja in (resumen, detalle):
         for celda in hoja[1]:
             celda.font = Font(bold=True)

@@ -45,6 +45,7 @@ app.include_router(vocabulario.router)
 app.include_router(instrumentos.router)
 app.include_router(preservacion.router)
 app.include_router(auditoria.router)
+app.include_router(auditoria.gestion)
 app.include_router(exportacion.router)
 app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atiende todo lo demás
 

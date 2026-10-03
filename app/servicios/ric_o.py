@@ -257,6 +257,70 @@ SIN_PROPIEDAD = {
     "origen_confianza": "Procedencia del dato (motor o persona): nunca sale del sistema.",
 }
 
+# --- Columna «propiedad RiC-O» de auditoría ----------------------------------
+# Campo guardado → propiedad de RiC-O, para los cambios de valor que
+# muestra la trazabilidad. Lo que no está aquí ni en SIN_PROPIEDAD se marca
+# «literal pendiente de confirmación»: nunca se inventa un nombre.
+CAMPO_RICO = {
+    "titulo": ATRIBUTOS["titulo"][0], "alcance_contenido": ATRIBUTOS["alcance_contenido"][0],
+    "alcance": ATRIBUTOS["alcance_contenido"][0], "condiciones_acceso": ATRIBUTOS["condiciones_acceso"][0],
+    "condiciones_uso": ATRIBUTOS["condiciones_uso"][0], "codigo_referencia": ATRIBUTOS["identificador"][0],
+    "historia": ATRIBUTOS["historia"][0], "contexto_general": ATRIBUTOS["descripcion_general"][0],
+    "version": ATRIBUTOS["version_mecanismo"][0], "nombre": ATRIBUTOS["nombre"][0],
+    "latitud": ATRIBUTOS["coordenadas"][0], "longitud": ATRIBUTOS["coordenadas"][0],
+    "edtf": ATRIBUTOS["fecha_normalizada"][0], "expresion": ATRIBUTOS["fecha_expresada"][0],
+    "idiomas": APOYO["idioma_registro"][0], "idioma": APOYO["idioma_registro"][0],
+    "forma_documental": APOYO["forma_documental"][0], "forma_documental_id": APOYO["forma_documental"][0],
+    "tipo_parte": APOYO["forma_documental"][0], "tipo_lugar": APOYO["tipo_lugar"][0],
+    "estatuto_juridico": APOYO["estatuto_juridico"][0], "existencia_edtf": APOYO["inicio"][0],
+    "skos:broader": "skos:broader",
+}
+# Campos de procedencia o de control que no son descripción: sin columna.
+CAMPOS_SIN_RICO = {"origen", "confianza", "motor", "estado", "estado_revision", "id", "relacion_id", "vinculo",
+                   "rol", "nivel_detalle_calculado"}
+
+
+def propiedad_de_campo(campo: str) -> dict | None:
+    """{"nombre", "estado"} para la columna de auditoría: «verificada» (la
+    propiedad existe en RiC-O 1.1 y el mapeo la verificó), «sin_propiedad»
+    (RiC-O no tiene dónde ponerlo, declarado en SIN_PROPIEDAD) o
+    «literal_pendiente» (texto sin propiedad confirmada)."""
+    if campo in CAMPOS_SIN_RICO:
+        return None
+    if campo in CAMPO_RICO:
+        nombre = CAMPO_RICO[campo]
+        return {"nombre": nombre if ":" in nombre else f"rico:{nombre}", "estado": "verificada"}
+    if campo in SIN_PROPIEDAD or campo == "estructura":
+        return {"nombre": None, "estado": "sin_propiedad"}
+    return {"nombre": None, "estado": "literal_pendiente"}
+
+
+def propiedad_de_codigo(codigo: str | None) -> dict | None:
+    """La propiedad de una relación del grafo (o de la forma documental)."""
+    if not codigo:
+        return None
+    if codigo in PROPIEDADES:
+        return {"nombre": etiqueta(codigo), "estado": PROPIEDADES[codigo].estado, "codigo_cm": PROPIEDADES[codigo].codigo_cm}
+    if codigo == "forma_documental":
+        return {"nombre": f"rico:{APOYO['forma_documental'][0]}", "estado": "verificada", "codigo_cm": None}
+    return {"nombre": None, "estado": "literal_pendiente", "codigo_cm": None}
+
+
+def clase_de_decision(tipo: str | None, subtipo: str | None = None) -> str | None:
+    """Clase RiC-O de lo que el motor propuso (para el panel de decisiones)."""
+    if tipo == "agente":
+        return f"rico:{CLASE_AGENTE.get(subtipo or '', 'Agent')}"
+    if tipo in CLASE_VOCABULARIO:
+        return f"rico:{CLASE_VOCABULARIO[tipo]}"
+    if tipo == "fecha":
+        return "rico:Date"
+    if tipo == "idioma":
+        return "rico:Language"
+    if tipo in ("titulo", "alcance"):
+        return "rico:RecordResource"
+    return None
+
+
 SKOS_BROADER = "broader"  # jerarquía función/subfunción: SKOS, no RiC-O
 SKOS_NARROWER = "narrower"
 

@@ -1,5 +1,6 @@
 # Módulo transversal · Auditoría
 
+**Versión:** 7 (prompt «Módulo transversal, Auditoría», versión con hallazgos de conformidad).
 **Estado:** entregado, pendiente de validación.
 
 ---
@@ -317,3 +318,111 @@ Cerró sesión                  Autenticación   cierre voluntario
 ```
 
 Los siete módulos dejan su rastro en un solo registro, con una sola función, y ninguna línea se puede borrar.
+
+---
+
+## Versión 7 · Hallazgos de conformidad, propiedad RiC-O e identificador de la instrucción
+
+Lo que la versión 7 del prompt agrega y cómo quedó. La decisión técnica del §6 (consolidado y resumen de decisiones calculados al vuelo, sin trabajo periódico) no cambia: sigue en §19.
+
+### Hallazgos de conformidad (§5bis)
+
+- **Registro manual, solo administrador.** Título, descripción de la brecha, componentes (de los siete módulos), estado (abierto, en corrección, cerrado), fecha de apertura, fecha de cierre y acción tomada o pendiente. Del hallazgo creado solo cambian el estado, la fecha de cierre y la acción: la API rechaza cualquier otro campo (422). Un hallazgo cerrado tiene siempre fecha de cierre y uno abierto no: lo exige la base de datos (restricción `ck_hallazgo_cierre`).
+- **Toda creación y todo cambio quedan en la auditoría** (`hallazgo_creado`, `hallazgo_actualizado`, con el estado antes y después). Así la historia de cómo se cerró cada brecha es ella misma auditable.
+- **Pantalla:** pestaña «Hallazgos de conformidad», con filtros por estado y por componente, cifras por estado, tarjetas en rojo, ámbar o verde, formulario para registrar, edición del estado y de la acción, y **hoja de cálculo con los mismos filtros**.
+- **Sembrados desde el primer despliegue** (migración 0014), cada uno con su evento de creación en la auditoría. **Estado real al 3 de octubre de 2026, no optimista:**
+
+| N.º | Hallazgo | Estado | Por qué ese estado |
+|---|---|---|---|
+| 1 | Punto de acceso dereferenciable y exportación RDF sin sesión | **En corrección** | Construido y probado (también sin sesión), pero en el servidor la resolución pública está apagada hasta tener HTTPS. Se cierra al encenderla y dejar la evidencia |
+| 2 | Confianza del OCR | Cerrado | Commit 5cac380 |
+| 3 | Vocabulario del fondo desconocido para el motor | Cerrado | Commit 629f203 |
+| 4 | Cobertura parcial de las 85 relaciones de RiC-CM | **En corrección** | 25 de 85 códigos (29 %), más 2 propiedades propias de RiC-O. Cerrarlo es decidir si la cobertura parcial es delimitación de la tesis (lo decide la autora) o se amplía |
+| 5 | Ficha ISAAR-CPF incompleta | Cerrado | Commit 69fc720; la relación asociativa (R044) quedó verificada contra el OWL |
+| 6 | Tipo de actividad, mandato y sub-actividades | Cerrado | Commits f9e1aae, 69fc720 y 629f203 |
+| 7 | Solo fechas exactas | Cerrado | Commit f9e1aae (EDTF) |
+| 8 | Sin OAIS, PREMIS, segunda copia ni plan | **En corrección** | Lo técnico está; falta que la autora confirme el fundamento normativo colombiano del plan, y la segunda copia comparte disco |
+| 9 | Cobertura entidad por entidad | Cerrado | Commits 69fc720, 629f203 y 497eff8; verificado contra el OWL |
+| 10 | Secuencia, custodia, jerarquía normativa, idioma y condiciones | Cerrado | Commits 5cac380 y 629f203; exportados en 3765cd5 |
+| 11 | El mecanismo del vocabulario existía pero nadie lo usaba | Cerrado | Encontrado en esta ronda; commit 497eff8 |
+| 12 | `rico:title` anotado como RiC-A40 (es *Structure*) | Cerrado | Encontrado al validar la exportación; commit 3765cd5 |
+| 13 | Tipo de mandato con la propiedad genérica | Cerrado | Commit 3765cd5 |
+| 14 | El índice de términos habría listado los programas | Cerrado | Commit 497eff8 |
+
+Los hallazgos 11 a 14 no estaban en el prompt: los encontró la propia depuración de esta ronda y se registran para que el capítulo de evaluación cuente el proceso real. **La fecha de apertura de los diez primeros (2 de octubre de 2026) es la de la revisión experta según el material disponible; conviene que la autora la confirme.**
+
+### Columna «propiedad RiC-O» (§7 y §10)
+
+- **Trazabilidad por entidad:** columna propia. Si el evento es sobre una relación (un vínculo entre agentes, una decisión del motor), muestra la propiedad de RiC-O de esa relación, con su código RiC-CM al pasar el cursor. Si el evento cambia campos, cada campo lleva la suya: `rico:title`, `rico:conditionsOfAccess`…
+- **Nunca se inventa un nombre.** Todo sale del mapeo único verificado contra el OWL (`ric_o.CAMPO_RICO`, `ric_o.propiedad_de_codigo`). Lo que no está ahí se muestra **atenuado y en cursiva**: «literal pendiente de confirmación» (por ejemplo, la caja o la carpeta del inventario) o «sin propiedad en RiC-O» (calendario, nivel de detalle, fuentes, estructura del agente).
+- **Panel de decisiones de IA:** junto al tipo, la **clase de RiC-O** (`rico:CorporateBody`, `rico:Date`…), y una columna **«Propiedad RiC-O»** con la relación que la decisión afecta (`rico:hasCreator`, `rico:documents`, `rico:hasDocumentaryFormType`…). En una rechazada, la que habría tenido. Desde esta versión la publicación guarda en cada evento el código de la relación que de verdad creó (`codigo_ric`). En las decisiones anteriores se reconstruye con la misma regla rol → relación de la publicación. La hoja de cálculo trae las dos columnas.
+- Se agregó **«Idioma»** al filtro de tipos: faltaba desde la versión 3 de descripción.
+
+### Identificador de la instrucción y etiqueta (§5)
+
+- El identificador ya era un resumen SHA-256 de la instrucción y del esquema de respuesta, truncado a 8 caracteres. Ahora el cálculo es una función (`motor.version_de`) con su **prueba de determinismo**: el mismo texto da el mismo valor; un carácter distinto, otro.
+- **Etiqueta legible opcional** («v3»), solo administrador, en la tarjeta «Versiones de la instrucción del motor» del panel de decisiones. Muestra cada versión presente en las decisiones (y la vigente), cuántas decisiones tiene y entre qué fechas se usó. La etiqueta acompaña al identificador y **no lo reemplaza**. Solo se pone o se cambia: no se quita, porque nada se borra, y el nombre anterior queda en la auditoría (`version_prompt_etiquetada`). Una etiqueta no puede nombrar dos versiones.
+
+### Seguridad
+
+- Hallazgos y etiquetas: solo administrador. El archivista recibe 403 al consultar, crear o editar.
+- Las rutas de escritura están en un enrutador aparte (`auditoria.gestion`). La regla «la auditoría solo se lee» sigue igual para el registro: la prueba enumera las rutas de escritura, que son exactamente las tres de hallazgos y etiquetas.
+- **Un evento de decisión de IA tampoco se puede editar ni borrar**, ni siquiera con SQL directo: el disparador de la base lo rechaza. La prueba lo intenta y comprueba que el valor no cambió.
+- Las horas de Auditoría se muestran en la zona de Bogotá en todas las tablas. Antes, dos de ellas usaban la del navegador y no coincidían con el resto.
+
+### Modelo de datos (migración 0014)
+
+`hallazgos_conformidad` (número único, título, descripción, componentes, estado, fechas, acción, autor) y `etiquetas_version_prompt` (versión, etiqueta única, nota, quién y cuándo). Reversible. Al bajar no se borran los eventos de la siembra, porque el registro es de solo anexar.
+
+### API
+
+| Método y ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/auditoria/hallazgos?estado&componente` | administrador | Lista, conteo total y conteo filtrado |
+| `GET /api/auditoria/hallazgos/hoja-de-calculo` | administrador | Los mismos, con los mismos filtros, en `.xlsx` |
+| `POST /api/auditoria/hallazgos` | administrador | Registrar (queda «abierto», con su número) |
+| `PATCH /api/auditoria/hallazgos/{id}` | administrador | Solo estado, fecha de cierre y acción |
+| `GET /api/auditoria/versiones-prompt` | administrador | Versiones con decisiones, fechas de uso y etiqueta |
+| `PUT /api/auditoria/versiones-prompt/{version}` | administrador | Poner o cambiar la etiqueta |
+| `GET /api/auditoria/decisiones-ia` | administrador | Ahora con `clase_rico`, `propiedad_rico` y `version_etiqueta` |
+| `GET /api/auditoria/entidad/{id}` | según el módulo de la entidad | Ahora con `propiedad_rico` por evento y por cambio |
+
+### Pruebas
+
+`tests/test_auditoria_v7.py`, 10 pruebas:
+- los 14 hallazgos sembrados con su estado real (1, 4 y 8 en corrección; los demás cerrados con fecha) y su evento de creación;
+- crear → en corrección → cerrado → reabrir, con un evento por cambio, el antes y el después del estado y la fecha de cierre automática;
+- el título no se edita, y sin cambio no hay evento;
+- filtros y hoja de cálculo con los mismos filtros; el archivista recibe 403 en todo;
+- determinismo del identificador;
+- la etiqueta acompaña al identificador en el panel y su cambio queda auditado;
+- clase y propiedad RiC-O de cada decisión (productor → `hasCreator` R027, destinatario → `hasAddressee`, lugar rechazado → `hasOrHadSubject`, actividad → `documents`, mandato → `regulatesOrRegulated`, función → `hasActivityType`, forma documental, título → `title`, fecha → `isCreationDateOf`);
+- trazabilidad: `rico:title` verificada y la caja como literal pendiente;
+- un vínculo entre agentes muestra `hasOrHadSubordinate` (R045);
+- todo campo con propiedad existe en el mapeo verificado.
+
+**De extremo a extremo** (`tests/test_auditoria.py`, ampliada). Ingesta → descripción con **una propuesta aceptada, una corregida y una rechazada** → vocabularios (fusión) → inventario y guía → verificación y migración → paquete de preservación → exportación RiC-O y su conformidad → un hallazgo registrado y pasado a corrección. Cada acción comprometida por los siete módulos queda en la auditoría el número exacto de veces:
+- una decisión por propuesta, más el título y el alcance;
+- cuatro mecanismos: Siegfried, RICORA, el motor y Ghostscript;
+- dos segundas copias;
+- las tres decisiones con su tipo bien calculado.
+
+**Ningún evento se edita ni se borra:** ampliada a un evento de decisión de IA, también por SQL directo.
+
+**Mutaciones** detectadas: no registrar el cambio de un hallazgo; inventar la propiedad de un campo en vez de marcarlo pendiente.
+
+**El proyecto llega a 275 pruebas.** Verificación visual de las pestañas Hallazgos y Decisiones en escritorio y a 390 px, sin errores ni desplazamiento horizontal.
+
+### Evidencia: cadena completa en el panel de decisiones
+
+Sobre el fondo de prueba, el oficio 210 de 1948 («Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948»). El motor (`gemini-de-prueba` en desarrollo) propuso siete valores con la instrucción `3c5a7af7`. La archivista los aceptó, y el panel muestra cada uno con su clase y su propiedad:
+- productor `rico:CorporateBody` · `rico:hasCreator`;
+- destinatario · `rico:hasAddressee`;
+- actividad `rico:Activity` · `rico:documents`;
+- fecha `rico:Date` · `rico:isCreationDateOf`;
+- idioma `rico:Language` · `rico:hasOrHadLanguage`;
+- título · `rico:title`;
+- alcance · `rico:scopeAndContent`.
+
+Las cifras del resumen salen de esos mismos eventos.
+

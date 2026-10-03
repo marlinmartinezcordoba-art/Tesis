@@ -33,11 +33,19 @@ COMPROMETIDAS = {
     "autenticacion": ["inicio_sesion", "cierre_sesion", "usuario_creado", "usuario_editado", "usuario_desactivado"],
     "sistema": ["fondo_registrado"],
     "ingesta": ["documento_cargado"],
-    "descripcion": ["descripcion_publicada", "descripcion_editada"],
-    "vocabularios": ["fusion_vocabulario"],
-    "instrumentos": ["inventario_exportado", "guia_exportada"],
-    "preservacion": ["integridad_verificada", "migracion_aprobada", "migracion_completada"],
+    "descripcion": ["descripcion_publicada", "descripcion_editada", "decision_ia"],
+    "vocabularios": ["fusion_vocabulario", "mecanismo_registrado"],
+    "instrumentos": ["inventario_exportado", "guia_exportada", "rdf_exportado", "conformidad_rico_validada"],
+    "preservacion": ["integridad_verificada", "migracion_aprobada", "migracion_completada", "segunda_copia_creada",
+                     "paquete_exportado"],
+    "auditoria": ["hallazgo_creado", "hallazgo_actualizado"],
 }
+# Cuántas veces, cuando no es una: las decisiones (una por propuesta del
+# motor, más título y alcance), los mecanismos (Siegfried, RICORA, el motor
+# y Ghostscript, cada uno una sola vez) y la segunda copia (de la original y
+# de la migrada).
+VECES = {"inicio_sesion": 2, "decision_ia": len(RESPUESTA_UNO["entidades"]) + 2, "mecanismo_registrado": 4,
+         "segunda_copia_creada": 2}
 
 
 def eventos(db, accion=None, **filtros):
@@ -76,7 +84,12 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
     # 2. Descripción: propuesta del motor, aceptada y publicada.
     monkeypatch.setattr(motor, "motor_activo", lambda: MotorDePrueba(RESPUESTA_UNO))
     espacio = cliente.post("/api/descripcion/iniciar", headers=arch, json={"instanciacion_ids": [inst_id]}).json()
-    publicada = cliente.post("/api/descripcion/publicar", headers=arch, json=aceptar_todo(espacio))
+    datos = aceptar_todo(espacio)
+    por_valor = {e["valor"]: e for e in datos["entidades"]}
+    por_valor["Gobernador del Departamento"]["valor"] = "Gobernación de Boyacá"  # corregida
+    por_valor["Gobernador del Departamento"]["subtipo"] = "entidad_corporativa"
+    datos["entidades"].remove(por_valor["Boyacá"])  # rechazada; las demás, aceptadas
+    publicada = cliente.post("/api/descripcion/publicar", headers=arch, json=datos)
     assert publicada.status_code == 201, publicada.text
     recurso_id = publicada.json()["id"]
     # Corrección con los datos de control del inventario.
@@ -116,6 +129,18 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
     ficha = cliente.get(f"/api/instrumentos/catalogo/{recurso_id}", headers=arch).json()
     assert len(ficha["instanciaciones"]) == 2  # la original y su versión de conservación, en la misma descripción
 
+    # Exportaciones de esta ronda: el paquete de preservación y el fondo en RiC-O.
+    assert cliente.post(f"/api/preservacion/instanciacion/{inst_id}/exportar-paquete", headers=arch).status_code == 200
+    assert cliente.get("/api/exportacion/rdf", headers=arch, params={"fondo_id": fondo_id}).status_code == 200
+    conformidad = cliente.get("/api/exportacion/conformidad", headers=arch, params={"fondo_id": fondo_id}).json()
+    assert conformidad["conforme"], conformidad
+
+    # La administradora registra un hallazgo y lo pasa a corrección.
+    h = cliente.post("/api/auditoria/hallazgos", headers=adm, json={
+        "titulo": "Prueba de integración", "descripcion": "Hallazgo de la prueba de extremo a extremo.",
+        "componentes": ["auditoria"]}).json()
+    cliente.patch(f"/api/auditoria/hallazgos/{h['id']}", headers=adm, json={"estado": "en_correccion"})
+
     # 6. Cierre de sesión de la archivista.
     assert cliente.post("/api/auth/logout", headers=arch).status_code == 204
 
@@ -124,11 +149,18 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
     for modulo, acciones in COMPROMETIDAS.items():
         for accion in acciones:
             del_modulo = [e for e in nuevos if e.accion == accion and e.modulo == modulo]
-            esperado = 2 if accion == "inicio_sesion" else 1  # entraron la administradora y la archivista
+            esperado = VECES.get(accion, 1)
             if accion == "usuario_editado":
                 esperado = 1  # el cambio de rol; la desactivación tiene su propia acción
             assert len(del_modulo) == esperado, f"{modulo}/{accion}: {len(del_modulo)} eventos"
     por = {e.accion: e for e in nuevos}
+    # Las tres decisiones de validación, con su tipo bien calculado.
+    decisiones = {(e.valor_nuevo["tipo"], (e.valor_nuevo["propuesto"] or {}).get("valor")): e.valor_nuevo["decision"]
+                  for e in nuevos if e.accion == "decision_ia"}
+    assert decisiones[("agente", "Alcaldía Municipal")] == "aceptada"
+    assert decisiones[("agente", "Gobernador del Departamento")] == "corregida"
+    assert decisiones[("lugar", "Boyacá")] == "rechazada"
+    assert all(e.usuario_id == catalina.id for e in nuevos if e.accion == "decision_ia")
     assert por["documento_cargado"].usuario_id == catalina.id and por["fondo_registrado"].usuario_id == admin.id
     assert por["usuario_editado"].valor_anterior == {"rol": "revisor"} and por["usuario_editado"].valor_nuevo == {"rol": "consulta"}
     editada = por["descripcion_editada"]
@@ -148,7 +180,8 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
     # Y la historia de la descripción, lado a lado.
     historia = cliente.get(f"/api/auditoria/entidad/{recurso_id}", headers=arch2, params={"tipo": "recurso_documental"}).json()
     cambio = next(e for e in historia["eventos"] if e["accion"] == "descripcion_editada")
-    assert {"campo": "caja", "antes": None, "despues": "1"} in cambio["cambios"]
+    assert {"campo": "caja", "antes": None, "despues": "1",
+            "propiedad_rico": {"nombre": None, "estado": "literal_pendiente"}} in cambio["cambios"]
 
 
 def test_cada_accion_del_codigo_tiene_nombre_legible():
@@ -290,7 +323,11 @@ def test_administrador_ve_toda_la_historia_y_consulta_no_entra(cliente, db, cabe
 
 def test_ningun_evento_se_edita_ni_se_borra_por_ninguna_ruta(cliente, db, cabeceras_admin):
     rutas = [r for r in app.routes if getattr(r, "path", "").startswith("/api/auditoria")]
-    assert rutas and all(r.methods <= {"GET", "HEAD"} for r in rutas)
+    # Solo se escriben los hallazgos de conformidad y las etiquetas de versión
+    # (prompt v7); ninguna ruta escribe en el registro.
+    escritura = {r.path for r in rutas if not r.methods <= {"GET", "HEAD"}}
+    assert rutas and escritura == {"/api/auditoria/hallazgos", "/api/auditoria/hallazgos/{hallazgo_id}",
+                                   "/api/auditoria/versiones-prompt/{version}"}
     registrar(db, modulo="ingesta", accion="documento_cargado", usuario_id=None, entidad_tipo="instanciacion",
               entidad_id="doc-1")
     db.commit()
@@ -299,3 +336,18 @@ def test_ningun_evento_se_edita_ni_se_borra_por_ninguna_ruta(cliente, db, cabece
         assert r.status_code == 405
     assert cliente.post("/api/auditoria/registrar", headers=cabeceras_admin, json={}).status_code in (404, 405)
     assert len(eventos(db, entidad_id="doc-1")) == 1
+    # Tampoco un evento de decisión de IA, ni por la base de datos.
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    decision = registrar(db, modulo="descripcion", accion="decision_ia", usuario_id=None,
+                         entidad_tipo="recurso_documental", entidad_id="doc-2", nuevo={"decision": "rechazada"})
+    db.commit()
+    for sentencia in ("UPDATE registro_auditoria SET valor_nuevo = '{\"decision\": \"aceptada\"}' WHERE id = :i",
+                      "DELETE FROM registro_auditoria WHERE id = :i"):
+        punto = db.begin_nested()
+        with pytest.raises(DBAPIError):
+            db.execute(text(sentencia), {"i": decision.id})
+        punto.rollback()
+    db.expire_all()
+    assert db.get(RegistroAuditoria, decision.id).valor_nuevo == {"decision": "rechazada"}

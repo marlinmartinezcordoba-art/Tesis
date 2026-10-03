@@ -5,6 +5,8 @@ Módulo transversal de auditoría: consulta del registro.
   «propia» (solo sus acciones) o «todo».
 - Panel consolidado semanal y desglose por persona: solo quien ve toda la
   auditoría (el administrador, y el rol al que él le dé ese permiso).
+- Decisiones de IA, hallazgos de conformidad y etiquetas de versión de la
+  instrucción: solo administrador (prompt v7).
 
 El registro no se escribe por HTTP: los módulos llaman a
 servicios/auditoria.registrar() dentro del mismo proceso. Ninguna ruta de
@@ -16,17 +18,25 @@ from datetime import date
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.permisos import Actor, acceso_modulo, sin_permiso, solo_administrador, usuario_actual
 from app.db.base import ahora
 from app.db.session import get_db
+from app.models.hallazgo import COMPONENTES, HallazgoConformidad
 from app.models.usuario import Usuario
-from app.servicios import decisiones_ia, trazabilidad
+from app.servicios import decisiones_ia, hallazgos, trazabilidad
+from app.servicios.auditoria import ip_de
 
 router = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
                    dependencies=[Depends(acceso_modulo("auditoria"))])
+# Lo único que se escribe en este módulo no es el registro sino los
+# hallazgos de conformidad y las etiquetas de versión (prompt v7): solo el
+# administrador, fuera de la regla «la auditoría solo se lee».
+gestion = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
+                    dependencies=[Depends(solo_administrador)])
 
 
 def ve_todo(actor: Actor = Depends(usuario_actual)) -> Actor:
@@ -89,7 +99,7 @@ def desglose(usuario_id: uuid.UUID, semana: date | None = None, _: Actor = Depen
 # --- Decisiones de validación asistida por IA (solo administrador) -----------------------------------
 
 TipoDecision = Literal["agente", "lugar", "fecha", "forma_documental", "actividad", "tipo_actividad", "mandato",
-                       "titulo", "alcance"]
+                       "titulo", "alcance", "idioma"]
 Decision = Literal["aceptada", "corregida", "rechazada", "agregada"]
 
 
@@ -113,3 +123,97 @@ def decisiones_xlsx(tipo: TipoDecision | None = None, decision: Decision | None 
     contenido = decisiones_ia.hoja_de_calculo(db, **_filtros(tipo, decision, desde, hasta, fondo_id))
     return Response(contenido, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": 'attachment; filename="decisiones-ia.xlsx"'})
+
+
+# --- Hallazgos de conformidad (solo administrador) ---------------------------------------------
+
+EstadoHallazgo = Literal["abierto", "en_correccion", "cerrado"]
+Componente = Literal[COMPONENTES]  # type: ignore[valid-type]
+
+
+class HallazgoIn(BaseModel):
+    titulo: str = Field(min_length=3, max_length=300)
+    descripcion: str = Field(min_length=3, max_length=5000)
+    componentes: list[Componente] = Field(min_length=1)
+    accion: str | None = Field(default=None, max_length=5000)
+
+
+class HallazgoCambio(BaseModel):
+    """Del hallazgo creado solo cambian estos campos (prompt v7, §8)."""
+    estado: EstadoHallazgo | None = None
+    cerrado_en: date | None = None
+    accion: str | None = Field(default=None, max_length=5000)
+
+    model_config = {"extra": "forbid"}  # el título y la descripción originales no se editan
+
+
+def _error(exc: hallazgos.ErrorHallazgo) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+
+@router.get("/hallazgos", summary="Hallazgos de conformidad con RiC, filtrables por estado y componente")
+def ver_hallazgos(estado: EstadoHallazgo | None = None, componente: Componente | None = None,
+                  _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    return hallazgos.listar(db, estado=estado, componente=componente)
+
+
+@router.get("/hallazgos/hoja-de-calculo", summary="Los mismos hallazgos, con los mismos filtros, en una hoja de cálculo")
+def hallazgos_xlsx(estado: EstadoHallazgo | None = None, componente: Componente | None = None,
+                   _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    return Response(hallazgos.hoja_de_calculo(db, estado=estado, componente=componente),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="hallazgos-de-conformidad.xlsx"'})
+
+
+@gestion.post("/hallazgos", status_code=status.HTTP_201_CREATED, summary="Registrar un hallazgo de conformidad")
+def crear_hallazgo(datos: HallazgoIn, request: Request, actor: Actor = Depends(solo_administrador),
+                   db: Session = Depends(get_db)):
+    try:
+        h = hallazgos.crear(db, titulo=datos.titulo, descripcion=datos.descripcion, componentes=datos.componentes,
+                            accion=datos.accion, usuario_id=actor.id, ip=ip_de(request))
+    except hallazgos.ErrorHallazgo as exc:
+        db.rollback()
+        raise _error(exc) from exc
+    db.commit()
+    return hallazgos.out(h)
+
+
+@gestion.patch("/hallazgos/{hallazgo_id}", summary="Cambiar el estado, la fecha de cierre o la acción de un hallazgo")
+def cambiar_hallazgo(hallazgo_id: uuid.UUID, datos: HallazgoCambio, request: Request,
+                     actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    h = db.get(HallazgoConformidad, hallazgo_id)
+    if h is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El hallazgo no existe.")
+    try:
+        hallazgos.actualizar(db, h, estado=datos.estado, accion=datos.accion, cerrado_en=datos.cerrado_en,
+                             usuario_id=actor.id, ip=ip_de(request))
+    except hallazgos.ErrorHallazgo as exc:
+        db.rollback()
+        raise _error(exc) from exc
+    db.commit()
+    return hallazgos.out(h)
+
+
+# --- Versiones de la instrucción del motor (etiqueta legible opcional) -----------------------------
+
+
+class EtiquetaIn(BaseModel):
+    etiqueta: str = Field(min_length=1, max_length=40)
+    nota: str | None = Field(default=None, max_length=300)
+
+
+@router.get("/versiones-prompt", summary="Versiones de la instrucción presentes en las decisiones, con su etiqueta")
+def ver_versiones(_: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    return hallazgos.versiones(db)
+
+
+@gestion.put("/versiones-prompt/{version}", summary="Poner o cambiar la etiqueta legible de una versión")
+def etiquetar_version(version: str, datos: EtiquetaIn, request: Request, actor: Actor = Depends(solo_administrador),
+                      db: Session = Depends(get_db)):
+    try:
+        hallazgos.etiquetar(db, version, datos.etiqueta, datos.nota, actor.id, ip=ip_de(request))
+    except hallazgos.ErrorHallazgo as exc:
+        db.rollback()
+        raise _error(exc) from exc
+    db.commit()
+    return hallazgos.versiones(db)

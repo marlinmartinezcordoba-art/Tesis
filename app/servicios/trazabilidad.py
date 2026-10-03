@@ -84,6 +84,9 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
     "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
+    "hallazgo_creado": ("Registró un hallazgo de conformidad", "Hallazgos de conformidad"),
+    "hallazgo_actualizado": ("Cambió el estado o la acción de un hallazgo", "Hallazgos de conformidad"),
+    "version_prompt_etiquetada": ("Puso nombre a una versión de la instrucción del motor", "Administración"),
     "conformidad_rico_validada": ("Validó la conformidad con RiC-O (OWL y SHACL)", "Instrumentos generados"),
     # Preservación
     "integridad_verificada": ("Verificó la integridad", "Verificaciones de integridad"),
@@ -119,12 +122,37 @@ def _cambios(anterior, nuevo) -> list[dict]:
             for k in list(dict.fromkeys([*anterior, *nuevo])) if anterior.get(k) != nuevo.get(k)]
 
 
+# Entidades cuyos cambios son descripción archivística: solo en ellas tiene
+# sentido la columna «propiedad RiC-O» (un cambio de rol de usuario, no).
+ENTIDADES_ARCHIVISTICAS = {"recurso_documental", "entidad_vocabulario", "instanciacion"}
+
+
+def _propiedad_del_evento(e: RegistroAuditoria) -> dict | None:
+    """Si el evento es sobre una relación del grafo (vínculo declarado o
+    anulado, decisión del motor), la propiedad de RiC-O que representa."""
+    from app.servicios import ric_o
+
+    for valores in (e.valor_nuevo, e.valor_anterior):
+        if isinstance(valores, dict):
+            if valores.get("codigo_ric"):
+                return ric_o.propiedad_de_codigo(valores["codigo_ric"])
+            if "skos:broader" in valores:
+                return {"nombre": "skos:broader", "estado": "verificada", "codigo_cm": None}
+    return None
+
+
 def evento_out(e: RegistroAuditoria, nombres: dict) -> dict:
+    from app.servicios import ric_o
+
+    cambios = _cambios(e.valor_anterior, e.valor_nuevo)
+    if e.entidad_tipo in ENTIDADES_ARCHIVISTICAS:
+        for c in cambios:
+            c["propiedad_rico"] = ric_o.propiedad_de_campo(c["campo"])
     return {"id": e.id, "fecha": e.fecha, "usuario_id": str(e.usuario_id) if e.usuario_id else None,
             "usuario": nombres.get(e.usuario_id) if e.usuario_id else "El sistema",
             "modulo": e.modulo, "accion": e.accion, "etiqueta": etiqueta(e.accion),
             "entidad_tipo": e.entidad_tipo, "entidad_id": e.entidad_id, "detalle": e.detalle,
-            "cambios": _cambios(e.valor_anterior, e.valor_nuevo)}
+            "propiedad_rico": _propiedad_del_evento(e), "cambios": cambios}
 
 
 def _nombres(db: Session) -> dict:
@@ -136,6 +164,7 @@ def _nombres(db: Session) -> dict:
 # Qué permiso de módulo hace falta para ver la historia de cada tipo de entidad.
 MODULO_DE_ENTIDAD = {
     "recurso_documental": "descripcion", "instanciacion": "ingesta", "entidad_vocabulario": "vocabularios",
+    "hallazgo": "usuarios", "version_prompt": "usuarios",
     "sugerencia_fusion": "vocabularios", "trabajo_descripcion": "descripcion",
     "usuario": "usuarios", "rol": "usuarios", "sesion": "usuarios", "parametro": "usuarios", "alerta": None,
 }

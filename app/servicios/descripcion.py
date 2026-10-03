@@ -357,7 +357,8 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                             destino_id=recurso.id, tipo_relacion="temporal", codigo_ric="is_creation_date_of",
                             origen=origen, confianza=confianza, motor=motor_e, confirmada_por_id=usuario_id, **evidencia))
             if e.clave:
-                finales[e.clave] = {"valor": e.valor, "edtf": interpretacion.edtf, "fecha_subtipo": interpretacion.subtipo}
+                finales[e.clave] = {"valor": e.valor, "edtf": interpretacion.edtf, "fecha_subtipo": interpretacion.subtipo,
+                                    "codigo_ric": "is_creation_date_of"}
             continue
 
         if e.tipo == "agente":
@@ -395,6 +396,8 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                             destino_id=nodo.id, tipo_relacion=categoria, codigo_ric=codigo,
                             rol=e.rol if e.tipo == "agente" else "lugar", origen=origen, confianza=confianza, motor=motor_e,
                             confirmada_por_id=usuario_id, **evidencia))
+            if e.clave in finales:
+                finales[e.clave]["codigo_ric"] = codigo
         elif e.tipo == "mandato":
             if e.edtf:
                 expedicion = _interpretar_fecha(e, "La fecha de expedición")
@@ -402,13 +405,18 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                 db.flush()
                 _relacionar(db, ("fecha", f.id), nodo_ref, "is_creation_date_of", "temporal", usuario_id, procedencia)
                 finales[e.clave or ""] = finales.get(e.clave or "", {}) | {"edtf": expedicion.edtf}
-            if not any(x.tipo == "actividad" and x.mandato_clave == e.clave for x in entidades):
+            regula = any(x.tipo == "actividad" and x.mandato_clave == e.clave for x in entidades)
+            if e.clave in finales:
+                finales[e.clave]["codigo_ric"] = "regulates_or_regulated" if regula else "has_or_had_subject"
+            if not regula:
                 # Citado sin una actividad que regule: queda como mencionado.
                 db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
                                 destino_id=nodo.id, tipo_relacion="asociacion", codigo_ric="has_or_had_subject",
                                 rol="mandato", origen=origen, confianza=confianza, motor=motor_e,
                                 confirmada_por_id=usuario_id, **evidencia))
         elif e.tipo == "actividad":
+            if e.clave in finales:
+                finales[e.clave]["codigo_ric"] = "documents"
             db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
                             destino_id=nodo.id, tipo_relacion="asociacion", codigo_ric="documents",
                             origen=origen, confianza=confianza, motor=motor_e, confirmada_por_id=usuario_id, **evidencia))
@@ -492,6 +500,25 @@ def _comparable(campos: tuple, datos: dict) -> dict:
     return {c: (" ".join(str(datos.get(c)).split()) if datos.get(c) is not None else None) for c in campos}
 
 
+def codigo_de_decision(tipo: str, datos: dict | None, propuesta: dict | None = None) -> str | None:
+    """Qué relación (o atributo) del grafo afecta una decisión: la que creó
+    la publicación o, si se rechazó, la que habría creado. Para la columna
+    «propiedad RiC-O» del panel de decisiones."""
+    datos = datos or {}
+    if datos.get("codigo_ric"):
+        return datos["codigo_ric"]
+    if tipo == "forma_documental":
+        return "forma_documental"
+    if tipo == "tipo_actividad":
+        return "has_activity_type"
+    if tipo == "mandato":
+        citado = any(x.get("tipo") == "actividad" and x.get("mandato_clave") == datos.get("clave")
+                     for x in (propuesta or {}).get("entidades", []))
+        return "regulates_or_regulated" if citado else "has_or_had_subject"
+    par = RELACION_POR_ROL.get((tipo, datos.get("rol") if tipo == "agente" else None))
+    return par[0] if par else None
+
+
 def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dict, finales: dict[str, dict],
                          manuales: list[EntidadConfirmada], titulo: str, alcance: str, usuario_id: uuid.UUID) -> int:
     """Compara cada propuesta del motor con lo que quedó publicado y deja un
@@ -521,10 +548,13 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
             final_c = _comparable(campos, final)
             decision = "aceptada" if final_c == propuesto else "corregida"
         evento(decision=decision, tipo=p["tipo"], clave=p["clave"], confianza=p.get("confianza"),
-               propuesto=propuesto, final=final_c)
+               propuesto=propuesto, final=final_c, subtipo=(final or p).get("subtipo"),
+               codigo_ric=codigo_de_decision(p["tipo"], final if final is not None else p, propuesta))
     for e in manuales:  # lo que el motor no propuso (omisiones del motor)
+        final_m = finales.get(e.clave or "", {"valor": e.valor})
         evento(decision="agregada", tipo=e.tipo, clave=e.clave, confianza=None, propuesto=None,
-               final=_comparable(CAMPOS_DECISION.get(e.tipo, ("valor",)), finales.get(e.clave or "", {"valor": e.valor})))
+               final=_comparable(CAMPOS_DECISION.get(e.tipo, ("valor",)), final_m), subtipo=e.subtipo,
+               codigo_ric=codigo_de_decision(e.tipo, final_m | {"rol": e.rol, "clave": e.clave}))
     if propuesta.get("idiomas"):
         p_c, f_c = ",".join(sorted(propuesta["idiomas"])), ",".join(sorted(recurso.idiomas or []))
         evento(decision="aceptada" if p_c == f_c else ("rechazada" if not f_c else "corregida"), tipo="idioma",

@@ -3,13 +3,30 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import {
   MODULO_NOMBRE, MOTIVO_CIERRE, duracion, valor, type Cambio, type Consolidado, type Desglose, type Evento,
+  type PropiedadRico,
 } from "@/lib/auditoria";
+import { Hallazgos } from "@/components/Hallazgos";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 
-const hora = new Intl.DateTimeFormat("es-CO", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-const soloHora = new Intl.DateTimeFormat("es-CO", { hour: "numeric", minute: "2-digit" });
+const hora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const soloHora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" });
 const diaLargo = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+// La propiedad de RiC-O: verificada en monoespaciada; lo que no tiene
+// propiedad confirmada, atenuado y en cursiva (prompt de auditoría v7, §10).
+export function Rico({ p }: { p?: PropiedadRico | null }) {
+  if (!p) return null;
+  if (p.nombre) {
+    return <code className="rico" title={p.codigo_cm ? `RiC-CM ${p.codigo_cm}` : "Verificada contra RiC-O 1.1"}>{p.nombre}</code>;
+  }
+  return (
+    <em className="meta" title={p.estado === "sin_propiedad" ? "RiC-O no tiene propiedad para este dato; no se exporta."
+      : "Texto libre sin propiedad de RiC-O verificada."}>
+      {p.estado === "sin_propiedad" ? "sin propiedad en RiC-O" : "literal pendiente de confirmación"}
+    </em>
+  );
+}
 
 function Cambios({ cambios }: { cambios: Cambio[] }) {
   if (!cambios.length) return null;
@@ -17,7 +34,7 @@ function Cambios({ cambios }: { cambios: Cambio[] }) {
     <div className="cambios">
       {cambios.map((c) => (
         <div key={c.campo} className="cambio">
-          <span className="campo-cambio">{c.campo.replace(/_/g, " ")}</span>
+          <span className="campo-cambio">{c.campo.replace(/_/g, " ")}{c.propiedad_rico && <> · <Rico p={c.propiedad_rico} /></>}</span>
           <del>{valor(c.antes)}</del>
           <span aria-hidden="true">→</span>
           <ins>{valor(c.despues)}</ins>
@@ -202,6 +219,7 @@ interface FilaDecision {
   id: number; fecha: string; documento: { id: string; titulo: string | null }; tipo: string; tipo_nombre: string;
   decision: "aceptada" | "corregida" | "rechazada" | "agregada"; propuesto: string | null; final: string | null;
   confianza: number | null; modelo: string | null; version_prompt: string | null; por: string | null;
+  clase_rico: string | null; propiedad_rico: PropiedadRico | null; version_etiqueta: string | null;
 }
 interface DatosDecisiones {
   resumen: Conteo; por_tipo: (Conteo & { tipo_nombre: string })[]; modelos: string[]; versiones_prompt: string[];
@@ -216,7 +234,7 @@ const DECISION: Record<FilaDecision["decision"], { texto: string; clase: string 
 };
 const TIPOS_DECISION: [string, string][] = [["agente", "Agente"], ["lugar", "Lugar"], ["fecha", "Fecha"],
   ["forma_documental", "Forma documental"], ["actividad", "Actividad"], ["tipo_actividad", "Tipo de actividad"],
-  ["mandato", "Mandato o norma"], ["titulo", "Título"], ["alcance", "Alcance y contenido"]];
+  ["mandato", "Mandato o norma"], ["titulo", "Título"], ["alcance", "Alcance y contenido"], ["idioma", "Idioma"]];
 
 function hoyMenos(dias: number): string {
   const d = new Date();
@@ -310,17 +328,18 @@ function DecisionesIA() {
               <div className="tabla-desplazable">
                 <table className="tabla-permisos">
                   <thead><tr><th>Fecha</th><th>Documento</th><th>Entidad</th><th>Propuesto por el motor</th><th>Valor final</th>
-                    <th>Decisión</th><th>Versión de la instrucción</th></tr></thead>
+                    <th>Decisión</th><th>Propiedad RiC-O</th><th>Versión de la instrucción</th></tr></thead>
                   <tbody>
                     {datos.filas.map((f) => (
                       <tr key={f.id}>
                         <td>{hora.format(new Date(f.fecha))}</td>
                         <td><Link to={`/descripcion/registro/${f.documento.id}`}>{f.documento.titulo || "Documento"}</Link></td>
-                        <td>{f.tipo_nombre}</td>
+                        <td>{f.tipo_nombre}{f.clase_rico && <div><code className="rico">{f.clase_rico}</code></div>}</td>
                         <td>{f.propuesto || <span className="meta">—</span>}</td>
                         <td>{f.final || <span className="meta">—</span>}</td>
                         <td><span className={`insignia ${DECISION[f.decision].clase}`}>{DECISION[f.decision].texto}</span></td>
-                        <td>{f.version_prompt ? <code>{f.version_prompt}</code> : "—"}</td>
+                        <td><Rico p={f.propiedad_rico} /></td>
+                        <td>{f.version_prompt ? <><code>{f.version_prompt}</code>{f.version_etiqueta && <span className="meta"> · {f.version_etiqueta}</span>}</> : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -328,6 +347,7 @@ function DecisionesIA() {
               </div>
             )}
           </div>
+          <VersionesInstruccion />
           <p className="meta">
             «Cobertura del motor» es la parte de lo publicado que el motor había propuesto. Estas cifras miden la aceptación de la
             archivista, que ve la propuesta antes de decidir; la evaluación frente a descripciones hechas sin ver la IA es otro
@@ -345,7 +365,8 @@ export function Auditoria() {
   const esAdmin = !!usuario?.es_administrador;
   const [parametros, setParametros] = useSearchParams();
   const vista = parametros.get("vista");
-  const pestana = esAdmin && vista === "decisiones" ? "decisiones" : veTodo && vista === "consolidado" ? "consolidado" : "propia";
+  const pestana = esAdmin && vista === "decisiones" ? "decisiones" : esAdmin && vista === "hallazgos" ? "hallazgos"
+    : veTodo && vista === "consolidado" ? "consolidado" : "propia";
   return (
     <>
       {veTodo && (
@@ -360,9 +381,15 @@ export function Auditoria() {
                     className={`pestana${pestana === "decisiones" ? " activa" : ""}`}
                     onClick={() => setParametros({ vista: "decisiones" })}>Decisiones de IA</button>
           )}
+          {esAdmin && (
+            <button type="button" role="tab" aria-selected={pestana === "hallazgos"}
+                    className={`pestana${pestana === "hallazgos" ? " activa" : ""}`}
+                    onClick={() => setParametros({ vista: "hallazgos" })}>Hallazgos de conformidad</button>
+          )}
         </div>
       )}
-      {pestana === "propia" ? <MiTrazabilidad /> : pestana === "consolidado" ? <PanelConsolidado /> : <DecisionesIA />}
+      {pestana === "propia" ? <MiTrazabilidad /> : pestana === "consolidado" ? <PanelConsolidado />
+        : pestana === "hallazgos" ? <Hallazgos /> : <DecisionesIA />}
     </>
   );
 }
@@ -393,16 +420,18 @@ export function TrazabilidadEntidad() {
       {error && <div className="aviso error">{error}</div>}
       <div className="tarjeta tabla-desplazable">
         <table className="tabla-permisos">
-          <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Antes → después</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Propiedad RiC-O</th><th>Antes → después</th></tr></thead>
           <tbody>
-            {!datos && !error && <tr><td colSpan={4} className="meta">Cargando…</td></tr>}
-            {datos?.eventos.length === 0 && <tr><td colSpan={4} className="meta">Sin eventos registrados.</td></tr>}
+            {!datos && !error && <tr><td colSpan={5} className="meta">Cargando…</td></tr>}
+            {datos?.eventos.length === 0 && <tr><td colSpan={5} className="meta">Sin eventos registrados.</td></tr>}
             {datos?.eventos.map((e) => (
               <Fragment key={e.id}>
                 <tr>
                   <td style={{ whiteSpace: "nowrap" }}>{fecha(e.fecha)}</td>
                   <td>{e.usuario}</td>
                   <td>{e.etiqueta}{e.detalle && <div className="meta">{e.detalle}</div>}</td>
+                  <td>{e.propiedad_rico ? <Rico p={e.propiedad_rico} /> : e.cambios.some((c) => c.propiedad_rico)
+                    ? <span className="meta">por campo →</span> : <span className="meta">—</span>}</td>
                   <td><Cambios cambios={e.cambios} />{!e.cambios.length && <span className="meta">—</span>}</td>
                 </tr>
               </Fragment>
@@ -411,5 +440,66 @@ export function TrazabilidadEntidad() {
         </table>
       </div>
     </>
+  );
+}
+
+// --- Versiones de la instrucción del motor ---------------------------------------------------------
+
+interface Version { version: string; decisiones: number; primera: string | null; ultima: string | null; etiqueta: string | null; vigente: boolean }
+
+function VersionesInstruccion() {
+  const [versiones, setVersiones] = useState<Version[] | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [texto, setTexto] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    pedir<Version[]>("/api/auditoria/versiones-prompt").then(setVersiones).catch(() => setVersiones([]));
+  }, []);
+
+  async function guardar(version: string) {
+    setError("");
+    try {
+      setVersiones(await pedir<Version[]>(`/api/auditoria/versiones-prompt/${version}`,
+        { method: "PUT", body: JSON.stringify({ etiqueta: texto }) }));
+      setEditando(null);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar.");
+    }
+  }
+
+  if (!versiones?.length) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Versiones de la instrucción del motor</div>
+      <div className="tarjeta-cuerpo">
+        <p className="meta">
+          El identificador se calcula solo a partir del texto de la instrucción (SHA-256): si la instrucción cambia en un solo
+          carácter, cambia. La etiqueta es opcional y solo sirve para nombrarla; no reemplaza el identificador.
+        </p>
+        {error && <div className="aviso error">{error}</div>}
+        <table className="tabla-permisos">
+          <thead><tr><th>Identificador</th><th>Etiqueta</th><th>Decisiones</th><th>Usada</th><th /></tr></thead>
+          <tbody>
+            {versiones.map((v) => (
+              <tr key={v.version}>
+                <td><code>{v.version}</code>{v.vigente && <span className="insignia bien" style={{ marginLeft: 6 }}>vigente</span>}</td>
+                <td>{editando === v.version ? (
+                  <input className="campo" value={texto} maxLength={40} aria-label="Etiqueta" autoFocus
+                         onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => e.key === "Enter" && guardar(v.version)} />
+                ) : v.etiqueta || <span className="meta">—</span>}</td>
+                <td>{v.decisiones}</td>
+                <td className="meta">{v.primera ? `${fecha(v.primera)} – ${fecha(v.ultima as string)}` : "todavía no"}</td>
+                <td>{editando === v.version
+                  ? <><button type="button" className="boton chico primario" onClick={() => guardar(v.version)}>Guardar</button>{" "}
+                    <button type="button" className="boton chico" onClick={() => setEditando(null)}>Cancelar</button></>
+                  : <button type="button" className="boton chico" onClick={() => { setEditando(v.version); setTexto(v.etiqueta || ""); }}>
+                    {v.etiqueta ? "Cambiar etiqueta" : "Ponerle etiqueta"}</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

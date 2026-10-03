@@ -163,8 +163,14 @@ ESQUEMA = {
 # resumen SHA-256 de la instrucción y del esquema de respuesta. Cambia solo
 # si cambia lo que se le pide; queda en cada propuesta y en cada decisión
 # registrada en auditoría, para saber con qué instrucción se obtuvo.
-VERSION_PROMPT = hashlib.sha256(
-    (INSTRUCCION + json.dumps(ESQUEMA, sort_keys=True, ensure_ascii=False)).encode("utf-8")).hexdigest()[:8]
+def version_de(instruccion: str, esquema: dict) -> str:
+    """Identificador corto y determinístico de una instrucción: el mismo
+    texto da siempre el mismo valor, y un solo carácter distinto, otro."""
+    return hashlib.sha256((instruccion + json.dumps(esquema, sort_keys=True, ensure_ascii=False))
+                          .encode("utf-8")).hexdigest()[:8]
+
+
+VERSION_PROMPT = version_de(INSTRUCCION, ESQUEMA)
 
 NIVELES = {
     "unidad_documental": "una unidad documental (un solo documento)",
