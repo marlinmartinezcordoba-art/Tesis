@@ -21,6 +21,13 @@ on:
     branches: [claude/plataforma-base]
   workflow_dispatch: {}
 
+# Un despliegue a la vez: dos seguidos chocaban al recrear los contenedores
+# («the container name is already in use»). El nuevo espera al que está en
+# curso; no lo cancela, para no dejar el servidor a medio actualizar.
+concurrency:
+  group: despliegue-droplet
+  cancel-in-progress: false
+
 jobs:
   pruebas:
     runs-on: ubuntu-latest
