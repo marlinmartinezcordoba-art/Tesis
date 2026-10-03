@@ -15,6 +15,7 @@ Un archivo dañado o ilegible lanza ArchivoIlegible con un mensaje en
 lenguaje sencillo.
 """
 
+import os
 import re
 import subprocess
 import tempfile
@@ -149,11 +150,20 @@ def _tesseract(imagen: Path) -> Lectura:
     return Lectura(texto, _confianzas_tsv(tsv))
 
 
+# Tesseract usa OpenMP: con varios procesos a la vez (trabajador, pruebas en
+# paralelo, servidor pequeño) los hilos compiten y una página que tarda dos
+# segundos puede pasar del límite de tiempo. Un hilo por proceso lo vuelve
+# predecible; es la configuración que recomienda el propio proyecto cuando
+# se ejecutan varias instancias.
+ENTORNO_TESSERACT = {"OMP_THREAD_LIMIT": "1"}
+
+
 def _ejecutar_tesseract(imagen: Path, base: Path) -> None:
     try:
         r = subprocess.run(
             ["tesseract", str(imagen), str(base), "-l", settings.idioma_ocr, "txt", "tsv"],
             capture_output=True, timeout=settings.segundos_por_paso, check=False,
+            env=os.environ | ENTORNO_TESSERACT,
         )
     except FileNotFoundError as exc:
         raise OcrNoDisponible("No se encontró el programa de OCR (Tesseract).") from exc

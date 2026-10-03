@@ -104,3 +104,22 @@ class AlertaOut(BaseModel):
 
 class AtenderIn(BaseModel):
     nota: str | None = Field(default=None, max_length=500)
+
+
+class LoteIn(BaseModel):
+    """Lote de transferencia (ISAD-G 3.2.4; hallazgos ING-01 e ING-02)."""
+    fondo_id: uuid.UUID
+    forma_ingreso: str = Field(max_length=40)
+    remitente_id: uuid.UUID | None = None
+    dependencia_origen_id: uuid.UUID | None = None
+    acta_numero: str | None = Field(default=None, max_length=60)
+    acta_fecha_edtf: str | None = Field(default=None, max_length=200)
+    observaciones: str | None = Field(default=None, max_length=5000)
+
+
+class ActaIn(BaseModel):
+    instanciacion_id: uuid.UUID
+
+
+class AnulacionIn(BaseModel):
+    motivo: str = Field(max_length=2000)

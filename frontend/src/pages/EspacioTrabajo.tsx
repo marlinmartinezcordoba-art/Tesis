@@ -253,6 +253,7 @@ export function EspacioTrabajo() {
           condiciones_acceso: campos.condicionesAcceso || null,
           condiciones_uso: campos.condicionesUso || null,
           historia_archivistica: campos.historiaArchivistica || null,
+          isadg: campos.isadg, escrituras: campos.escrituras,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           partes: partes.map(parteParaEnviar),

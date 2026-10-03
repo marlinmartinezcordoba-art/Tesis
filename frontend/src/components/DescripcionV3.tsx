@@ -16,10 +16,71 @@ export interface CamposRegistroValor {
   condicionesUso: string;
   historiaArchivistica: string;
   secuencia: { posicion: "precede" | "sigue"; id: string; titulo: string } | null;
+  // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
+  isadg: Record<string, string>;
+  escrituras: string[];
 }
 
+// Elementos de ISAD(G) que se escriben a mano; el resto sale de otros datos
+// del sistema (lote, regla de retención, instanciaciones…). Mismo orden y
+// claves que app/servicios/isadg.py.
+export const ISADG_TEXTOS: [string, string, string][] = [
+  ["forma_ingreso", "3.2.4", "Forma de ingreso (además del lote de transferencia)"],
+  ["valoracion", "3.3.2", "Valoración, selección y eliminación (además de la regla de retención)"],
+  ["nuevos_ingresos", "3.3.3", "Nuevos ingresos"],
+  ["organizacion", "3.3.4", "Organización"],
+  ["instrumentos_descripcion", "3.4.5", "Instrumentos de descripción (además de los del sistema)"],
+  ["localizacion_originales", "3.5.1", "Existencia y localización de los originales"],
+  ["localizacion_copias", "3.5.2", "Existencia y localización de copias"],
+  ["unidades_relacionadas", "3.5.3", "Unidades de descripción relacionadas (fuera del sistema)"],
+  ["nota_publicaciones", "3.5.4", "Nota de publicaciones"],
+  ["nota", "3.6.1", "Notas"],
+  ["nota_archivero", "3.7.1", "Nota del archivero"],
+  ["reglas_descripcion", "3.7.2", "Reglas o normas"],
+];
+
+export const ESCRITURAS: Record<string, string> = {
+  Latn: "latina", Grek: "griega", Hebr: "hebrea", Arab: "árabe", Cyrl: "cirílica", Hani: "han (china)",
+  Jpan: "japonesa", Zmth: "notación matemática", Zsym: "símbolos", Zyyy: "común", Zxxx: "sin escritura",
+  Zzzz: "desconocida",
+};
+
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
-  return { idiomas, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null };
+  return { idiomas, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
+           isadg: {}, escrituras: [] };
+}
+
+function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
+  const llenos = ISADG_TEXTOS.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
+  return (
+    <details className="campo">
+      <summary>Otros elementos de ISAD(G) <span className="meta">({llenos} con dato · opcionales)</span></summary>
+      <div className="campo" style={{ marginTop: 8 }}>
+        <label>Escritura <span className="meta">(ISAD-G 3.4.3 · ISO 15924)</span></label>
+        <div className="insignias" style={{ flexWrap: "wrap" }}>
+          {valor.escrituras.map((c) => (
+            <span key={c} className="pastilla">{ESCRITURAS[c] || c} <code className="rico">{c}</code>{" "}
+              <button type="button" className="enlace" aria-label={`Quitar ${c}`}
+                      onClick={() => alCambiar({ ...valor, escrituras: valor.escrituras.filter((x) => x !== c) })}>×</button>
+            </span>
+          ))}
+          <select className="selector" style={{ width: "auto" }} aria-label="Agregar escritura" value=""
+                  onChange={(e) => e.target.value && alCambiar({ ...valor, escrituras: [...valor.escrituras, e.target.value] })}>
+            <option value="">Agregar escritura…</option>
+            {Object.entries(ESCRITURAS).filter(([c]) => !valor.escrituras.includes(c))
+              .map(([c, n]) => <option key={c} value={c}>{n} ({c})</option>)}
+          </select>
+        </div>
+      </div>
+      {ISADG_TEXTOS.map(([clave, elemento, nombre]) => (
+        <div className="campo" key={clave}>
+          <label htmlFor={`isadg-${clave}`}>{nombre} <span className="meta">(ISAD-G {elemento})</span></label>
+          <textarea id={`isadg-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
+                    onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
+        </div>
+      ))}
+    </details>
+  );
 }
 
 function BuscarPublicada({ fondoId, alElegir }: { fondoId: string; alElegir: (id: string, titulo: string) => void }) {
@@ -104,6 +165,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
                   placeholder="Transferencias, depósitos y custodios anteriores"
                   onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />
       </div>
+      <OtrosIsadg valor={valor} alCambiar={alCambiar} />
       <div className="campo" style={{ marginBottom: 0 }}>
         <label>Secuencia en la serie <span className="meta">(opcional · rico:precedesOrPreceded)</span></label>
         {valor.secuencia ? (

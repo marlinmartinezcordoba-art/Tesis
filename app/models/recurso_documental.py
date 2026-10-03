@@ -68,6 +68,21 @@ class RecursoDocumental(Base):
     # relación puntual con el custodio (has_or_had_holder).
     historia_archivistica = Column(Text, nullable=True)
     origen_historia_archivistica = Column(String(20), nullable=True)
+    # Resto de ISAD-G (hallazgo DES-07): textos que escribe una persona. La
+    # tabla de los 26 elementos, con su fuente y su propiedad RiC-O, está en
+    # app/servicios/isadg.py.
+    forma_ingreso = Column(Text, nullable=True)  # 3.2.4 (además del lote de transferencia)
+    valoracion = Column(Text, nullable=True)  # 3.3.2 (además de la regla de retención)
+    nuevos_ingresos = Column(Text, nullable=True)  # 3.3.3; rico:accruals
+    organizacion = Column(Text, nullable=True)  # 3.3.4; rico:structure
+    escrituras = Column(ARRAY(String(4)), nullable=True)  # 3.4.3; ISO 15924 (Latn, Grek…)
+    instrumentos_descripcion = Column(Text, nullable=True)  # 3.4.5
+    localizacion_originales = Column(Text, nullable=True)  # 3.5.1
+    localizacion_copias = Column(Text, nullable=True)  # 3.5.2
+    unidades_relacionadas = Column(Text, nullable=True)  # 3.5.3 (material fuera del sistema)
+    nota_publicaciones = Column(Text, nullable=True)  # 3.5.4
+    nota_archivero = Column(Text, nullable=True)  # 3.7.1
+    reglas_descripcion = Column(Text, nullable=True)  # 3.7.2
     # Tipo de una parte documental (anexo, folio, firma, sello), del vocabulario.
     tipo_parte_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     publicado_en = Column(DateTime(timezone=True), nullable=True)

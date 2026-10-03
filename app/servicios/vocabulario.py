@@ -36,6 +36,23 @@ class Coincidencia:
     subtipo: str | None
     similitud: float
     conexiones: int
+    forma: str | None = None  # la otra forma del nombre que coincidió, si no fue la autorizada
+
+
+def _formas():
+    """Nombre autorizado y otras formas vigentes (paralelas, históricas,
+    siglas) de cada entidad, normalizados: la búsqueda los mira todos
+    (hallazgo DES-10). Así «Cabildo de Tunja» encuentra a la Alcaldía."""
+    from sqlalchemy import literal, union_all
+
+    from app.models.descripcion import NombreEntidad
+
+    return union_all(
+        select(EntidadVocabulario.id.label("entidad_id"), EntidadVocabulario.nombre_normalizado.label("n"),
+               literal(None).label("forma")),
+        select(NombreEntidad.entidad_id, NombreEntidad.nombre_normalizado, NombreEntidad.nombre)
+        .where(NombreEntidad.estado == "vigente", NombreEntidad.nombre_normalizado.is_not(None)),
+    ).subquery("formas")
 
 
 def _documentos_por_entidad(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, set[uuid.UUID]]:
@@ -84,18 +101,24 @@ def verificar(db: Session, fondo_id: uuid.UUID, clase: str, valor: str, limite: 
     buscado = normalizar(valor)
     if not buscado:
         return []
-    similitud = func.similarity(EntidadVocabulario.nombre_normalizado, buscado)
+    formas = _formas()
+    similitud = func.similarity(formas.c.n, buscado)
     filas = db.execute(
-        select(EntidadVocabulario, similitud.label("s"))
+        select(EntidadVocabulario, similitud.label("s"), formas.c.forma)
+        .join(formas, formas.c.entidad_id == EntidadVocabulario.id)
         .where(EntidadVocabulario.fondo_id == fondo_id,
                EntidadVocabulario.clase == clase,
                EntidadVocabulario.estado == "activa",
-               or_(similitud >= settings.umbral_similitud, EntidadVocabulario.nombre_normalizado == buscado))
+               or_(similitud >= settings.umbral_similitud, formas.c.n == buscado))
         .order_by(similitud.desc(), EntidadVocabulario.nombre)
-        .limit(limite)
     ).all()
+    mejores: dict[uuid.UUID, tuple] = {}
+    for e, s, forma in filas:  # la mejor forma de cada entidad
+        if e.id not in mejores:
+            mejores[e.id] = (e, s, forma)
     return [Coincidencia(id=e.id, nombre=e.nombre, subtipo=e.subtipo, similitud=round(float(s), 2),
-                         conexiones=conexiones(db, e.id)) for e, s in filas]
+                         conexiones=conexiones(db, e.id), forma=forma)
+            for e, s, forma in list(mejores.values())[:limite]]
 
 
 def crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str, subtipo: str | None, origen: str,
@@ -220,7 +243,8 @@ def _fusionar_ficha(db: Session, definitiva: EntidadVocabulario, absorbida: Enti
         NombreEntidad.entidad_id == definitiva.id, NombreEntidad.estado == "vigente"))}
     if absorbida.nombre_normalizado != definitiva.nombre_normalizado and absorbida.nombre_normalizado not in ya:
         db.add(NombreEntidad(entidad_id=definitiva.id, tipo="historica" if definitiva.clase == "lugar" else "otra",
-                             nombre=absorbida.nombre, creado_por_id=usuario_id))
+                             nombre=absorbida.nombre, nombre_normalizado=absorbida.nombre_normalizado,
+                             creado_por_id=usuario_id))
         movidos += 1
     existentes = set(db.execute(select(IdentificadorEntidad.esquema, IdentificadorEntidad.valor).where(
         IdentificadorEntidad.entidad_id == definitiva.id, IdentificadorEntidad.estado == "vigente")).all())
@@ -454,15 +478,20 @@ def contexto_para_motor(db: Session, fondo_id: uuid.UUID, texto: str, por_tipo: 
     buscado = normalizar(texto or "")[:60_000]
     if not buscado:
         return []
-    parecido = func.word_similarity(EntidadVocabulario.nombre_normalizado, buscado)
+    formas = _formas()
+    parecido = func.max(func.word_similarity(formas.c.n, buscado))
     salida, n = [], 0
     for clase in CLASES_CONTEXTO:
+        # También por sus otras formas del nombre (hallazgo DES-10): el texto
+        # puede decir «Cabildo» aunque la autoridad se llame «Alcaldía».
         filas = db.execute(
             select(EntidadVocabulario, parecido.label("s"))
+            .join(formas, formas.c.entidad_id == EntidadVocabulario.id)
             .where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == clase,
                    EntidadVocabulario.estado == "activa",
-                   or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"),
-                   parecido >= umbral)
+                   or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))
+            .group_by(EntidadVocabulario.id)
+            .having(parecido >= umbral)
             .order_by(parecido.desc(), EntidadVocabulario.nombre)
             .limit(por_tipo)).all()
         for e, s in filas:

@@ -209,7 +209,10 @@ def agregar_nombre(db: Session, e: EntidadVocabulario, *, tipo: str, nombre: str
     idioma = _texto(idioma, 12)
     if idioma and idiomas_validos([idioma]) != [idioma.lower()]:
         raise ErrorAutoridad("El idioma de una forma del nombre se indica con su código ISO 639-3 (spa, lat, eng…).")
-    n = NombreEntidad(entidad_id=e.id, tipo=tipo, nombre=nombre, idioma=idioma.lower() if idioma else None,
+    from app.servicios.vocabulario import normalizar
+
+    n = NombreEntidad(entidad_id=e.id, tipo=tipo, nombre=nombre, nombre_normalizado=normalizar(nombre),
+                      idioma=idioma.lower() if idioma else None,
                       regla=_texto(regla, 120),
                       vigencia_edtf=vigencia, inicio=inicio, fin=fin, creado_por_id=usuario_id)
     db.add(n)

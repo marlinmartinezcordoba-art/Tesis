@@ -82,3 +82,44 @@ La autora las resolvió el 3 de octubre de 2026, antes de escribir código para 
 | Base de pruebas (O-31) | `autouse` · solo bajo demanda | **Solo bajo demanda** (`db` la pide) | Las pruebas del mapeo RiC-O no tocan la base y deben correr aunque PostgreSQL esté detenido. Así un fallo de infraestructura no oculta un error de conformidad. | Una prueba nueva que use la base sin pedir `db` fallaría. Todas lo piden hoy. |
 | Entidades sin documentos en la exportación | Exportar todo el vocabulario · solo el contexto alcanzable desde los documentos | **Solo el contexto alcanzable** (se mantiene) | Lo encontró la prueba de O-31: un cargo sin ningún vínculo a documentos no sale en el RDF. La exportación describe el fondo, no el vocabulario completo. Así se evita publicar autoridades sueltas sin relación con lo publicado. | Una autoridad recién creada no aparece hasta que se vincula. Es coherente con el filtro de lo reservado (INS-02). |
 | ¿Bloquear una descarga no conforme? (O-32) | Bloquear · servir sin mirar · servir marcada | **Servir marcada**: cabecera, auditoría y alerta | Los datos son de la entidad: negarle la descarga por un defecto del software es peor que entregarla avisando. La alerta hace que el defecto se corrija y la auditoría deja constancia de qué se entregó. | Alguien podría publicar un archivo marcado como no conforme. Se mitiga con el aviso visible en la interfaz. |
+
+## 7. Bloque 3 · Ingesta y descripción
+
+| Hallazgo | Estado | Qué se hizo | Pruebas |
+|---|---|---|---|
+| ING-01 · Sin paquete de envío (SIP) | Cerrado | Paquete BagIt al confirmar el lote, validado con bagit-python | `tests/test_cierre_ing01_ing02.py` |
+| ING-02 · Sin procedencia del lote | Cerrado | Tabla `lotes_ingesta` con remitente, dependencia, acta y forma de ingreso | `tests/test_cierre_ing01_ing02.py`, `tests/test_cierre_bloque3.py` |
+| ING-06 · OAIS en la ingesta | Cerrado | Recepción, validación, acuse y procedencia (tabla abajo) | `tests/test_cierre_ing01_ing02.py` |
+| ING-07 · Enlace de la alerta de formato | Cerrado | Las dos alertas de la ingesta enlazan a describir | `frontend/src/pruebas/alertas.test.ts`, `tests/test_cierre_ing01_ing02.py` |
+| ING-08 · Revisor en la ingesta | Cerrado (desviación documentada) | Lectura sí, escritura no, también en los lotes | `tests/test_cierre_ing01_ing02.py`, `tests/test_ingesta.py` |
+| ING-09 · Compromisos del prompt y OCR intermitente | Cerrado | Causa raíz del OCR intermitente corregida | `tests/test_cierre_ocr_estable.py` |
+| DES-03 · EDTF fuera del subconjunto | Cerrado | `1948-XX-12` y `194X-03` se rechazan | `tests/test_cierre_bloque3.py` |
+| DES-07 · ISAD(G) incompleta | Cerrado | Los 26 elementos con fuente, ficha y RDF | `tests/test_cierre_bloque3.py` |
+| DES-10 · Contexto léxico del motor | Cerrado (decisión mantenida y ampliada) | También las otras formas del nombre | `tests/test_cierre_bloque3.py` |
+| DES-11 · Compromisos del prompt de descripción | Cerrado | Prueba de `%` y `194X` por la API | `tests/test_cierre_bloque3.py` |
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Paquete de envío (ING-01) | Copiar los archivos al paquete · comprimir · enlaces duros | **Enlaces duros** al archivo de la ingesta (copia si el disco no los admite) | El paquete existe completo y validable sin ocupar el doble de espacio en un servidor pequeño. Los archivos de la ingesta no se modifican nunca, así que el enlace no cambia por debajo. | Si un día se borrara el archivo de la ingesta, el enlace del paquete lo conserva (es el mismo archivo, con dos nombres). |
+| Integridad del envío (ING-01) | Confiar en la ingesta · recalcular la huella al empaquetar | **Recalcular y comparar** | Si el archivo cambió entre la carga y la confirmación, el lote no se confirma y se sabe por qué. | Un lote grande tarda en confirmarse lo que tarda leer sus archivos. |
+| Bolsa entrante del productor | Aceptar una bolsa BagIt de la dependencia · solo armarla aquí | **Solo armarla aquí** (delimitación) | Las dependencias de una entidad pequeña entregan papel o carpetas, no bolsas BagIt. Validar una bolsa entrante queda como trabajo futuro. | Un productor que sí entregue BagIt no tiene la verificación de origen a origen. |
+| Lote obligatorio | Obligatorio · opcional | **Opcional** | La carga suelta (un archivo que aparece en el fondo) sigue existiendo. Una transferencia formal exige dependencia y acta. | Una transferencia cargada sin lote pierde su procedencia. La interfaz ofrece el lote en el mismo formulario. |
+| Custodia anterior (ING-02 con DES-05) | Solo texto · relación de custodia | **Relación `hasOrHadHolder`** de la dependencia hasta la fecha del acta | Así la procedencia llega al RDF y a la ficha. No queda solo en una nota. | Si el acta no tiene fecha simple, el tramo queda sin fecha. |
+| Revisor en la ingesta (ING-08) | Solo archivista y administrador · revisor con lectura | **Revisor con lectura** (se mantiene) | Quien revisa una descripción necesita ver de dónde vino el documento y en qué estado llegó, sin poder cambiarlo. Lo gobierna la tabla de roles, que el administrador puede ajustar. | Se aparta de la letra del prompt del módulo 1. Queda escrito aquí. |
+| OCR intermitente (ING-09) | Reintentar la prueba · subir el límite de tiempo · un hilo por proceso | **Un hilo por proceso** (`OMP_THREAD_LIMIT=1`) | Se reprodujo la causa: con varios reconocimientos a la vez, los hilos de OpenMP compiten. Ocho reconocimientos tardaban 195 s; con un hilo tardan 0,8 s y dan el mismo resultado. Afecta igual al trabajador en producción. | Una sola página grande en un servidor ocioso puede tardar algo más que con varios hilos. Es aceptable frente a lo impredecible. |
+| Dígitos sin precisar (DES-03) | Admitir nivel 2 y mostrarlo bien · rechazarlo | **Rechazar lo que no va «desde la derecha»** | El subconjunto declarado es el nivel 1. Admitir `1948-XX-12` perdía el día en la forma legible. | Quien conozca el día pero no el mes debe escribirlo como nota. Es un caso raro. |
+| Elementos ISAD(G) sin dato del sistema (DES-07) | Columnas de texto · relaciones para todo · tabla única con fuente | **Tabla única** (`isadg.ELEMENTOS`): cada elemento sale del dato que el sistema ya tiene y se complementa con texto cuando no alcanza | Evita dos verdades: la forma de ingreso sale del lote, la valoración de la regla de retención, los originales de la instanciación física. El texto solo agrega lo que el sistema no sabe. | Once campos de texto más en la descripción. Se muestran plegados, como opcionales. |
+| ISAD(G) en RiC-O (DES-07) | Inventar propiedades · `generalDescription` para todo · solo las que existen | **Solo las que existen** (`accruals`, `structure`, `generalDescription`, `physicalCharacteristicsNote`), y para el resto el motivo escrito | Ningún nombre inventado (regla del proyecto). El área 7 describe la descripción, no el documento, y RiC-O no la cubre. | Una exportación RiC-O no lleva la nota del archivero ni las reglas. La ficha ISAD(G) sí. |
+| Recuperación del contexto del motor (DES-10) | Incrustaciones (vectores) · trigramas · trigramas con las otras formas del nombre | **Trigramas con las otras formas del nombre** | Las incrustaciones exigen un modelo y un servicio adicionales, posiblemente de pago (regla del proyecto). Las formas del nombre resuelven el caso real que señaló la auditoría (sigla, nombre antiguo) con lo que el archivista ya registra en la ficha de autoridad. | Un sinónimo que nadie registró como forma del nombre no se recupera. |
+| Quién crea el fondo (DES-11) | Archivista · administrador | **Administrador** (se mantiene) | El fondo delimita el alcance de todo lo demás (permisos, vocabulario, instrumentos). Las secciones, series y expedientes sí los crea el archivista (CM-02). | Ninguno relevante. |
+
+**Funciones de Ingest de OAIS (ISO 14721) que cubre el sistema (ING-06)**
+
+| Función | Cubierta | Dónde |
+|---|---|---|
+| Recibir el envío (Receive Submission) | Sí | Lote de transferencia y carga |
+| Asegurar la calidad (Quality Assurance) | Sí | Huella SHA-256, formato PRONOM, duplicados, OCR con confianza, comparación de huellas al confirmar |
+| Acuse de recibo al productor | Sí | Acuse del lote (auditoría y descarga en JSON) |
+| Generar el AIP | A demanda, en Preservación | El AIP BagIt con PREMIS se arma por instanciación o expediente cuando se pide. No es automático al ingresar: el AIP necesita la descripción, que llega después |
+| Generar la información descriptiva | En Descripción | Fuera de la ingesta, por diseño del flujo |
+| Coordinar las actualizaciones | Sí | Segunda copia al terminar la ingesta |

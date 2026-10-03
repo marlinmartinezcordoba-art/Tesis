@@ -291,6 +291,8 @@ class NombreEntidad(Base):
     entidad_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False, index=True)
     tipo = Column(Enum(*TIPO_NOMBRE_ENTIDAD, name="tipo_nombre_entidad"), nullable=False)
     nombre = Column(String(300), nullable=False)
+    # Para buscarla igual que el nombre autorizado (hallazgo DES-10).
+    nombre_normalizado = Column(String(300), nullable=True)
     idioma = Column(String(12), nullable=True)  # ISO 639, para formas paralelas
     regla = Column(String(120), nullable=True)  # para formas normalizadas según otras reglas
     vigencia_edtf = Column(String(200), nullable=True)

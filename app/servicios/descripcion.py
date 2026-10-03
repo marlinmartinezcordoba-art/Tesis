@@ -641,6 +641,16 @@ def _historia(recurso: RecursoDocumental, texto: str | None) -> None:
         recurso.origen_historia_archivistica = "persona" if recurso.historia_archivistica else None
 
 
+def _isadg(recurso: RecursoDocumental, textos: dict | None, escrituras: list[str] | None) -> None:
+    """Resto de los elementos de ISAD-G (hallazgo DES-07), de una persona."""
+    from app.servicios import isadg
+
+    try:
+        isadg.aplicar(recurso, textos, escrituras)
+    except isadg.ErrorIsadg as exc:
+        raise ErrorDescripcion(str(exc)) from exc
+
+
 def _serie_de(db: Session, recurso: RecursoDocumental) -> uuid.UUID | None:
     """La serie o subserie más cercana por encima del documento."""
     actual, vistos = recurso, set()
@@ -745,7 +755,8 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              condiciones_acceso: str | None = None, condiciones_uso: str | None = None,
              precede_a_id: uuid.UUID | None = None, sigue_a_id: uuid.UUID | None = None,
              partes: list[ParteConfirmada] | None = None,
-             historia_archivistica: str | None = None) -> RecursoDocumental:
+             historia_archivistica: str | None = None, isadg_textos: dict | None = None,
+             escrituras: list[str] | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -776,6 +787,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     )
     _aplicar_campos(recurso, propuesta, idiomas if idiomas is not None else [], condiciones_acceso, condiciones_uso)
     _historia(recurso, historia_archivistica)
+    _isadg(recurso, isadg_textos, escrituras)
     db.add(recurso)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
@@ -853,7 +865,8 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
             if inst:
                 instanciaciones.append({"id": str(inst.id), "nombre": inst.nombre_original,
                                         "custodios": custodios_de(db, inst.id),
-                                        **({"fisica": True, "soporte": inst.soporte, "ubicacion": inst.ubicacion_fisica}
+                                        **({"fisica": True, "soporte": inst.soporte, "ubicacion": inst.ubicacion_fisica,
+                                            "caracteristicas_fisicas": inst.caracteristicas_fisicas}
                                            if inst.estado == "registro_fisico" else {})})
             continue
         nodo_tipo, nodo_id = (r.origen_tipo, r.origen_id) if r.destino_id == recurso.id else (r.destino_tipo, r.destino_id)
@@ -895,6 +908,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "condiciones_acceso": recurso.condiciones_acceso, "condiciones_uso": recurso.condiciones_uso,
         "historia_archivistica": recurso.historia_archivistica,
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
+        "isadg": _isadg_valores(recurso),
         "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
         "partes": partes, "parte_de": parte_de, "secuencia": secuencia,
         "origen_titulo": recurso.origen_titulo, "origen_alcance": recurso.origen_alcance,
@@ -902,6 +916,12 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
         "actualizado_en": recurso.actualizado_en.isoformat() if recurso.actualizado_en else None,
     }
+
+
+def _isadg_valores(recurso: RecursoDocumental) -> dict:
+    from app.servicios import isadg
+
+    return isadg.valores(recurso)
 
 
 def _fecha_publica(f: Fecha) -> dict:
@@ -965,6 +985,7 @@ def resumen(db: Session, recurso: RecursoDocumental) -> dict:
         "idiomas": d["idiomas"], "condiciones_acceso": d["condiciones_acceso"], "condiciones_uso": d["condiciones_uso"],
         "partes": sorted(f"{p['titulo']} [{p['tipo_parte'] or ''}]" for p in d["partes"]),
         "secuencia": sorted(f"{x['posicion']}:{x['titulo']}" for x in d["secuencia"]),
+        "historia_archivistica": d["historia_archivistica"], **d["isadg"],
         **control_de(recurso),
     }
 
@@ -992,7 +1013,8 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            control: dict | None = None, idiomas: list[str] | None = None, condiciones_acceso: str | None = None,
            condiciones_uso: str | None = None, precede_a_id: uuid.UUID | None = None,
            sigue_a_id: uuid.UUID | None = None, agregar_partes: list[ParteConfirmada] | None = None,
-           historia_archivistica: str | None = None) -> None:
+           historia_archivistica: str | None = None, isadg_textos: dict | None = None,
+           escrituras: list[str] | None = None) -> None:
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
     anterior = resumen(db, recurso)
@@ -1031,6 +1053,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         _aplicar_campos(recurso, {}, idiomas, None, None)
     _aplicar_campos(recurso, {}, None, condiciones_acceso, condiciones_uso)
     _historia(recurso, historia_archivistica)
+    _isadg(recurso, isadg_textos, escrituras)
     if precede_a_id:
         _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
     if sigue_a_id:
@@ -1190,7 +1213,7 @@ def individualizar(db: Session, conjunto: RecursoDocumental, inst: Instanciacion
 
 
 def registrar_original_fisico(db: Session, recurso: RecursoDocumental, *, soporte: str, ubicacion: str | None,
-                              usuario_id: uuid.UUID) -> Instanciacion:
+                              usuario_id: uuid.UUID, caracteristicas: str | None = None) -> Instanciacion:
     """El original en papel (u otro soporte) como Instantiation sin archivo,
     con su tipo de soporte (rico:CarrierType). Cada archivo digital del
     documento queda como derivado de él (RiC-R014): la digitalización."""
@@ -1203,7 +1226,8 @@ def registrar_original_fisico(db: Session, recurso: RecursoDocumental, *, soport
         Relacion.estado == "vigente", Instanciacion.estado == "listo_para_descripcion")))
     fisico = Instanciacion(id=uuid.uuid4(), fondo_id=recurso.fondo_id, nombre_original=f"Original en {soporte.replace('_', ' ')}",
                            estado="registro_fisico", paso="terminado", progreso=100, soporte=soporte,
-                           ubicacion_fisica=(ubicacion or "").strip() or None, cargado_por_id=usuario_id)
+                           ubicacion_fisica=(ubicacion or "").strip() or None, cargado_por_id=usuario_id,
+                           caracteristicas_fisicas=(caracteristicas or "").strip()[:5000] or None)
     db.add(fisico)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",

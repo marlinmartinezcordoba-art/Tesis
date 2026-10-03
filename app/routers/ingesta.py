@@ -23,9 +23,10 @@ from app.models.instanciacion import ESTADOS_COLA, Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
-from app.schemas.ingesta import (CargaOut, ColaOut, ElementoCola, LimiteIn, LimiteOut, Referencia, ResultadoCarga,
-                                 UmbralOcrIn, UmbralOcrOut)
-from app.servicios import almacen, parametros, procesamiento
+from app.models.lote import LoteIngesta
+from app.schemas.ingesta import (ActaIn, AnulacionIn, CargaOut, ColaOut, ElementoCola, LimiteIn, LimiteOut, LoteIn,
+                                 Referencia, ResultadoCarga, UmbralOcrIn, UmbralOcrOut)
+from app.servicios import almacen, lotes, parametros, procesamiento
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/ingesta", tags=["Módulo 1 · Ingesta"],
@@ -97,17 +98,24 @@ async def cargar(request: Request, actor: Actor = Depends(acceso_modulo("ingesta
     try:
         fondo_id = _uuid(formulario.get("fondo_id"), "el fondo", True)
         expediente_id = _uuid(formulario.get("expediente_id"), "el expediente", False)
+        lote_id = _uuid(formulario.get("lote_id"), "el lote", False)
         archivos = [a for a in formulario.getlist("archivos") if isinstance(a, StarletteUploadFile)]
         if not archivos:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó ningún archivo.")
-        return await run_in_threadpool(_cargar, db, request, actor, fondo_id, expediente_id, archivos)
+        return await run_in_threadpool(_cargar, db, request, actor, fondo_id, expediente_id, archivos, lote_id)
     finally:
         await formulario.close()
 
 
 def _cargar(db: Session, request: Request, actor: Actor, fondo_id: uuid.UUID, expediente_id: uuid.UUID | None,
-            archivos: list[StarletteUploadFile]) -> CargaOut:
+            archivos: list[StarletteUploadFile], lote_id: uuid.UUID | None = None) -> CargaOut:
     fondo = fondo_o_404(db, fondo_id)
+    lote = None
+    if lote_id is not None:
+        try:
+            lote = lotes.abierto(db, lote_id, fondo.id)
+        except lotes.ErrorLote as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     expediente = None
     if expediente_id is not None:
         expediente = db.get(RecursoDocumental, expediente_id)
@@ -142,12 +150,14 @@ def _cargar(db: Session, request: Request, actor: Actor, fondo_id: uuid.UUID, ex
         inst = Instanciacion(id=nuevo_id, fondo_id=fondo.id, expediente_destino_id=expediente.id if expediente else None,
                              nombre_original=nombre, ruta=ruta, tamano_bytes=tamano,
                              tipo_declarado=(archivo.content_type or "")[:200] or None,
-                             estado="procesando", paso="en_espera", cargado_por_id=actor.id)
+                             estado="procesando", paso="en_espera", cargado_por_id=actor.id,
+                             lote_id=lote.id if lote else None)
         db.add(inst)
         registrar(db, modulo="ingesta", accion="documento_cargado", usuario_id=actor.id, entidad_tipo="instanciacion",
                   entidad_id=inst.id, request=request,
                   nuevo={"nombre": nombre, "tamano_bytes": tamano, "fondo": fondo.titulo,
-                         "expediente": expediente.titulo if expediente else None})
+                         "expediente": expediente.titulo if expediente else None,
+                         **({"lote": lote.numero} if lote else {})})
         db.commit()
         resultados.append(ResultadoCarga(nombre=nombre, aceptado=True, id=inst.id))
     db.commit()
@@ -320,3 +330,91 @@ def resumen(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
             "en_riesgo": panel["alerta_integridad"] + panel["alerta_segunda_copia"] + panel["riesgo_obsolescencia"],
             "riesgo_integridad": panel["alerta_integridad"] + panel["alerta_segunda_copia"],
             "riesgo_obsolescencia": panel["riesgo_obsolescencia"]}
+
+
+# --- Lotes de transferencia (hallazgos ING-01, ING-02, ING-06) -------------------------
+
+
+def _lote_o_404(db: Session, lote_id: uuid.UUID) -> LoteIngesta:
+    lote = db.get(LoteIngesta, lote_id)
+    if lote is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Lote no encontrado.")
+    return lote
+
+
+def _422(exc: Exception) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+
+@router.post("/lotes", status_code=status.HTTP_201_CREATED, summary="Abrir un lote de transferencia")
+def crear_lote(datos: LoteIn, request: Request, actor: Actor = Depends(acceso_modulo("ingesta")),
+               db: Session = Depends(get_db)):
+    fondo = fondo_o_404(db, datos.fondo_id)
+    try:
+        lote = lotes.crear(db, fondo=fondo, forma_ingreso=datos.forma_ingreso, remitente_id=datos.remitente_id,
+                           dependencia_origen_id=datos.dependencia_origen_id, acta_numero=datos.acta_numero,
+                           acta_fecha_edtf=datos.acta_fecha_edtf, observaciones=datos.observaciones,
+                           usuario_id=actor.id, ip=ip_de(request))
+    except lotes.ErrorLote as exc:
+        raise _422(exc) from exc
+    db.commit()
+    return lotes.resumen(db, lote)
+
+
+@router.get("/lotes", summary="Lotes de transferencia del fondo")
+def listar_lotes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    filas = db.scalars(select(LoteIngesta).where(LoteIngesta.fondo_id == fondo_id)
+                       .order_by(LoteIngesta.creado_en.desc())).all()
+    return [lotes.resumen(db, lote) for lote in filas]
+
+
+@router.get("/lotes/{lote_id}", summary="Un lote, con sus archivos")
+def ver_lote(lote_id: uuid.UUID, db: Session = Depends(get_db)):
+    return lotes.resumen(db, _lote_o_404(db, lote_id))
+
+
+@router.put("/lotes/{lote_id}/acta", summary="Indicar cuál archivo del lote es el acta escaneada")
+def fijar_acta(lote_id: uuid.UUID, datos: ActaIn, request: Request,
+               actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
+    lote = _lote_o_404(db, lote_id)
+    try:
+        lotes.fijar_acta(db, lote, datos.instanciacion_id, actor.id, ip_de(request))
+    except lotes.ErrorLote as exc:
+        raise _422(exc) from exc
+    db.commit()
+    return lotes.resumen(db, lote)
+
+
+@router.post("/lotes/{lote_id}/confirmar", summary="Confirmar el lote: paquete de envío BagIt y acuse de recibo")
+def confirmar_lote(lote_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("ingesta")),
+                   db: Session = Depends(get_db)):
+    lote = db.scalar(select(LoteIngesta).where(LoteIngesta.id == lote_id).with_for_update())
+    if lote is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Lote no encontrado.")
+    try:
+        recibo = lotes.confirmar(db, lote, actor.id, ip_de(request))
+    except lotes.ErrorLote as exc:
+        raise _422(exc) from exc
+    db.commit()
+    return {"lote": lotes.resumen(db, lote), "acuse": recibo}
+
+
+@router.post("/lotes/{lote_id}/anular", summary="Anular un lote abierto (con motivo)")
+def anular_lote(lote_id: uuid.UUID, datos: AnulacionIn, request: Request,
+                actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
+    lote = _lote_o_404(db, lote_id)
+    try:
+        lotes.anular(db, lote, datos.motivo, actor.id, ip_de(request))
+    except lotes.ErrorLote as exc:
+        raise _422(exc) from exc
+    db.commit()
+    return lotes.resumen(db, lote)
+
+
+@router.get("/lotes/{lote_id}/acuse", summary="Acuse de recibo del lote confirmado")
+def acuse_lote(lote_id: uuid.UUID, db: Session = Depends(get_db)):
+    lote = _lote_o_404(db, lote_id)
+    if lote.estado != "confirmado":
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="El lote aún no se ha confirmado.")
+    return lotes.acuse(db, lote)

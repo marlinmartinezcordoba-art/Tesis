@@ -227,7 +227,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             entidades=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.entidades],
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
-            historia_archivistica=datos.historia_archivistica)
+            historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -461,6 +461,19 @@ def individualizar(recurso_id: uuid.UUID, datos: IndividualizarIn, actor: Actor 
 class OriginalFisicoIn(BaseModel):
     soporte: str
     ubicacion: str | None = Field(default=None, max_length=300)
+    caracteristicas_fisicas: str | None = Field(default=None, max_length=5000)  # ISAD-G 3.4.4
+
+
+@router.get("/registros/{recurso_id}/isadg", summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
+def ficha_isadg(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.servicios import isadg
+
+    recurso = db.get(RecursoDocumental, recurso_id)
+    if recurso is None or (recurso.publicado_en is None and recurso.nivel != "fondo"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La descripción no existe.")
+    elementos = isadg.ficha(db, recurso)
+    return {"id": str(recurso.id), "titulo": recurso.titulo, "elementos": elementos,
+            "con_dato": sum(1 for e in elementos if e["valor"]), "total": len(elementos)}
 
 
 @router.post("/registros/{recurso_id}/original-fisico", status_code=status.HTTP_201_CREATED,
@@ -470,7 +483,7 @@ def original_fisico(recurso_id: uuid.UUID, datos: OriginalFisicoIn, actor: Actor
     recurso = _recurso_o_404(db, recurso_id)
     try:
         descripcion.registrar_original_fisico(db, recurso, soporte=datos.soporte, ubicacion=datos.ubicacion,
-                                              usuario_id=actor.id)
+                                              usuario_id=actor.id, caracteristicas=datos.caracteristicas_fisicas)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -529,7 +542,8 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             control=datos.control.model_dump() if datos.control else None,
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
-            agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica)
+            agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
+            isadg_textos=datos.isadg, escrituras=datos.escrituras)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

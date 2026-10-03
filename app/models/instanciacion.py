@@ -34,6 +34,8 @@ class Instanciacion(Base):
     fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=False, index=True)
     # Expediente elegido al cargar (opcional); descripción lo puede cambiar.
     expediente_destino_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=True)
+    # Lote de transferencia en que llegó (hallazgo ING-02); vacío en lo cargado sin lote.
+    lote_id = Column(UUID(as_uuid=True), ForeignKey("lotes_ingesta.id"), nullable=True, index=True)
 
     nombre_original = Column(String(500), nullable=False)
     ruta = Column(String(500), nullable=True)  # relativa a DIRECTORIO_ALMACENAMIENTO; vacía en un original físico
@@ -41,6 +43,8 @@ class Instanciacion(Base):
     # Original físico: su soporte y dónde está (caja, carpeta, estante).
     soporte = Column(String(40), nullable=True)
     ubicacion_fisica = Column(String(300), nullable=True)
+    # Estado físico y de conservación (ISAD-G 3.4.4; rico:physicalCharacteristicsNote, RiC-A31).
+    caracteristicas_fisicas = Column(Text, nullable=True)
     tipo_declarado = Column(String(200), nullable=True)  # lo que dijo el navegador; no se usa para decidir nada
 
     estado = Column(Enum(*ESTADO_INGESTA, name="estado_ingesta"), nullable=False, default="procesando", index=True)

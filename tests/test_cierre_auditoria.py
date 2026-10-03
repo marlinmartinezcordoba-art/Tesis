@@ -46,5 +46,8 @@ def test_cada_cierre_cita_hallazgos_y_pruebas_que_existen():
         assert c.pruebas, f"{ref} se cerró sin prueba automatizada"
         for prueba in c.pruebas:
             archivo, funcion = prueba.split("::")
+            if archivo.endswith((".ts", ".tsx")):  # prueba de la interfaz (vitest): it("…")
+                assert f'it("{funcion}"' in (RAIZ / archivo).read_text(encoding="utf-8"), prueba
+                continue
             arbol = ast.parse((RAIZ / archivo).read_text(encoding="utf-8"))
             assert funcion in {n.name for n in ast.walk(arbol) if isinstance(n, ast.FunctionDef)}, prueba

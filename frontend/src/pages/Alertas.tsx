@@ -5,6 +5,7 @@ import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { atiendeAlertas } from "@/components/Marco";
+import { TIPO_ALERTA, enlaceDeAlerta } from "@/lib/alertas";
 
 interface Alerta {
   id: string;
@@ -25,13 +26,7 @@ const MODULO: Record<string, string> = {
   ingesta: "Ingesta", descripcion: "Descripción", vocabularios: "Vocabularios",
   instrumentos: "Instrumentos", preservacion: "Preservación",
 };
-const TIPO: Record<string, string> = {
-  formato_no_identificado: "Formato no identificado",
-  ocr_baja_confianza: "OCR con confianza baja",
-  inventario_campos_pendientes: "Campos pendientes del inventario",
-  integridad_alterada: "Alerta de integridad",
-  riesgo_obsolescencia: "Riesgo de obsolescencia",
-};
+const TIPO = TIPO_ALERTA;
 
 export function Alertas() {
   const { usuario } = useSesion();
@@ -102,8 +97,8 @@ export function Alertas() {
                 </div>
               </div>
               <span className={`insignia ${CLASE[a.severidad]}`}>Severidad {a.severidad}</span>
-              {a.tipo === "ocr_baja_confianza" && vista === "pendientes" && (
-                <Link className="boton chico" to={`/descripcion?documento=${a.entidad_id}`}>Ir a describir</Link>
+              {vista === "pendientes" && enlaceDeAlerta(a) && (
+                <Link className="boton chico" to={enlaceDeAlerta(a)!.ruta}>{enlaceDeAlerta(a)!.texto}</Link>
               )}
               {vista === "pendientes" && puedeAtender && (
                 <button type="button" className="boton chico" onClick={() => atender(a)}>Marcar atendida</button>

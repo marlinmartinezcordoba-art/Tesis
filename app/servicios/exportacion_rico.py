@@ -448,6 +448,13 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
         ex.nodos.setdefault(forma, ("entidad_vocabulario", None))
     if r.historia_archivistica:  # ISAD-G 3.2.3 (hallazgo DES-06)
         g.add((s, _a("historia"), Literal(r.historia_archivistica)))
+    # ISAD-G 3.3.3, 3.3.4 y 3.6.1 (hallazgo DES-07). Nuevos ingresos: solo una agrupación.
+    if r.nuevos_ingresos and clase == "RecordSet":
+        g.add((s, _a("nuevos_ingresos"), Literal(r.nuevos_ingresos)))
+    if r.organizacion:
+        g.add((s, _a("organizacion"), Literal(r.organizacion)))
+    if r.nota:
+        g.add((s, _a("descripcion_general"), Literal(r.nota)))
     if clase == "RecordSet":
         # Un solo idioma declarado: todos sus miembros; varios: algunos en cada uno (O-26).
         idioma = _apoyo("idioma_agrupacion" if len(r.idiomas or []) <= 1 else "idioma_agrupacion_parcial")[0]
@@ -598,6 +605,8 @@ def _instanciacion(ex: Exportacion, i: Instanciacion) -> None:
     if i.soporte:  # original físico: su tipo de soporte (RiC-A05, rico:CarrierType)
         prop, clase_ap = _apoyo("tipo_soporte")
         g.add((s, prop, _concepto(ex, "tipo-de-soporte", i.soporte, clase_ap, i.soporte.replace("_", " ").capitalize())))
+    if i.caracteristicas_fisicas:  # ISAD-G 3.4.4 (hallazgo DES-07), RiC-A31
+        g.add((s, _a("caracteristicas_fisicas"), Literal(i.caracteristicas_fisicas)))
     if i.ubicacion_fisica:
         ex.omitidas["ubicación física de un original (sin propiedad de dato en RiC-O para una Instantiation)"] += 1
     if i.formato_puid:

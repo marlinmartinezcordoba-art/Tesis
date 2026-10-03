@@ -52,6 +52,10 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "alerta_atendida": ("Atendió una alerta", "Alertas atendidas"),
     # Ingesta
     "documento_cargado": ("Cargó un documento", "Documentos cargados"),
+    "lote_creado": ("Abrió un lote de transferencia", "Lotes abiertos"),
+    "lote_acta_fijada": ("Indicó el acta escaneada de un lote", None),
+    "lote_confirmado": ("Confirmó un lote: paquete de envío y acuse de recibo", "Lotes recibidos"),
+    "lote_anulado": ("Anuló un lote de transferencia", None),
     "carga_rechazada": ("Carga rechazada", None),
     "duplicado_confirmado": ("Confirmó que no era duplicado", "Documentos cargados"),
     "carga_cancelada": ("Canceló un duplicado", "Documentos cargados"),

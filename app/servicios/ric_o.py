@@ -300,6 +300,10 @@ ATRIBUTOS = {
     "calificador_fecha": ("dateQualifier", "RiC-A13"),
     "reglas": ("ruleFollowed", None),
     "extension": ("recordResourceExtent", "RiC-A35"),
+    # ISAD-G 3.3.3, 3.3.4 y 3.4.4 (hallazgo DES-07), verificados contra el OWL.
+    "nuevos_ingresos": ("accruals", "RiC-A01"),
+    "organizacion": ("structure", "RiC-A40"),
+    "caracteristicas_fisicas": ("physicalCharacteristicsNote", "RiC-A31"),
 }
 
 # Propiedades de objeto hacia nodos de apoyo (no son relaciones del grafo
@@ -341,6 +345,19 @@ SIN_PROPIEDAD = {
     "nivel_detalle": "Dato de control interno del registro de autoridad.",
     "fuentes": "RiC-O solo ofrece fuente para relaciones reificadas (isEvidencedBy); se conserva interno.",
     "origen_confianza": "Procedencia del dato (motor o persona): nunca sale del sistema.",
+    # ISAD-G sin propiedad literal en RiC-O 1.1 (hallazgo DES-07; motivo de cada uno en isadg.SIN_PROPIEDAD_RICO).
+    "forma_ingreso": "ISAD-G 3.2.4: RiC-O lo expresa con la custodia anterior (hasOrHadHolder); el texto queda en "
+                     "la ficha ISAD(G).",
+    "valoracion": "ISAD-G 3.3.2: se exporta la regla de retención (rico:Rule) que regula la serie; el texto queda "
+                  "en la ficha.",
+    "escrituras": "ISAD-G 3.4.3: RiC-O 1.1 no tiene propiedad para la escritura (ISO 15924).",
+    "instrumentos_descripcion": "ISAD-G 3.4.5: sin propiedad literal en RiC-O.",
+    "localizacion_originales": "ISAD-G 3.5.1: el original registrado sale como instanciación; el texto no.",
+    "localizacion_copias": "ISAD-G 3.5.2: sin propiedad literal en RiC-O.",
+    "unidades_relacionadas": "ISAD-G 3.5.3: las unidades del sistema salen como relaciones; el texto no.",
+    "nota_publicaciones": "ISAD-G 3.5.4: sin propiedad literal en RiC-O.",
+    "nota_archivero": "ISAD-G 3.7.1: metadato de la descripción, no del documento.",
+    "reglas_descripcion": "ISAD-G 3.7.2: metadato de la descripción, no del documento.",
 }
 
 # --- Columna «propiedad RiC-O» de auditoría ----------------------------------
@@ -360,6 +377,8 @@ CAMPO_RICO = {
     "tipo_parte": APOYO["forma_documental"][0], "tipo_lugar": APOYO["tipo_lugar"][0],
     "estatuto_juridico": APOYO["estatuto_juridico"][0], "existencia_edtf": APOYO["inicio"][0],
     "skos:broader": "skos:broader",
+    "nuevos_ingresos": ATRIBUTOS["nuevos_ingresos"][0], "organizacion": ATRIBUTOS["organizacion"][0],
+    "caracteristicas_fisicas": ATRIBUTOS["caracteristicas_fisicas"][0], "nota": ATRIBUTOS["descripcion_general"][0],
 }
 # Campos de procedencia o de control que no son descripción: sin columna.
 CAMPOS_SIN_RICO = {"origen", "confianza", "motor", "estado", "estado_revision", "id", "relacion_id", "vinculo",

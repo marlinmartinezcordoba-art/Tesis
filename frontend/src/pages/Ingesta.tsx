@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ICONOS, useVista } from "@/components/Marco";
+import { LotesDelFondo, NuevoLote, type Lote } from "@/components/Lotes";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { ErrorAPI, pedir, puede, subir } from "@/lib/api";
@@ -64,6 +65,9 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
   const [limite, setLimite] = useState<number | null>(null);
   const [expedientes, setExpedientes] = useState<{ id: string; titulo: string }[]>([]);
   const [expediente, setExpediente] = useState("");
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [lote, setLote] = useState("");
+  const [abriendoLote, setAbriendoLote] = useState(false);
   const [archivos, setArchivos] = useState<ArchivoLocal[]>([]);
   const [encima, setEncima] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
@@ -79,6 +83,9 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
   useEffect(() => {
     setExpediente("");
     pedir<{ id: string; titulo: string }[]>(`/api/fondos/${fondo.id}/expedientes`).then(setExpedientes).catch(() => setExpedientes([]));
+    setLote("");
+    pedir<Lote[]>(`/api/ingesta/lotes?fondo_id=${fondo.id}`).then((l) => setLotes(l.filter((x) => x.estado === "abierto")))
+      .catch(() => setLotes([]));
   }, [fondo.id]);
 
   // Si cambia el límite, se recalcula qué archivos lo exceden.
@@ -119,6 +126,7 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
       const datos = new FormData();
       datos.append("fondo_id", fondo.id);
       if (expediente) datos.append("expediente_id", expediente);
+      if (lote) datos.append("lote_id", lote);
       datos.append("archivos", a.archivo, a.archivo.name);
       try {
         const r = await subir<{ resultados: ResultadoCarga[] }>("/api/ingesta/cargar", datos, (f) => actualizar(a.clave, { avance: f }));
@@ -181,6 +189,17 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
             {expedientes.map((x) => <option key={x.id} value={x.id}>{x.titulo}</option>)}
           </select>
         </div>
+        <div className="campo">
+          <label htmlFor="lote">Lote de transferencia <span className="meta">(procedencia · ISAD-G 3.2.4)</span></label>
+          <select id="lote" className="selector" value={lote} disabled={subiendo} onChange={(e) => setLote(e.target.value)}>
+            <option value="">Sin lote</option>
+            {lotes.map((l) => <option key={l.id} value={l.id}>{l.numero} · {l.dependencia_origen?.nombre || l.forma_ingreso_nombre}
+              {l.acta_numero ? ` · acta ${l.acta_numero}` : ""}</option>)}
+          </select>
+          {!abriendoLote && (
+            <button type="button" className="enlace" onClick={() => setAbriendoLote(true)}>+ Abrir un lote de transferencia</button>
+          )}
+        </div>
         {esAdmin && !cambiandoLimite && (
           <p className="pista" style={{ margin: 0 }}>
             Límite por archivo: <b>{textoLimite}</b>.{" "}
@@ -200,6 +219,14 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
           </form>
         )}
       </div>
+
+      {abriendoLote && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Nuevo lote de transferencia</div>
+          <NuevoLote fondoId={fondo.id} alCancelar={() => setAbriendoLote(false)}
+                     alCrear={(l) => { setLotes((x) => [l, ...x]); setLote(l.id); setAbriendoLote(false); alTerminar(); }} />
+        </div>
+      )}
 
       <div
         className={`zona${encima ? " encima" : ""}`}
@@ -561,6 +588,7 @@ export function Ingesta() {
       {pestana === "cargar" && puedeCargar ? (
         <>
           <Cargar fondo={fondo} alTerminar={() => { cargarCola(); setVersion((v) => v + 1); }} />
+          <LotesDelFondo fondoId={fondo.id} version={version} puedeEscribir={puedeCargar} />
           <ActividadReciente fondo={fondo} version={version} />
         </>
       ) : (

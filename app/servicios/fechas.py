@@ -11,7 +11,11 @@ documentacion/modulo-2-descripcion.md):
 
 Quedan fuera, aunque el estándar los tenga: estaciones (1948-21), años
 con exponente o cifras significativas, años negativos, calificadores por
-componente y el conjunto «una de» ([a,b]).
+componente, calificadores dentro de un conjunto ({1948~,1949}), dígitos sin
+precisar que no van «desde la derecha» (1948-XX-12) y el conjunto «una de»
+([a,b]). Un extremo de intervalo se modela como «desconocido» («/1952»), no
+como «abierto» («../1952»): en un fondo cerrado lo que falta es el dato, no
+una fecha que siga corriendo.
 
 Dos capas: un filtro propio que acota el subconjunto (expresiones
 regulares) y la librería `edtf`, que confirma que la expresión es EDTF
@@ -30,7 +34,12 @@ from edtf.parser.edtf_exceptions import EDTFParseException
 
 SUBTIPOS = ("simple", "rango", "conjunto")
 
-_FECHA = r"(?:\d{4}|\d{3}X|\d{2}XX|XXXX)(?:-(?:0[1-9]|1[0-2]|XX)(?:-(?:0[1-9]|[12]\d|3[01]|XX))?)?"
+# Dígitos sin precisar de nivel 1: solo «desde la derecha» (194X, 1948-XX,
+# 1948-03-XX). Un día preciso con el mes sin precisar (1948-XX-12) o un mes
+# preciso con el año sin precisar (194X-03) es nivel 2 y queda fuera: antes
+# se admitía y la forma legible perdía el día (hallazgo DES-03).
+_FECHA = (r"(?:\d{4}(?:-(?:(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]|XX))?|XX(?:-XX)?))?"
+          r"|(?:\d{3}X|\d{2}XX|XXXX)(?:-XX(?:-XX)?)?)")
 _SIMPLE = re.compile(rf"^({_FECHA})([?~%])?$")
 _RANGO = re.compile(rf"^(?:({_FECHA})([?~%])?)?/(?:({_FECHA})([?~%])?)?$")
 _CONJUNTO = re.compile(rf"^\{{({_FECHA}(?:,{_FECHA})+)\}}$")

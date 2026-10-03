@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
-  CamposRegistro, IDIOMAS, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
+  CamposRegistro, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
   type CamposRegistroValor, type ParteBorrador,
 } from "@/components/DescripcionV3";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
@@ -54,6 +54,7 @@ interface Registro {
   condiciones_acceso: string | null;
   condiciones_uso: string | null;
   historia_archivistica: string | null;
+  isadg: Record<string, string | null> & { escrituras: string[] };
   tipo_parte: { id: string; nombre: string } | null;
   partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null;
             instanciaciones: { id: string; nombre: string }[] }[];
@@ -117,7 +118,9 @@ export function RegistroDescripcion() {
     setNuevas([]);
     setPartes([]);
     setCampos({ idiomas: r.idiomas, condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
-                historiaArchivistica: r.historia_archivistica || "", secuencia: null });
+                historiaArchivistica: r.historia_archivistica || "", secuencia: null,
+                isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
+                escrituras: r.isadg.escrituras || [] });
     setControl({
       codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
       folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
@@ -172,6 +175,7 @@ export function RegistroDescripcion() {
           condiciones_acceso: campos.condicionesAcceso,
           condiciones_uso: campos.condicionesUso,
           historia_archivistica: campos.historiaArchivistica,
+          isadg: campos.isadg, escrituras: campos.escrituras,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           agregar_partes: partes.map(parteParaEnviar),
@@ -278,6 +282,7 @@ export function RegistroDescripcion() {
           </div>
         </div>
       )}
+      {!editando && <FichaIsadg recursoId={registro.id} actualizado={registro.actualizado_en} />}
       {editando && registro.secuencia.map((x) => (
         <div key={x.relacion_id} className={`fila${quitar.includes(x.relacion_id) ? " tachada" : ""}`}>
           <div className="fila-principal">{x.posicion === "precede_a" ? "Precede a" : "Sigue a"} {x.titulo}</div>
@@ -407,5 +412,44 @@ export function RegistroDescripcion() {
         </div>
       )}
     </>
+  );
+}
+
+
+// Ficha ISAD(G) completa (hallazgo DES-07): los 26 elementos, cada uno con su
+// valor o vacío, de dónde sale en el sistema y con qué propiedad RiC-O se
+// exporta (o por qué no tiene una).
+interface ElementoIsadg {
+  elemento: string; area: string; nombre: string; valor: string | null; fuente: string; rico: string | null;
+  sin_propiedad: string | null;
+}
+
+function FichaIsadg({ recursoId, actualizado }: { recursoId: string; actualizado: string | null }) {
+  const [ficha, setFicha] = useState<{ elementos: ElementoIsadg[]; con_dato: number; total: number } | null>(null);
+  useEffect(() => {
+    pedir<{ elementos: ElementoIsadg[]; con_dato: number; total: number }>(`/api/descripcion/registros/${recursoId}/isadg`)
+      .then(setFicha).catch(() => setFicha(null));
+  }, [recursoId, actualizado]);
+  if (!ficha) return null;
+  let area = "";
+  return (
+    <details className="tarjeta">
+      <summary className="tarjeta-cab">Ficha ISAD(G) · {ficha.con_dato} de {ficha.total} elementos con dato</summary>
+      <div className="tarjeta-cuerpo">
+        <dl className="pares" style={{ margin: 0 }}>
+          {ficha.elementos.map((e) => {
+            const cabecera = e.area !== area ? (area = e.area) : null;
+            return (
+              <Fragment key={e.elemento}>
+                {cabecera && <dt style={{ gridColumn: "1 / -1", fontWeight: 600, marginTop: 8 }}>Área de {cabecera.toLowerCase()}</dt>}
+                <dt>{e.elemento} {e.nombre}</dt>
+                <dd>{e.valor || <span className="meta">Sin dato</span>}
+                  <div className="meta">{e.rico ? <code className="rico">{e.rico}</code> : e.sin_propiedad}</div></dd>
+              </Fragment>
+            );
+          })}
+        </dl>
+      </div>
+    </details>
   );
 }

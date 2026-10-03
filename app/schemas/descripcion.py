@@ -39,6 +39,7 @@ class CoincidenciaOut(BaseModel):
     similitud: float
     conexiones: int
     aviso: str | None = None
+    forma: str | None = None  # otra forma del nombre que coincidió (DES-10)
 
 
 class EntidadIn(BaseModel):
@@ -91,6 +92,9 @@ class CamposRegistro(BaseModel):
     condiciones_acceso: str | None = Field(default=None, max_length=5000)
     condiciones_uso: str | None = Field(default=None, max_length=5000)
     historia_archivistica: str | None = Field(default=None, max_length=20000)
+    # Resto de ISAD-G (DES-07): {campo: texto}; ver app/servicios/isadg.py.
+    isadg: dict[str, str | None] | None = None
+    escrituras: list[str] | None = Field(default=None, max_length=10)
     precede_a_id: uuid.UUID | None = None
     sigue_a_id: uuid.UUID | None = None
 

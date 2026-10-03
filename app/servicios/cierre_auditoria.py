@@ -300,6 +300,80 @@ CIERRES: dict[str, Cierre] = {
          "tests/test_cierre_o32.py::test_el_mecanismo_tiene_focos_en_la_exportacion",
          "tests/test_cierre_o32.py::test_cada_descarga_completa_valida_y_lo_deja_en_la_auditoria",
          "tests/test_cierre_o32.py::test_una_descarga_no_conforme_se_sirve_marcada_y_con_alerta")),
+    "ING-01": Cierre(
+        date(2026, 10, 3),
+        "Al confirmar un lote se arma el paquete de envío (SIP) en BagIt 1.0 con los archivos tal como llegaron "
+        "(enlaces duros, sin duplicar espacio), su huella SHA-256 y la procedencia en bag-info.txt; lo valida "
+        "bagit-python de la Library of Congress. Si un archivo no coincide con su huella de ingesta, no se confirma.",
+        ("tests/test_cierre_ing01_ing02.py::test_confirmar_arma_un_sip_bagit_valido_con_la_procedencia",)),
+    "ING-02": Cierre(
+        date(2026, 10, 3),
+        "Tabla lotes_ingesta: forma de ingreso, dependencia de origen y remitente del vocabulario de agentes, número "
+        "y fecha EDTF del acta, acta escaneada, observaciones; instanciaciones.lote_id. Una transferencia exige "
+        "dependencia y acta. Se anula con motivo; nada se borra. Alimenta ISAD-G 3.2.4 y la custodia anterior.",
+        ("tests/test_cierre_ing01_ing02.py::test_el_lote_guarda_la_procedencia_y_sus_archivos",
+         "tests/test_cierre_ing01_ing02.py::test_una_transferencia_exige_dependencia_y_acta",
+         "tests/test_cierre_ing01_ing02.py::test_un_lote_abierto_se_anula_con_motivo_y_sus_archivos_quedan_sin_lote",
+         "tests/test_cierre_bloque3.py::test_forma_de_ingreso_sale_del_lote_y_las_caracteristicas_del_original")),
+    "ING-06": Cierre(
+        date(2026, 10, 3),
+        "Función Ingest de OAIS: recepción del envío (lote), validación del paquete (huellas contra la ingesta), "
+        "acuse de recibo (auditoría y descarga) e información de procedencia (custodia anterior). La tabla de "
+        "funciones cubiertas y no cubiertas está en documentacion/cierre-auditoria-ric.md, sección 7.",
+        ("tests/test_cierre_ing01_ing02.py::test_confirmar_registra_la_custodia_anterior_y_el_acuse",
+         "tests/test_cierre_ing01_ing02.py::test_confirmar_arma_un_sip_bagit_valido_con_la_procedencia")),
+    "ING-07": Cierre(
+        date(2026, 10, 3),
+        "El panel de alertas enlaza al espacio de descripción las dos alertas de la ingesta (formato no identificado "
+        "y OCR dudoso), con una sola función; cada tipo de alerta del servidor tiene nombre en la interfaz.",
+        ("tests/test_cierre_ing01_ing02.py::test_cada_tipo_de_alerta_tiene_nombre_y_las_de_ingesta_enlazan_a_descripcion",
+         "frontend/src/pruebas/alertas.test.ts::formato no identificado y OCR dudoso llevan a describir el documento")),
+    "ING-08": Cierre(
+        date(2026, 10, 3),
+        "Desviación documentada en una tabla de decisión (sección 7): el revisor consulta la cola y los lotes, no "
+        "escribe. Probado también sobre los lotes.",
+        ("tests/test_cierre_ing01_ing02.py::test_el_revisor_consulta_lotes_pero_no_los_abre_ni_confirma",
+         "tests/test_ingesta.py::test_revisor_solo_consulta_la_cola")),
+    "ING-09": Cierre(
+        date(2026, 10, 3),
+        "Los compromisos pendientes del prompt de ingesta quedaron cerrados (ING-07, ING-08) y la prueba de OCR "
+        "intermitente se estabilizó con su causa: Tesseract con OpenMP bajo carga (ocho reconocimientos tardaban "
+        "195 s); ahora corre con un hilo por proceso (0,8 s).",
+        ("tests/test_cierre_ocr_estable.py::test_tesseract_se_ejecuta_con_un_hilo",
+         "tests/test_cierre_ocr_estable.py::test_ocho_reconocimientos_simultaneos_terminan_a_tiempo_y_coinciden",
+         "tests/test_ingesta.py::test_ocr_guarda_su_confianza_como_promedio_por_palabra")),
+    "DES-03": Cierre(
+        date(2026, 10, 3),
+        "La expresión regular solo admite dígitos sin precisar «desde la derecha» (nivel 1): 1948-XX-12 y 194X-03 "
+        "se rechazan. Delimitaciones documentadas en fechas.py: sin calificadores dentro de un conjunto y extremo "
+        "«desconocido» en lugar de «abierto».",
+        ("tests/test_cierre_bloque3.py::test_expresiones_de_nivel_2_o_fuera_del_subconjunto_se_rechazan",
+         "tests/test_cierre_bloque3.py::test_digitos_sin_precisar_desde_la_derecha_siguen_admitidos")),
+    "DES-07": Cierre(
+        date(2026, 10, 3),
+        "Los 26 elementos de ISAD(G) tienen fuente (app/servicios/isadg.py): 11 textos nuevos, escrituras ISO 15924, "
+        "características físicas del original, forma de ingreso desde el lote y valoración desde la regla de "
+        "retención. Ficha ISAD(G) en la API y en la interfaz; accruals, structure, generalDescription y "
+        "physicalCharacteristicsNote en el RDF; lo que no tiene propiedad en RiC-O lleva su motivo.",
+        ("tests/test_cierre_bloque3.py::test_cada_uno_de_los_26_elementos_tiene_fuente_y_motivo_si_no_se_exporta",
+         "tests/test_cierre_bloque3.py::test_publicar_con_todos_los_elementos_y_la_ficha_los_devuelve",
+         "tests/test_cierre_bloque3.py::test_forma_de_ingreso_sale_del_lote_y_las_caracteristicas_del_original",
+         "tests/test_cierre_bloque3.py::test_organizacion_nuevos_ingresos_y_nota_salen_en_rico",
+         "tests/test_cierre_bloque3.py::test_corregir_un_elemento_isadg_queda_en_la_auditoria")),
+    "DES-10": Cierre(
+        date(2026, 10, 3),
+        "Se mantiene la búsqueda léxica (trigramas) con su tabla de decisión, y se amplía a las otras formas del "
+        "nombre de cada autoridad (paralelas, históricas, siglas y las que deja una fusión): «Cabildo de Tunja» "
+        "encuentra a la Alcaldía, tanto al verificar como en el contexto que recibe el motor.",
+        ("tests/test_cierre_bloque3.py::test_la_verificacion_encuentra_la_entidad_por_otra_forma_del_nombre",
+         "tests/test_cierre_bloque3.py::test_el_contexto_del_motor_incluye_la_entidad_citada_por_su_otra_forma")),
+    "DES-11": Cierre(
+        date(2026, 10, 3),
+        "Pendientes del prompt de descripción: el archivista crea secciones (CM-02), custodio de la instanciación "
+        "(DES-05), EDTF (DES-03) y prueba del calificador «%» y de «194X» por POST /publicar. El fondo lo sigue "
+        "registrando el administrador (decisión documentada).",
+        ("tests/test_cierre_bloque3.py::test_calificador_ambos_y_decada_persisten_por_la_api",
+         "tests/test_cierre_cm02.py::test_cuadro_de_clasificacion_sin_archivos_propios")),
 }
 
 
