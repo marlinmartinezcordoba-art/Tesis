@@ -49,6 +49,7 @@ export const ROL_NOMBRE: Record<string, string> = {
   remitente: "Remitente",
   destinatario: "Destinatario",
   mencionado: "Mencionado",
+  custodio: "Custodio (distinto del productor)",
 };
 
 export const NIVEL_NOMBRE: Record<string, string> = {
@@ -58,6 +59,7 @@ export const NIVEL_NOMBRE: Record<string, string> = {
   subserie: "Subserie",
   expediente: "Expediente",
   unidad_documental: "Unidad documental",
+  parte_documental: "Parte documental",
 };
 
 export const ORIGEN_NOMBRE: Record<string, string> = {
@@ -76,7 +78,7 @@ export interface Coincidencia {
   conexiones: number;
 }
 
-export function verificarVocabulario(fondoId: string, tipo: TipoEntidad, valor: string): Promise<Coincidencia[]> {
+export function verificarVocabulario(fondoId: string, tipo: TipoEntidad | "tipo_parte", valor: string): Promise<Coincidencia[]> {
   return pedir<Coincidencia[]>("/api/descripcion/verificar-vocabulario", {
     method: "POST",
     body: JSON.stringify({ fondo_id: fondoId, tipo, valor }),

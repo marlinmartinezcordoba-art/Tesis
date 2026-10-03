@@ -130,6 +130,16 @@ export async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promis
   return cuerpo as T;
 }
 
+// Un archivo del servidor como Blob (p. ej. la imagen de una página), con sesión.
+export async function pedirArchivo(ruta: string): Promise<Blob> {
+  const r = await conSesion(ruta, { method: "GET" });
+  if (!r.ok) {
+    const cuerpo = await r.json().catch(() => ({}));
+    throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status), cuerpo);
+  }
+  return r.blob();
+}
+
 // Descarga un archivo generado por el servidor (inventario, guía) y lo
 // entrega al navegador con el nombre que propone el servidor.
 export async function descargar(ruta: string, opciones: RequestInit = {}): Promise<Headers> {

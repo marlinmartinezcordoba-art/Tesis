@@ -19,6 +19,10 @@ Relaciones que crea (catálogo curado, códigos oficiales RiC-CM 1.0):
 | Periodo de la actividad      | is_date_associated_with (R068)         | fecha → actividad     |
 | Expedición del mandato       | is_creation_date_of (R080)             | fecha → mandato       |
 | Mandato citado sin actividad | has_or_had_subject (R019)              | documento → mandato   |
+| Custodio (no productor)      | has_or_had_holder (R039i)              | documento → agente    |
+| Sub-actividad                | has_direct_subevent (rico)             | mayor → sub-actividad |
+| Secuencia en la serie        | precedes_or_preceded (R008)            | anterior → siguiente  |
+| Parte documental             | has_or_had_constituent (R003)          | documento → parte     |
 | Inclusión en nivel superior  | includes_or_included (R024)            | superior → documento  |
 | Archivo técnico              | has_or_had_instantiation (R025)        | documento → archivo   |
 
@@ -66,6 +70,8 @@ RELACION_POR_ROL = {
     ("agente", "remitente"): ("has_sender", "procedencia"),
     ("agente", "destinatario"): ("has_addressee", "procedencia"),
     ("agente", "mencionado"): ("has_or_had_subject", "asociacion"),
+    # Quien tiene o tuvo la custodia sin haberlo producido (RiC-R039i).
+    ("agente", "custodio"): ("has_or_had_holder", "procedencia"),
     ("lugar", None): ("has_or_had_subject", "espacial"),
     ("fecha", None): ("is_creation_date_of", "temporal"),
     ("actividad", None): ("documents", "asociacion"),
@@ -120,6 +126,16 @@ def latido(db: Session, trabajo: TrabajoDescripcion) -> None:
     trabajo.ultima_actividad = ahora()
 
 
+def instanciaciones_del_trabajo(db: Session, trabajo: TrabajoDescripcion) -> list[Instanciacion]:
+    """Los documentos que se ven en la pantalla: los del trabajo o, en una
+    corrección, los de la descripción reabierta."""
+    if trabajo.recurso_id is None:
+        return documentos_de(db, trabajo)
+    return list(db.scalars(select(Instanciacion).join(Relacion, Relacion.destino_id == Instanciacion.id).where(
+        Relacion.origen_id == trabajo.recurso_id, Relacion.codigo_ric == "has_or_had_instantiation",
+        Relacion.estado == "vigente")))
+
+
 def documentos_de(db: Session, trabajo: TrabajoDescripcion) -> list[Instanciacion]:
     filas = db.execute(select(Instanciacion).join(
         TrabajoInstanciacion, TrabajoInstanciacion.instanciacion_id == Instanciacion.id)
@@ -151,7 +167,9 @@ def cola(db: Session, fondo_id: uuid.UUID) -> list[tuple[Instanciacion, str | No
         Instanciacion.fondo_id == fondo_id, Instanciacion.estado == "listo_para_descripcion", _sin_descripcion(),
         # Una instanciación que salió de una migración no se describe aparte:
         # hereda la descripción de su original (módulo 5).
-        Instanciacion.derivada_de_id.is_(None))
+        Instanciacion.derivada_de_id.is_(None),
+        # Un recorte nace ya como instanciación de su parte documental.
+        Instanciacion.recorte_de_id.is_(None))
         .order_by(Instanciacion.cargado_en)).all()
     en_edicion = dict(db.execute(
         select(TrabajoInstanciacion.instanciacion_id, Usuario.nombre)
@@ -217,6 +235,10 @@ class EntidadConfirmada:
     tipo_clave: str | None = None  # actividad → su tipo de actividad (clave de otra entidad del envío)
     agente_clave: str | None = None  # actividad → agente que la ejerce
     mandato_clave: str | None = None  # actividad → mandato que la regula
+    # Actividad mayor de la que esta es sub-actividad: una ya existente en el
+    # vocabulario del fondo, o la clave de otra actividad del mismo envío.
+    actividad_mayor_id: uuid.UUID | None = None
+    actividad_mayor_clave: str | None = None
     fragmento: str | None = None
     documento_id: str | None = None
     inicio: int | None = None
@@ -338,8 +360,9 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
             continue
 
         if e.tipo == "agente":
-            if e.rol not in ("productor", "remitente", "destinatario", "mencionado"):
-                raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, remitente, destinatario o mencionado.")
+            if e.rol not in ("productor", "remitente", "destinatario", "mencionado", "custodio"):
+                raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, remitente, destinatario, mencionado "
+                                       "o custodio.")
             if e.subtipo not in SUBTIPOS_AGENTE:
                 e.subtipo = "persona"
         elif e.tipo == "mandato":
@@ -360,6 +383,13 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
             recurso.forma_documental_id = nodo.id
         elif e.tipo in ("agente", "lugar"):
             codigo, categoria = RELACION_POR_ROL[(e.tipo, e.rol if e.tipo == "agente" else None)]
+            if e.tipo == "agente" and e.rol in ("productor", "custodio"):
+                otro_rol = "productor" if e.rol == "custodio" else "custodio"
+                if db.scalar(select(Relacion.id).where(
+                        Relacion.origen_id == recurso.id, Relacion.destino_id == nodo.id, Relacion.estado == "vigente",
+                        Relacion.codigo_ric == ("has_creator" if otro_rol == "productor" else "has_or_had_holder"))):
+                    raise ErrorDescripcion(f"«{nodo.nombre}» ya es el {otro_rol} de este documento: el custodio se "
+                                           "registra solo cuando es distinto del productor.")
             db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
                             destino_id=nodo.id, tipo_relacion=categoria, codigo_ric=codigo,
                             rol=e.rol if e.tipo == "agente" else "lugar", origen=origen, confianza=confianza, motor=motor_e,
@@ -403,6 +433,20 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                 if "agente_clave" in enlaces:
                     _relacionar(db, mandato, ("entidad_vocabulario", nodos[enlaces["agente_clave"]].id),
                                 "authorizes", "asociacion", usuario_id, procedencia)
+            mayor = None
+            if e.actividad_mayor_clave:
+                if e.actividad_mayor_clave not in nodos or por_clave[e.actividad_mayor_clave].tipo != "actividad":
+                    raise ErrorDescripcion(f"La actividad mayor de «{e.valor}» no está entre las confirmadas.")
+                mayor = nodos[e.actividad_mayor_clave]
+            elif e.actividad_mayor_id:
+                mayor = db.get(EntidadVocabulario, e.actividad_mayor_id)
+                if mayor is None or mayor.clase != "actividad" or mayor.fondo_id != recurso.fondo_id:
+                    raise ErrorDescripcion(f"La actividad mayor elegida para «{e.valor}» no es una actividad del fondo.")
+                while mayor.estado == "fusionada" and mayor.fusionada_en_id:
+                    mayor = db.get(EntidadVocabulario, mayor.fusionada_en_id)
+            if mayor is not None:
+                _sub_actividad(db, mayor, nodo, e.valor, usuario_id, procedencia)
+                enlaces["actividad_mayor"] = str(mayor.id)
             if e.edtf:
                 periodo = _interpretar_fecha(e, "El periodo")
                 f = _crear_fecha(db, periodo.legible, periodo, origen, confianza, motor_e)
@@ -410,8 +454,28 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                 _relacionar(db, ("fecha", f.id), nodo_ref, "is_date_associated_with", "temporal", usuario_id, procedencia)
             if e.clave:
                 finales[e.clave] |= {"edtf": e.edtf, **{c: enlaces.get(c) for c in ("tipo_clave", "agente_clave",
-                                                                                     "mandato_clave")}}
+                                                                                     "mandato_clave",
+                                                                                     "actividad_mayor")}}
     return finales
+
+
+def _sub_actividad(db: Session, mayor: EntidadVocabulario, sub: EntidadVocabulario, valor: str,
+                   usuario_id: uuid.UUID, procedencia) -> None:
+    """mayor → sub (rico:hasDirectSubevent), con las mismas reglas que en
+    vocabularios: una sola actividad mayor y sin ciclos."""
+    from app.servicios import autoridad
+
+    if mayor.id == sub.id:
+        raise ErrorDescripcion(f"«{valor}» no puede ser sub-actividad de sí misma.")
+    v = autoridad.VINCULOS["actividad_mayor"]
+    superiores = autoridad._superiores(db, v, sub.id)
+    if superiores and mayor.id not in superiores:
+        raise ErrorDescripcion(f"«{valor}» ya es sub-actividad de otra actividad; corríjalo en vocabularios.")
+    if not superiores:
+        if autoridad._crearia_ciclo(db, v, mayor.id, sub.id):
+            raise ErrorDescripcion(f"Hacer de «{valor}» una sub-actividad formaría un ciclo.")
+        _relacionar(db, ("entidad_vocabulario", mayor.id), ("entidad_vocabulario", sub.id), "has_direct_subevent",
+                    "inclusion", usuario_id, procedencia)
 
 
 # --- Evidencia del trabajo con IA: una decisión por propuesta ------------------------------------
@@ -458,6 +522,11 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
     for e in manuales:  # lo que el motor no propuso (omisiones del motor)
         evento(decision="agregada", tipo=e.tipo, clave=e.clave, confianza=None, propuesto=None,
                final=_comparable(CAMPOS_DECISION.get(e.tipo, ("valor",)), finales.get(e.clave or "", {"valor": e.valor})))
+    if propuesta.get("idiomas"):
+        p_c, f_c = ",".join(sorted(propuesta["idiomas"])), ",".join(sorted(recurso.idiomas or []))
+        evento(decision="aceptada" if p_c == f_c else ("rechazada" if not f_c else "corregida"), tipo="idioma",
+               clave="idioma", confianza=propuesta.get("confianza_idiomas"), propuesto={"valor": p_c},
+               final={"valor": f_c} if f_c else None)
     for tipo, propuesto, final in (("titulo", propuesta.get("titulo"), titulo), ("alcance", propuesta.get("alcance"), alcance)):
         if propuesto:
             p_c, f_c = " ".join(propuesto.split()), " ".join((final or "").split())
@@ -465,6 +534,136 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
                    clave=tipo, confianza=propuesta.get("confianza_alcance") if tipo == "alcance" else None,
                    propuesto={"valor": p_c}, final={"valor": f_c} if f_c else None)
     return n
+
+
+# --- Campos propios del Record Resource (versión 3) ---------------------------------------------------
+
+
+def _idiomas(valores) -> list[str] | None:
+    from app.servicios.motor import idiomas_validos
+
+    if valores is None:
+        return None
+    limpios = idiomas_validos(valores)
+    if len(limpios) != len([v for v in valores if str(v or "").strip()]):
+        raise ErrorDescripcion("Cada idioma se indica con su código ISO 639-3 de tres letras (spa, lat, eng…).")
+    return limpios or None
+
+
+def _texto_libre(valor: str | None) -> str | None:
+    return (valor or "").strip()[:5000] or None
+
+
+def _aplicar_campos(recurso: RecursoDocumental, propuesta: dict, idiomas, acceso: str | None, uso: str | None) -> None:
+    """Idioma con su procedencia (el motor puede proponerlo); condiciones de
+    acceso y de uso, siempre de una persona."""
+    if idiomas is not None:
+        codigos = _idiomas(idiomas)
+        propuestos = propuesta.get("idiomas") or None
+        if codigos is None:
+            recurso.idiomas = recurso.origen_idiomas = recurso.confianza_idiomas = None
+        else:
+            recurso.idiomas = codigos
+            if propuestos is None:
+                recurso.origen_idiomas, recurso.confianza_idiomas = "persona", None
+            else:
+                igual = sorted(codigos) == sorted(propuestos)
+                recurso.origen_idiomas = "motor" if igual else "motor_editado"
+                recurso.confianza_idiomas = propuesta.get("confianza_idiomas")
+    if acceso is not None:
+        recurso.condiciones_acceso = _texto_libre(acceso)
+    if uso is not None:
+        recurso.condiciones_uso = _texto_libre(uso)
+
+
+def _serie_de(db: Session, recurso: RecursoDocumental) -> uuid.UUID | None:
+    """La serie o subserie más cercana por encima del documento."""
+    actual, vistos = recurso, set()
+    while actual is not None and actual.id not in vistos:
+        vistos.add(actual.id)
+        if actual.nivel in ("serie", "subserie"):
+            return actual.id
+        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id else None
+    return None
+
+
+def _secuencia(db: Session, recurso: RecursoDocumental, otro_id: uuid.UUID, posicion: str,
+               usuario_id: uuid.UUID) -> None:
+    """Declara que este documento precede o sigue a otro de la misma serie
+    (RiC-R008 precedes or preceded; la fila va del anterior al siguiente)."""
+    otro = db.get(RecursoDocumental, otro_id)
+    if otro is None or otro.publicado_en is None or otro.fondo_id != recurso.fondo_id or otro.id == recurso.id:
+        raise ErrorDescripcion("El documento de la secuencia debe ser otra descripción publicada del mismo fondo.")
+    if otro.nivel in ("fondo", "seccion", "serie", "subserie"):
+        raise ErrorDescripcion("La secuencia une documentos o expedientes, no series ni fondos.")
+    serie_a, serie_b = _serie_de(db, recurso), _serie_de(db, otro)
+    misma = serie_a == serie_b if (serie_a or serie_b) else recurso.incluido_en_id == otro.incluido_en_id
+    if not misma:
+        raise ErrorDescripcion(f"«{otro.titulo}» no está en la misma serie: la secuencia es entre documentos de una "
+                               "misma serie.")
+    anterior, siguiente = (recurso, otro) if posicion == "precede" else (otro, recurso)
+    if db.scalar(select(Relacion.id).where(Relacion.codigo_ric == "precedes_or_preceded", Relacion.estado == "vigente",
+                                           Relacion.origen_id == siguiente.id, Relacion.destino_id == anterior.id)):
+        raise ErrorDescripcion("Esa secuencia contradice otra ya registrada (al revés).")
+    _relacionar(db, ("recurso_documental", anterior.id), ("recurso_documental", siguiente.id), "precedes_or_preceded",
+                "temporal", usuario_id, ("persona", None, None))
+
+
+@dataclass
+class ParteConfirmada:
+    titulo: str
+    tipo_parte: EntidadConfirmada | None = None
+    alcance: str | None = None
+    recorte: dict | None = None  # {instanciacion_id, pagina, x, y, ancho, alto}
+
+
+def _partes(db: Session, recurso: RecursoDocumental, partes: list[ParteConfirmada], usuario_id: uuid.UUID,
+            instanciaciones_validas: set[str]) -> list[RecursoDocumental]:
+    """Cada parte es un Record Resource de nivel parte documental (RiC-E05
+    Record Part) dentro de la unidad documental, unido por RiC-R003 has or
+    had constituent; puede llevar su propio recorte como instanciación."""
+    from app.servicios import recorte as servicio_recorte
+
+    if not partes:
+        return []
+    if recurso.nivel != "unidad_documental":
+        raise ErrorDescripcion("Las partes documentales se registran dentro de una unidad documental.")
+    creadas, recortes = [], db.info.setdefault("recortes_nuevos", [])
+    for k, p in enumerate(partes):
+        titulo = " ".join((p.titulo or "").split())
+        if len(titulo) < 2:
+            raise ErrorDescripcion("Cada parte documental lleva un título (por ejemplo «Sello de la Alcaldía»).")
+        parte = RecursoDocumental(id=uuid.uuid4(), nivel="parte_documental", titulo=titulo[:300],
+                                  alcance_contenido=_texto_libre(p.alcance), fondo_id=recurso.fondo_id,
+                                  incluido_en_id=recurso.id, creado_por_id=usuario_id, origen_titulo="persona",
+                                  origen_alcance="persona" if _texto_libre(p.alcance) else None,
+                                  publicado_en=ahora(), publicado_por_id=usuario_id)
+        db.add(parte)
+        db.flush()
+        if p.tipo_parte is not None and (p.tipo_parte.valor or "").strip():
+            p.tipo_parte.tipo = "tipo_parte"
+            p.tipo_parte.valor = " ".join(p.tipo_parte.valor.split())
+            tipo = _nodo_vocabulario(db, recurso.fondo_id, p.tipo_parte, k, "persona", None, None, usuario_id)
+            db.flush()
+            parte.tipo_parte_id = tipo.id
+        _relacionar(db, ("recurso_documental", recurso.id), ("recurso_documental", parte.id), "has_or_had_constituent",
+                    "inclusion", usuario_id, ("persona", None, None))
+        if p.recorte:
+            origen_id = str(p.recorte.get("instanciacion_id") or "")
+            if origen_id not in instanciaciones_validas:
+                raise ErrorDescripcion("El recorte debe salir de uno de los documentos de esta descripción.")
+            origen = db.get(Instanciacion, uuid.UUID(origen_id))
+            try:
+                inst = servicio_recorte.recortar(db, origen, p.recorte, titulo, usuario_id)
+            except servicio_recorte.ErrorRecorte as exc:
+                raise ErrorDescripcion(f"Recorte de «{titulo}»: {exc}") from exc
+            recortes.append(inst)
+            db.add(Relacion(origen_tipo="recurso_documental", origen_id=parte.id, destino_tipo="instanciacion",
+                            destino_id=inst.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
+                            origen="persona", confirmada_por_id=usuario_id))
+        creadas.append(parte)
+    db.flush()
+    return creadas
 
 
 def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid.UUID | None) -> RecursoDocumental:
@@ -477,7 +676,10 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
 
 
 def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, titulo: str, alcance: str,
-             incluido_en_id: uuid.UUID | None, entidades: list[EntidadConfirmada]) -> RecursoDocumental:
+             incluido_en_id: uuid.UUID | None, entidades: list[EntidadConfirmada], idiomas: list[str] | None = None,
+             condiciones_acceso: str | None = None, condiciones_uso: str | None = None,
+             precede_a_id: uuid.UUID | None = None, sigue_a_id: uuid.UUID | None = None,
+             partes: list[ParteConfirmada] | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -504,11 +706,16 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
         motor=propuesta.get("motor") if origen_titulo != "persona" or origen_alcance != "persona" else None,
         publicado_en=momento, publicado_por_id=usuario_id,
     )
+    _aplicar_campos(recurso, propuesta, idiomas if idiomas is not None else [], condiciones_acceso, condiciones_uso)
     db.add(recurso)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
                     destino_id=recurso.id, tipo_relacion="inclusion", codigo_ric="includes_or_included",
                     origen="persona", confirmada_por_id=usuario_id))
+    if precede_a_id:
+        _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
+    if sigue_a_id:
+        _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
     for d in documentos + _derivadas(db, [d.id for d in documentos]):
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",
                         destino_id=d.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
@@ -517,6 +724,9 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     for k, e in enumerate(entidades):  # toda entidad lleva clave, para enlazar la cadena de la actividad
         e.clave = e.clave or f"m{k + 1}"
     finales = _agregar_entidades(db, recurso, entidades, propuesta, usuario_id, ids_documentos)
+    # Las partes van al final: un recorte escribe un archivo, que solo vale
+    # la pena escribir cuando todo lo demás ya pasó la validación.
+    _partes(db, recurso, partes or [], usuario_id, ids_documentos)
     _cerrar(db, trabajo, "publicado")
     trabajo.recurso_id = recurso.id
     db.flush()
@@ -540,8 +750,34 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         Relacion.estado == "vigente",
         ((Relacion.origen_id == recurso.id) | (Relacion.destino_id == recurso.id)))
         .order_by(Relacion.creado_en)).all()
+    partes, parte_de, secuencia = [], None, []
     for r in relaciones:
         if r.codigo_ric == "includes_or_included":
+            continue
+        if r.codigo_ric == "has_or_had_constituent":
+            otro = db.get(RecursoDocumental, r.destino_id if r.origen_id == recurso.id else r.origen_id)
+            if otro is None:
+                continue
+            breve = {"id": str(otro.id), "titulo": otro.titulo, "nivel": otro.nivel, "relacion_id": str(r.id)}
+            if r.origen_id == recurso.id:
+                tipo_parte = db.get(EntidadVocabulario, otro.tipo_parte_id) if otro.tipo_parte_id else None
+                recortes = db.scalars(select(Instanciacion).join(Relacion, Relacion.destino_id == Instanciacion.id).where(
+                    Relacion.origen_id == otro.id, Relacion.codigo_ric == "has_or_had_instantiation",
+                    Relacion.estado == "vigente")).all()
+                partes.append(breve | {"tipo_parte": tipo_parte.nombre if tipo_parte else None,
+                                       "alcance_contenido": otro.alcance_contenido,
+                                       "instanciaciones": [{"id": str(i.id), "nombre": i.nombre_original,
+                                                            "recorte_zona": i.recorte_zona} for i in recortes]})
+            else:
+                parte_de = breve
+            continue
+        if r.codigo_ric == "precedes_or_preceded":
+            otro = db.get(RecursoDocumental, r.destino_id if r.origen_id == recurso.id else r.origen_id)
+            if otro is not None:
+                secuencia.append({"relacion_id": str(r.id), "id": str(otro.id), "titulo": otro.titulo,
+                                  "posicion": "precede_a" if r.origen_id == recurso.id else "sigue_a",
+                                  "uri_rico": "rico:precedesOrPreceded" if r.origen_id == recurso.id
+                                  else "rico:followsOrFollowed"})
             continue
         if r.codigo_ric == "has_or_had_instantiation":
             inst = db.get(Instanciacion, r.destino_id)
@@ -583,6 +819,11 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "incluido_en": {"id": str(superior.id), "titulo": superior.titulo, "nivel": superior.nivel} if superior else None,
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
         "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),
+        "idiomas": recurso.idiomas or [], "origen_idiomas": recurso.origen_idiomas,
+        "confianza_idiomas": recurso.confianza_idiomas,
+        "condiciones_acceso": recurso.condiciones_acceso, "condiciones_uso": recurso.condiciones_uso,
+        "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
+        "partes": partes, "parte_de": parte_de, "secuencia": secuencia,
         "origen_titulo": recurso.origen_titulo, "origen_alcance": recurso.origen_alcance,
         "confianza_alcance": recurso.confianza_alcance, "motor": recurso.motor,
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
@@ -592,6 +833,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
 
 def _fecha_publica(f: Fecha) -> dict:
     return {"fecha_subtipo": f.subtipo, "edtf": f.edtf, "fecha_legible": fechas.legible(f.edtf, f.expresion),
+            "calendario": f.calendario,
             "fecha_inicio": f.inicio.isoformat() if f.inicio else None, "fecha_fin": f.fin.isoformat() if f.fin else None}
 
 
@@ -647,6 +889,9 @@ def resumen(db: Session, recurso: RecursoDocumental) -> dict:
         "forma_documental": d["forma_documental"]["nombre"] if d["forma_documental"] else None,
         "entidades": sorted(f"{e['tipo']}:{e['rol'] or ''}:{e['valor']} [{e['origen']}]" for e in d["entidades"]),
         "instanciaciones": sorted(i["nombre"] for i in d["instanciaciones"]),
+        "idiomas": d["idiomas"], "condiciones_acceso": d["condiciones_acceso"], "condiciones_uso": d["condiciones_uso"],
+        "partes": sorted(f"{p['titulo']} [{p['tipo_parte'] or ''}]" for p in d["partes"]),
+        "secuencia": sorted(f"{x['posicion']}:{x['titulo']}" for x in d["secuencia"]),
         **control_de(recurso),
     }
 
@@ -671,7 +916,9 @@ def reabrir(db: Session, recurso: RecursoDocumental, usuario_id: uuid.UUID) -> T
 def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
            titulo: str | None, alcance: str | None, incluido_en_id: uuid.UUID | None,
            anular: list[uuid.UUID], quitar_forma: bool, agregar: list[EntidadConfirmada],
-           control: dict | None = None) -> None:
+           control: dict | None = None, idiomas: list[str] | None = None, condiciones_acceso: str | None = None,
+           condiciones_uso: str | None = None, precede_a_id: uuid.UUID | None = None,
+           sigue_a_id: uuid.UUID | None = None, agregar_partes: list[ParteConfirmada] | None = None) -> None:
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
     anterior = resumen(db, recurso)
@@ -705,6 +952,13 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
     for campo, valor in (control or {}).items():
         if campo in CAMPOS_CONTROL:
             setattr(recurso, campo, (" ".join(valor.split()) or None) if isinstance(valor, str) else valor)
+    if idiomas is not None and sorted(_idiomas(idiomas) or []) != sorted(recurso.idiomas or []):
+        _aplicar_campos(recurso, {}, idiomas, None, None)
+    _aplicar_campos(recurso, {}, None, condiciones_acceso, condiciones_uso)
+    if precede_a_id:
+        _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
+    if sigue_a_id:
+        _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(
@@ -712,6 +966,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
     for k, e in enumerate(agregar):
         e.clave = e.clave or f"m{k + 1}"
     _agregar_entidades(db, recurso, agregar, {}, usuario_id, documentos)
+    _partes(db, recurso, agregar_partes or [], usuario_id, documentos)
     db.flush()
     nuevo = resumen(db, recurso)
     if nuevo != anterior:

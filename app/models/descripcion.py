@@ -26,7 +26,7 @@ ESTADO_REVISION = ("validado",)  # solo se publica lo que una persona validó
 # (RiC-E15 Activity), el tipo de actividad es el valor controlado de esa
 # competencia (rico:ActivityType, no una entidad «Función», que no existe
 # en RiC-O) y el mandato es la norma que la regula (RiC-E17 Mandate).
-CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
+CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte")
 # «grupo» (RiC-E09 Group usado directamente): un colectivo que no es ni
 # entidad corporativa ni familia, como un comité o una junta. La nota de
 # alcance de rico:Group admite «otras clases de grupos».
@@ -135,6 +135,9 @@ class Fecha(_Procedencia, Base):
     inicio = Column(Date, nullable=True)
     fin = Column(Date, nullable=True)
     normalizada = Column(Date, nullable=True)  # solo si es un día exacto
+    # Calendario declarado, no implícito: el subconjunto EDTF del sistema es
+    # gregoriano (ISO 8601). El campo queda listo para otro calendario.
+    calendario = Column(String(20), nullable=False, default="gregoriano", server_default="gregoriano")
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
 
 

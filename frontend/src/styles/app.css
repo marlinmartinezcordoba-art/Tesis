@@ -431,3 +431,9 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .linea-tiempo li { position: relative; padding: 6px 0 8px 14px; }
 .linea-tiempo li::before { content: ""; position: absolute; left: -6px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--ctx); }
 .insignia.neutra-borde { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+
+/* Descripción v3: partes documentales y visor de página para recortar */
+.parte-borrador { border-top: 1px solid var(--line); padding: 10px 0; }
+.visor-pagina { position: relative; user-select: none; touch-action: none; cursor: crosshair; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.visor-pagina img { display: block; width: 100%; height: auto; pointer-events: none; }
+.zona-recorte { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); pointer-events: none; }

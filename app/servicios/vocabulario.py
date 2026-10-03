@@ -398,3 +398,42 @@ def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
               entidad_tipo="entidad_vocabulario", entidad_id=e.id, nuevo={"nombre": etiqueta, "version": version},
               detalle=f"Mecanismo «{etiqueta}» registrado en el vocabulario del fondo")
     return e
+
+
+# --- Contexto de vocabulario para el motor de análisis (módulo 2, versión 3) ---------------------
+
+# Cuántas entidades existentes recibe el motor por tipo, y desde qué
+# parecido con el texto (decisión en documentacion/modulo-2-descripcion.md).
+CONTEXTO_POR_TIPO = 10
+CONTEXTO_UMBRAL = 0.5
+CLASES_CONTEXTO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
+
+
+def contexto_para_motor(db: Session, fondo_id: uuid.UUID, texto: str, por_tipo: int = CONTEXTO_POR_TIPO,
+                        umbral: float = CONTEXTO_UMBRAL) -> list:
+    """Entidades activas del fondo cuyo nombre aparece (o casi) en el texto
+    de los documentos, por tipo, de la más a la menos parecida. Se mide con
+    word_similarity de pg_trgm: el parecido entre el nombre y el tramo del
+    texto que más se le parece, así que tolera tildes, mayúsculas y erratas
+    del OCR. Los mecanismos no se ofrecen: no aparecen en los documentos."""
+    from app.servicios.motor import EntradaContexto
+
+    buscado = normalizar(texto or "")[:60_000]
+    if not buscado:
+        return []
+    parecido = func.word_similarity(EntidadVocabulario.nombre_normalizado, buscado)
+    salida, n = [], 0
+    for clase in CLASES_CONTEXTO:
+        filas = db.execute(
+            select(EntidadVocabulario, parecido.label("s"))
+            .where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == clase,
+                   EntidadVocabulario.estado == "activa",
+                   or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"),
+                   parecido >= umbral)
+            .order_by(parecido.desc(), EntidadVocabulario.nombre)
+            .limit(por_tipo)).all()
+        for e, s in filas:
+            n += 1
+            salida.append(EntradaContexto(codigo=f"V{n}", id=str(e.id), tipo=clase, nombre=e.nombre, subtipo=e.subtipo,
+                                          similitud=round(float(s), 2)))
+    return salida

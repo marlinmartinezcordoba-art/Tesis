@@ -1,6 +1,10 @@
 import { confianzaTexto } from "@/lib/formato";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
+  type CamposRegistroValor, type ParteBorrador,
+} from "@/components/DescripcionV3";
 import { SelectorFecha } from "@/components/SelectorFecha";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir } from "@/lib/api";
@@ -27,6 +31,8 @@ interface EntidadPropuesta {
   inicio: number | null;
   confianza: number | null;
   fragmento_localizado: boolean;
+  existente_id?: string | null;
+  existente_nombre?: string | null;
 }
 
 interface Espacio {
@@ -46,6 +52,9 @@ interface Espacio {
     version_prompt: string | null;
     disponible: boolean;
     aviso: string | null;
+    idiomas?: string[];
+    confianza_idiomas?: number | null;
+    contexto_enviado?: Record<string, number>;
   } | null;
   umbral_confianza: number;
 }
@@ -58,6 +67,7 @@ interface Item extends EntidadPropuesta {
   verif: Verificacion;
   control: ControlFecha; // fecha de la entidad, periodo de la actividad o expedición del mandato
   conPeriodo: boolean;
+  actividadMayor: { id: string; nombre: string } | null;
 }
 
 // Lo que impide publicar: sin decidir, sin verificar en el vocabulario,
@@ -76,7 +86,7 @@ function porResolver(i: Item, todos: Item[]) {
 function nuevoItem(e: EntidadPropuesta, manual = false): Item {
   return {
     ...e, decision: "pendiente", editada: false, manual, editando: false, verif: verificacionInicial(e.tipo),
-    control: desarmar(e.edtf, e.fecha_subtipo), conPeriodo: !!e.edtf,
+    control: desarmar(e.edtf, e.fecha_subtipo), conPeriodo: !!e.edtf, actividadMayor: null,
   };
 }
 
@@ -118,6 +128,8 @@ export function EspacioTrabajo() {
   const [error, setError] = useState("");
   const [publicando, setPublicando] = useState(false);
   const [vencido, setVencido] = useState(false);
+  const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
+  const [partes, setPartes] = useState<ParteBorrador[]>([]);
 
   // Cargar (o recargar) el espacio de trabajo.
   useEffect(() => {
@@ -134,6 +146,7 @@ export function EspacioTrabajo() {
     setTitulo(p?.titulo || "");
     setAlcance(p?.alcance || "");
     setItems((p?.entidades || []).map((e) => nuevoItem(e)));
+    setCampos(camposVacios(p?.idiomas || []));
     nivelesSuperiores(espacio.fondo.id, espacio.nivel).then((opciones) => {
       setSuperiores(opciones);
       const destino = espacio.documentos.length === 1 ? espacio.documentos[0].expediente_destino_id : null;
@@ -167,6 +180,13 @@ export function EspacioTrabajo() {
     cambiar(item.clave, { decision: "aceptada", editando: false, verif: { estado: "verificando", coincidencias: [] } });
     try {
       const c: Coincidencia[] = await verificarVocabulario(espacio.fondo.id, item.tipo, valor);
+      // Si el motor reconoció una entidad que ya está en el vocabulario del
+      // fondo (y el valor no se editó), se propone reutilizarla.
+      if (item.existente_id && !item.editada && valor === item.valor) {
+        cambiar(item.clave, { verif: { estado: "resuelta", coincidencias: c, reutilizarId: item.existente_id,
+                                       reutilizarNombre: item.existente_nombre || item.valor, crearNueva: false } });
+        return;
+      }
       cambiar(item.clave, { verif: c.length ? { estado: "pregunta", coincidencias: c } : { estado: "resuelta", coincidencias: [], crearNueva: true } });
     } catch (err) {
       cambiar(item.clave, { decision: "pendiente", verif: verificacionInicial(item.tipo) });
@@ -224,9 +244,16 @@ export function EspacioTrabajo() {
             tipo_clave: i.tipo === "actividad" ? vigente(i.tipo_clave) : null,
             agente_clave: i.tipo === "actividad" ? vigente(i.agente_clave) : null,
             mandato_clave: i.tipo === "actividad" ? vigente(i.mandato_clave) : null,
+            actividad_mayor_id: i.tipo === "actividad" ? i.actividadMayor?.id || null : null,
             fragmento: i.fragmento, documento_id: i.documento_id, inicio: i.inicio, clave: i.clave,
             reutilizar_id: i.verif.reutilizarId || null, crear_nueva: !!i.verif.crearNueva,
           })),
+          idiomas: campos.idiomas,
+          condiciones_acceso: campos.condicionesAcceso || null,
+          condiciones_uso: campos.condicionesUso || null,
+          precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
+          sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
+          partes: partes.map(parteParaEnviar),
         }),
       });
       navegar("/descripcion", { replace: true, state: { aviso: `Se publicó «${titulo}».` } });
@@ -272,7 +299,7 @@ export function EspacioTrabajo() {
   }
 
   const umbral = espacio.umbral_confianza;
-  const pendientes = items.filter((i) => porResolver(i, items)).length;
+  const pendientes = items.filter((i) => porResolver(i, items)).length + partes.filter(partePendiente).length;
   const opciones = (tipo: TipoEntidad) => items.filter((x) => x.tipo === tipo && x.decision !== "descartada");
   const nombreDe = (clave: string | null) => items.find((x) => x.clave === clave)?.valor;
   const aceptadas = items.filter((i) => i.decision === "aceptada").length;
@@ -287,6 +314,9 @@ export function EspacioTrabajo() {
         {NIVEL_NOMBRE[espacio.nivel]} · {espacio.documentos.length} documento{espacio.documentos.length === 1 ? "" : "s"}
         {propuesta?.motor && propuesta.disponible && ` · propuesta del motor ${propuesta.motor}`}
         {propuesta?.version_prompt && propuesta.disponible && <> · instrucción <code>{propuesta.version_prompt}</code></>}
+        {propuesta?.contexto_enviado && Object.keys(propuesta.contexto_enviado).length > 0 && (
+          <> · el motor recibió {Object.values(propuesta.contexto_enviado).reduce((a, b) => a + b, 0)} entidad(es) del vocabulario del fondo</>
+        )}
       </p>
       {propuesta?.aviso && <div className="aviso alerta">{propuesta.aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
@@ -332,6 +362,14 @@ export function EspacioTrabajo() {
             </div>
           </div>
 
+          <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id}
+                          propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null} />
+
+          {espacio.nivel === "unidad_documental" && (
+            <PartesDocumentales partes={partes} alCambiar={setPartes} trabajoId={espacio.trabajo_id} fondoId={espacio.fondo.id}
+                                documentos={espacio.documentos} />
+          )}
+
           {items.map((i) => {
             const baja = i.confianza !== null && i.confianza < umbral;
             return (
@@ -345,6 +383,7 @@ export function EspacioTrabajo() {
                   <span className="insignias">
                     {baja && <span className="insignia alerta">Confianza baja</span>}
                     {i.manual && <span className="insignia proceso">Agregada a mano</span>}
+                    {i.existente_id && <span className="insignia agente" title={`Reconocida en el vocabulario del fondo: «${i.existente_nombre}»`}>Ya en el vocabulario</span>}
                     {i.decision === "aceptada" && <span className="insignia bien">{i.editada ? "Corregida" : "Aceptada"}</span>}
                   </span>
                 </div>
@@ -358,6 +397,7 @@ export function EspacioTrabajo() {
                       <div onClick={(e) => e.stopPropagation()}>
                         <SelectorFecha valor={i.control}
                                        alCambiar={(c, edtf) => ajustar(i, { control: c, edtf, fecha_subtipo: c.subtipo })} />
+                        <div className="pista">Calendario gregoriano (declarado: el formato EDTF es ISO 8601).</div>
                       </div>
                     )}
                     {i.tipo === "mandato" && (
@@ -409,6 +449,10 @@ export function EspacioTrabajo() {
                                            alCambiar={(c, edtf) => ajustar(i, { control: c, edtf })} />
                           </div>
                         )}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ElegirActividadMayor fondoId={espacio.fondo.id} actual={i.actividadMayor}
+                                                alElegir={(a) => ajustar(i, { actividadMayor: a })} />
+                        </div>
                         {opciones("tipo_actividad").length === 0 && (
                           <p className="pista">Para asignar un tipo de actividad, agréguelo con «+ Agregar una entidad».</p>
                         )}

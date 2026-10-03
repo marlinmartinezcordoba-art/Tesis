@@ -30,7 +30,7 @@ from app.servicios.auditoria import ip_de, registrar
 router = APIRouter(prefix="/api/vocabulario", tags=["Módulo 3 · Vocabularios"],
                    dependencies=[Depends(acceso_modulo("vocabularios"))])
 
-Clase = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"]
+Clase = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte"]
 
 
 class EntidadOut(BaseModel):

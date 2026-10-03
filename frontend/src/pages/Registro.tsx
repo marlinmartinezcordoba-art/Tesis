@@ -2,6 +2,10 @@ import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
+import {
+  CamposRegistro, IDIOMAS, PartesDocumentales, camposVacios, parteParaEnviar, partePendiente,
+  type CamposRegistroValor, type ParteBorrador,
+} from "@/components/DescripcionV3";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -45,6 +49,15 @@ interface Registro {
   publicado_en: string | null;
   actualizado_en: string | null;
   control: Control;
+  idiomas: string[];
+  origen_idiomas: string | null;
+  condiciones_acceso: string | null;
+  condiciones_uso: string | null;
+  tipo_parte: { id: string; nombre: string } | null;
+  partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null;
+            instanciaciones: { id: string; nombre: string }[] }[];
+  parte_de: { id: string; titulo: string; nivel: string } | null;
+  secuencia: { relacion_id: string; id: string; titulo: string; posicion: "precede_a" | "sigue_a"; uri_rico: string }[];
 }
 
 // Datos de control del inventario (FUID); los usa el módulo de instrumentos.
@@ -88,6 +101,8 @@ export function RegistroDescripcion() {
   const [agregando, setAgregando] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
+  const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [control, setControl] = useState<Record<keyof Control, string>>(
     { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "" });
 
@@ -99,6 +114,9 @@ export function RegistroDescripcion() {
     setQuitar([]);
     setQuitarForma(false);
     setNuevas([]);
+    setPartes([]);
+    setCampos({ idiomas: r.idiomas, condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
+                secuencia: null });
     setControl({
       codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
       folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
@@ -149,6 +167,12 @@ export function RegistroDescripcion() {
             tipo: n.tipo, valor: n.valor, subtipo: n.subtipo, rol: n.rol, edtf: n.edtf, fecha_subtipo: n.fecha_subtipo,
             reutilizar_id: n.verif.reutilizarId || null, crear_nueva: !!n.verif.crearNueva,
           })),
+          idiomas: campos.idiomas,
+          condiciones_acceso: campos.condicionesAcceso,
+          condiciones_uso: campos.condicionesUso,
+          precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
+          sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
+          agregar_partes: partes.map(parteParaEnviar),
           control: {
             codigo_referencia: control.codigo_referencia.trim() || null, caja: control.caja.trim() || null,
             carpeta: control.carpeta.trim() || null, soporte: control.soporte.trim() || null,
@@ -173,7 +197,8 @@ export function RegistroDescripcion() {
 
   if (!registro) return error ? <div className="aviso error">{error}</div> : <div className="cargando">Cargando…</div>;
   const editando = !!trabajo;
-  const pendientes = nuevas.filter((n) => ["verificando", "pregunta"].includes(n.verif.estado)).length;
+  const pendientes = nuevas.filter((n) => ["verificando", "pregunta"].includes(n.verif.estado)).length
+    + partes.filter(partePendiente).length;
 
   return (
     <>
@@ -218,6 +243,67 @@ export function RegistroDescripcion() {
           )}
         </div>
       </div>
+
+      {registro.parte_de && (
+        <div className="aviso" role="note">
+          Parte documental{registro.tipo_parte && ` (${registro.tipo_parte.nombre})`} de{" "}
+          <Link to={`/descripcion/registro/${registro.parte_de.id}`}>«{registro.parte_de.titulo}»</Link>{" "}
+          <code className="rico">rico:isOrWasConstituentOf · RiC-R003i</code>
+        </div>
+      )}
+
+      {editando ? (
+        <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null} />
+      ) : (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Idioma, condiciones y secuencia</div>
+          <div className="tarjeta-cuerpo">
+            <dl className="pares" style={{ margin: 0 }}>
+              <dt>Idioma del contenido</dt>
+              <dd>{registro.idiomas.length ? registro.idiomas.map((c) => `${IDIOMAS[c] || c} (${c})`).join(", ") : "—"}
+                {registro.origen_idiomas && <span className="meta"> · {ORIGEN_NOMBRE[registro.origen_idiomas]}</span>}</dd>
+              <dt>Condiciones de acceso</dt><dd>{registro.condiciones_acceso || "—"}</dd>
+              <dt>Condiciones de uso</dt><dd>{registro.condiciones_uso || "—"}</dd>
+              <dt>Secuencia</dt>
+              <dd>{registro.secuencia.length === 0 ? "—" : registro.secuencia.map((x) => (
+                <div key={x.relacion_id}>
+                  {x.posicion === "precede_a" ? "Precede a" : "Sigue a"} <Link to={`/descripcion/registro/${x.id}`}>{x.titulo}</Link>{" "}
+                  <code className="rico">{x.uri_rico}</code>
+                </div>
+              ))}</dd>
+            </dl>
+          </div>
+        </div>
+      )}
+      {editando && registro.secuencia.map((x) => (
+        <div key={x.relacion_id} className={`fila${quitar.includes(x.relacion_id) ? " tachada" : ""}`}>
+          <div className="fila-principal">{x.posicion === "precede_a" ? "Precede a" : "Sigue a"} {x.titulo}</div>
+          <button type="button" className="boton chico"
+                  onClick={() => setQuitar((q) => (q.includes(x.relacion_id) ? q.filter((y) => y !== x.relacion_id) : [...q, x.relacion_id]))}>
+            {quitar.includes(x.relacion_id) ? "Deshacer" : "Quitar"}
+          </button>
+        </div>
+      ))}
+
+      {(registro.nivel === "unidad_documental" || registro.partes.length > 0) && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Partes documentales · {registro.partes.length}</div>
+          {registro.partes.length === 0 && !editando && <div className="vacio">Sin partes registradas.</div>}
+          {registro.partes.map((p) => (
+            <div className="fila" key={p.id}>
+              <span className="insignia acento">{p.tipo_parte || "Parte"}</span>
+              <div className="fila-principal">
+                <div className="nombre"><Link to={`/descripcion/registro/${p.id}`}>{p.titulo}</Link></div>
+                <div className="meta">{p.alcance_contenido || ""}{p.instanciaciones.length > 0 && ` · recorte: ${p.instanciaciones.map((i) => i.nombre).join(", ")}`}</div>
+              </div>
+            </div>
+          ))}
+          {editando && trabajo && registro.nivel === "unidad_documental" && (
+            <PartesDocumentales partes={partes} alCambiar={setPartes} trabajoId={trabajo} fondoId={registro.fondo_id}
+                                documentos={registro.instanciaciones} />
+          )}
+        </div>
+      )}
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Datos de control para el inventario (FUID)</div>

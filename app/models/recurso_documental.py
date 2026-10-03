@@ -1,13 +1,16 @@
 import uuid
 
 from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base, ahora
 
 # Niveles de la jerarquía multinivel (ISAD(G) 3.1.4, que RiC-CM representa
 # como Record Set con su tipo y la relación de inclusión RiC-R024).
-NIVEL_DESCRIPCION = ("fondo", "seccion", "serie", "subserie", "expediente", "unidad_documental")
+# La parte documental (RiC-E05 Record Part: un anexo, un folio, una firma,
+# un sello) es el último nivel, por debajo de la unidad documental.
+NIVEL_DESCRIPCION = ("fondo", "seccion", "serie", "subserie", "expediente", "unidad_documental", "parte_documental")
 
 
 class RecursoDocumental(Base):
@@ -43,6 +46,18 @@ class RecursoDocumental(Base):
     origen_alcance = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
     confianza_alcance = Column(Float, nullable=True)
     motor = Column(String(120), nullable=True)
+    # Idioma del contenido (ISO 639-3, uno o varios; rico:hasOrHadLanguage),
+    # con su procedencia: el motor puede proponerlo.
+    idiomas = Column(ARRAY(String(3)), nullable=True)
+    origen_idiomas = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
+    confianza_idiomas = Column(Float, nullable=True)
+    # Condiciones de acceso (RiC-A08) y de uso o reproducción (RiC-A09):
+    # descriptivas, distintas de la declaración técnica de derechos PREMIS.
+    # Siempre las decide una persona.
+    condiciones_acceso = Column(Text, nullable=True)
+    condiciones_uso = Column(Text, nullable=True)
+    # Tipo de una parte documental (anexo, folio, firma, sello), del vocabulario.
+    tipo_parte_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     publicado_en = Column(DateTime(timezone=True), nullable=True)
     publicado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     actualizado_en = Column(DateTime(timezone=True), nullable=True)

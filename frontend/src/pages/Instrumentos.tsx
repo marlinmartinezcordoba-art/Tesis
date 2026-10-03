@@ -9,6 +9,7 @@ import {
 import { useSesion } from "@/lib/sesion";
 import { PestanaGrafo } from "@/pages/GrafoFondo";
 import { CadenaActividad } from "@/components/ContextoActividad";
+import { IDIOMAS } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice";
@@ -105,6 +106,26 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
                 </FilaEntidad>
               ))}
               <dt>Alcance y contenido</dt><dd>{ficha.alcance_contenido || "—"}</dd>
+              {ficha.parte_de && (
+                <><dt>Parte documental de</dt><dd>{ficha.parte_de.titulo}{ficha.tipo_parte && <span className="meta"> ({ficha.tipo_parte})</span>}</dd></>
+              )}
+              {ficha.idiomas.length > 0 && (
+                <><dt>Idioma</dt><dd>{ficha.idiomas.map((c) => IDIOMAS[c] || c).join(", ")}</dd></>
+              )}
+              {ficha.condiciones_acceso && <><dt>Condiciones de acceso</dt><dd>{ficha.condiciones_acceso}</dd></>}
+              {ficha.condiciones_uso && <><dt>Condiciones de uso</dt><dd>{ficha.condiciones_uso}</dd></>}
+              {ficha.secuencia.map((x) => (
+                <FilaEntidad key={x.id} etiqueta={x.posicion === "precede_a" ? "Precede a" : "Sigue a"}>{x.titulo}</FilaEntidad>
+              ))}
+              {ficha.partes.length > 0 && (
+                <>
+                  <dt>Partes documentales</dt>
+                  <dd>{ficha.partes.map((p) => (
+                    <div key={p.id}>{p.titulo}{p.tipo_parte && <span className="meta"> ({p.tipo_parte})</span>}
+                      {p.alcance_contenido && <span className="meta"> · {p.alcance_contenido}</span>}</div>
+                  ))}</dd>
+                </>
+              )}
               {(ficha.control.caja || ficha.control.carpeta || ficha.control.folios !== null || ficha.control.soporte) && (
                 <>
                   <dt>Ubicación y volumen</dt>

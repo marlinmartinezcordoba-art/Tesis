@@ -34,9 +34,11 @@ class MotorDePrueba:
     def __init__(self, respuesta):
         self.respuesta = respuesta
         self.llamadas = []
+        self.contextos = []
 
-    def analizar(self, documentos, nivel):
+    def analizar(self, documentos, nivel, contexto=None):
         self.llamadas.append((documentos, nivel))
+        self.contextos.append(contexto)
         return self.respuesta(documentos, nivel) if callable(self.respuesta) else self.respuesta
 
 

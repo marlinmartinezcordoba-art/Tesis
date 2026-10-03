@@ -67,6 +67,22 @@ class EntidadPropuesta:
     inicio: int | None = None
     confianza: float = 0.0
     fragmento_localizado: bool = False
+    # Entidad ya existente en el vocabulario del fondo que el motor reconoció
+    # en el contexto que se le entregó (o que coincide exactamente con ella).
+    existente_id: str | None = None
+    existente_nombre: str | None = None
+
+
+@dataclass
+class EntradaContexto:
+    """Una entidad del vocabulario del fondo que se le muestra al motor."""
+
+    codigo: str  # V1, V2…: lo que el motor devuelve en «existente»
+    id: str
+    tipo: str
+    nombre: str
+    subtipo: str | None
+    similitud: float
 
 
 @dataclass
@@ -74,6 +90,12 @@ class Propuesta:
     titulo: str = ""
     alcance: str = ""
     confianza_alcance: float | None = None
+    # Idioma del contenido (ISO 639-3) que el motor identificó en el texto.
+    idiomas: list[str] = field(default_factory=list)
+    confianza_idiomas: float | None = None
+    # Cuántas entidades del vocabulario del fondo recibió el motor como
+    # contexto, por tipo (evidencia de la capa de recuperación).
+    contexto_enviado: dict = field(default_factory=dict)
     entidades: list[EntidadPropuesta] = field(default_factory=list)
     motor: str | None = None
     version_prompt: str | None = None
@@ -98,6 +120,8 @@ Reglas estrictas:
 - Actividad: el ejercicio concreto de una competencia por un agente en un periodo, que el documento documenta (por ejemplo «Ejercicio de la policía local por la Alcaldía, 1948»). En la misma entidad indica, si el texto lo permite: "tipo_actividad" (la competencia estable y reutilizable, por ejemplo «Policía local», «Registro civil», «Hacienda municipal»), "ejercida_por" (el valor exacto de uno de los agentes que propusiste) y "mandato" (el valor exacto de uno de los mandatos que propusiste). Su periodo va en "edtf".
 - Mandato: la ley, decreto, ordenanza, acuerdo o resolución que el texto cita como fundamento. "subtipo" es el instrumento (ley, decreto, ordenanza, acuerdo, resolucion u otro); "edtf", su fecha de expedición si aparece.
 - Si el texto no permite identificar actividad, tipo de actividad o mandato con confianza razonable, no los propongas: no es obligatorio.
+- Vocabulario existente del fondo: si el pedido trae una lista «VOCABULARIO EXISTENTE DEL FONDO» y una entidad del texto es una de esas (aunque esté escrita de otra forma), pon en "existente" su código (por ejemplo «V3») y en "valor" su nombre tal como figura en la lista. Si no es ninguna, no pongas "existente". Nunca uses un código para una entidad de otro tipo.
+- "idiomas": la lengua o lenguas del contenido en códigos ISO 639-3 (spa, lat, eng, fra, por…), y "confianza_idiomas" entre 0 y 1. Si el texto es demasiado breve o ilegible para saberlo, deja la lista vacía. No propongas condiciones de acceso ni de uso: las decide la institución.
 - "titulo": título formal breve del nivel descrito. "alcance_contenido": 2 a 6 frases de alcance y contenido (ISAD(G) 3.3.1) que sinteticen TODOS los documentos, sin opiniones.
 Responde solo con el JSON pedido."""
 
@@ -107,6 +131,8 @@ ESQUEMA = {
         "titulo": {"type": "STRING"},
         "alcance_contenido": {"type": "STRING"},
         "confianza_alcance": {"type": "NUMBER"},
+        "idiomas": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "confianza_idiomas": {"type": "NUMBER"},
         "entidades": {
             "type": "ARRAY",
             "items": {
@@ -121,6 +147,7 @@ ESQUEMA = {
                     "tipo_actividad": {"type": "STRING"},
                     "ejercida_por": {"type": "STRING"},
                     "mandato": {"type": "STRING"},
+                    "existente": {"type": "STRING"},
                     "fragmento": {"type": "STRING"},
                     "documento": {"type": "INTEGER"},
                     "confianza": {"type": "NUMBER"},
@@ -153,7 +180,7 @@ class MotorGemini:
         self.modelo = modelo
         self.nombre = modelo
 
-    def analizar(self, documentos: list[Documento], nivel: str) -> dict:
+    def analizar(self, documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None) -> dict:
         partes, total = [], 0
         for i, d in enumerate(documentos, start=1):
             texto = (d.texto or "")[:MAX_CARACTERES_DOCUMENTO]
@@ -161,7 +188,7 @@ class MotorGemini:
             total += len(texto)
             partes.append(f"[DOCUMENTO {i}: {d.nombre}]\n{texto or '(sin texto extraído)'}")
         pedido = (f"Describe {NIVELES.get(nivel, nivel)} formado por {len(documentos)} documento(s).\n\n"
-                  + "\n\n".join(partes))
+                  + texto_contexto(contexto) + "\n\n".join(partes))
         cuerpo = {
             "systemInstruction": {"parts": [{"text": INSTRUCCION}]},
             "contents": [{"role": "user", "parts": [{"text": pedido}]}],
@@ -194,6 +221,33 @@ class MotorGemini:
             return r.json()["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, ValueError) as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
+
+
+def texto_contexto(contexto: list[EntradaContexto] | None) -> str:
+    """El vocabulario existente, como lo lee el motor. Va en el pedido (es
+    un dato del fondo), no en la instrucción: no cambia VERSION_PROMPT."""
+    if not contexto:
+        return ""
+    lineas = ["VOCABULARIO EXISTENTE DEL FONDO (entidades ya registradas que se parecen a lo que dice el texto):"]
+    for c in contexto:
+        lineas.append(f"[{c.codigo}] {c.tipo}{f' ({c.subtipo})' if c.subtipo else ''}: {c.nombre}")
+    return "\n".join(lineas) + "\n\n"
+
+
+# Idiomas más probables en un fondo histórico colombiano (ISO 639-3), con su
+# nombre en español. Se admite cualquier código de tres letras; estos se
+# muestran por su nombre.
+IDIOMAS = {"spa": "español", "lat": "latín", "eng": "inglés", "fra": "francés", "por": "portugués", "ita": "italiano",
+           "deu": "alemán", "que": "quechua", "chb": "chibcha (muisca)", "guc": "wayuunaiki"}
+
+
+def idiomas_validos(valores) -> list[str]:
+    salida = []
+    for v in valores or []:
+        codigo = str(v or "").strip().lower()
+        if re.fullmatch(r"[a-z]{3}", codigo) and codigo not in salida:
+            salida.append(codigo)
+    return salida[:5]
 
 
 def motor_activo():
@@ -245,7 +299,10 @@ def _norm(texto: str) -> str:
     return " ".join(str(texto or "").split()).casefold()
 
 
-def normalizar(crudo: dict, documentos: list[Documento], motor: str) -> Propuesta:
+def normalizar(crudo: dict, documentos: list[Documento], motor: str,
+               contexto: list[EntradaContexto] | None = None) -> Propuesta:
+    contexto = contexto or []
+    por_codigo = {c.codigo.upper(): c for c in contexto}
     entidades: list[EntidadPropuesta] = []
     pendientes_contexto: list[tuple[EntidadPropuesta, dict]] = []
     for i, e in enumerate(crudo.get("entidades") or []):
@@ -285,14 +342,31 @@ def normalizar(crudo: dict, documentos: list[Documento], motor: str) -> Propuest
             fragmento=fragmento, documento_id=str(documento.id) if documento and inicio is not None else None,
             inicio=inicio, confianza=round(confianza, 2), fragmento_localizado=inicio is not None,
         )
+        # Reconocimiento de una entidad existente: el código que dio el motor,
+        # si es del mismo tipo; si no dio ninguno, una coincidencia exacta
+        # del nombre con el contexto entregado.
+        codigo = str(e.get("existente") or "").strip().upper()
+        existente = por_codigo.get(codigo) if codigo else None
+        if existente is not None and existente.tipo != tipo:
+            existente = None
+        if existente is None:
+            existente = next((c for c in contexto if c.tipo == tipo and _norm(c.nombre) == _norm(valor)), None)
+        if existente is not None:
+            propuesta.existente_id, propuesta.existente_nombre = existente.id, existente.nombre
         entidades.append(propuesta)
         if tipo == "actividad":
             pendientes_contexto.append((propuesta, e))
     _enlazar_contexto(entidades, pendientes_contexto)
+    idiomas = idiomas_validos(crudo.get("idiomas"))
+    resumen_contexto: dict[str, int] = {}
+    for c in contexto:
+        resumen_contexto[c.tipo] = resumen_contexto.get(c.tipo, 0) + 1
     return Propuesta(
         titulo=" ".join(str(crudo.get("titulo", "")).split())[:300],
         alcance=str(crudo.get("alcance_contenido", "")).strip()[:5000],
         confianza_alcance=_confianza(crudo.get("confianza_alcance", 0.8)),
+        idiomas=idiomas, confianza_idiomas=_confianza(crudo.get("confianza_idiomas", 0.8)) if idiomas else None,
+        contexto_enviado=resumen_contexto,
         entidades=entidades, motor=motor, version_prompt=VERSION_PROMPT, disponible=True,
     )
 
@@ -331,7 +405,7 @@ def _enlazar_contexto(entidades: list[EntidadPropuesta], actividades: list[tuple
             act.agente_clave = agente.clave
 
 
-def proponer(documentos: list[Documento], nivel: str) -> Propuesta:
+def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None) -> Propuesta:
     motor = motor_activo()
     if motor is None:
         return Propuesta(aviso="No hay un motor de análisis configurado en el servidor. Puede describir a mano: "
@@ -340,7 +414,8 @@ def proponer(documentos: list[Documento], nivel: str) -> Propuesta:
         return Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT, aviso="Los documentos no tienen texto extraído (por ejemplo, una imagen "
                                                    "sin texto legible). Describa a mano.")
     try:
-        return normalizar(motor.analizar(documentos, nivel), documentos, motor.nombre)
+        crudo = motor.analizar(documentos, nivel, contexto) if contexto else motor.analizar(documentos, nivel)
+        return normalizar(crudo, documentos, motor.nombre, contexto)
     except MotorError as exc:
         return Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT,
                          aviso=f"{exc} Puede describir a mano o volver a intentarlo más tarde.")

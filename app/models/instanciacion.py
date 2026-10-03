@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base, ahora
 
@@ -79,6 +79,11 @@ class Instanciacion(Base):
                                nullable=False, default="sin_verificar", server_default="sin_verificar")
     ultima_verificacion_en = Column(DateTime(timezone=True), nullable=True)
     derivada_de_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id"), nullable=True, index=True)
+    # Recorte de otra instanciación (la firma o el sello de una parte
+    # documental): de cuál, y qué zona {pagina, x, y, ancho, alto} en
+    # proporciones de 0 a 1. No es una migración: no hereda la descripción.
+    recorte_de_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id"), nullable=True, index=True)
+    recorte_zona = Column(JSONB, nullable=True)
 
     cargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     cargado_en = Column(DateTime(timezone=True), default=ahora, nullable=False, index=True)

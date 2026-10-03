@@ -64,6 +64,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "descripcion_publicada": ("Publicó una descripción", "Descripciones validadas"),
     "descripcion_editada": ("Corrigió una descripción", "Descripciones validadas"),
     "decision_ia": ("Decidió sobre una propuesta de la IA", None),
+    "recorte_creado": ("Recortó una parte documental como instanciación propia", "Descripciones validadas"),
     # Vocabularios
     "fusion_vocabulario": ("Fusionó entidades del vocabulario", "Entidades del vocabulario"),
     "sugerencia_fusion_descartada": ("Descartó una sugerencia de fusión", "Entidades del vocabulario"),

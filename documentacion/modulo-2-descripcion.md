@@ -1,9 +1,28 @@
 # Módulo 2 · Descripción multinivel asistida por inteligencia artificial
 
-**Versión:** 2 (actualizada según el prompt «Módulo 2, versión actualizada, profunda» y la maqueta «Sistema RIC · Auditoría», pestaña Decisiones de IA).
+**Versión:** 3 (prompt «Módulo 2, versión actualizada, profunda», tercera entrega, y anexo de mapeo RiC-O 1.1 verificado contra el OWL oficial).
 **Estado:** entregado, pendiente de validación.
 
-**Qué cambió frente a la versión 1:**
+**Qué cambió en la versión 3:**
+
+- **Parte documental** (RiC-E05 Record Part):
+  - es un nivel por debajo de la unidad documental, unido por `rico:hasOrHadConstituent` (R003);
+  - lleva un tipo de parte del vocabulario (anexo, folio, firma, sello) con verificación por similitud;
+  - puede llevar un **recorte de su zona como instanciación propia**, marcado sobre la página en el espacio de trabajo.
+- **Idioma del contenido** (ISO 639-3, uno o varios). El motor puede proponerlo.
+- **Condiciones de acceso** (A08) y **de uso** (A09). Siempre las decide una persona, nunca el motor.
+- **Secuencia** dentro de la misma serie: `precedesOrPreceded`, R008.
+- **Custodio** distinto del productor: `hasOrHadHolder`, R039i.
+- **Sub-actividad** de una actividad ya existente: `hasDirectSubevent`.
+- **Calendario declarado** en cada fecha: gregoriano.
+- **Grupo** como subtipo de agente.
+- **El motor ya no propone a ciegas.**
+  - Recibe del vocabulario del fondo las entidades que aparecen en el texto, y puede referenciar una existente en vez de proponerla como nueva.
+  - En la propuesta queda cuántas recibió.
+- **La confianza del OCR** del módulo 1 se muestra junto al texto, con una advertencia si es baja.
+
+**Qué cambió en la versión 2 frente a la 1:**
+
 - fechas con su precisión real, en formato extendido EDTF y con tres subtipos: simple, rango y conjunto;
 - contexto institucional: **Actividad**, **Tipo de actividad** y **Mandato o norma**, con la cadena documento → actividad → tipo de actividad → mandato y el agente que la ejerce;
 - seis tipos reutilizables en el vocabulario, todos con la misma verificación por similitud;
@@ -93,7 +112,11 @@ Y para evaluar la asistencia de la IA (objetivo 3) hace falta saber, propuesta p
 | **Tipo de actividad** (`rico:ActivityType`) | vocabulario, clase `tipo_actividad` | La competencia estable (p. ej. «Policía local»). Valor controlado, nunca conectado directo a un documento |
 | **Mandate (E17)** | vocabulario, clase `mandato`, con subtipo ley / decreto / ordenanza / acuerdo / resolución / otro (`rico:MandateType`) | La norma que regula la actividad |
 | Date (E18), con los subtipos Single Date, Date Range y Date Set | `fechas` | Expresión tal como aparece (A19), EDTF (A29), subtipo y límites |
-| Instantiation (E06) | `instanciaciones` | El archivo técnico (módulos 1 y 5) |
+| Instantiation (E06) | `instanciaciones` | El archivo técnico (módulos 1 y 5). **v3:** un recorte es una instanciación propia, con `recorte_de_id` y la zona |
+| **Record Part (E05)** (v3) | `recursos_documentales`, nivel `parte_documental` | Anexo, folio, firma o sello de una unidad documental, con su tipo de parte |
+| **Tipo de parte** (v3) | vocabulario, clase `tipo_parte` | Valor controlado del fondo; se exporta como `rico:DocumentaryFormType` de la parte |
+| **Group (E09)** usado directamente (v3) | vocabulario, agente de subtipo `grupo` | Comité o junta sin personería |
+| Atributos nuevos del Record Resource (v3) | `recursos_documentales` | Idioma (`rico:hasOrHadLanguage`), condiciones de acceso (A08), condiciones de uso (A09) |
 
 **Migración de lo anterior:** las actividades de la versión 1 pasaron al vocabulario con su mismo identificador, y sus relaciones se reapuntaron. La tabla `actividades` se conserva sin uso: nada se borra. Se probó con una actividad real de la versión anterior.
 
@@ -117,6 +140,12 @@ El catálogo curado pasa de 35 a **40** códigos. Todos se verificaron en el arc
 | **Sucesión** | R016 | rico:hasSuccessor (inversa isSuccessorOf) | agente → agente |
 | **Asociación** | R044 | rico:isAgentAssociatedWithAgent (simétrica) | agente ↔ agente |
 | Inclusión / archivo técnico | R024 / R025 | rico:includesOrIncluded / hasOrHadInstantiation | — |
+| **Parte documental** (v3) | R003 | rico:hasOrHadConstituent | unidad documental → parte |
+| **Custodio** (v3) | R039i | rico:hasOrHadHolder | documento → agente |
+| **Secuencia** (v3) | R008 | rico:precedesOrPreceded (inversa followsOrFollowed) | anterior → siguiente |
+| **Sub-actividad** (v3) | atajo de R006 | rico:hasDirectSubevent | actividad mayor → sub-actividad |
+
+**Por qué la parte documental usa R003 y no la inclusión (R024).** En el OWL, el rango de `includesOrIncluded` es `Record` o `RecordSet`, no `RecordPart`. La nota de uso de `hasOrHadPart` pide usar la relación más específica cuando existe, y para una parte de un documento esa es `hasOrHadConstituent` (R003). En la base, la parte queda además `incluido_en_id` de su unidad documental para navegar el árbol, como pide el prompt: «la misma relación de inclusión jerárquica».
 
 **Fuera de RiC, a propósito:** la jerarquía función → subfunción entre tipos de actividad se hará con SKOS (`skos:broader` / `skos:narrower`) desde el módulo de vocabularios, como dice el prompt (§2 y §9). No se construye aquí.
 
@@ -145,6 +174,30 @@ El catálogo curado pasa de 35 a **40** códigos. Todos se verificaron en el arc
   - hoja de cálculo con resumen y detalle.
 - **Relaciones entre agentes** (API del módulo de vocabularios). Se guarda una sola fila por relación y la inversa se lee de ella. La pantalla se hará con la actualización del módulo 3.
 - **Ficha.** En el catálogo y en la vista interna la actividad muestra su cadena completa, y la fecha su forma legible. El catálogo ya no muestra «Sin fecha» para una fecha aproximada o incierta.
+
+- **v3 · Parte documental.** En una unidad documental, «+ Registrar una parte documental» pide:
+  - un título;
+  - un tipo de parte, verificado contra el vocabulario;
+  - un alcance, opcional;
+  - un recorte, opcional. Para el recorte se abre la página del documento como imagen (PDF o imagen) y se arrastra la zona.
+
+  Al publicar, la zona se recorta a 300 ppp en PNG. Se guarda como instanciación con:
+  - su propia huella SHA-256;
+  - su formato identificado contra PRONOM;
+  - su segunda copia.
+
+  El original no se toca. Si la publicación falla, el archivo del recorte se borra: nunca queda un archivo huérfano.
+- **v3 · Campos del registro:**
+  - idioma con chips (nombre y código ISO 639-3), con la propuesta del motor si la hay;
+  - condiciones de acceso y de uso en texto libre;
+  - secuencia («Sigue a…» o «Precede a…»), buscando el documento por título.
+- **v3 · Custodio:** es un agente más, con rol «Custodio (distinto del productor)». Si coincide con el productor, se rechaza.
+- **v3 · Sub-actividad:** en la tarjeta de una actividad, «Es sub-actividad de otra ya registrada…» busca la actividad mayor en el vocabulario.
+- **v3 · Contexto de vocabulario:**
+  - la tarjeta de una entidad que el motor reconoció lleva la insignia «Ya en el vocabulario»;
+  - al aceptarla, se propone reutilizar esa entidad (se puede cambiar);
+  - el encabezado dice cuántas entidades recibió el motor.
+- **v3 · Aviso de OCR:** confianza junto al nombre del documento, y advertencia ámbar si está bajo el umbral.
 
 ## 9. Flujos
 
@@ -190,6 +243,20 @@ El catálogo curado pasa de 35 a **40** códigos. Todos se verificaron en el arc
 - `relaciones` gana `origen_original_id` (trazabilidad de la fusión por el lado del origen).
 - Las actividades pasan a `entidades_vocabulario`. La tabla vieja queda.
 
+**Migración 0012** (v3; se probó subir, bajar y volver a subir):
+
+- `nivel_descripcion` gana `parte_documental`.
+- `clase_vocabulario` gana `tipo_parte`.
+- `motivo_segunda_copia` gana `recorte`.
+- `recursos_documentales` gana:
+  - `idiomas` (lista de códigos de tres letras), `origen_idiomas` y `confianza_idiomas`;
+  - `condiciones_acceso` y `condiciones_uso`;
+  - `tipo_parte_id`.
+- `fechas` gana `calendario`, con valor por defecto «gregoriano».
+- `instanciaciones` gana `recorte_de_id` y `recorte_zona`: página y proporciones de 0 a 1.
+
+Los códigos R039i, R008 y `hasDirectSubevent` llegaron con la migración 0010.
+
 **Decisiones de IA:** no hay tabla nueva. Viven en el registro de auditoría, que es de solo anexar, como evento `decision_ia`, según el principio 3 del prompt.
 
 ## 13. API
@@ -202,13 +269,24 @@ El catálogo curado pasa de 35 a **40** códigos. Todos se verificaron en el arc
 | `PATCH /api/descripcion/{id}` | Igual que antes, con los campos nuevos |
 | `GET /api/auditoria/decisiones-ia` | **Nuevo, solo administrador.** Filtros `tipo`, `decision`, `desde`, `hasta`, `fondo_id`. Devuelve resumen, por tipo, modelos, versiones y filas |
 | `GET /api/auditoria/decisiones-ia/hoja-de-calculo` | **Nuevo, solo administrador.** Hoja de cálculo «Resumen» + «Decisiones» |
+| `POST /api/descripcion/iniciar` (v3) | La propuesta trae `idiomas`, `confianza_idiomas`, `contexto_enviado` (cuántas entidades del vocabulario recibió el motor, por tipo) y, por entidad, `existente_id`. Cada documento trae `confianza_ocr` y `ocr_baja_confianza`, y el espacio, `umbral_ocr` |
+| `POST /api/descripcion/publicar` (v3) | Además: `idiomas`, `condiciones_acceso`, `condiciones_uso`, `precede_a_id`, `sigue_a_id` y `partes` (título, tipo de parte, alcance y recorte). Por entidad: rol `custodio`, `actividad_mayor_id` o `actividad_mayor_clave` |
+| `PATCH /api/descripcion/{id}` (v3) | Los mismos campos, y `agregar_partes` |
+| `GET /api/descripcion/trabajos/{id}/documentos/{inst}/paginas` y `…/paginas/{n}` (v3) | Número de páginas e imagen PNG de una página, solo para los documentos del espacio de trabajo propio (404 si es de otra persona) |
+| `GET /api/descripcion/buscar-publicadas?fondo_id&q` (v3) | Expedientes y unidades documentales publicadas, para declarar la secuencia |
 | `POST /api/vocabulario/{id}/relaciones-agente` | **Nuevo.** `{destino_id, tipo: subordinado | sucesor | asociado}`. El detalle del agente devuelve sus relaciones en los dos sentidos |
 
 ## 14. Uso de IA
 
 - **El motor propone el contexto institucional** cuando el texto lo menciona: la actividad, la competencia (tipo de actividad), quién la ejerce y la norma. La instrucción le pide no proponer nada de eso si no hay confianza razonable. Ninguna de esas entidades es obligatoria para publicar.
 - **Fechas con precisión honesta:** se le dan al motor las formas EDTF permitidas y se le prohíbe inventar precisión. El servidor valida lo que devuelve.
-- **Versión de la instrucción.** Es un resumen SHA-256 de la instrucción y del esquema de respuesta, en sus primeros 8 caracteres. Hoy es `5a111bf3`. Cambia solo si cambia lo que se le pide al motor.
+- **v3 · Contexto del vocabulario.** Antes de llamar al motor, el sistema busca las entidades activas del fondo cuyo nombre aparece en el texto: `word_similarity` de pg_trgm, como máximo 10 por tipo y con parecido mínimo de 0,5 (decisión en §19).
+  - Se le entregan como una lista con códigos V1, V2… El motor devuelve el código en «existente» cuando reconoce una.
+  - Si no da código pero el nombre coincide exactamente con uno de la lista, se referencia igual.
+  - Un código de otro tipo se ignora.
+  - **El contexto va en el pedido, no en la instrucción**, así que no cambia la versión.
+- **v3 · Idioma.** El motor lo propone en ISO 639-3, con su confianza. Las condiciones de acceso y de uso no se le piden nunca: dependen de una política institucional que el texto no permite inferir.
+- **Versión de la instrucción.** Es un resumen SHA-256 de la instrucción y del esquema de respuesta, en sus primeros 8 caracteres. En la versión 2 era `5a111bf3`; **en la versión 3 es `3c5a7af7`**, porque la instrucción ahora pide el idioma y explica el vocabulario existente. Cambia solo si cambia lo que se le pide al motor.
 
   Queda en la propuesta de cada sesión y en cada decisión, para saber con qué instrucción salió cada resultado de la evaluación.
 - **El valor propuesto lo guarda el servidor** al abrir el espacio de trabajo y no se modifica. La decisión se calcula contra ese valor, no contra lo que diga el navegador.
@@ -226,6 +304,9 @@ El catálogo curado pasa de 35 a **40** códigos. Todos se verificaron en el arc
 | `decision_ia` (una por propuesta, más una por cada agregada) | `decision` (aceptada / corregida / rechazada / agregada), `tipo`, `clave`, `propuesto` y `final` (valor, rol, subtipo, EDTF y enlaces de la actividad, según el tipo), `confianza`, `modelo`, `version_prompt`, fondo y título del documento |
 | `decision_ia` para el título y el alcance | Lo mismo, sobre esos dos campos |
 | `agentes_relacionados` | Tipo, código RiC y con quién |
+| `decision_ia` de tipo `idioma` (v3) | Los códigos propuestos y los finales, con la decisión |
+| `recorte_creado` (v3) | De qué instanciación, qué zona, la huella y el formato del recorte |
+| `descripcion_publicada` / `descripcion_editada` (v3) | Su resumen incluye idiomas, condiciones, partes y secuencia: un cambio en ellos queda con el valor anterior y el nuevo |
 | `descripcion_publicada`, `descripcion_editada`, etc. | Como en la versión 1 |
 
 **Cuándo una propuesta es «corregida»:** cuando cambia cualquiera de sus campos significativos. Por ejemplo:
@@ -272,6 +353,12 @@ Reutilizar una autoridad con otro nombre («Alcaldía» → «Alcaldía Municipa
 | **Dónde se guardan las decisiones de IA** | Tabla propia; **registro de auditoría** | **Auditoría**, como exige el principio 3 del prompt | Es de solo anexar (protegida por disparador): ni la administración puede retocar la evidencia de la evaluación | Las consultas leen JSON. Es rápido para el tamaño de un fondo; con cientos de miles de decisiones convendría un índice por acción |
 | **Categoría «agregada»** | Solo aceptada / corregida / rechazada; **agregar «agregada»** | **Agregada**, mostrada aparte | Sin ella no se sabe qué no vio el motor, y la exhaustividad no se puede estimar. No altera las tres del prompt, que siguen contándose solas | Ninguno |
 | **Color del contexto institucional** | Violeta del prompt, igual al del agente; **un tono distinto de la misma familia** | **Ciruela `--ctx`** | El agente ya es violeta índigo en el sistema y la autora pidió conservar los colores actuales. Con el mismo violeta, agente y actividad se confundirían en el grafo y en las tarjetas | Ninguno |
+| **Contexto de vocabulario para el motor: cuántas entidades y desde qué parecido** (v3, prompt §4) | (a) **Vectores de incrustación** con pgvector y un modelo de incrustaciones (lo que sugiere el prompt); (b) **trigramas `word_similarity` de pg_trgm** entre cada nombre del vocabulario y el texto; (c) todo el vocabulario del fondo, sin filtrar | **(b), 10 por tipo, parecido ≥ 0,5** | En este proyecto no existe ninguna capa de vectores: habría que instalar pgvector y pagar o alojar un modelo de incrustaciones, contra las reglas del proyecto. Lo que hay que reconocer son **nombres propios** (personas, entidades, lugares, normas), y para eso el parecido de letras es más fiel que el de significado: «Tunja» y «Sogamoso» están cerca en significado y lejos en escritura. `word_similarity` compara cada nombre con el tramo del texto que más se le parece, así que tolera mayúsculas, tildes y erratas del OCR. Diez por tipo dan como máximo sesenta líneas, unas 2.000 palabras, frente a las 60.000 que admite el pedido: no ahoga el texto del documento. Con 0,5, «Secretaría de Gobierno de Tunja» se encuentra en «SECRETARÍA DE GOBIERNO DE TUNJA» y «Ministerio de Hacienda» no entra (hay prueba) | Una entidad citada de forma muy distinta (una sigla, un apodo) no se encuentra. Eso no se pierde: la verificación por similitud sigue igual al aceptar. Si el fondo real muestra muchas omisiones, se baja el umbral o se agregan las formas del nombre de la ficha de autoridad a la búsqueda |
+| Recorte de la parte documental | (a) Subir la imagen de la parte por separado; (b) **recortar sobre la página en el espacio de trabajo** | **(b)**, y la imagen sale de la página a 300 ppp | El prompt pide recortar «directamente sobre el documento mostrado». La zona se guarda en proporciones de la página, no en píxeles de la pantalla, así el recorte es el mismo cualquiera que sea el tamaño de la ventana | Un PDF muy grande tarda en mostrarse; se muestra a 110 ppp y se recorta a 300 ppp |
+| Formato del recorte | TIFF; **PNG**; JPEG | **PNG** | Sin pérdida, abierto, identificado por PRONOM (fmt/11) y más liviano que TIFF para una zona pequeña. JPEG pierde calidad | Si la institución exige TIFF para todo, la migración del módulo 5 lo convierte |
+| Idioma | Texto libre; **ISO 639-3** | **ISO 639-3** (tres letras) | Es el estándar que admite el latín y las lenguas indígenas de Colombia (639-1 no las cubre todas). Es lo que se exporta como `rico:Language` | La archivista debe conocer el código de una lengua rara; las más probables tienen nombre en la lista |
+| Alcance de la secuencia | Cualquier documento del fondo; **dentro de la misma serie** | **La misma serie o subserie** (o, sin serie, el mismo contenedor) | El prompt la define «dentro de la misma serie»; entre series sería otra relación | Un documento suelto bajo el fondo solo puede ir en secuencia con otros del mismo nivel |
+| Calendario | Implícito; **campo propio con «gregoriano» declarado** | **Campo propio** | Lo pide el prompt para documentar la delimitación. RiC-O no tiene una propiedad para el calendario: no se exporta (anexo de verificación) | Ninguno |
 | Dónde se guarda el grafo (Apache AGE) | Ver versión anterior | Tablas relacionales | Sin cambios | Sin cambios |
 | Algoritmo de similitud | pg_trgm | Sin cambios | Ahora sirve a seis clases | Sin cambios |
 | Marca «en edición», índice único, motor Gemini, propuesta en el trabajo | — | Sin cambios | — | — |
@@ -294,6 +381,11 @@ frontend/src/components/ContextoActividad.tsx   la cadena en fichas (nuevo)
 frontend/src/pages/EspacioTrabajo.tsx           tarjetas de fecha, actividad, tipo y mandato
 frontend/src/pages/Auditoria.tsx                pestaña Decisiones de IA
 tests/test_descripcion_contexto.py              29 pruebas nuevas
+alembic/versions/0012_descripcion_v3.py         v3: parte documental, idioma, condiciones, calendario, recortes
+app/servicios/recorte.py                        v3: páginas y recortes (nuevo)
+app/servicios/vocabulario.py                    v3: contexto_para_motor()
+frontend/src/components/DescripcionV3.tsx       v3: campos del registro, partes con visor, actividad mayor (nuevo)
+tests/test_descripcion_v3.py                    v3: 16 pruebas nuevas
 ```
 
 ## 21. Pruebas
@@ -316,6 +408,37 @@ tests/test_descripcion_contexto.py              29 pruebas nuevas
 | Panel de decisiones | Solo administrador (403 para archivista y revisor). Cifras exactas, filtro por tipo, hoja de cálculo con sus dos hojas y el número de filas correcto |
 | Relaciones entre agentes | Subordinación y asociación; repetida, consigo misma o con un lugar dan 422; la inversa se lee con su URI de RiC-O; una sola fila por relación |
 | Fusión en los dos sentidos | El agente que ejerce y el autorizado pasan a la definitiva, con el original guardado |
+
+**Versión 3: 16 pruebas nuevas** en `tests/test_descripcion_v3.py`. El proyecto completo pasa (238).
+
+| Prueba (prompt v3, §11–12) | Qué comprueba |
+|---|---|
+| Parte documental con recorte | Ve las páginas y su imagen. La parte es de nivel `parte_documental`, está dentro de la unidad y unida por R003; su recorte es una instanciación PNG propia con huella, zona, segunda copia y origen declarado. El original no cambia. La parte sabe de quién es parte, el recorte no aparece en la cola y el tipo de parte queda en el vocabulario. Hay evento `recorte_creado` |
+| Tipo de parte parecido | 409 con la coincidencia, como cualquier clase del vocabulario |
+| Partes solo en una unidad documental | 422 en un expediente, y 422 si el recorte sale de un documento ajeno |
+| Recorte fallido | Si otra parte del envío es inválida, no queda ni la parte ni el archivo |
+| Idioma y condiciones | Se guardan y salen en el catálogo sin campos internos; sin ellos publica; un idioma que no es código, 422 |
+| El motor propone el idioma | Se agrega latín; el origen queda «motor_editado» y la decisión «corregida» (spa → lat,spa) |
+| Secuencia y custodio | La fila va del anterior al siguiente, se lee la inversa desde el otro documento, el custodio queda con R039i, y los dos salen en el catálogo |
+| Secuencia fuera de la serie | 422 |
+| Custodio igual al productor | 422 |
+| Sub-actividad | R006 directa desde la mayor existente; la mayor lista su sub-actividad en vocabularios; una «mayor» que no es actividad, 422 |
+| Grupo desde la descripción | Se crea con subtipo grupo |
+| Calendario | «gregoriano» en la base, en la vista interna y en el catálogo |
+| **El motor recibe el vocabulario y referencia la entidad existente** (definición de terminado) | El contexto trae la entidad que el texto menciona y no trae una ajena ni los mecanismos; la propuesta lleva `existente_id`; la versión de la instrucción no cambia por el contexto |
+| Coincidencia exacta sin código | Se referencia; un código de otro tipo se ignora |
+| **Aviso de OCR** (definición de terminado) | El espacio de trabajo recibe la confianza, la marca y el umbral |
+| Página de un trabajo ajeno | 404 |
+
+**Verificación visual v3** en navegador real, con un motor simulado:
+
+- cola con la insignia de OCR;
+- espacio de trabajo con el aviso de OCR, el idioma propuesto, la insignia «Ya en el vocabulario» y el número de entidades recibidas;
+- visor de página con la zona del sello marcada;
+- condiciones de acceso y de uso;
+- publicación.
+
+En la base quedaron la parte «Sello de la Alcaldía» (tipo Sello), su recorte (PNG, fmt/11, con segunda copia) y siete decisiones de IA, incluida la del idioma.
 
 **Pruebas de mutación** (se rompe el código a propósito y se comprueba que alguna prueba falle):
 
@@ -352,6 +475,16 @@ tests/test_descripcion_contexto.py              29 pruebas nuevas
 | Ningún endpoint público expone origen, confianza ni estado de revisión | ✓ |
 | Decisión EDTF con tabla completa | ✓ (§19) |
 | Ejemplo documentado de la cadena en el fondo de prueba | ✓ (§23) |
+| (v3) Parte documental unida a su unidad documental, recuperable desde su detalle | ✓ |
+| (v3) Agente grupo | ✓ |
+| (v3) Idioma, condiciones de acceso y de uso; sin ellos publica | ✓ |
+| (v3) Secuencia y custodio guardados y visibles en el catálogo | ✓ |
+| (v3) Sub-actividad conectada y listada desde la mayor | ✓ |
+| (v3) Decisión sobre el contexto de vocabulario con tabla completa | ✓ (§19) |
+| (v3) El motor referencia una entidad existente (prueba explícita) | ✓ |
+| (v3) Aviso de OCR con confianza baja (prueba explícita) | ✓ |
+| (v3) Ejemplos de parte documental, fecha aproximada con calendario, idioma y condiciones, secuencia y custodio | ✓ (§23) |
+| (v3) Actividad con una sub-actividad propia en el ejemplo | ✓ (§23) |
 | Exactamente un evento de decisión por aceptada, corregida y rechazada, con valores correctos | ✓ |
 
 **Pendiente honesto:**
@@ -362,7 +495,8 @@ tests/test_descripcion_contexto.py              29 pruebas nuevas
   - el acuerdo entre dos archivistas.
 
   Esta evidencia es la base de esa comparación, pero no la reemplaza.
-- **La pantalla de relaciones entre agentes y la jerarquía SKOS de los tipos de actividad** quedan para la actualización del módulo 3, como indica el prompt. Aquí están el modelo, el servicio y la API.
+- ~~La pantalla de relaciones entre agentes y la jerarquía SKOS de los tipos de actividad~~ quedaron hechas en la versión 2 del módulo 3.
+- **(v3)** La recuperación del contexto es léxica (trigramas), no semántica: la justificación y el riesgo están en §19. Si la evaluación muestra muchas entidades no reconocidas, es lo primero que conviene revisar.
 - **La calidad real de Gemini proponiendo actividades y mandatos** no se pudo medir en este entorno, que no tiene clave. El despliegue prueba que el motor responde.
 
 ## 23. Evidencia concreta de aplicación de RiC
@@ -391,3 +525,35 @@ Decisiones registradas en auditoría para ese documento, con el motor `gemini-de
 En la ficha del catálogo la actividad se lee así: *tipo: Policía local · ejercida por Alcaldía Municipal · regulada por Acuerdo 7 de 1946 (acuerdo, 1946) · 1948*.
 
 Ese es el contexto institucional que RiC agrega a ISAD(G). La consulta pública lo muestra sin ningún dato de procedencia.
+
+
+### Ejemplo de la versión 3
+
+Sobre el fondo de prueba, «Oficio_210_1948.png», leído por OCR con confianza 64,2 sobre 100 (bajo el umbral: el espacio de trabajo lo advirtió).
+
+```
+Record «Oficio de la Secretaría de Gobierno sobre los permisos de las fiestas de 1948»
+  idioma: spa (propuesto por el motor, aceptado) · rico:hasOrHadLanguage
+  condiciones de acceso (A08): «Consulta libre en la sala de investigación.»
+  condiciones de uso (A09): «Reproducción con autorización escrita del archivo.»
+  ─ rico:hasCreator (R027) ──→ Agent/CorporateBody «Secretaría de Gobierno de Tunja»
+        (el motor la reconoció en el vocabulario del fondo y se reutilizó; no se creó otra)
+  ─ rico:documents (R033) ──→ Activity «Expedición de permisos para las fiestas de 1948»
+        ← rico:hasDirectSubevent ── Activity «Ejercicio de la policía local en 1948»
+  ← rico:isCreationDateOf (R080) ── Date 1948 · calendario gregoriano
+  ─ rico:hasOrHadConstituent (R003) ──→ RecordPart «Sello de la Alcaldía» (tipo de parte: Sello)
+        ─ rico:hasOrHadInstantiation (R025) ──→ Instantiation «Oficio_210_1948_Sello_de_la_Alcaldía.png»
+              recortada del original, página 1, zona x 0,62 · y 0,66 · 30 % × 24 %
+              SHA-256 8e60115a… · fmt/11 (PNG) · segunda copia sincronizada
+```
+
+Decisiones registradas: título, alcance, fecha, idioma, actividad y agente aceptados, con la instrucción `3c5a7af7` y el motor `gemini-de-prueba`.
+
+**Secuencia y custodio**, del conjunto de pruebas (`test_secuencia_y_custodio…`):
+
+```
+Record «Oficio 209 de 1948» ─ rico:precedesOrPreceded (R008) → Record «Oficio de prueba»   (serie «Correspondencia»)
+Record «Oficio de prueba»   ─ rico:hasOrHadHolder (R039i)   → Agent «Archivo Histórico de Tunja»   (distinto del productor)
+```
+
+**Fecha aproximada con su calendario:** «hacia 1948» → EDTF `1948~` → «c. 1948», calendario gregoriano declarado en la fecha y en la ficha pública.

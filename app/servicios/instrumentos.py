@@ -26,9 +26,10 @@ from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.servicios import alertas, consulta, motor, vocabulario
 
 NIVEL_PLURAL = {"seccion": "secciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
-                "unidad_documental": "unidades documentales"}
+                "unidad_documental": "unidades documentales", "parte_documental": "partes documentales"}
 NIVEL_NOMBRE = {"fondo": "Fondo", "seccion": "Sección", "serie": "Serie", "subserie": "Subserie",
-                "expediente": "Expediente", "unidad_documental": "Unidad documental"}
+                "expediente": "Expediente", "unidad_documental": "Unidad documental",
+                "parte_documental": "Parte documental"}
 
 # Claves que no pueden aparecer en ninguna respuesta ni archivo de este módulo.
 CAMPOS_INTERNOS = consulta.CAMPOS_PROHIBIDOS | {"estado_revision", "origen_dato", "fragmento_inicio",
@@ -533,6 +534,11 @@ ETIQUETA_RELACION = {
     "has_activity_type": "es del tipo", "performs_or_performed": "ejerce", "regulates_or_regulated": "regula",
     "authorizes": "autoriza a", "is_date_associated_with": "fecha de", "has_or_had_subordinate": "tiene como subordinado",
     "has_successor": "tiene como sucesor", "is_agent_associated_with_agent": "asociado con",
+    # Versiones 3 de descripción y 2 de vocabularios
+    "has_or_had_holder": "custodiado por", "precedes_or_preceded": "precede a", "has_or_had_constituent": "tiene la parte",
+    "has_direct_subevent": "tiene la sub-actividad", "contains_or_contained": "contiene",
+    "is_or_was_location_of": "lugar de", "issued_by": "expedido por", "is_related_to": "produce la serie",
+    "affects_or_affected": "afecta a", "occupies_or_occupied": "ocupa",
 }
 MAX_NODOS_GRAFO = 150
 TIPOS_NODO_GRAFO = ("recurso_documental", "entidad_vocabulario", "fecha", "actividad", "instanciacion")

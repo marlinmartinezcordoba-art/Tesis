@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 TipoEntidad = Literal["agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental"]
-ClaseVocabulario = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"]
+ClaseVocabulario = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte"]
 
 
 class ElementoPorDescribir(BaseModel):
@@ -51,6 +51,8 @@ class EntidadIn(BaseModel):
     tipo_clave: str | None = Field(default=None, max_length=40)
     agente_clave: str | None = Field(default=None, max_length=40)
     mandato_clave: str | None = Field(default=None, max_length=40)
+    actividad_mayor_id: uuid.UUID | None = None
+    actividad_mayor_clave: str | None = Field(default=None, max_length=40)
     fragmento: str | None = Field(default=None, max_length=500)
     documento_id: str | None = None
     inicio: int | None = None
@@ -59,12 +61,44 @@ class EntidadIn(BaseModel):
     crear_nueva: bool = False
 
 
-class PublicarIn(BaseModel):
+class TipoParteIn(BaseModel):
+    valor: str = Field(max_length=300)
+    reutilizar_id: uuid.UUID | None = None
+    crear_nueva: bool = False
+
+
+class RecorteIn(BaseModel):
+    instanciacion_id: uuid.UUID
+    pagina: int = Field(default=1, ge=1, le=10000)
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    ancho: float = Field(gt=0, le=1)
+    alto: float = Field(gt=0, le=1)
+
+
+class ParteIn(BaseModel):
+    titulo: str = Field(max_length=300)
+    tipo_parte: TipoParteIn | None = None
+    alcance: str | None = Field(default=None, max_length=5000)
+    recorte: RecorteIn | None = None
+
+
+class CamposRegistro(BaseModel):
+    """Idioma, condiciones de acceso y de uso, y secuencia (versión 3)."""
+    idiomas: list[str] | None = Field(default=None, max_length=5)
+    condiciones_acceso: str | None = Field(default=None, max_length=5000)
+    condiciones_uso: str | None = Field(default=None, max_length=5000)
+    precede_a_id: uuid.UUID | None = None
+    sigue_a_id: uuid.UUID | None = None
+
+
+class PublicarIn(CamposRegistro):
     trabajo_id: uuid.UUID
     titulo: str = Field(max_length=300)
     alcance_contenido: str = Field(default="", max_length=5000)
     incluido_en_id: uuid.UUID | None = None
     entidades: list[EntidadIn] = Field(default_factory=list, max_length=300)
+    partes: list[ParteIn] = Field(default_factory=list, max_length=50)
 
 
 class ControlIn(BaseModel):
@@ -76,7 +110,7 @@ class ControlIn(BaseModel):
     soporte: str | None = Field(default=None, max_length=40)
 
 
-class EditarIn(BaseModel):
+class EditarIn(CamposRegistro):
     trabajo_id: uuid.UUID
     titulo: str | None = Field(default=None, max_length=300)
     alcance_contenido: str | None = Field(default=None, max_length=5000)
@@ -84,6 +118,7 @@ class EditarIn(BaseModel):
     anular_relaciones: list[uuid.UUID] = Field(default_factory=list)
     quitar_forma_documental: bool = False
     agregar_entidades: list[EntidadIn] = Field(default_factory=list, max_length=100)
+    agregar_partes: list[ParteIn] = Field(default_factory=list, max_length=50)
     control: ControlIn | None = None
 
 

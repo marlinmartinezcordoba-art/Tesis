@@ -61,6 +61,14 @@ export interface Ficha {
   control: { codigo_referencia: string | null; caja: string | null; carpeta: string | null; folios: number | null; soporte: string | null };
   hijos: number;
   publicado_en: string | null;
+  // Versión 3 de la descripción
+  idiomas: string[];
+  condiciones_acceso: string | null;
+  condiciones_uso: string | null;
+  tipo_parte: string | null;
+  partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null; instanciaciones: { id: string; nombre: string }[] }[];
+  parte_de: Miga | null;
+  secuencia: { id: string; titulo: string; posicion: "precede_a" | "sigue_a"; uri_rico: string }[];
 }
 
 export interface Inventario {

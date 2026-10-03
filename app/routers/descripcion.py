@@ -77,6 +77,18 @@ def cola(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
         en_edicion_por=quien) for i, quien in filas]
 
 
+@router.get("/buscar-publicadas", summary="Descripciones publicadas del fondo por título (para declarar la secuencia)")
+def buscar_publicadas(fondo_id: uuid.UUID, q: str = "", db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    consulta = select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
+                                               RecursoDocumental.publicado_en.isnot(None),
+                                               RecursoDocumental.nivel.in_(("expediente", "unidad_documental")))
+    if q.strip():
+        consulta = consulta.where(RecursoDocumental.titulo.ilike(f"%{q.strip()}%"))
+    return [{"id": str(r.id), "titulo": r.titulo, "nivel": r.nivel}
+            for r in db.scalars(consulta.order_by(RecursoDocumental.titulo).limit(20))]
+
+
 @router.get("/niveles-superiores", response_model=list[NivelSuperiorOut],
             summary="Dónde puede quedar incluido lo que se describe")
 def niveles_superiores(fondo_id: uuid.UUID, nivel: str, db: Session = Depends(get_db)):
@@ -112,7 +124,10 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
     # El motor se consulta con la marca ya tomada (puede tardar unos segundos).
     documentos = [motor.Documento(id=d.id, nombre=d.nombre_original, texto=d.texto_extraido or "")
                   for d in descripcion.documentos_de(db, trabajo)]
-    propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel)
+    # El motor no propone a ciegas: recibe las entidades del vocabulario del
+    # fondo que ya aparecen en el texto, para poder reutilizarlas.
+    contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
+    propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel, contexto)
     trabajo.propuesta = json.dumps(propuesta.a_dict(), ensure_ascii=False)
     descripcion.latido(db, trabajo)
     db.commit()
@@ -160,6 +175,35 @@ def verificar(datos: VerificarIn, db: Session = Depends(get_db)):
     return [CoincidenciaOut(**c.__dict__) for c in vocabulario.verificar(db, datos.fondo_id, datos.tipo, datos.valor)]
 
 
+def _partes_de(partes) -> list[descripcion.ParteConfirmada]:
+    return [descripcion.ParteConfirmada(
+        titulo=p.titulo, alcance=p.alcance, recorte=p.recorte.model_dump(mode="json") if p.recorte else None,
+        tipo_parte=descripcion.EntidadConfirmada(tipo="tipo_parte", valor=p.tipo_parte.valor,
+                                                 reutilizar_id=p.tipo_parte.reutilizar_id,
+                                                 crear_nueva=p.tipo_parte.crear_nueva) if p.tipo_parte else None)
+        for p in partes]
+
+
+def _deshacer_recortes(db: Session) -> None:
+    """Si la transacción no se confirmó, los archivos de recorte que alcanzó
+    a escribir no forman parte del fondo: se borran."""
+    from app.servicios import recorte
+
+    for inst in db.info.pop("recortes_nuevos", []):
+        recorte.borrar_archivo(inst)
+
+
+def _confirmar_recortes(db: Session) -> None:
+    """Segunda copia de cada recorte, como de cualquier instanciación nueva."""
+    from app.servicios import segunda_copia
+
+    nuevos = db.info.pop("recortes_nuevos", [])
+    for inst in nuevos:
+        segunda_copia.asegurar(db, inst, "recorte")
+    if nuevos:
+        db.commit()
+
+
 @router.post("/publicar", status_code=status.HTTP_201_CREATED, summary="Publicar la descripción (una sola transacción)")
 def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     try:
@@ -169,13 +213,68 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
         recurso = descripcion.publicar(
             db, trabajo=trabajo, usuario_id=actor.id, titulo=datos.titulo, alcance=datos.alcance_contenido,
             incluido_en_id=datos.incluido_en_id,
-            entidades=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.entidades])
+            entidades=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.entidades],
+            idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
+            precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes))
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
+        _deshacer_recortes(db)
         # La marca sigue tomada: el archivista corrige y vuelve a publicar.
         return _error(exc)
+    except Exception:
+        db.rollback()
+        _deshacer_recortes(db)
+        raise
+    _confirmar_recortes(db)
     return descripcion.detalle(db, recurso)
+
+
+# --- Páginas del documento (para ver y recortar partes documentales) ---------------------------------
+
+
+def _documento_del_trabajo(db: Session, trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, usuario_id: uuid.UUID):
+    trabajo = descripcion.trabajo_propio(db, trabajo_id, usuario_id)
+    inst = next((d for d in descripcion.instanciaciones_del_trabajo(db, trabajo) if d.id == instanciacion_id), None)
+    if inst is None:
+        raise descripcion.ErrorDescripcion("Ese documento no es de este espacio de trabajo.", 404)
+    return inst
+
+
+@router.get("/trabajos/{trabajo_id}/documentos/{instanciacion_id}/paginas",
+            summary="Cuántas páginas tiene el documento y si se puede mostrar como imagen")
+def paginas(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
+            db: Session = Depends(get_db)):
+    from app.servicios import recorte
+
+    try:
+        inst = _documento_del_trabajo(db, trabajo_id, instanciacion_id, actor.id)
+    except descripcion.ErrorDescripcion as exc:
+        return _error(exc)
+    if not recorte.admite_paginas(inst):
+        return {"admite": False, "total": 0}
+    try:
+        return {"admite": True, "total": recorte.total_paginas(inst)}
+    except (OSError, ValueError):
+        return {"admite": False, "total": 0}
+
+
+@router.get("/trabajos/{trabajo_id}/documentos/{instanciacion_id}/paginas/{pagina}",
+            summary="Imagen PNG de una página del documento")
+def pagina(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, pagina: int,
+           actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+
+    from app.servicios import recorte
+
+    try:
+        inst = _documento_del_trabajo(db, trabajo_id, instanciacion_id, actor.id)
+        contenido = recorte.pagina_png(inst, pagina)
+    except descripcion.ErrorDescripcion as exc:
+        return _error(exc)
+    except recorte.ErrorRecorte as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=422)
+    return Response(contenido, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
 
 
 # --- Descripciones publicadas: consulta interna y corrección ------------------------------------------
@@ -237,11 +336,20 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             alcance=datos.alcance_contenido, incluido_en_id=datos.incluido_en_id, anular=datos.anular_relaciones,
             quitar_forma=datos.quitar_forma_documental,
             agregar=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.agregar_entidades],
-            control=datos.control.model_dump() if datos.control else None)
+            control=datos.control.model_dump() if datos.control else None,
+            idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
+            precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
+            agregar_partes=_partes_de(datos.agregar_partes))
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
+        _deshacer_recortes(db)
         return _error(exc)
+    except Exception:
+        db.rollback()
+        _deshacer_recortes(db)
+        raise
+    _confirmar_recortes(db)
     return descripcion.detalle(db, recurso)
 
 

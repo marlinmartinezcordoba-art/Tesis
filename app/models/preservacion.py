@@ -34,7 +34,7 @@ RESULTADO_SEGUNDA_COPIA = ("integra", "alterada", "ausente", "sin_copia")
 ESTADO_SEGUNDA_COPIA = ("sincronizada", "alterada", "ausente", "reemplazada")
 # Por qué se creó: ingesta, migración, reposición de una copia dañada,
 # cambio de la ubicación configurada, o creación tardía (fondos anteriores).
-MOTIVO_SEGUNDA_COPIA = ("ingesta", "migracion", "reposicion", "cambio_de_ubicacion", "pendiente")
+MOTIVO_SEGUNDA_COPIA = ("ingesta", "migracion", "reposicion", "cambio_de_ubicacion", "pendiente", "recorte")
 # Derechos (PREMIS rightsBasis) y acceso según la Ley 1712 de 2014
 # (información pública, clasificada art. 18, reservada art. 19).
 BASE_DERECHOS = ("estatuto", "licencia", "derecho_de_autor", "politica_institucional", "otra")

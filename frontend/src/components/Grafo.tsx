@@ -29,7 +29,7 @@ export interface DatosGrafo {
 
 // Cómo se dibuja cada clase de nodo (color por CSS y nombre para la leyenda).
 export const CLASES_NODO: { clase: string; nombre: string; ric: string }[] = [
-  { clase: "documento", nombre: "Documento o agrupación", ric: "Record / Record Set" },
+  { clase: "documento", nombre: "Documento, agrupación o parte", ric: "Record / Record Set / Record Part" },
   { clase: "agente", nombre: "Agente", ric: "Agent" },
   { clase: "lugar", nombre: "Lugar", ric: "Place" },
   { clase: "forma_documental", nombre: "Forma documental", ric: "Documentary form type" },
@@ -41,11 +41,12 @@ export const CLASES_NODO: { clase: string; nombre: string; ric: string }[] = [
 ];
 
 export function claseVisual(n: NodoGrafo): string {
-  return n.tipo === "recurso_documental" ? "documento" : n.clase;
+  if (n.tipo === "recurso_documental") return "documento";
+  return n.clase === "tipo_parte" ? "forma_documental" : n.clase; // el tipo de parte es un tipo documental
 }
 
 function radio(n: NodoGrafo): number {
-  if (n.tipo === "recurso_documental") return n.clase === "fondo" ? 22 : n.clase === "unidad_documental" ? 14 : 18;
+  if (n.tipo === "recurso_documental") return n.clase === "fondo" ? 22 : n.clase === "parte_documental" ? 11 : n.clase === "unidad_documental" ? 14 : 18;
   if (n.tipo === "entidad_vocabulario") return 10 + Math.min(10, Math.sqrt(n.documentos || 1) * 2.5);
   return 9;
 }
