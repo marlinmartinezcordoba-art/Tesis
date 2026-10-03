@@ -25,7 +25,7 @@ log = logging.getLogger("ricora.motor")
 
 TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental")
 ROLES_AGENTE = ("productor", "remitente", "destinatario", "mencionado")
-SUBTIPOS_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia", "mecanismo")
+from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
 SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
 
 MAX_CARACTERES_DOCUMENTO = 20_000
@@ -92,7 +92,7 @@ Reglas estrictas:
 - Usa solo lo que dice el texto. No inventes nombres, fechas ni lugares. Si algo es dudoso, propónlo con confianza baja.
 - Cada entidad lleva "fragmento": un trozo copiado LITERALMENTE del texto (entre 3 y 25 palabras) donde aparece, y "documento": el número del documento del que sale.
 - "confianza" entre 0 y 1: qué tan seguro estás de que la entidad y su rol son correctos.
-- Tipos: agente (subtipo persona, entidad_corporativa, cargo, familia o mecanismo), lugar, fecha, actividad, mandato y forma_documental (tipo documental: oficio, acta, resolución, carta, etc.).
+- Tipos: agente (subtipo persona, entidad_corporativa, grupo —un colectivo sin personería, como un comité o una junta—, cargo, familia o mecanismo), lugar, fecha, actividad, mandato y forma_documental (tipo documental: oficio, acta, resolución, carta, etc.).
 - Rol de un agente: productor (quien lo produce o firma), remitente, destinatario o mencionado.
 - Fecha: "valor" es la expresión como aparece; "subtipo_fecha" es simple, rango o conjunto; "edtf" es su forma en EDTF, usando SOLO estas formas: 1948-03-15 (exacta), 1948-03 o 1948 (sin día o sin mes), 1948~ (aproximada, «hacia 1948»), 1948? (incierta), 1948% (las dos), 194X (década), 19XX (siglo), 1948/1952 (rango), /1952 o 1948/ (un extremo desconocido), {1948-01-15,1948-03-02} (fechas sueltas de un mismo hecho repetido). Nunca inventes precisión que el texto no da.
 - Actividad: el ejercicio concreto de una competencia por un agente en un periodo, que el documento documenta (por ejemplo «Ejercicio de la policía local por la Alcaldía, 1948»). En la misma entidad indica, si el texto lo permite: "tipo_actividad" (la competencia estable y reutilizable, por ejemplo «Policía local», «Registro civil», «Hacienda municipal»), "ejercida_por" (el valor exacto de uno de los agentes que propusiste) y "mandato" (el valor exacto de uno de los mandatos que propusiste). Su periodo va en "edtf".

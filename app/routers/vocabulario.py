@@ -1,10 +1,12 @@
 """
 Módulo 3 · Vocabularios y control de autoridad.
 
-Registro único por fondo de agentes, lugares y formas documentales. Las
-entidades las crea el módulo de descripción; aquí se navegan, se revisan
-las sugerencias de fusión que detecta el sistema y se fusionan (siempre
-con aprobación humana, nunca solas).
+Registro único por fondo de agentes, lugares, formas documentales,
+actividades, tipos de actividad y mandatos. Las entidades las crea el
+módulo de descripción; aquí se navegan, se enriquecen (ficha ISAAR-CPF del
+agente, ficha ampliada del lugar, árbol de funciones, jerarquía de
+mandatos), se revisan las sugerencias de fusión que detecta el sistema y se
+fusionan (siempre con aprobación humana, nunca solas).
 """
 
 import uuid
@@ -22,7 +24,7 @@ from app.models.auditoria import RegistroAuditoria
 from app.models.descripcion import EntidadVocabulario, SugerenciaFusion
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
-from app.servicios import parametros, vocabulario
+from app.servicios import autoridad, parametros, vocabulario
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/vocabulario", tags=["Módulo 3 · Vocabularios"],
@@ -39,6 +41,39 @@ class EntidadOut(BaseModel):
     estado: str
     conexiones: int
     fusionada_en: dict | None = None
+    nivel_detalle: str | None = None  # solo agentes
+    version: str | None = None  # solo mecanismos
+
+
+class NombreIn(BaseModel):
+    tipo: Literal["paralela", "normalizada", "otra", "historica"]
+    nombre: str = Field(min_length=1, max_length=300)
+    idioma: str | None = Field(default=None, max_length=12)
+    regla: str | None = Field(default=None, max_length=120)
+    vigencia_edtf: str | None = Field(default=None, max_length=200)
+
+
+class IdentificadorIn(BaseModel):
+    esquema: Literal["interno", "viaf", "wikidata", "isni", "lcnaf", "otro"]
+    valor: str = Field(min_length=1, max_length=200)
+
+
+class HitoIn(BaseModel):
+    tipo: Literal["creacion", "reforma", "traslado", "supresion", "otro"]
+    descripcion: str = Field(min_length=1, max_length=500)
+    edtf: str = Field(min_length=1, max_length=200)
+
+
+class VinculoIn(BaseModel):
+    tipo: str = Field(max_length=40)
+    con_id: uuid.UUID
+    con_tipo: Literal["entidad_vocabulario", "recurso_documental"] = "entidad_vocabulario"
+    fecha_edtf: str | None = Field(default=None, max_length=200)
+    nota: str | None = Field(default=None, max_length=500)
+
+
+class SuperiorIn(BaseModel):
+    superior_id: uuid.UUID | None = None
 
 
 class VerificarIn(BaseModel):
@@ -55,6 +90,8 @@ class FusionarIn(BaseModel):
 class RelacionAgentesIn(BaseModel):
     destino_id: uuid.UUID
     tipo: Literal["subordinado", "sucesor", "asociado"]
+    fecha_edtf: str | None = Field(default=None, max_length=200)
+    nota: str | None = Field(default=None, max_length=500)
 
 
 class AprobarIn(BaseModel):
@@ -70,7 +107,9 @@ class ParametrosFusion(BaseModel):
 def _entidad_out(db: Session, e: EntidadVocabulario, conexiones: int) -> EntidadOut:
     destino = db.get(EntidadVocabulario, e.fusionada_en_id) if e.fusionada_en_id else None
     return EntidadOut(id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
-                      fusionada_en={"id": str(destino.id), "nombre": destino.nombre} if destino else None)
+                      fusionada_en={"id": str(destino.id), "nombre": destino.nombre} if destino else None,
+                      nivel_detalle=e.nivel_detalle if e.clase == "agente" else None,
+                      version=e.version if e.subtipo == "mecanismo" else None)
 
 
 def _entidad_o_404(db: Session, entidad_id: uuid.UUID) -> EntidadVocabulario:
@@ -87,11 +126,15 @@ def _entidad_o_404(db: Session, entidad_id: uuid.UUID) -> EntidadVocabulario:
 def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None,
            estado: Literal["activa", "fusionada"] = "activa",
            orden: Literal["conexiones_desc", "conexiones_asc", "nombre"] = "conexiones_desc",
+           nivel_detalle: Literal["minimo", "completo"] | None = None,
            db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     consulta = select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.estado == estado)
     if clase:
         consulta = consulta.where(EntidadVocabulario.clase == clase)
+    if nivel_detalle:
+        # El nivel de detalle es del registro de autoridad de un agente.
+        consulta = consulta.where(EntidadVocabulario.clase == "agente", EntidadVocabulario.nivel_detalle == nivel_detalle)
     if q and q.strip():
         buscado = vocabulario.normalizar(q)
         consulta = consulta.where(or_(EntidadVocabulario.nombre_normalizado.contains(buscado),
@@ -139,6 +182,25 @@ def cambiar_parametros(datos: ParametrosFusion, request: Request, actor: Actor =
     return ver_parametros(db)
 
 
+@router.get("/funciones/arbol", summary="Árbol de funciones y subfunciones (SKOS broader/narrower entre tipos de actividad)")
+def arbol_funciones(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    return autoridad.arbol_funciones(db, fondo_id)
+
+
+@router.get("/series", summary="Series y subseries del fondo, para enlazarlas con la función que las produce")
+def series(fondo_id: uuid.UUID, q: str | None = None, db: Session = Depends(get_db)):
+    from app.models.recurso_documental import RecursoDocumental
+
+    fondo_o_404(db, fondo_id)
+    consulta = select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
+                                               RecursoDocumental.nivel.in_(("serie", "subserie")))
+    if q and q.strip():
+        consulta = consulta.where(RecursoDocumental.titulo.ilike(f"%{q.strip()}%"))
+    return [{"id": str(r.id), "titulo": r.titulo, "nivel": r.nivel}
+            for r in db.scalars(consulta.order_by(RecursoDocumental.titulo).limit(50))]
+
+
 @router.get("/{entidad_id}", summary="Detalle: documentos conectados e historial de fusiones")
 def detalle(entidad_id: uuid.UUID, db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
@@ -164,7 +226,142 @@ def detalle(entidad_id: uuid.UUID, db: Session = Depends(get_db)):
                        "relaciones_movidas": (ev.valor_nuevo or {}).get("relaciones_movidas"),
                        "origen": (ev.valor_nuevo or {}).get("origen")} for ev in eventos],
         "relaciones_agente": vocabulario.relaciones_de_agente(db, e.id) if e.clase == "agente" else [],
+        "ficha": autoridad.ficha(db, e),
     }
+
+
+def _error_autoridad(exc: autoridad.ErrorAutoridad) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+
+def _activa_o_409(e: EntidadVocabulario) -> None:
+    if e.estado != "activa":
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="La entidad está fusionada; edite la definitiva.")
+
+
+@router.patch("/{entidad_id}", summary="Enriquecer la ficha (ISAAR-CPF del agente, lugar ampliado, nota de alcance)")
+def enriquecer(entidad_id: uuid.UUID, cambios: dict, request: Request,
+               actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    if "nombre" in cambios:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="El nombre autorizado no se cambia aquí: se corrige desde la descripción, que lo "
+                                   "verifica contra el vocabulario para no duplicarlo.")
+    try:
+        autoridad.actualizar(db, e, cambios, actor.id, ip=ip_de(request))
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/nombres", status_code=status.HTTP_201_CREATED,
+             summary="Agregar una forma del nombre (paralela, normalizada, otra) o un nombre histórico de un lugar")
+def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
+                   actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    try:
+        autoridad.agregar_nombre(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/identificadores", status_code=status.HTTP_201_CREATED,
+             summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF)")
+def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request: Request,
+                          actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    if e.clase != "agente":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Los identificadores se registran en agentes.")
+    try:
+        autoridad.agregar_identificador(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/hitos", status_code=status.HTTP_201_CREATED,
+             summary="Agregar un hito a la línea de tiempo institucional del agente (rico:Event)")
+def agregar_hito(entidad_id: uuid.UUID, datos: HitoIn, request: Request,
+                 actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    try:
+        autoridad.agregar_hito(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/registros/{clase}/{registro_id}/anular",
+             summary="Anular una forma del nombre, un identificador o un hito (no se borra)")
+def anular_accesorio(entidad_id: uuid.UUID, clase: Literal["nombre", "identificador", "hito"], registro_id: uuid.UUID,
+                     request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
+                     db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    try:
+        autoridad.anular_accesorio(db, e, clase, registro_id, actor.id, ip=ip_de(request))
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/vinculos", status_code=status.HTTP_201_CREATED,
+             summary="Declarar un vínculo: entre agentes, lugar superior, actividad mayor, norma superior, "
+                     "mandato que crea, entidad emisora, serie que produce una función")
+def vincular(entidad_id: uuid.UUID, datos: VinculoIn, request: Request,
+             actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    try:
+        autoridad.vincular(db, tipo=datos.tipo, desde=e, con_tipo=datos.con_tipo, con_id=datos.con_id,
+                           usuario_id=actor.id, fecha_edtf=datos.fecha_edtf, nota=datos.nota, ip=ip_de(request))
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.post("/{entidad_id}/vinculos/{relacion_id}/anular", summary="Anular un vínculo declarado (no se borra)")
+def anular_vinculo(entidad_id: uuid.UUID, relacion_id: uuid.UUID, request: Request,
+                   actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    try:
+        autoridad.anular_vinculo(db, relacion_id, e, actor.id, ip=ip_de(request))
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
+
+
+@router.put("/{entidad_id}/concepto-superior",
+            summary="Ubicar un tipo de actividad en el árbol de funciones (skos:broader); sin ciclos")
+def concepto_superior(entidad_id: uuid.UUID, datos: SuperiorIn, request: Request,
+                      actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    e = _entidad_o_404(db, entidad_id)
+    _activa_o_409(e)
+    try:
+        autoridad.fijar_concepto_superior(db, e, datos.superior_id, actor.id, ip=ip_de(request))
+    except autoridad.ErrorAutoridad as exc:
+        db.rollback()
+        raise _error_autoridad(exc) from exc
+    db.commit()
+    return detalle(entidad_id, db)
 
 
 @router.post("/{entidad_id}/relaciones-agente", status_code=status.HTTP_201_CREATED,
@@ -174,8 +371,9 @@ def relacionar_agentes(entidad_id: uuid.UUID, datos: RelacionAgentesIn, request:
     origen, destino = _entidad_o_404(db, entidad_id), _entidad_o_404(db, datos.destino_id)
     try:
         vocabulario.relacionar_agentes(db, origen=origen, destino=destino, tipo=datos.tipo, usuario_id=actor.id,
-                                       ip=ip_de(request))
+                                       fecha_edtf=datos.fecha_edtf, nota=datos.nota, ip=ip_de(request))
     except vocabulario.ErrorRelacionAgentes as exc:
+        db.rollback()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     db.commit()
     return vocabulario.relaciones_de_agente(db, origen.id)

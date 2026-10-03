@@ -1,356 +1,542 @@
 # Módulo 3 · Vocabularios y control de autoridad
 
-**Estado:** entregado, pendiente de validación.
+**Estado:** versión 2 (ficha de autoridad ISAAR-CPF, lugar ampliado, árbol de funciones, jerarquía de mandatos). Pendiente de validación.
+
+**Qué cambió en la versión 2.** La versión 1 guardaba de cada entidad solo su nombre, su tipo y sus fusiones. La versión 2 completa cuatro cosas:
+
+- **Agente:** ficha de autoridad en las cuatro áreas de ISAAR-CPF.
+- **Lugar:** coordenadas, tipo, jerarquía y nombres históricos.
+- **Tipo de actividad:** árbol función → subfunción → trámite, con SKOS, y su serie documental.
+- **Actividad y mandato:** sub-actividades, norma superior, mandato que crea una entidad o una competencia y entidad que expidió el mandato.
+
+Todos los nombres de RiC-O que usa el módulo salen de un único mapeo (`app/servicios/ric_o.py`). Una prueba lo compara contra el archivo OWL oficial de RiC-O 1.1: ver `documentacion/anexos/verificacion-ric-o-1-1.md`.
 
 ---
 
 ## 1. Propósito
 
-Mantener un registro único y reutilizable, por fondo, de los agentes, lugares y formas documentales. Así, la misma entidad no se convierte en varios nodos desconectados cada vez que aparece en un documento nuevo. El módulo:
+Mantener, por fondo, un registro único y reutilizable de sus entidades de contexto:
 
-- evita duplicados antes de que existan (servicio de verificación, que usa descripción);
-- detecta los que ya se colaron (sugerencias de fusión);
-- permite fusionarlos con aprobación humana, sin borrar nada y con rastro completo.
+- agentes, incluido el mecanismo (un programa con su versión);
+- lugares;
+- formas documentales;
+- actividades;
+- tipos de actividad;
+- mandatos o normas.
+
+Cada entidad tiene el nivel de detalle que pide su norma de descripción. El módulo:
+
+- evita duplicados antes de que existan, con el servicio de verificación que usa descripción;
+- detecta los que ya se colaron, con las sugerencias de fusión;
+- los fusiona con aprobación humana, sin borrar nada;
+- permite enriquecer cada entidad después de creada, sin bloquear ningún trabajo de descripción.
 
 ## 2. Auditoría (qué se revisó antes de construirlo)
 
 **Documentos revisados:**
 
-- el prompt del módulo 3 (secciones 1 a 10);
-- el diseño consolidado, Parte 4;
-- el mockup «Sistema RIC · Vocabularios»;
-- lo ya construido en el módulo 2: `app/servicios/vocabulario.py` con `verificar()` y `crear()`, y la tabla `entidades_vocabulario`.
+- el prompt actualizado del módulo 3 (versión 2, secciones 1 a 12);
+- el prompt del módulo 2 versión 3, en las partes que remite a vocabularios;
+- el anexo de mapeo RiC-O 1.1 entregado con los prompts;
+- el archivo OWL oficial de RiC-O 1.1;
+- el PDF de RiC-CM 1.0;
+- el código de la versión 1.
 
 **Hallazgos:**
 
-- **El servicio de verificación ya existía** (se construyó en el módulo 2 como servicio de este módulo). No se duplicó. Este módulo lo **amplía** con la navegación, la detección y la fusión en el mismo archivo. La decisión de similitud (§19) ya estaba documentada en el módulo 2 y aquí se completa con su uso para la detección.
-- **El prompt pide evaluar Celery y Redis «ya previstos en las dependencias aunque comentados».** En este proyecto reescrito no están. Sí existe un trabajador en segundo plano (el de la ingesta). Se evaluó en la tabla de decisión (§19).
-- **La tabla ya tenía `estado` y `fusionada_en_id`** desde la migración 0003. Faltaba poder saber, en cada relación redirigida, a qué entidad apuntaba antes. Se agregó `relaciones.destino_original_id`.
-- **El diseño pide «enlace directo a su descripción en el catálogo».** El catálogo navegable es del módulo 4. Mientras tanto, el enlace lleva a la descripción publicada (vista interna del módulo 2). Cuando exista el catálogo, se cambia el destino del enlace.
-- **Colores:** el sistema de diseño del prompt repite el acento terracota. Se mantiene la paleta de tonos medios de RICORA, por decisión de la autora.
+1. **El anexo de mapeo dejaba trece puntos sin verificar.** Se verificaron todos contra el OWL antes de escribir código, y tres afirmaciones del anexo resultaron incorrectas. Las que tocan a este módulo:
+   - las coordenadas de un lugar se exportan con `rico:geographicalCoordinates`, no con la clase `Coordinates`, que es de `PhysicalLocation`;
+   - el grupo se puede instanciar directamente (`rico:Group`);
+   - la relación asociativa entre agentes es `isAgentAssociatedWithAgent` (R044);
+   - la versión del mecanismo tiene propiedad propia: `technicalCharacteristics` (A41).
+2. **El prompt pide «la entidad que expidió» un mandato.** Ninguna relación del catálogo lo cubría. RiC-O tiene `issuedBy` (RiC-R065, de Rule a Agent). Se agregó al catálogo: es la propiedad verificada para un dato que el prompt exige. No es una relación inventada.
+3. **El prompt pide relaciones entre agentes «fechadas» y con «una breve descripción».** La tabla `relaciones` no tenía dónde guardarlas. Se agregaron `fecha_edtf` y `nota`.
+4. **Había tres copias de la lista de subtipos de agente** (modelo, motor y descripción). Quedó una sola, en el modelo; las otras dos la importan. El subtipo «grupo» se agregó una sola vez y llega a los tres.
+5. **El prompt habla de «Celery y Redis ya previstos».** En este proyecto no están instalados. Se mantiene la decisión de la versión 1: el trabajador en segundo plano que ya existe.
+6. **Colores:** se mantiene la paleta de RICORA (no el terracota del prompt), por decisión de la autora. Actividad, tipo de actividad y mandato comparten el tono de contexto.
 
 ## 3. Problema que resuelve
 
-Un mismo productor aparece escrito de muchas formas a lo largo de décadas: «Alcaldía Municipal de Tunja», «Alcaldia Mpal. de Tunja», «Alcaldía de Tunja». Si cada forma es un nodo distinto:
+Sin control de autoridad, un mismo productor escrito de cinco formas son cinco nodos sueltos. Además, sin ficha de autoridad, el archivista no puede responder las preguntas que un usuario de archivo histórico trae primero:
 
-- el grafo se fragmenta;
-- la búsqueda por productor devuelve resultados parciales;
-- el índice del fondo (módulo 4) sale con entradas repetidas.
+- **quién era** el productor;
+- **cuándo existió**;
+- **de quién dependía**;
+- **a quién sucedió**;
+- **qué norma lo creó**;
+- **dónde actuó**.
 
-El control de autoridad es lo que hace confiable el punto de acceso.
+La versión 2 hace que el vocabulario responda esas preguntas con datos estructurados que se pueden exportar a RiC-O, no con texto suelto.
 
 ## 4. Usuarios
 
 | Rol | Qué hace |
 |---|---|
-| Archivista, coordinador de archivo, descriptor | Navega, revisa sugerencias, aprueba o descarta, fusiona a mano |
-| Revisor, auditor (lectura) | Ve el vocabulario, las sugerencias y el historial, sin modificar |
-| Administrador | Todo lo anterior, y además cambia los criterios de detección |
+| Archivista, coordinador de archivo, descriptor | Navega, enriquece fichas, declara vínculos, revisa sugerencias, fusiona |
+| Revisor, auditor (lectura) | Ve todo, sin modificar (403 en cualquier escritura) |
+| Administrador | Todo lo anterior y los criterios de detección |
 | Consulta | Sin acceso al módulo |
 
-Los permisos salen de la tabla de roles del módulo de autenticación: módulo «vocabularios», nivel leer o escribir. Cualquier petición que modifica algo exige escritura.
+Los permisos salen de la matriz única de roles: módulo «vocabularios», con nivel de lectura o de escritura.
 
 ## 5. Casos de uso
 
-1. Ver el vocabulario del fondo, filtrar por tipo, buscar por nombre y ordenar por número de documentos.
-2. Revisar una sugerencia de fusión y aprobarla, eligiendo cuál queda como definitiva.
-3. Descartar una sugerencia («son distintas»): no cambia nada y el par no se vuelve a sugerir.
-4. Abrir una entidad y ver sus documentos, las formas que absorbió y su historial de fusiones.
-5. Fusionar a mano desde el detalle: buscar otra entidad del mismo tipo, elegir la definitiva y confirmar.
-6. Consultar una entidad fusionada: con el filtro «Ver fusionadas», o desde un documento antiguo que la citaba.
-7. Pedir una búsqueda de candidatos en el momento, sin esperar la periódica.
-8. (Administrador) Ajustar los criterios: similitud mínima, conexiones máximas y frecuencia.
-9. (Descripción) Verificar si una entidad ya existe antes de crearla. Es el servicio que consume el módulo 2.
+1. Ver el vocabulario, filtrar por los seis tipos y buscar por nombre.
+2. Filtrar los agentes por nivel de detalle para encontrar los que siguen en ficha mínima.
+3. Ver los tipos de actividad como árbol de funciones.
+4. Completar la ficha ISAAR de un agente:
+   - formas del nombre;
+   - identificadores (internos y de autoridad externa);
+   - versión, si es un mecanismo;
+   - fechas de existencia;
+   - historia;
+   - estatuto jurídico;
+   - estructura;
+   - contexto;
+   - fuentes;
+   - reglas.
+5. Registrar hitos de la línea de tiempo institucional: creación, reforma, traslado, supresión.
+6. Relacionar dos agentes: jerárquica, temporal o asociativa, con vigencia y nota.
+7. Declarar el lugar de actuación de un agente y el mandato que lo creó.
+8. Completar un lugar: tipo, coordenadas con mapa, lugar superior y nombres históricos con su periodo.
+9. Ubicar un tipo de actividad bajo otro (función → subfunción) y enlazarlo con la serie que produce.
+10. Declarar la estructura de una actividad (sub-actividades), quién la ejerce y qué mandato la regula.
+11. Declarar la norma superior de un mandato, la entidad que lo expidió y qué agente o competencia creó.
+12. Anular cualquiera de esos datos sin borrarlo.
+13. Revisar sugerencias de fusión y fusionar a mano. La ficha de la absorbida pasa a la definitiva.
 
 ## 6. Entidades RiC involucradas
 
-| Entidad del vocabulario | RiC-CM 1.0 | Subtipos |
-|---|---|---|
-| Agente | RiC-E07 Agent | Persona (E08), Entidad corporativa (E11), Cargo (E12), Familia (E10) |
-| Lugar | RiC-E22 Place | — |
-| Forma documental | RiC-A17 Documentary form type (atributo del Record, gestionado como vocabulario controlado) | — |
-
-La sugerencia de fusión no es una entidad RiC: es un registro de trabajo interno del sistema.
+| Entidad | RiC-CM 1.0 | Clase RiC-O 1.1 | Detalle en la versión 2 |
+|---|---|---|---|
+| Agente persona | E08 | `rico:Person` | Ficha ISAAR de cuatro áreas |
+| Agente familia | E10 | `rico:Family` | Ídem |
+| Agente entidad corporativa | E11 | `rico:CorporateBody` | Ídem, más estatuto jurídico |
+| **Agente grupo (nuevo)** | E09 | `rico:Group` | Comité o junta sin personería. La nota de alcance de `rico:Group` admite «otras clases de grupos» |
+| Agente cargo | E12 | `rico:Position` | Jerarquía entre cargos con la misma relación R045 |
+| Agente mecanismo | E13 | `rico:Mechanism` | Versión obligatoria, exportada como `rico:technicalCharacteristics` (A41) |
+| Lugar | E22 | `rico:Place` | Coordenadas (A11), tipo (`rico:PlaceType`), nombres (`rico:PlaceName`) |
+| Forma documental | A17 | `rico:DocumentaryFormType` | — |
+| Actividad | E15 | `rico:Activity` | Sub-actividades |
+| Tipo de actividad | — | `rico:ActivityType` y `skos:Concept` | Árbol SKOS, serie que produce |
+| Mandato o norma | E17 | `rico:Mandate` | Tipo de instrumento (`rico:RuleType`), jerarquía, emisor |
+| **Hito institucional (nuevo)** | E14 | `rico:Event` | Usado directamente, no como Activity |
 
 ## 7. Relaciones RiC involucradas
 
-Este módulo **no crea relaciones nuevas**. Redirige las que ya existen. Al fusionar, cambia el destino de toda relación **vigente** que apuntaba a la entidad absorbida, conservando su código RiC. Las relaciones ya anuladas se dejan como estaban, porque son historia de correcciones pasadas:
+Cada relación se guarda en una sola fila: la inversa se lee de ella y nunca se duplica. Los códigos y las propiedades salen de `ric_o.py`.
 
-- *has creator* (RiC-R027);
-- *has sender* (R031); *has addressee* (R032);
-- *has or had subject* (R019);
-- las demás del catálogo curado que apunten a un agente o lugar.
+| Vínculo (lo declara la persona en…) | Fila guardada | RiC-O 1.1 | RiC-CM |
+|---|---|---|---|
+| Tiene o tuvo como subordinado a (agente) | agente → agente | `hasOrHadSubordinate` / `isOrWasSubordinateTo` | R045 |
+| Tiene como sucesor a (agente) | agente → agente | `hasSuccessor` / `isSuccessorOf` | R016 |
+| Está asociado con (agente) | agente ↔ agente | `isAgentAssociatedWithAgent` (simétrica) | R044 |
+| Actúa o actuó en (agente) | lugar → agente | `isOrWasLocationOf` / `hasOrHadLocation` | R075 |
+| Fue creado o establecido por (agente) | mandato → agente, rol creación | `authorizes` / `authorizedBy` | R067 |
+| Está dentro de (lugar) | lugar superior → lugar | `containsOrContained` / `isOrWasContainedBy` | R007 |
+| Es sub-actividad de (actividad) | actividad mayor → sub | `hasDirectSubevent` / `isDirectSubeventOf` | atajo de R006 |
+| Es o fue ejercida por (actividad) | agente → actividad | `performsOrPerformed` / `isOrWasPerformedBy` | R060i |
+| Está regulada por (actividad) | mandato → actividad | `regulatesOrRegulated` / `isOrWasRegulatedBy` | R063 |
+| Desarrolla o deriva de (mandato) | norma superior → derivada, rol jerarquía normativa | `regulatesOrRegulated` | R063 |
+| Fue expedido por (mandato) | mandato → agente | `issuedBy` | R065 |
+| Es una competencia creada por (tipo de actividad) | mandato → tipo, rol creación | `regulatesOrRegulated` | R063 |
+| Produce la serie (tipo de actividad) | tipo → serie o subserie | `isRelatedTo` (**general**) | R001 |
+| Hito de su historia (agente) | tabla `hitos` | `affectsOrAffected` (**general**) | R059 |
+| Función → subfunción | `concepto_superior_id` | `skos:broader` / `skos:narrower` | no es RiC |
 
-Además, el campo `forma_documental_id` de cada Record que usaba la forma absorbida pasa a la definitiva.
-
-**La equivalencia entre la absorbida y la definitiva** queda en `fusionada_en_id`. Es una relación explícita, del tipo «es la misma que». RiC-CM no define una relación oficial de equivalencia de autoridades. Por eso se guarda como enlace de control interno y no se inventa un código RiC-R. En RiC-O, al exportar, el equivalente natural es `owl:sameAs`. Esa decisión se toma en el módulo 4.
+Las relaciones **generales** son las que no tienen propiedad dedicada en RiC-O. El sistema usa la más específica que existe, como pide la propia ontología, y la interfaz lo dice con una marca «general».
 
 ## 8. Funcionalidades
 
-- **Navegación:**
-  - vocabulario del fondo con chips de filtro por tipo (Todos, Agentes, Lugares, Formas documentales);
-  - búsqueda por nombre, que tolera tildes y errores menores (trigramas);
-  - orden por documentos conectados, ascendente o descendente, o por nombre;
-  - cada fila muestra la insignia de tipo, el nombre, el subtipo, la referencia RiC y el número de documentos a la derecha.
-- **Sugerencias:** una tarjeta por par, con las dos entidades lado a lado, el porcentaje de similitud al centro y los botones «Son distintas» y «Aprobar fusión». El sistema propone como definitiva la de más conexiones; la persona puede cambiarla.
-- **Detalle:** documentos conectados con enlace a su descripción, formas absorbidas, historial de fusiones y «Fusionar con otra entidad».
-- **Fusión:**
-  - es una sola transacción;
-  - redirige las relaciones y las formas documentales;
-  - marca la absorbida como fusionada;
-  - si la absorbida ya había absorbido otras, esas pasan a apuntar a la nueva definitiva (no quedan cadenas);
-  - las demás sugerencias pendientes que involucran a la absorbida quedan como «obsoleta»;
-  - todo queda en la auditoría.
-- **Detección periódica:** compara entre sí las entidades activas del mismo tipo y fondo. Sugiere solo pares con similitud alta en los que **ambas** tengan pocas conexiones. Nunca repite un par ya decidido.
-- **Criterios configurables** (solo el administrador):
-  - similitud mínima, 60 % por defecto;
-  - conexiones máximas, 10 por defecto;
-  - frecuencia, cada 24 h por defecto.
-- **Rastro desde el documento:** en la descripción publicada de un documento cuya entidad se fusionó, aparece «Antes citaba a «X», fusionada en esta entidad», con enlace.
+**Navegación**
+
+- Chips por los seis tipos y búsqueda que tolera tildes.
+- En agentes, filtro por nivel de detalle (mínimo o completo) e insignia de nivel en cada fila.
+- En tipos de actividad, interruptor entre lista y árbol.
+- Cada fila muestra la clase exacta de RiC-O según el subtipo, por ejemplo `rico:Group`, y la versión si es un mecanismo.
+
+**Ficha de agente.** Cuatro áreas plegables:
+
+1. **Identificación:**
+   - tipo;
+   - forma autorizada (no editable aquí);
+   - otras formas del nombre (paralela con su lengua, normalizada con su regla, otra con su periodo);
+   - identificadores con su esquema: interno, VIAF, Wikidata, ISNI o LCNAF. Los externos llevan una insignia distinta y un enlace a la autoridad;
+   - versión obligatoria si es un mecanismo.
+2. **Descripción:**
+   - fechas de existencia en EDTF, con inicio sin fin admitido;
+   - historia;
+   - estatuto jurídico (en entidad corporativa y grupo);
+   - estructura interna;
+   - contexto general;
+   - línea de tiempo institucional;
+   - lugares de actuación;
+   - funciones (las actividades que ejerce);
+   - mandato que lo creó.
+3. **Relaciones:** con otros agentes. Se declaran en los dos sentidos («tiene como subordinado» o «está subordinado a»), con vigencia EDTF opcional y nota.
+4. **Control:**
+   - identificador del registro;
+   - reglas (por defecto, ISAAR-CPF 2.ª edición);
+   - nivel de detalle calculado;
+   - fechas de creación y de última revisión, leídas de la auditoría;
+   - fuentes.
+
+**Ficha de lugar**
+
+- Tipo de lugar.
+- Coordenadas, validadas en rango y siempre juntas, con un mapa de OpenStreetMap.
+- Lugar superior, uno solo, sin ciclos.
+- Lugares que contiene.
+- Nombres históricos con su periodo.
+
+**Ficha de tipo de actividad**
+
+- Superior (`skos:broader`) y específicos (`skos:narrower`), sin ciclos y con niveles ilimitados.
+- Serie o subserie que produce. Solo se admite una serie o una subserie, nunca un expediente.
+- Mandato que creó la competencia.
+- Actividades que llevan este tipo.
+
+**Ficha de actividad**
+
+- Tipo y periodo, tomados de la descripción.
+- Agente que la ejerce.
+- Mandato que la regula.
+- Actividad mayor (una sola, sin ciclos) y sub-actividades.
+
+**Ficha de mandato**
+
+- Tipo de instrumento y fecha de expedición.
+- Entidad que lo expidió.
+- Actividades que regula.
+- Agentes y competencias que creó.
+- Jerarquía normativa en los dos sentidos, sin ciclos.
+
+**Nada se borra.** Una forma del nombre, un identificador, un hito o un vínculo que sobra queda «anulado», con quién y cuándo en la auditoría.
+
+**Fusión.** Sigue igual que en la versión 1. Además, la ficha de la absorbida pasa a la definitiva:
+
+- hitos;
+- formas del nombre, y el nombre de la absorbida como «otra forma» (como «nombre histórico» si es un lugar);
+- identificadores;
+- los específicos del árbol de funciones;
+- se anula la relación que quedó de la entidad consigo misma.
+
+Dos versiones del mismo programa nunca se sugieren para fusión.
+
+**Mecanismos.** `vocabulario.mecanismo()` es el único punto de registro. Busca por nombre y versión exactos; si existe lo reutiliza, y si no, lo crea con el servicio único de creación. Preservación lo usa para Ghostscript y descripción para el motor de análisis.
 
 ## 9. Flujos
 
-**Aprobar una sugerencia:**
+**Enriquecer un agente creado desde descripción**
 
-1. El trabajador en segundo plano, cuando le toca, busca pares y deja sugerencias pendientes.
-2. La pestaña «Sugerencias de fusión» muestra el contador.
-3. El archivista compara las dos entidades y abre «ver documentos» si duda.
-4. Elige cuál queda como definitiva y pulsa «Aprobar fusión».
-5. El servidor bloquea la sugerencia (`SELECT … FOR UPDATE`), fusiona en una transacción y registra la auditoría.
-6. Aviso: «X se fusionó en Y».
+1. En Vocabularios, chip Agentes y filtro «Ficha mínima».
+2. Abrir el agente. Las áreas están desplegadas y se edita en el lugar.
+3. Al guardar el primer dato del área de descripción (un campo o un hito), la insignia pasa a «Ficha completa». Queda en auditoría con el valor anterior y el nuevo.
 
-**Fusión manual:**
+**Declarar una relación jerárquica desde el subordinado**
 
-1. En el detalle, «Fusionar con otra entidad».
-2. Se busca por nombre; solo aparecen entidades del mismo tipo y fondo.
-3. Se elige una; se muestran las dos lado a lado con el selector «Queda como definitiva».
-4. «Confirmar fusión».
-5. Si la definitiva es la otra, la pantalla se mueve a su detalle.
+1. «+ Está o estuvo subordinado a».
+2. Buscar el superior y elegirlo.
+3. Vigencia y nota, opcionales.
+4. «Declarar vínculo».
 
-**Descartar:** «Son distintas». La sugerencia queda descartada, con auditoría. El par no se vuelve a proponer.
+La fila se guarda superior → subordinado, como pide RiC-O. Si el vínculo formaría un ciclo, el servidor lo rechaza con 422.
+
+**Armar el árbol de funciones**
+
+1. En la ficha de un tipo de actividad, «Cambiar» el superior.
+2. Elegir otro tipo de actividad.
+3. El árbol se ve en Vocabularios → Tipos de actividad → Árbol de funciones, con la serie que produce cada función.
 
 ## 10. Pantallas
 
 | Pantalla | Ruta |
 |---|---|
-| Vocabulario (pestaña) | `/vocabularios` |
-| Sugerencias de fusión (pestaña, con contador) | `/vocabularios` |
-| Detalle de entidad, con fusión manual | `/vocabularios/:id` |
-
-Entrada «Vocabularios» en la barra lateral, dentro de «Trabajo archivístico», visible solo para roles con acceso de lectura.
+| Vocabulario (lista o árbol de funciones), con filtros | `/vocabularios` |
+| Sugerencias de fusión | `/vocabularios` (pestaña) |
+| Ficha de la entidad (según su clase), fusión manual, documentos | `/vocabularios/:id` |
 
 ## 11. UX/UI
 
-- **Nada se fusiona con un solo clic accidental:** en la sugerencia hay que pulsar «Aprobar fusión». En la manual hay dos pasos (elegir y confirmar), con el selector de definitiva siempre visible.
-- **Consecuencia antes de decidir:** la tarjeta dice qué va a pasar, por ejemplo «Si aprueba, el documento de «X» pasa a «Y»».
-- **Lenguaje archivístico:** «queda como definitiva», «son distintas», «formas absorbidas».
-- Las referencias RiC (E07, E22, A17) aparecen discretas, para quien las quiera ver.
-- En móvil las dos columnas se apilan y la similitud queda entre ellas. Se verificó que no hay desplazamiento horizontal a 390 px.
+- Las áreas de ISAAR son secciones plegables numeradas como en la norma. El área de control empieza plegada porque casi todo en ella se calcula.
+- Cada vínculo muestra su propiedad de RiC-O y su código RiC-CM en tipografía monoespaciada y discreta. En la lectura inversa se muestra la propiedad inversa y el código con «i», por ejemplo `rico:isOrWasContainedBy · RiC-R007i`.
+- Lo «general» se marca y se explica al pasar el cursor.
+- Las fechas nunca se escriben en EDTF: se usa el mismo selector del módulo de descripción, con su forma legible en español.
+- El mapa sale solo si hay coordenadas.
+- El enlace «Abrir en OpenStreetMap» queda como respaldo si el mapa no carga.
+- En móvil, las parejas etiqueta–valor pasan a una columna. Se verificó a 390 px sin desplazamiento horizontal.
 
 ## 12. Modelo de datos
 
-**Tabla nueva `sugerencias_fusion` (migración 0005):**
+**Migración 0010:** códigos nuevos del catálogo. Este módulo usa `contains_or_contained`, `has_direct_subevent`, `affects_or_affected`, `is_related_to` e `issued_by`.
 
-- `fondo_id`, `clase`;
-- el par ordenado `entidad_a_id < entidad_b_id`;
-- `similitud`;
-- `estado`: pendiente / aprobada / descartada / obsoleta;
-- `resuelta_en`, `resuelta_por_id`, `definitiva_id`.
+**Migración 0011:**
 
-El índice único `ux_sugerencia_par` impide repetir un par.
+- **`entidades_vocabulario`** gana estas columnas:
+  - `version`;
+  - `existencia_edtf`, `existencia_inicio` y `existencia_fin`;
+  - `historia`, `estatuto_juridico`, `estructura` y `contexto_general`;
+  - `reglas`, `nivel_detalle` (con índice) y `fuentes`;
+  - `latitud` y `longitud` (con restricción de rango);
+  - `tipo_lugar`;
+  - `concepto_superior_id`: SKOS broader, con una restricción que impide que un concepto sea su propio superior.
+- **`relaciones`** gana `fecha_edtf` y `nota`.
+- **Tablas nuevas:**
+  - `nombres_entidad`: tipo, nombre, idioma, regla, vigencia EDTF con inicio y fin, y estado vigente o anulado;
+  - `identificadores_entidad`: esquema, valor y estado, con índice único vigente por entidad, esquema y valor;
+  - `hitos`: agente, tipo, descripción, EDTF con inicio y fin, estado y agente original si hubo fusión.
 
-**Columna nueva `relaciones.destino_original_id`:** a qué entidad apuntaba la relación antes de la primera fusión que la movió. Si hay fusiones sucesivas, se conserva la original (`coalesce`).
-
-**Ya existentes** (migración 0003): en `entidades_vocabulario`, `estado` (activa/fusionada), `fusionada_en_id` y `nombre_normalizado` con índice GIN de trigramas.
-
-**Parámetros nuevos** en la tabla `parametros`:
-
-- `fusion_similitud_pct`;
-- `fusion_max_conexiones`;
-- `fusion_horas_deteccion`;
-- `fusion_ultima_deteccion` (interno).
+La migración se probó de ida y de vuelta (0011 → 0009 → 0011).
 
 ## 13. API
 
-Todas bajo `/api/vocabulario`. Exigen sesión y permiso del módulo: leer para GET, escribir para lo demás.
+Todas bajo `/api/vocabulario`, con sesión y permiso del módulo: leer para GET y escribir para lo demás.
 
 | Método y ruta | Qué hace |
 |---|---|
-| `GET /api/vocabulario?fondo_id&clase&q&estado&orden` | Lista con búsqueda, filtro por tipo, activas o fusionadas, y orden |
-| `GET /api/vocabulario/{id}` | Detalle: documentos, documentos históricos, absorbidas, historial |
-| `POST /api/vocabulario/verificar` | Servicio de similitud |
-| `GET /api/vocabulario/sugerencias-fusion?fondo_id` | Cola de candidatos pendientes |
-| `POST /api/vocabulario/sugerencias-fusion/{id}/aprobar` | Ejecuta la fusión; `definitiva_id` opcional |
-| `POST /api/vocabulario/sugerencias-fusion/{id}/descartar` | Marca el par como distinto |
-| `POST /api/vocabulario/fusionar` | Fusión manual: `definitiva_id`, `absorbida_id` |
-| `POST /api/vocabulario/detectar?fondo_id` | Busca candidatos en el momento |
-| `GET/PUT /api/vocabulario/parametros` | Criterios de detección (PUT solo administrador) |
-
-**Sobre `verificar`:** el prompt permite que sea de uso interno. El módulo de descripción **no** lo llama por HTTP: importa el mismo servicio de Python (`vocabulario.verificar`). La ruta HTTP existe para la pantalla y exige permiso de escritura del módulo. Así no queda ninguna puerta abierta sin sesión.
-
-**Ampliación del módulo 2:** `GET /api/descripcion/registros/{id}` ahora incluye, por cada agente o lugar redirigido, `antes_de_fusion` con la entidad que citaba originalmente.
+| `GET ?fondo_id&clase&q&estado&orden&nivel_detalle` | Lista. `nivel_detalle` filtra agentes por mínimo o completo |
+| `GET /funciones/arbol?fondo_id` | Árbol completo de funciones (SKOS), con las series que produce cada una |
+| `GET /series?fondo_id&q` | Series y subseries, para enlazarlas con su función |
+| `GET /{id}` | Detalle con `ficha` según la clase |
+| `PATCH /{id}` | Campos de enriquecimiento de la clase. El nombre autorizado no (422). La versión de un mecanismo no puede quedar vacía. Recalcula el nivel de detalle |
+| `POST /{id}/nombres` | Otra forma del nombre, o nombre histórico de un lugar |
+| `POST /{id}/identificadores` | Identificador con esquema; valida la forma de Wikidata, VIAF e ISNI |
+| `POST /{id}/hitos` | Hito de la línea de tiempo (EDTF) |
+| `POST /{id}/registros/{nombre\|identificador\|hito}/{rid}/anular` | Anula sin borrar |
+| `POST /{id}/vinculos` | Declara un vínculo del catálogo de §7. Valida clases, fondo, repetición, superior único y ciclos |
+| `POST /{id}/vinculos/{relacion_id}/anular` | Anula sin borrar |
+| `PUT /{id}/concepto-superior` | Ubica un tipo de actividad en el árbol, sin ciclos |
+| `POST /{id}/relaciones-agente` | (versión 1, se mantiene) Relación entre agentes, ahora con vigencia y nota; usa el mismo servicio |
+| Sugerencias, fusión, detección, parámetros, verificar | Sin cambios de contrato |
 
 ## 14. Uso de IA
 
-**Ninguno.** La detección es comparación de texto por trigramas, determinista y explicable: se puede decir exactamente por qué se sugirió un par. Es deliberado. Una decisión de autoridad no debe depender de un modelo que no se puede auditar. Y la regla del prompt, «nunca fusionar sin aprobación humana, ni con 100 % de similitud», se cumple sin excepciones.
+Ninguno en este módulo. La ficha de autoridad la escribe una persona.
+
+La comparación de nombres sigue siendo por trigramas, determinista y explicable. El motor de análisis es un `rico:Mechanism` más del vocabulario, con su versión, y no decide nada aquí.
 
 ## 15. Seguridad
 
-- Permisos por rol en el backend. La interfaz solo oculta botones; quien decide es el servidor.
-- Aprobar bloquea la fila de la sugerencia (`FOR UPDATE`): dos personas que aprueban a la vez no fusionan dos veces. La segunda recibe 409 «ya no está pendiente».
-- **No se fusionan entidades de distinto tipo o fondo, ni una entidad consigo misma, ni una ya fusionada** (409).
-- Todo parámetro se valida con rango.
-- Solo el administrador cambia los criterios.
-- **No destructivo:** no hay ninguna ruta que borre entidades, sugerencias ni relaciones.
+- Permisos en el backend: el revisor y el rol de consulta reciben 403 en cualquier escritura (hay prueba).
+- Validación de cada campo:
+  - rangos de coordenadas;
+  - listas cerradas de estatuto jurídico, tipo de lugar, esquema de identificador, tipo de hito y tipo de forma;
+  - forma de los identificadores externos;
+  - EDTF del subconjunto del sistema;
+  - textos con longitud máxima.
+- No se vincula entre fondos, ni con una entidad fusionada, ni una entidad consigo misma. Una entidad fusionada no se edita (409).
+- No hay ninguna ruta que borre.
 
 ## 16. Auditoría (qué queda registrado)
 
-| Acción | Cuándo | Qué guarda |
-|---|---|---|
-| `fusion_vocabulario` | Toda fusión, sugerida o manual | Quién, cuándo, entidad definitiva y absorbida (id, nombre, conexiones antes), relaciones movidas, formas documentales movidas, origen (sugerencia o manual) |
-| `sugerencia_fusion_descartada` | Al descartar | Quién, cuándo, el par |
-| `parametro_cambiado` | Al cambiar un criterio | Valor anterior y nuevo |
+| Acción | Qué guarda |
+|---|---|
+| `entidad_enriquecida` | Solo los campos que cambiaron, con el valor anterior y el nuevo, incluido el cambio de nivel de detalle |
+| `nombre_agregado`, `identificador_agregado`, `hito_agregado` | El registro nuevo (si el identificador es externo, también) |
+| `nombre_anulado`, `identificador_anulado`, `hito_anulado` | Estado vigente → anulado |
+| `vinculo_declarado` | Código, rol, propiedad de RiC-O, origen, destino, vigencia y nota |
+| `vinculo_anulado` | Estado vigente → anulada |
+| `concepto_superior_cambiado` | `skos:broader` anterior y nuevo |
+| `mecanismo_registrado` | Nombre y versión |
+| `fusion_vocabulario` | Como en la versión 1, más los registros de la ficha que se movieron |
 
-La tabla de auditoría es de solo anexar (disparador del módulo de autenticación). Una prueba explícita confirma que **cada** fusión deja exactamente un evento.
+Las fechas de creación y de última revisión de la ficha **se leen** de estos eventos; no se capturan a mano.
 
 ## 17. Interoperabilidad
 
-- El vocabulario consolidado será la fuente directa del **índice** del fondo (módulo 4), según el diseño consolidado.
-- `fusionada_en_id` permite exportar la equivalencia (`owl:sameAs` en RiC-O) y mantener vivas las URI antiguas, que redirigen a la definitiva.
-- **Pendiente para más adelante:** alinear las autoridades con vocabularios externos (VIAF, Wikidata, tesauros de lugares del DANE/IGAC). No lo pide este prompt; queda anotado.
+- **Identificadores externos:** cada uno lleva su esquema, y el sistema arma la URI de la autoridad (VIAF, Wikidata, ISNI, LCNAF). Es lo que permitirá exportar `rico:hasOrHadIdentifier` y `owl:sameAs` en el módulo de instrumentos.
+- **Árbol de funciones:** sale de SKOS, el estándar del W3C. Un tesauro de funciones de otra institución podría alinearse con `skos:exactMatch`.
+- **Coordenadas:** en grados decimales (WGS84), el formato que usan OpenStreetMap y los geoportales del país.
 
 ## 18. Normativa aplicable
 
-- **ISAAR(CPF)** (ICA): registro de autoridad único para instituciones, personas y familias. Este módulo es su aplicación práctica.
-- **RiC-CM 1.0:** Agent (E07) y subtipos, Place (E22), Documentary form type (A17).
-- **ISAD(G), elemento 3.2.1:** el nombre del productor debe ser coherente en toda la descripción.
-- **NTC 4095** y el **Acuerdo 027 de 2006 (AGN)**, sobre puntos de acceso normalizados.
-- **Principio de no destructividad** del sistema: la absorbida nunca se borra.
+- **ISAAR (CPF), 2.ª edición:** las cuatro áreas de la ficha y el nivel de detalle (5.4.6).
+- **RiC-CM 1.0 y RiC-O 1.1:** clases y relaciones de §6 y §7, verificadas contra el OWL oficial.
+- **SKOS** (W3C, 2009), para el árbol de funciones.
+- **Metodología colombiana de TRD** (Acuerdo 004 de 2019 del AGN): vínculo entre función y serie.
+- **EDTF** (ISO 8601-2), el mismo subconjunto del módulo de descripción.
+- La autora debe confirmar la versión vigente de los acuerdos del AGN.
 
 ## 19. Arquitectura
 
-- **Servicio:** `app/servicios/vocabulario.py` concentra la normalización, la verificación, la creación, las conexiones, la detección y la fusión. Descripción y este módulo usan el mismo código.
-- **Detección:** corre dentro del trabajador en segundo plano que ya existía (`app/trabajador.py`), en su propio ciclo, solo cuando pasa el intervalo configurado.
-- **Rutas:** `app/routers/vocabulario.py`.
+- **`app/servicios/vocabulario.py`:** verificación, creación, conexiones, detección, fusión (ahora con la ficha), relaciones entre agentes (delegan en autoridad) y `mecanismo()`.
+- **`app/servicios/autoridad.py` (nuevo):** ficha por clase, enriquecimiento y nivel de detalle, nombres, identificadores, hitos, catálogo de vínculos (`VINCULOS`) con su validación, y árbol SKOS.
+- **`app/servicios/ric_o.py`:** el mapeo único a RiC-O, que usan la ficha y la futura exportación.
 
 ### Decisiones
 
-Las dos que el prompt exige (§4) están primero.
-
 | Decisión | Alternativas | Selección | Justificación | Riesgo |
 |---|---|---|---|---|
-| **Algoritmo de similitud** | Distancia de edición clásica (Levenshtein, en Python o con `fuzzystrmatch`); **trigramas con `pg_trgm`**; librería externa (rapidfuzz) | **pg_trgm** sobre el nombre en minúsculas y sin tildes. Umbral 0,45 para verificar (preguntar de más no hace daño) y 60 % para sugerir fusión (configurable) | Ya viene con PostgreSQL: cero dependencias nuevas. El índice GIN hace la comparación en la base de datos, sin traer el vocabulario entero a Python. La autocomparación para detectar se resuelve con una sola consulta. Tolera el orden de palabras, las abreviaturas y los nombres parciales, donde Levenshtein penaliza de más | Nombres cortos o casi iguales de entidades distintas («Juan Pérez» / «Juana Pérez») pueden sugerirse. No es grave: nunca se fusiona sin una persona, y descartar el par lo retira para siempre |
-| **Mecanismo de ejecución periódica** | Celery + Redis (beat); cron del sistema; APScheduler dentro del servidor web; **el trabajador en segundo plano que ya existe** | **El trabajador existente**, con la hora de la última búsqueda guardada en `parametros` | En este proyecto Celery y Redis no están instalados. Traerlos suma dos servicios y ~150 MB de memoria a un servidor de 2 GB solo para una tarea diaria de segundos. El cron del sistema vive fuera de Docker y se pierde al reinstalar. APScheduler en el servidor web se duplicaría con varios procesos. El trabajador ya corre siempre, es uno solo y ya maneja la base de datos | Si el trabajador está detenido, no se buscan candidatos. Se mitiga con el botón «Buscar candidatos ahora», y con que la ingesta tampoco funciona en ese caso, así que se nota enseguida. Si algún día hay varias tareas periódicas, conviene reevaluar Celery |
-| Cómo se representa la fusión | Borrar la absorbida; copiar sus datos en la definitiva; **marcarla y enlazarla** | **`estado = fusionada` + `fusionada_en_id`** en la absorbida, y **`destino_original_id`** en cada relación movida | Cumple la no destructividad y deja rastro en los dos sentidos: desde la entidad (qué absorbió) y desde el documento (a quién citaba) | Las consultas deben filtrar por `estado = activa`. Se hace en un solo lugar (el servicio) y hay prueba |
-| Cuál queda como definitiva por defecto | La más antigua; la de nombre más largo; **la de más conexiones** | **La de más conexiones**, siempre modificable antes de aprobar | Es la forma más usada, y mover menos relaciones es menos riesgo | Puede no ser la forma normalizada correcta. Por eso el selector es explícito |
-| Criterio de «pocas conexiones» | Umbral fijo; relativo al fondo; **configurable, 10 por defecto** | **Configurable por el administrador** | Una entidad con muchos documentos ya fue validada muchas veces; si está duplicada, lo mejor es la fusión manual consciente. Así la cola de sugerencias se centra en lo dudoso | Un duplicado entre dos entidades muy conectadas no se sugiere solo. Queda la fusión manual |
-| Deshacer una fusión | Botón «deshacer»; **no ofrecerlo en esta versión** | **No se ofrece** | `destino_original_id` guarda lo necesario para revertir, pero reversar con fusiones encadenadas o descripciones corregidas después necesita reglas que el prompt no define | Una fusión equivocada se corrige hoy editando las descripciones afectadas. Queda como mejora, con los datos ya preservados |
+| **Algoritmo de similitud** (exigida, §4) | Levenshtein; **trigramas `pg_trgm`**; rapidfuzz | **pg_trgm** (sin cambios desde la versión 1) | Viene con PostgreSQL, tiene índice GIN, tolera abreviaturas y cambios de orden | Falsos parecidos en nombres cortos; nunca se fusiona sin una persona |
+| **Ejecución periódica** (exigida, §4) | Celery y Redis; cron; APScheduler; **trabajador existente** | **Trabajador existente** (sin cambios) | Celery y Redis no están instalados, y sumarían unos 150 MB a un servidor de 2 GB por una tarea diaria | Si el trabajador se detiene no hay detección; existe el botón «Buscar ahora» |
+| **Librería de mapas** (exigida, §4) | (a) Mapa estático propio (SVG) sin servicio externo; (b) **Leaflet** con teselas de OpenStreetMap; (c) **mapa incrustado de OpenStreetMap** (`export/embed`), sin librería; (d) Google Maps u otro servicio con clave | **(c) mapa incrustado de OpenStreetMap** | Solo hay que ubicar un punto, sin rutas ni distancias. No suma ninguna dependencia a la interfaz (Leaflet son 150 kB y su hoja de estilos). Es libre, no pide clave ni cobra. (a) exigiría datos cartográficos propios de Colombia. (d) es de pago a partir de cierto uso | Depende de que openstreetmap.org esté disponible. Si no carga, la ficha muestra igual las coordenadas y el enlace. Si algún día se necesitan varios puntos en un mismo mapa, se pasa a Leaflet |
+| Dónde guardar la ficha | JSON libre en una columna; tabla aparte por clase; **columnas tipadas más tablas para lo que se repite** | **Columnas tipadas** (lo que se valida o filtra) y **tablas** para nombres, identificadores e hitos | El nivel de detalle se filtra con un índice y las coordenadas se validan en la base (restricciones `CHECK`). Las listas repetibles necesitan estado y auditoría por elemento. Un JSON libre no se puede validar ni consultar con rigor | Más columnas en una tabla que comparten seis clases; el servicio decide cuáles aplican a cada una (`campos_de`) |
+| Un solo catálogo de vínculos | Una ruta y una tabla por cada relación; **un catálogo declarativo (`VINCULOS`) sobre la tabla `relaciones`** | **Catálogo declarativo** | Una sola validación (clases, fondo, repetición, superior único, ciclos) y una sola auditoría para las trece relaciones. Agregar una relación es una línea, no una ruta | Un error en el catálogo afecta a todas; por eso cada vínculo tiene su prueba |
+| Jerarquía de funciones | Relación RiC-O entre tipos; tabla aparte; **`skos:broader` como columna `concepto_superior_id`** | **Columna SKOS, un solo superior** | RiC-O no tiene jerarquía entre tipos (anexo, §2). Una función con un solo superior es lo que pide la TRD y hace que el árbol no sea ambiguo | SKOS admite varios superiores; si el fondo los necesitara, se pasaría a una tabla |
+| Tipo de lugar | Clase del vocabulario editable por fondo; **lista controlada en el código** | **Lista controlada**: país, departamento, provincia, municipio, corregimiento, vereda, barrio, edificio, otro | Cubre la división político-administrativa colombiana y el caso del edificio. Con un vocabulario por fondo, la misma categoría podría escribirse de varias formas | Un fondo con otra división territorial necesita ampliar la lista: es un cambio de una línea |
+| Un mecanismo por versión | Un mecanismo con un historial de versiones; **un registro por versión** | **Un registro por versión**, con nombre «Programa versión» | Cada resultado debe atribuirse a la versión exacta que lo produjo, y las fusiones las excluyen | Hay más registros de mecanismo; son pocos |
+| El nombre autorizado | Editable aquí; **solo desde descripción** | **Solo desde descripción** | Cambiarlo debe pasar por la verificación de duplicados, como pide el prompt | Para corregir una errata hay que reabrir una descripción |
+| Nivel de detalle | Campo que elige la persona; **calculado** | **Calculado** al guardar | El prompt lo define por el área de descripción; si lo eligiera la persona, el filtro mentiría | Un solo dato de historia ya cuenta como completo; es la regla del prompt |
+| Deshacer una fusión | Botón; **no ofrecerlo** | **No se ofrece** (sin cambios) | Los datos para revertir se conservan, pero las reglas no están definidas | Se corrige editando |
 
 ## 20. Código (dónde vive, cómo se organiza)
 
 ```
-alembic/versions/0005_vocabularios.py   sugerencias_fusion y relaciones.destino_original_id
-app/models/descripcion.py               SugerenciaFusion; Relacion.destino_original_id
-app/servicios/vocabulario.py            verificar, crear, conexiones_de, documentos_conectados,
-                                        fusionar, detectar_candidatos, deteccion_periodica
-app/servicios/parametros.py             criterios de detección con su validación
-app/servicios/descripcion.py            detalle(): antes_de_fusion
-app/trabajador.py                       llama a deteccion_periodica en cada ciclo
-app/routers/vocabulario.py              /api/vocabulario
-frontend/src/pages/Vocabularios.tsx     pestañas Vocabulario y Sugerencias; criterios
-frontend/src/pages/EntidadVocabulario.tsx   detalle y fusión manual
-frontend/src/lib/vocabulario.ts         tipos y nombres
-tests/test_vocabularios.py
+alembic/versions/0010_ocr_y_codigos_ric_o.py   códigos verificados (R007, R059, R001, R065…)
+alembic/versions/0011_autoridad_isaar.py       ficha, nombres, identificadores, hitos, SKOS
+app/models/descripcion.py                     columnas y tablas nuevas; listas controladas
+app/servicios/autoridad.py                    ficha, vínculos, árbol de funciones (nuevo)
+app/servicios/vocabulario.py                  fusión con ficha; mecanismo(); relaciones de agentes
+app/servicios/ric_o.py                        mapeo único a RiC-O 1.1
+app/routers/vocabulario.py                    rutas nuevas (§13)
+frontend/src/components/FichaAutoridad.tsx    las fichas por clase (nuevo)
+frontend/src/pages/EntidadVocabulario.tsx     integra la ficha
+frontend/src/pages/Vocabularios.tsx           filtro de nivel de detalle; árbol de funciones
+tests/test_autoridad.py                       22 pruebas de la versión 2
+tests/test_vocabularios.py                    pruebas de la versión 1, todas siguen pasando
 ```
 
 ## 21. Pruebas
 
-10 pruebas en `tests/test_vocabularios.py`, contra PostgreSQL real con `pg_trgm` (111 en total en el proyecto, todas pasan).
+**22 pruebas nuevas** en `tests/test_autoridad.py`, contra PostgreSQL real. Las de la versión 1 se mantienen sin cambios y pasan. Cada exigencia del prompt (§11) tiene la suya:
 
-- **Verificación:** encuentra «Alcaldía de Tunja» ↔ «Alcaldía Municipal de Tunja». No confunde «Concejo Municipal de Sogamoso» ni «Ministerio de Hacienda». No mezcla tipos.
-- **Detección:**
-  - sugiere solo el par parecido y poco conectado;
-  - no sugiere un par parecido si una de las dos tiene muchos documentos, ni dos entidades distintas;
-  - no repite el par en una segunda pasada.
-- **Periodicidad:** no vuelve a buscar antes del intervalo configurado; sí después.
-- **Aprobar:**
-  - redirige todas las relaciones;
-  - marca la absorbida como fusionada con enlace a la definitiva;
-  - guarda `destino_original_id`;
-  - la auditoría tiene quién, las dos entidades y cuántas relaciones se movieron;
-  - una segunda aprobación de la misma sugerencia responde 409 y no deja un segundo evento.
-- **Descartar:** no cambia ninguna entidad ni relación, y el par no se vuelve a sugerir.
-- **Fusión manual:**
-  - mismo resultado que la sugerida;
-  - la forma documental se redirige;
-  - fusionar un agente con un lugar responde 409.
-- **Fusionada:**
-  - fuera del listado por defecto;
-  - visible con el filtro;
-  - accesible por su id, con los documentos que la citaban;
-  - desde la descripción del documento antiguo se llega a ella (`antes_de_fusion`);
-  - no se borra;
-  - verificar ya no la ofrece.
-- **Listado:** filtro por tipo, búsqueda sin tildes, orden por conexiones y por nombre.
-- **Permisos y auditoría:**
-  - sin sesión 401; roles consulta y revisor 403 en aprobar, descartar y fusionar;
-  - **cada fusión deja exactamente un evento de auditoría** (Definición de Terminado §10).
-- **Criterios:** solo el administrador los cambia; valores fuera de rango, 422.
+- **Las cuatro áreas** se guardan, incluida una existencia abierta («1948/» → «desde 1948 (fin desconocido)», inicio 1948-01-01, sin fin). Las fechas de control salen de la auditoría y no se pueden escribir.
+- **El nombre autorizado** no se cambia por PATCH (422).
+- **Nivel de detalle:**
+  - un dato que no es del área de descripción no lo cambia;
+  - la historia lo pasa a completo, con un evento que guarda el valor anterior y el nuevo;
+  - vaciarla lo devuelve a mínimo;
+  - el filtro devuelve exactamente cada grupo.
+- **Relación entre agentes:**
+  - una sola fila leída en los dos sentidos, con propiedad inversa y código RiC-CM con «i»;
+  - vigencia y nota se guardan;
+  - la sucesión al revés se rechaza (ciclo);
+  - la asociativa no se repite al revés.
+- **Jerarquía entre cargos** con la misma relación R045.
+- **Anular** vínculos, formas e hitos: no se borran, quedan en auditoría, y la ficha vuelve a mínima si queda vacía.
+- **Grupo:** se guarda, se lista con su subtipo y se exporta como `rico:Group`.
+- **Identificador externo:** conserva su esquema, se distingue del interno, arma su URI, valida su forma y no se repite.
+- **Mecanismo:**
+  - la misma versión reutiliza el mismo registro y otra versión crea otro;
+  - la versión no puede vaciarse;
+  - dos versiones no se sugieren para fusión;
+  - sin versión, la ficha queda marcada.
+- **Hitos:** se listan en orden cronológico aunque se carguen desordenados (1948, década de 1960, c. 1975), con `rico:Event` y R059. Cuentan para el nivel de detalle. Una fecha imposible se rechaza.
+- **Lugar:**
+  - coordenadas, tipo y superior se guardan y se muestran;
+  - el superior ve lo que contiene;
+  - los nombres históricos salen en orden con su periodo («hasta 1539 (inicio desconocido)», «de 1541 a 1819»);
+  - se rechazan un segundo superior, un ciclo, una latitud de 95, una coordenada sin su par y un tipo inexistente.
+- **Árbol de funciones:**
+  - tres niveles;
+  - ciclo directo e indirecto rechazados;
+  - broader y narrower en la ficha;
+  - no deja filas en `relaciones` (no es RiC-O);
+  - un agente no entra al árbol.
+- **Función → serie:** se muestra en la ficha y en el árbol, marcada como general (R001). Un expediente se rechaza.
+- **Sub-actividades:** la mayor ve sus menores y la menor ve su mayor, con `rico:hasDirectSubevent`. No se confunde con SKOS. Una sola mayor, sin ciclos, solo entre actividades.
+- **Mandato derivado:** se navega en los dos sentidos, sin ciclos, guardado como R063 con rol de jerarquía normativa.
+- **Mandato que crea un agente** (R067, rol creación) y **entidad que lo expidió** (R065).
+- **Mandato que crea una competencia** (R063, rol creación).
+- **Entre fondos, o con una entidad fusionada:** no se vincula; una entidad fusionada no se edita (409).
+- **Fusión con ficha:**
+  - hitos, identificadores y formas pasan a la definitiva;
+  - el nombre absorbido queda como otra forma;
+  - la relación consigo misma queda anulada;
+  - la auditoría cuenta los registros movidos.
+- **Permisos:** el revisor y el rol de consulta reciben 403 en PATCH y en hitos; el revisor puede leer.
 
-**Verificación visual** en navegador real:
+**Prueba del mapeo** (`tests/test_ric_o.py`): todas las propiedades de §7 existen en el OWL y se usan con clases que su dominio y su rango admiten.
 
-- vocabulario con chips;
-- búsqueda;
-- sugerencias con similitud al centro;
-- aprobar y descartar;
-- detalle con historial;
-- fusión manual con selector;
-- entidad fusionada;
-- rastro desde el documento;
-- móvil a 390 px sin desplazamiento horizontal;
+**Verificación visual** en navegador real sobre el fondo de prueba:
+
+- ficha de agente con las cuatro áreas;
+- persona con Wikidata y VIAF;
+- mecanismo con versión;
+- lugar con mapa, superior y nombres históricos;
+- tipo de actividad con broader y narrower;
+- actividad con sub-actividad;
+- mandato con emisor, jerarquía y creación;
+- lista filtrada por ficha mínima;
+- árbol de funciones con su serie;
+- declarar un vínculo desde la pantalla;
+- móvil a 390 px;
 - sin errores de JavaScript.
+
+El mapa no cargó en el entorno de construcción porque su red bloquea openstreetmap.org. La ficha mostró igual las coordenadas y el enlace.
 
 ## 22. Criterios de aceptación
 
-| Criterio (prompt §9–10) | Cumple |
+| Criterio (prompt §11–12) | Cumple |
 |---|---|
-| Verificación detecta coincidencias razonables sin falsos positivos claros | ✓ |
-| La detección sugiere solo con similitud alta y baja conexión de ambas | ✓ |
-| Aprobar redirige todo, marca fusionada y audita con detalle completo | ✓ |
-| Descartar no modifica nada | ✓ |
-| La fusión manual da el mismo resultado que la sugerida | ✓ |
-| La fusionada no sale por defecto, pero es accesible por id y desde el documento que la citó | ✓ |
-| Ningún endpoint fusiona sin el rol requerido | ✓ |
-| Ninguna fusión sin su registro de auditoría (prueba explícita) | ✓ |
-| Las dos decisiones técnicas documentadas con tabla completa | ✓ (§19) |
-| Nunca fusiona sola, ni con 100 % de similitud | ✓ (no existe código que fusione fuera de aprobar/fusionar) |
-| No borra físicamente ninguna entidad | ✓ |
+| Verificación y detección para los seis tipos, sin falsos positivos claros | ✓ (versión 1, sin cambios) |
+| Aprobar redirige todo, marca fusionada y audita; descartar no cambia nada; la fusión manual da lo mismo | ✓ |
+| Ninguna fusión sin auditoría (prueba explícita) | ✓ |
+| Ficha de agente con sus cuatro áreas, incluida la existencia abierta | ✓ |
+| El nivel de detalle cambia solo y el filtro es correcto | ✓ |
+| Relación entre agentes con inversa automática (una fila, dos lecturas) | ✓ |
+| Árbol de funciones desde SKOS, sin ciclos (prueba explícita) | ✓ |
+| Sub-actividades en los dos sentidos, sin confundirse con SKOS | ✓ |
+| Agente grupo se guarda, lista y filtra | ✓ |
+| Identificador externo con esquema, distinto del interno | ✓ |
+| Mecanismo con versión, registro único reutilizable | ✓ (lo reutiliza preservación desde la fase siguiente) |
+| Hitos con fecha, en orden cronológico | ✓ |
+| Lugar con coordenadas, tipo, superior y nombres históricos con periodo | ✓ |
+| Tipo de actividad con su serie | ✓ |
+| Mandato derivado navegable en los dos sentidos, sin ciclos | ✓ |
+| Tres decisiones del §4 con tabla completa (similitud, periodicidad, mapas) | ✓ (§19) |
+| Confirmación contra el OWL de la relación asociativa | ✓ R044, propiedad dedicada y simétrica (anexo de verificación, punto 3) |
+| Ejemplos documentados sobre el fondo de prueba | ✓ (§23) |
 
-**Pendiente honesto:**
+**Pendientes honestos:**
 
-- El umbral de 60 % se eligió con ejemplos de prueba, no con el fondo real. Conviene revisarlo después de describir un lote real: si llegan demasiadas sugerencias falsas, subirlo; si se escapan duplicados, bajarlo.
-- ~~El enlace «a su descripción en el catálogo» lleva hoy a la descripción interna.~~ Resuelto en el módulo 4: ahora abre la ficha del catálogo.
+- El fondo de prueba es sintético. Los ejemplos de §23 muestran que el modelo funciona, no que la información histórica sea cierta. Para la sustentación conviene repetirlos con entidades reales del fondo.
+- La jerarquía normativa con R063 es una interpretación declarada (ver el riesgo en el anexo de verificación).
 
 ## 23. Evidencia concreta de aplicación de RiC
 
-**Antes de la fusión**, dos nodos Agent para el mismo productor:
+**Ficha ISAAR completa** sobre el fondo de prueba: «Secretaría de Gobierno de Tunja».
 
 ```
-Record «Oficio 114 de 1948» ─ rico:hasCreator → Agent/CorporateBody «Alcaldía Municipal de Tunja»
-Record «Oficio 115 de 1948» ─ rico:hasCreator → Agent/CorporateBody «Alcaldía Municipal de Tunja»
-Record «Acta del concejo…»  ─ rico:hasCreator → Agent/CorporateBody «Alcaldía Municipal de Tunja»
-Record «Oficio 201 de 1949» ─ rico:hasCreator → Agent/CorporateBody «Alcaldia Mpal. de Tunja»
+rico:CorporateBody  «Secretaría de Gobierno de Tunja»          nivel de detalle: completo
+  1. Identificación
+     otra forma del nombre: «Secretaría de Gobierno»
+     identificador interno: AMT-SG-01
+  2. Descripción
+     existencia: 1948/  → «desde 1948 (fin desconocido)»
+     historia: «Creada por el Acuerdo 12 de 1948 para atender el orden público y los permisos.»
+     estatuto jurídico: pública · estructura: «Despacho del secretario y dos inspecciones de policía.»
+     línea de tiempo (rico:Event, rico:affectsOrAffected R059):
+       12 de marzo de 1948 · Creación por el Acuerdo 12 del Concejo
+       década de 1950       · Asume la inspección de espectáculos
+     actúa o actuó en Tunja                         rico:hasOrHadLocation       RiC-R075i
+     ejerce o ejerció «Ejercicio de la policía local en 1948»  rico:performsOrPerformed RiC-R060i
+     fue creado o establecido por «Acuerdo 12 de 1948»          rico:authorizedBy   RiC-R067i
+  3. Relaciones
+     jerárquica:  está o estuvo subordinado a «Alcaldía Municipal de Tunja»
+                  vigencia desde 1948 (fin desconocido)      rico:isOrWasSubordinateTo   RiC-R045i
+     temporal:    tiene como sucesor a «Secretaría de Gobierno y Convivencia de Tunja»
+                  vigencia 1998 · «Reforma administrativa municipal.»   rico:hasSuccessor  RiC-R016
+     asociativa:  está asociado con «Junta de Ornato y Mejoras» (rico:Group)
+                  «Colaboraron en el trámite de las fiestas de 1948.»  rico:isAgentAssociatedWithAgent RiC-R044
+  4. Control
+     reglas: ISAAR (CPF), 2.ª edición · creación y última revisión: tomadas de la auditoría
+     fuentes: «Gaceta municipal de Tunja, 1948.»
 ```
 
-Sugerencia detectada: similitud 70 %, 3 y 1 conexiones. La archivista aprueba con «Alcaldía Municipal de Tunja» como definitiva.
+**Otros ejemplos del mismo fondo:**
 
-**Después:**
-
-```
-Record «Oficio 201 de 1949» ─ rico:hasCreator → Agent «Alcaldía Municipal de Tunja»
-                              (destino_original_id → «Alcaldia Mpal. de Tunja»)
-Agent «Alcaldia Mpal. de Tunja»  estado = fusionada, fusionada_en → «Alcaldía Municipal de Tunja»
-Auditoría: fusion_vocabulario · Marlín Martínez · 1 relación redirigida · desde una sugerencia
-```
-
-El productor queda como **un solo punto de acceso con 4 documentos**, que es lo que exige ISAAR(CPF). La forma variante no se pierde: sigue consultable y trazable desde el documento que la usaba.
+- **Grupo:** «Junta de Ornato y Mejoras», un `rico:Group` usado directamente. Tiene como sucesor a la Secretaría de Obras Públicas (1952).
+- **Identificador externo:** «Gustavo Rojas Pinilla», `rico:Person`, con Wikidata Q318229 → `https://www.wikidata.org/entity/Q318229` y VIAF 35360567, junto con su insignia de autoridad externa.
+- **Mecanismo:** «Ghostscript 10.05.1», `rico:Mechanism`, con versión 10.05.1 (`rico:technicalCharacteristics`). Registrado una sola vez con `vocabulario.mecanismo()`.
+- **Lugar:** «Tunja», municipio.
+  - Coordenadas 5.5353, -73.3678 (`rico:geographicalCoordinates`).
+  - Está dentro de Boyacá (R007i), que está dentro de Colombia.
+  - Nombres históricos (`rico:PlaceName`): Hunza, hasta 1539; Muy Noble y Muy Leal Ciudad de Tunja, de 1541 a 1819.
+- **Función y serie:** el árbol es Gobierno municipal → Policía local → Permisos de espectáculos públicos (`skos:broader`). Esta última produce la serie «Permisos» (R001, general).
+- **Actividad compuesta:** «Ejercicio de la policía local en 1948» tiene como sub-actividad la «Expedición de permisos para las fiestas de 1948» (`rico:hasDirectSubevent`).
+- **Mandato:** «Acuerdo 12 de 1948».
+  - Fue expedido por el Concejo Municipal de Tunja (`rico:issuedBy`, R065).
+  - Desarrolla la Ley 4 de 1913 (R063, jerarquía normativa).
+  - Crea la Secretaría de Gobierno (R067, creación).
+  - Regula la actividad de policía local (R063).

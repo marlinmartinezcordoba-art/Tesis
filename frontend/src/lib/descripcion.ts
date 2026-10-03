@@ -27,6 +27,7 @@ export const TIPO_CLASE: Record<TipoEntidad, string> = {
 export const SUBTIPO_AGENTE: Record<string, string> = {
   persona: "Persona",
   entidad_corporativa: "Entidad corporativa",
+  grupo: "Grupo (comité, junta)",
   cargo: "Cargo",
   familia: "Familia",
   mecanismo: "Mecanismo (software)",

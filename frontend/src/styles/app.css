@@ -409,3 +409,25 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .contexto-actividad .selector { width: 100%; }
 .linea-contexto { font-size: .82rem; color: var(--ctx); margin-top: 4px; }
 @media (max-width: 720px) { .contexto-actividad { grid-template-columns: 1fr; } }
+
+/* Vocabularios v2: árbol de funciones, ficha de autoridad en áreas plegables, mapa del lugar */
+.arbol-funciones, .arbol-funciones ul { list-style: none; margin: 0; padding-left: 18px; }
+.arbol-funciones { padding-left: 0; }
+.arbol-funciones li { padding: 4px 0; border-left: 1px solid var(--line); padding-left: 10px; margin-left: 2px; }
+.arbol-funciones > li { border-left: 0; padding-left: 0; }
+.area-isaar { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; background: var(--surface); }
+.area-isaar > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; list-style: none; display: flex; gap: 10px; align-items: center; }
+.area-isaar > summary::-webkit-details-marker { display: none; }
+.area-isaar > summary::before { content: "▸"; color: var(--muted); }
+.area-isaar[open] > summary::before { content: "▾"; }
+.area-isaar > .contenido { padding: 0 16px 14px; }
+.par-dato { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 6px 14px; font-size: .88rem; margin: 6px 0; }
+.par-dato dt { color: var(--muted); }
+.par-dato dd { margin: 0; }
+@media (max-width: 560px) { .par-dato { grid-template-columns: 1fr; } .par-dato dd { margin-bottom: 6px; } }
+code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; color: var(--muted); }
+.mapa-lugar { width: 100%; height: 260px; border: 1px solid var(--line); border-radius: 10px; }
+.linea-tiempo { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--ctx); }
+.linea-tiempo li { position: relative; padding: 6px 0 8px 14px; }
+.linea-tiempo li::before { content: ""; position: absolute; left: -6px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--ctx); }
+.insignia.neutra-borde { background: transparent; border: 1px solid var(--line); color: var(--ink); }

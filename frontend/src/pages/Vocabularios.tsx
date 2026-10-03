@@ -6,11 +6,48 @@ import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import {
-  CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, CLASE_RIC, conexionesTexto,
+  CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, claseRicDe, conexionesTexto,
   type ClaseVocabulario, type EntidadVocabulario, type ParametrosFusion, type Sugerencia,
 } from "@/lib/vocabulario";
 
 type Orden = "conexiones_desc" | "conexiones_asc" | "nombre";
+
+interface NodoFuncion {
+  id: string;
+  nombre: string;
+  series: { id: string; titulo: string; nivel: string }[];
+  especificos: NodoFuncion[];
+}
+
+// Árbol de funciones: los tipos de actividad del fondo unidos por
+// skos:broader / skos:narrower, con tantos niveles como haya, y la serie
+// que produce cada función (vínculo de la TRD).
+function ArbolFunciones({ fondoId }: { fondoId: string }) {
+  const [arbol, setArbol] = useState<NodoFuncion[] | null>(null);
+  useEffect(() => {
+    pedir<NodoFuncion[]>(`/api/vocabulario/funciones/arbol?fondo_id=${fondoId}`).then(setArbol).catch(() => setArbol([]));
+  }, [fondoId]);
+  const rama = (n: NodoFuncion) => (
+    <li key={n.id}>
+      <Link to={`/vocabularios/${n.id}`}>{n.nombre}</Link>
+      {n.series.map((s) => <span key={s.id} className="insignia acento" style={{ marginLeft: 8 }}>Serie: {s.titulo}</span>)}
+      {n.especificos.length > 0 && <ul>{n.especificos.map(rama)}</ul>}
+    </li>
+  );
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">
+        <span>Árbol de funciones</span>
+        <span className="meta">skos:broader / skos:narrower — complemento de RiC-O para la jerarquía de la TRD</span>
+      </div>
+      <div className="tarjeta-cuerpo">
+        {arbol === null ? "Cargando…" : arbol.length === 0
+          ? <div className="vacio">Todavía no hay tipos de actividad en el fondo.</div>
+          : <ul className="arbol-funciones">{arbol.map(rama)}</ul>}
+      </div>
+    </div>
+  );
+}
 
 // Una sugerencia: las dos entidades lado a lado, y el archivista decide.
 // El sistema propone como definitiva la que tiene más conexiones, pero
@@ -160,6 +197,8 @@ export function Vocabularios() {
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<Orden>("conexiones_desc");
   const [fusionadas, setFusionadas] = useState(false);
+  const [nivel, setNivel] = useState<"" | "minimo" | "completo">("");
+  const [vistaArbol, setVistaArbol] = useState(false);
   const [entidades, setEntidades] = useState<EntidadVocabulario[] | null>(null);
   const [sugerencias, setSugerencias] = useState<Sugerencia[] | null>(null);
   const [aviso, setAviso] = useState((ubicacion.state as { aviso?: string } | null)?.aviso || "");
@@ -170,13 +209,14 @@ export function Vocabularios() {
     if (!fondo) return;
     const params = new URLSearchParams({ fondo_id: fondo.id, orden, estado: fusionadas ? "fusionada" : "activa" });
     if (clase) params.set("clase", clase);
+    if (clase === "agente" && nivel) params.set("nivel_detalle", nivel);
     if (q.trim()) params.set("q", q.trim());
     try {
       setEntidades(await pedir<EntidadVocabulario[]>(`/api/vocabulario?${params}`));
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el vocabulario.");
     }
-  }, [fondo, clase, q, orden, fusionadas]);
+  }, [fondo, clase, q, orden, fusionadas, nivel]);
 
   const cargarSugerencias = useCallback(async () => {
     if (!fondo) return;
@@ -234,8 +274,10 @@ export function Vocabularios() {
         <>
           <h1>Vocabulario del fondo</h1>
           <p className="sub">
-            Registro único de agentes, lugares y formas documentales de «{fondo.titulo}». Cada entidad se crea una sola vez al
-            describir y se reutiliza en todos los documentos que la mencionan.
+            Registro único de agentes, lugares, formas documentales, actividades, tipos de actividad y mandatos de
+            «{fondo.titulo}». Cada entidad se crea una sola vez al describir, se reutiliza en todos los documentos que la
+            mencionan y se enriquece aquí: la ficha de autoridad de un agente, la ficha ampliada de un lugar, el árbol de
+            funciones.
           </p>
           <div className="opciones" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 10 }}>
             {(["", ...CLASES] as (ClaseVocabulario | "")[]).map((c) => (
@@ -256,7 +298,26 @@ export function Vocabularios() {
             <label className="pastilla">
               <input type="checkbox" checked={fusionadas} onChange={(e) => setFusionadas(e.target.checked)} /> Ver fusionadas
             </label>
+            {clase === "agente" && (
+              <select className="selector" aria-label="Nivel de detalle" value={nivel}
+                      onChange={(e) => setNivel(e.target.value as typeof nivel)}>
+                <option value="">Cualquier nivel de detalle</option>
+                <option value="minimo">Ficha mínima (por enriquecer)</option>
+                <option value="completo">Ficha completa</option>
+              </select>
+            )}
+            {clase === "tipo_actividad" && !fusionadas && (
+              <div className="opciones" role="radiogroup" aria-label="Vista">
+                <label className={!vistaArbol ? "elegida" : ""}>
+                  <input type="radio" checked={!vistaArbol} onChange={() => setVistaArbol(false)} /> Lista
+                </label>
+                <label className={vistaArbol ? "elegida" : ""}>
+                  <input type="radio" checked={vistaArbol} onChange={() => setVistaArbol(true)} /> Árbol de funciones
+                </label>
+              </div>
+            )}
           </div>
+          {clase === "tipo_actividad" && vistaArbol && !fusionadas ? <ArbolFunciones fondoId={fondo.id} /> : (
           <div className="tarjeta">
             <div className="tarjeta-cab">
               {entidades === null ? "Cargando…" : `${entidades.length} entidad${entidades.length === 1 ? "" : "es"}${fusionadas ? " fusionadas" : ""}`}
@@ -274,14 +335,21 @@ export function Vocabularios() {
                 <div className="fila-principal">
                   <div className="nombre">{e.nombre}</div>
                   <div className="meta">
-                    {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}{CLASE_RIC[e.clase]}
+                    {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}
+                    {e.version ? `versión ${e.version} · ` : ""}{claseRicDe(e)}
                     {e.fusionada_en && ` · fusionada en «${e.fusionada_en.nombre}»`}
                   </div>
                 </div>
+                {e.nivel_detalle && (
+                  <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`}>
+                    {e.nivel_detalle === "completo" ? "Ficha completa" : "Ficha mínima"}
+                  </span>
+                )}
                 <span className="meta">{conexionesTexto(e.conexiones)}</span>
               </Link>
             ))}
           </div>
+          )}
         </>
       ) : (
         <>

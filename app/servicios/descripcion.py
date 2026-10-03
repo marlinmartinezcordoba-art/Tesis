@@ -57,7 +57,7 @@ from app.servicios.auditoria import registrar
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
 CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
 TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
-SUBTIPOS_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia", "mecanismo")
+from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
 SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
 
 # (tipo, rol) → (código RiC, categoría amplia, sentido)

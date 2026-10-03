@@ -8,6 +8,8 @@ export interface EntidadVocabulario {
   estado: "activa" | "fusionada";
   conexiones: number;
   fusionada_en: { id: string; nombre: string } | null;
+  nivel_detalle: "minimo" | "completo" | null;
+  version: string | null;
 }
 
 export interface Sugerencia {
@@ -53,6 +55,17 @@ export const CLASE_RIC: Record<ClaseVocabulario, string> = {
   tipo_actividad: "rico:ActivityType (vocabulario controlado)",
   mandato: "RiC-E17 Mandate",
 };
+
+// Clase exacta de RiC-O de una entidad: para un agente depende de su subtipo.
+const CLASE_AGENTE_RICO: Record<string, string> = {
+  persona: "rico:Person", familia: "rico:Family", entidad_corporativa: "rico:CorporateBody", grupo: "rico:Group",
+  cargo: "rico:Position", mecanismo: "rico:Mechanism",
+};
+
+export function claseRicDe(e: { clase: ClaseVocabulario; subtipo: string | null }): string {
+  if (e.clase === "agente" && e.subtipo && CLASE_AGENTE_RICO[e.subtipo]) return CLASE_AGENTE_RICO[e.subtipo];
+  return CLASE_RIC[e.clase];
+}
 
 export const CLASE_INSIGNIA: Record<ClaseVocabulario, string> = {
   agente: "agente",

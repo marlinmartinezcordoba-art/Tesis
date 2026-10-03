@@ -31,6 +31,10 @@ Este anexo responde, uno por uno, los trece puntos que el «Anexo técnico, mape
 | 12 | Jerarquía normativa entre mandatos | No hay propiedad dedicada. `regulatesOrRegulated` (R063) admite una regla como origen y cualquier cosa como destino; la genérica es `isRuleAssociatedWith` (R062). | `regulatesOrRegulated` con rol «jerarquia_normativa»: la norma superior regula a la que la desarrolla. Interpretación declarada (ver riesgo abajo). |
 | 13 | Idioma, condiciones de acceso y de uso | Acceso: `conditionsOfAccess` (A08). Uso: `conditionsOfUse` (A09); ambas de dato, sobre `RecordResource` o `Instantiation`. Idioma: `hasOrHadLanguage` → `Language`, **solo para Record, Record Part y Agent**; para un Record Set existe `hasOrHadAllMembersWithLanguage`. | Las tres confirmadas, respetando la diferencia entre documento y agrupación en el idioma. |
 
+## Una propiedad que el anexo no mencionaba
+
+El prompt de vocabularios pide registrar «la entidad que expidió» un mandato. RiC-O tiene para eso `issuedBy` (RiC-R065), de `Rule` a `Agent`, sin inversa declarada. Se agregó al catálogo con ese nombre.
+
 ## Tres correcciones al anexo anterior
 
 1. **Parte documental.**

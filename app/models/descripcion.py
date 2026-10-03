@@ -27,7 +27,23 @@ ESTADO_REVISION = ("validado",)  # solo se publica lo que una persona validó
 # competencia (rico:ActivityType, no una entidad «Función», que no existe
 # en RiC-O) y el mandato es la norma que la regula (RiC-E17 Mandate).
 CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
-SUBTIPO_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia", "mecanismo")
+# «grupo» (RiC-E09 Group usado directamente): un colectivo que no es ni
+# entidad corporativa ni familia, como un comité o una junta. La nota de
+# alcance de rico:Group admite «otras clases de grupos».
+SUBTIPO_AGENTE = ("persona", "entidad_corporativa", "grupo", "cargo", "familia", "mecanismo")
+# Estatuto jurídico de una entidad corporativa (ISAAR-CPF 5.2.4; rico:LegalStatus).
+ESTATUTO_JURIDICO = ("publica", "privada", "mixta")
+# Tipo de lugar, lista controlada (rico:PlaceType).
+TIPO_LUGAR = ("pais", "departamento", "provincia", "municipio", "corregimiento", "vereda", "barrio", "edificio",
+              "otro")
+# Esquemas de identificador: interno de la institución o de una autoridad
+# externa reconocida (rico:hasOrHadIdentifier + rico:IdentifierType).
+ESQUEMA_IDENTIFICADOR = ("interno", "viaf", "wikidata", "isni", "lcnaf", "otro")
+ESQUEMA_EXTERNO = ("viaf", "wikidata", "isni", "lcnaf")
+NIVEL_DETALLE = ("minimo", "completo")
+TIPO_NOMBRE_ENTIDAD = ("paralela", "normalizada", "otra", "historica")
+TIPO_HITO = ("creacion", "reforma", "traslado", "supresion", "otro")
+ESTADO_REGISTRO = ("vigente", "anulado")
 # Tipo de instrumento jurídico de un mandato (rico:MandateType).
 SUBTIPO_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
 # Los tres niveles de precisión de una fecha (RiC-CM 1.0: Single Date,
@@ -67,6 +83,34 @@ class EntidadVocabulario(_Procedencia, Base):
     fusionada_en_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+    # --- Ficha de autoridad ISAAR (CPF), para agentes (módulo 3, versión 2) ---
+    # Identificación: versión exacta, obligatoria para un mecanismo (RiC-A41
+    # Technical characteristics). Las formas paralelas, normalizadas y otras
+    # del nombre y los identificadores viven en sus propias tablas.
+    version = Column(String(120), nullable=True)
+    # Descripción: fechas de existencia en EDTF (inicio sin fin admitido),
+    # historia (RiC-A21), estatuto jurídico, estructura interna y contexto.
+    existencia_edtf = Column(String(200), nullable=True)
+    existencia_inicio = Column(Date, nullable=True)
+    existencia_fin = Column(Date, nullable=True)
+    historia = Column(Text, nullable=True)
+    estatuto_juridico = Column(String(20), nullable=True)
+    estructura = Column(Text, nullable=True)
+    contexto_general = Column(Text, nullable=True)
+    # Control: reglas o convenciones (vacío = ISAAR-CPF 2.ª ed.), nivel de
+    # detalle (se recalcula al guardar) y fuentes del enriquecimiento.
+    reglas = Column(String(200), nullable=True)
+    nivel_detalle = Column(Enum(*NIVEL_DETALLE, name="nivel_detalle"), nullable=False, default="minimo",
+                           server_default="minimo", index=True)
+    fuentes = Column(Text, nullable=True)
+    # --- Lugar ampliado (RiC-A11 coordenadas; rico:PlaceType) ---
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
+    tipo_lugar = Column(String(30), nullable=True)
+    # --- Tipo de actividad como concepto SKOS: skos:broader (función →
+    # subfunción → trámite). No es una relación de RiC-O.
+    concepto_superior_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_vocabulario_trigramas", "nombre_normalizado", postgresql_using="gin",
@@ -138,6 +182,10 @@ class Relacion(_Procedencia, Base):
     # Lo mismo para el origen (p. ej. el agente que ejerce una actividad).
     origen_original_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     confirmada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    # Vigencia de la relación (EDTF) y una nota breve sobre su naturaleza,
+    # p. ej. en una relación entre agentes.
+    fecha_edtf = Column(String(200), nullable=True)
+    nota = Column(String(500), nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     anulada_en = Column(DateTime(timezone=True), nullable=True)
     anulada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
@@ -210,3 +258,66 @@ class SugerenciaFusion(Base):
     definitiva_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
 
     __table_args__ = (Index("ux_sugerencia_par", "entidad_a_id", "entidad_b_id", unique=True),)
+
+
+class NombreEntidad(Base):
+    """Otras formas del nombre de una entidad (ISAAR-CPF 5.1.3 a 5.1.5) y,
+    para un lugar, sus nombres históricos (rico:PlaceName), con su periodo de
+    vigencia. La forma autorizada es el nombre de la entidad."""
+
+    __tablename__ = "nombres_entidad"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entidad_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False, index=True)
+    tipo = Column(Enum(*TIPO_NOMBRE_ENTIDAD, name="tipo_nombre_entidad"), nullable=False)
+    nombre = Column(String(300), nullable=False)
+    idioma = Column(String(12), nullable=True)  # ISO 639, para formas paralelas
+    regla = Column(String(120), nullable=True)  # para formas normalizadas según otras reglas
+    vigencia_edtf = Column(String(200), nullable=True)
+    inicio = Column(Date, nullable=True)
+    fin = Column(Date, nullable=True)
+    estado = Column(Enum(*ESTADO_REGISTRO, name="estado_registro"), nullable=False, default="vigente",
+                    server_default="vigente")
+    creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+class IdentificadorEntidad(Base):
+    """Identificador con su esquema declarado: un código interno o una
+    autoridad externa (VIAF, Wikidata, ISNI, LCNAF). Nunca un texto suelto
+    sin saber a qué autoridad pertenece (ISAAR-CPF 5.1.6)."""
+
+    __tablename__ = "identificadores_entidad"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entidad_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False, index=True)
+    esquema = Column(String(40), nullable=False)
+    valor = Column(String(200), nullable=False)
+    estado = Column(Enum(*ESTADO_REGISTRO, name="estado_registro", create_type=False), nullable=False,
+                    default="vigente", server_default="vigente")
+    creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+class Hito(Base):
+    """Hito de la línea de tiempo institucional de un agente: creación,
+    reforma, traslado del archivo, supresión. Es un rico:Event usado
+    directamente (no una Activity), unido al agente por RiC-R059 affects or
+    affected (ver anexo de verificación)."""
+
+    __tablename__ = "hitos"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=False)
+    agente_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=False, index=True)
+    tipo = Column(Enum(*TIPO_HITO, name="tipo_hito"), nullable=False)
+    descripcion = Column(String(500), nullable=False)
+    edtf = Column(String(200), nullable=False)
+    inicio = Column(Date, nullable=True)
+    fin = Column(Date, nullable=True)
+    estado = Column(Enum(*ESTADO_REGISTRO, name="estado_registro", create_type=False), nullable=False,
+                    default="vigente", server_default="vigente")
+    # Si el agente se fusionó en otro, a qué agente pertenecía originalmente.
+    agente_original_id = Column(UUID(as_uuid=True), nullable=True)
+    creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)

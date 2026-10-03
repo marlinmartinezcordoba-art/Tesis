@@ -165,6 +165,7 @@ def fusionar(db: Session, *, definitiva: EntidadVocabulario, absorbida: EntidadV
     ).rowcount
     formas = db.execute(update(RecursoDocumental).where(RecursoDocumental.forma_documental_id == absorbida.id)
                         .values(forma_documental_id=definitiva.id)).rowcount
+    ficha_movida = _fusionar_ficha(db, definitiva, absorbida, usuario_id)
     # Las que ya se habían fusionado en la absorbida pasan a apuntar a la definitiva.
     db.execute(update(EntidadVocabulario).where(EntidadVocabulario.fusionada_en_id == absorbida.id)
                .values(fusionada_en_id=definitiva.id))
@@ -188,9 +189,62 @@ def fusionar(db: Session, *, definitiva: EntidadVocabulario, absorbida: EntidadV
                         "definitiva": {"id": str(definitiva.id), "nombre": definitiva.nombre,
                                        "conexiones": conexiones_antes[definitiva.id]}},
               nuevo={"definitiva": str(definitiva.id), "relaciones_movidas": movidas + formas,
+                     "registros_ficha_movidos": ficha_movida,
                      "origen": "sugerencia" if sugerencia is not None else "manual"},
               detalle=f"«{absorbida.nombre}» se fusionó en «{definitiva.nombre}».")
     return movidas + formas
+
+
+def _fusionar_ficha(db: Session, definitiva: EntidadVocabulario, absorbida: EntidadVocabulario,
+                    usuario_id: uuid.UUID) -> int:
+    """Lo que cuelga de la ficha de autoridad pasa a la definitiva: hitos,
+    formas del nombre (y el nombre de la absorbida, como «otra forma»),
+    identificadores y la jerarquía de funciones. Una relación que quedó de
+    la entidad consigo misma (A subordinada a B, y B se fusiona en A) se
+    anula. Devuelve cuántos registros se movieron."""
+    from sqlalchemy import update
+
+    from app.db.base import ahora
+    from app.models.descripcion import Hito, IdentificadorEntidad, NombreEntidad
+
+    movidos = db.execute(update(Hito).where(Hito.agente_id == absorbida.id, Hito.estado == "vigente")
+                         .values(agente_id=definitiva.id,
+                                 agente_original_id=func.coalesce(Hito.agente_original_id, absorbida.id))).rowcount
+    movidos += db.execute(update(NombreEntidad).where(NombreEntidad.entidad_id == absorbida.id,
+                                                      NombreEntidad.estado == "vigente")
+                          .values(entidad_id=definitiva.id)).rowcount
+    ya = {normalizar(n) for n in db.scalars(select(NombreEntidad.nombre).where(
+        NombreEntidad.entidad_id == definitiva.id, NombreEntidad.estado == "vigente"))}
+    if absorbida.nombre_normalizado != definitiva.nombre_normalizado and absorbida.nombre_normalizado not in ya:
+        db.add(NombreEntidad(entidad_id=definitiva.id, tipo="historica" if definitiva.clase == "lugar" else "otra",
+                             nombre=absorbida.nombre, creado_por_id=usuario_id))
+        movidos += 1
+    existentes = set(db.execute(select(IdentificadorEntidad.esquema, IdentificadorEntidad.valor).where(
+        IdentificadorEntidad.entidad_id == definitiva.id, IdentificadorEntidad.estado == "vigente")).all())
+    for i in db.scalars(select(IdentificadorEntidad).where(IdentificadorEntidad.entidad_id == absorbida.id,
+                                                           IdentificadorEntidad.estado == "vigente")).all():
+        if (i.esquema, i.valor) in existentes:
+            i.estado = "anulado"  # el mismo identificador ya está en la definitiva
+        else:
+            i.entidad_id = definitiva.id
+            movidos += 1
+    # Árbol de funciones (SKOS): los específicos de la absorbida cuelgan de
+    # la definitiva; la definitiva hereda el superior si no tenía.
+    movidos += db.execute(update(EntidadVocabulario).where(EntidadVocabulario.concepto_superior_id == absorbida.id,
+                                                           EntidadVocabulario.id != definitiva.id)
+                          .values(concepto_superior_id=definitiva.id)).rowcount
+    if definitiva.concepto_superior_id == absorbida.id:
+        definitiva.concepto_superior_id = None
+    if definitiva.concepto_superior_id is None and absorbida.concepto_superior_id not in (None, definitiva.id):
+        definitiva.concepto_superior_id = absorbida.concepto_superior_id
+    db.execute(update(Relacion).where(Relacion.origen_id == definitiva.id, Relacion.destino_id == definitiva.id,
+                                      Relacion.estado == "vigente")
+               .values(estado="anulada", anulada_en=ahora(), anulada_por_id=usuario_id))
+    db.flush()
+    from app.servicios import autoridad
+
+    autoridad.recalcular_nivel(db, definitiva)
+    return movidos
 
 
 def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
@@ -220,6 +274,10 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
     nuevas = 0
     for x, y, s in pares:
         if (x.id, y.id) in existentes or conexiones[x.id] > maximo or conexiones[y.id] > maximo:
+            continue
+        # Dos versiones de un mismo programa son mecanismos distintos: el
+        # resultado de cada una debe poder atribuirse a la suya.
+        if x.subtipo == y.subtipo == "mecanismo" and (x.version or "") != (y.version or ""):
             continue
         db.add(SugerenciaFusion(fondo_id=x.fondo_id, clase=x.clase, entidad_a_id=x.id, entidad_b_id=y.id,
                                 similitud=round(float(s), 2)))
@@ -267,35 +325,24 @@ class ErrorRelacionAgentes(Exception):
 
 
 def relacionar_agentes(db: Session, *, origen: EntidadVocabulario, destino: EntidadVocabulario, tipo: str,
-                       usuario_id: uuid.UUID, ip: str | None = None) -> Relacion:
+                       usuario_id: uuid.UUID, fecha_edtf: str | None = None, nota: str | None = None,
+                       ip: str | None = None) -> Relacion:
     """Relación declarada entre dos agentes del mismo fondo. Se guarda una
     sola fila; su inversa (owl:inverseOf en RiC-O) se lee de ella, nunca se
-    duplica, para que anular una anule las dos lecturas a la vez."""
-    from app.servicios.auditoria import registrar
+    duplica, para que anular una anule las dos lecturas a la vez. La
+    validación (mismo fondo, sin ciclos en la jerarquía, sin repetir) y la
+    auditoría son las de autoridad.vincular()."""
+    from app.servicios import autoridad
 
     if tipo not in RELACION_AGENTES:
         raise ErrorRelacionAgentes("Tipo de relación entre agentes desconocido.")
     if origen.clase != "agente" or destino.clase != "agente" or origen.fondo_id != destino.fondo_id:
         raise ErrorRelacionAgentes("Solo se relacionan agentes del mismo fondo.")
-    if origen.id == destino.id:
-        raise ErrorRelacionAgentes("Un agente no se relaciona consigo mismo.")
-    codigo = RELACION_AGENTES[tipo][0]
-    existente = db.scalar(select(Relacion).where(
-        Relacion.codigo_ric == codigo, Relacion.estado == "vigente",
-        ((Relacion.origen_id == origen.id) & (Relacion.destino_id == destino.id))
-        | ((Relacion.origen_id == destino.id) & (Relacion.destino_id == origen.id) if tipo == "asociado" else False)))
-    if existente is not None:
-        raise ErrorRelacionAgentes("Esa relación ya existe.")
-    r = Relacion(origen_tipo="entidad_vocabulario", origen_id=origen.id, destino_tipo="entidad_vocabulario",
-                 destino_id=destino.id, tipo_relacion="temporal" if tipo == "sucesor" else "asociacion",
-                 codigo_ric=codigo, origen="persona", confirmada_por_id=usuario_id)
-    db.add(r)
-    db.flush()
-    registrar(db, modulo="vocabularios", accion="agentes_relacionados", usuario_id=usuario_id,
-              entidad_tipo="entidad_vocabulario", entidad_id=origen.id, ip=ip,
-              nuevo={"relacion_id": str(r.id), "tipo": tipo, "codigo_ric": codigo, "con": str(destino.id)},
-              detalle=f"«{origen.nombre}» {RELACION_AGENTES[tipo][1].split(': ')[1]} «{destino.nombre}»")
-    return r
+    try:
+        return autoridad.vincular(db, tipo=tipo, desde=origen, con_tipo="entidad_vocabulario", con_id=destino.id,
+                                  usuario_id=usuario_id, fecha_edtf=fecha_edtf, nota=nota, ip=ip)
+    except autoridad.ErrorAutoridad as exc:
+        raise ErrorRelacionAgentes(str(exc)) from exc
 
 
 def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
@@ -317,3 +364,37 @@ def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
                        "uri_rico": URI_RICO[r.codigo_ric] if es_origen else INVERSA_RICO[r.codigo_ric],
                        "con": {"id": str(otro.id), "nombre": otro.nombre, "subtipo": otro.subtipo} if otro else None})
     return salida
+
+
+# --- Mecanismos: un solo registro por programa y versión ------------------------------------------
+
+
+def mecanismo(db: Session, *, fondo_id: uuid.UUID, nombre: str, version: str,
+              usuario_id: uuid.UUID | None = None) -> EntidadVocabulario:
+    """Agente de subtipo mecanismo (RiC-E13) para un programa con su versión
+    exacta: el motor de análisis, Ghostscript. Si ya existe en el
+    vocabulario del fondo (mismo nombre y misma versión), se reutiliza; si
+    no, se crea aquí, con el servicio único de creación. Nadie guarda el
+    nombre de un programa como texto suelto en otro módulo."""
+    from app.servicios.auditoria import registrar
+
+    nombre = " ".join(nombre.split())
+    version = version.strip()
+    etiqueta = nombre if version in nombre else f"{nombre} {version}"
+    existente = db.scalar(select(EntidadVocabulario).where(
+        EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == "agente",
+        EntidadVocabulario.subtipo == "mecanismo", EntidadVocabulario.version == version,
+        EntidadVocabulario.nombre_normalizado == normalizar(etiqueta)))
+    if existente is not None:
+        # Si se fusionó, vale la definitiva.
+        while existente.estado == "fusionada" and existente.fusionada_en_id:
+            existente = db.get(EntidadVocabulario, existente.fusionada_en_id)
+        return existente
+    e = crear(db, fondo_id=fondo_id, clase="agente", nombre=etiqueta, subtipo="mecanismo", origen="persona",
+              confianza=None, motor=None, usuario_id=usuario_id)
+    e.version = version
+    db.flush()
+    registrar(db, modulo="vocabularios", accion="mecanismo_registrado", usuario_id=usuario_id,
+              entidad_tipo="entidad_vocabulario", entidad_id=e.id, nuevo={"nombre": etiqueta, "version": version},
+              detalle=f"Mecanismo «{etiqueta}» registrado en el vocabulario del fondo")
+    return e

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { FichaAutoridad, type Ficha } from "@/components/FichaAutoridad";
 import { EnlaceHistoria } from "@/components/Historia";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
-import { CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_RIC, conexionesTexto, type EntidadVocabulario } from "@/lib/vocabulario";
+import { CLASE_INSIGNIA, CLASE_NOMBRE, claseRicDe, conexionesTexto, type EntidadVocabulario } from "@/lib/vocabulario";
 
 interface Documento {
   id: string;
@@ -21,6 +22,7 @@ interface Detalle {
   documentos_historicos: Documento[];
   absorbidas: { id: string; nombre: string }[];
   historial: { fecha: string; por: string | null; detalle: string | null; relaciones_movidas: number | null; origen: string | null }[];
+  ficha: Ficha;
 }
 
 // Fusión manual: el archivista encuentra otra entidad del mismo tipo que
@@ -196,10 +198,18 @@ export function EntidadVocabularioDetalle() {
           <EnlaceHistoria tipo="entidad_vocabulario" id={e.id} nombre={e.nombre} />
         </div>
       </div>
-      <h1 style={{ marginTop: 10 }}>{e.nombre}</h1>
+      <h1 style={{ marginTop: 10 }}>
+        {e.nombre}{" "}
+        {e.nivel_detalle && (
+          <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`} style={{ verticalAlign: "middle" }}>
+            {e.nivel_detalle === "completo" ? "Ficha completa" : "Ficha mínima"}
+          </span>
+        )}
+      </h1>
       <p className="sub">
         <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span>{" "}
-        {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}{CLASE_RIC[e.clase]} · {conexionesTexto(e.conexiones)} conectado{e.conexiones === 1 ? "" : "s"} ·
+        {e.subtipo && <span className="insignia neutra-borde">{SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}{" "}
+        <code className="rico">{claseRicDe(e)}</code> · {conexionesTexto(e.conexiones)} conectado{e.conexiones === 1 ? "" : "s"} ·
         registrada {fecha(detalle.creada_en)}
       </p>
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
@@ -208,6 +218,11 @@ export function EntidadVocabularioDetalle() {
           Esta entidad se fusionó{e.fusionada_en && <> en <Link to={`/vocabularios/${e.fusionada_en.id}`}>«{e.fusionada_en.nombre}»</Link></>}.
           Ya no se ofrece al describir; se conserva para la trazabilidad.
         </div>
+      )}
+
+      {fondo && (
+        <FichaAutoridad entidad={e} ficha={detalle.ficha} fondoId={fondo.id} puede={puede}
+                        alCambiar={(texto) => { if (texto) setAviso(texto); cargar(); }} />
       )}
 
       <div className="tarjeta">
