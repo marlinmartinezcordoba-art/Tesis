@@ -12,17 +12,32 @@ Relaciones que crea (catálogo curado, códigos oficiales RiC-CM 1.0):
 | Agente o lugar mencionado    | has_or_had_subject (R019)              | documento → entidad   |
 | Fecha de creación            | is_creation_date_of (R080)             | fecha → documento     |
 | Actividad documentada        | documents (R033)                       | documento → actividad |
+| Tipo de la actividad         | has_activity_type (rico:hasActivityType)| actividad → tipo     |
+| Agente que ejerce            | performs_or_performed (R060i)          | agente → actividad    |
+| Mandato que la regula        | regulates_or_regulated (R063)          | mandato → actividad   |
+| Mandato que autoriza         | authorizes (R067)                      | mandato → agente      |
+| Periodo de la actividad      | is_date_associated_with (R068)         | fecha → actividad     |
+| Expedición del mandato       | is_creation_date_of (R080)             | fecha → mandato       |
+| Mandato citado sin actividad | has_or_had_subject (R019)              | documento → mandato   |
 | Inclusión en nivel superior  | includes_or_included (R024)            | superior → documento  |
 | Archivo técnico              | has_or_had_instantiation (R025)        | documento → archivo   |
 
 La forma documental no es una relación sino un atributo (RiC-A17), que
-apunta a una entrada del vocabulario.
+apunta a una entrada del vocabulario. RiC-O 1.1 define «authorizes» del
+mandato al agente, no a la actividad: por eso la actividad se une a su
+mandato con R063 y el agente que la ejerce recibe además el R067.
+
+Al publicar, cada propuesta del motor deja en auditoría un evento
+«decision_ia» (aceptada, corregida o rechazada; y «agregada» para lo que
+la archivista puso y el motor no propuso), con el valor propuesto, el
+final, el modelo y la versión de las instrucciones. Es la evidencia del
+capítulo de evaluación de la tesis.
 """
 
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import timedelta
 
 from sqlalchemy import exists, select, update
 from sqlalchemy.orm import Session
@@ -36,11 +51,14 @@ from app.models.enums import URI_RICO
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.models.usuario import Usuario
-from app.servicios import vocabulario
+from app.servicios import fechas, vocabulario
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
-CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental")
+CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
+TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
+SUBTIPOS_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia", "mecanismo")
+SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
 
 # (tipo, rol) → (código RiC, categoría amplia, sentido)
 RELACION_POR_ROL = {
@@ -51,6 +69,7 @@ RELACION_POR_ROL = {
     ("lugar", None): ("has_or_had_subject", "espacial"),
     ("fecha", None): ("is_creation_date_of", "temporal"),
     ("actividad", None): ("documents", "asociacion"),
+    ("mandato", None): ("has_or_had_subject", "asociacion"),
 }
 
 
@@ -193,10 +212,15 @@ class EntidadConfirmada:
     subtipo: str | None = None
     rol: str | None = None
     fecha_normalizada: str | None = None
+    edtf: str | None = None  # fecha, periodo de la actividad o expedición del mandato
+    fecha_subtipo: str | None = None
+    tipo_clave: str | None = None  # actividad → su tipo de actividad (clave de otra entidad del envío)
+    agente_clave: str | None = None  # actividad → agente que la ejerce
+    mandato_clave: str | None = None  # actividad → mandato que la regula
     fragmento: str | None = None
     documento_id: str | None = None
     inicio: int | None = None
-    clave: str | None = None  # clave de la propuesta del motor, si viene de ahí
+    clave: str | None = None  # clave de la entidad (la de la propuesta del motor, si viene de ahí)
     reutilizar_id: uuid.UUID | None = None
     crear_nueva: bool = False
 
@@ -238,61 +262,209 @@ def _nodo_vocabulario(db: Session, fondo_id: uuid.UUID, e: EntidadConfirmada, in
                              origen=origen, confianza=confianza, motor=motor, usuario_id=usuario_id)
 
 
-def _fecha_iso(valor: str | None) -> date | None:
-    try:
-        return date.fromisoformat(valor) if valor else None
-    except ValueError:
+def _interpretar_fecha(e: EntidadConfirmada, que: str) -> fechas.Interpretacion | None:
+    if not e.edtf and e.tipo != "fecha":
         return None
+    if not e.edtf and e.fecha_normalizada:  # pantallas de la versión anterior
+        e.edtf = e.fecha_normalizada
+    if not e.edtf:
+        raise ErrorDescripcion(f"Complete la fecha de «{e.valor}»: elija si es simple, rango o conjunto y su precisión.")
+    try:
+        return fechas.interpretar(e.edtf, e.fecha_subtipo if e.tipo == "fecha" else None)
+    except fechas.FechaInvalida as exc:
+        raise ErrorDescripcion(f"{que} de «{e.valor}»: {exc}") from exc
+
+
+def _crear_fecha(db: Session, expresion: str, i: fechas.Interpretacion, origen: str, confianza: float | None,
+                 motor: str | None) -> Fecha:
+    nodo = Fecha(id=uuid.uuid4(), expresion=expresion[:200], subtipo=i.subtipo, edtf=i.edtf, inicio=i.inicio, fin=i.fin,
+                 normalizada=i.exacta, origen=origen, confianza=confianza, motor=motor)
+    db.add(nodo)
+    return nodo
+
+
+def _relacionar(db: Session, origen: tuple[str, uuid.UUID], destino: tuple[str, uuid.UUID], codigo: str, categoria: str,
+                usuario_id: uuid.UUID, procedencia: tuple[str, float | None, str | None], **extra) -> None:
+    """Relación del grafo de contexto; si ya existe vigente (entidades
+    reutilizadas entre documentos), no se duplica."""
+    if db.scalar(select(Relacion.id).where(Relacion.origen_id == origen[1], Relacion.destino_id == destino[1],
+                                           Relacion.codigo_ric == codigo, Relacion.estado == "vigente").limit(1)):
+        return
+    db.add(Relacion(origen_tipo=origen[0], origen_id=origen[1], destino_tipo=destino[0], destino_id=destino[1],
+                    tipo_relacion=categoria, codigo_ric=codigo, origen=procedencia[0], confianza=procedencia[1],
+                    motor=procedencia[2], confirmada_por_id=usuario_id, **extra))
 
 
 def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[EntidadConfirmada],
-                       propuesta: dict, usuario_id: uuid.UUID, documentos: set[str]) -> None:
+                       propuesta: dict, usuario_id: uuid.UUID, documentos: set[str]) -> dict[str, dict]:
+    """Crea los nodos y relaciones de lo confirmado. Devuelve, por clave, lo
+    que quedó de verdad (para comparar con la propuesta del motor)."""
     propuestas = {p["clave"]: p for p in propuesta.get("entidades", []) if p.get("clave")}
     motor = propuesta.get("motor")
     formas = [e for e in entidades if e.tipo == "forma_documental"]
     if len(formas) > 1:
         raise ErrorDescripcion("Un documento o conjunto tiene una sola forma documental; deje solo una.")
-    for i, e in enumerate(entidades):
+    por_clave = {e.clave: e for e in entidades if e.clave}
+    nodos: dict[str, EntidadVocabulario] = {}
+    finales: dict[str, dict] = {}
+    # Las actividades van al final: necesitan los nodos de su tipo, su agente y su mandato.
+    orden = sorted(range(len(entidades)), key=lambda k: entidades[k].tipo == "actividad")
+    for i in orden:
+        e = entidades[i]
         e.valor = " ".join((e.valor or "").split())
         if not e.valor:
             raise ErrorDescripcion("Hay una entidad sin valor; escríbalo o descártela.")
-        if e.tipo not in ("agente", "lugar", "fecha", "actividad", "forma_documental"):
+        if e.tipo not in TIPOS_ENTIDAD:
             raise ErrorDescripcion(f"Tipo de entidad desconocido: {e.tipo}.")
         base = propuestas.get(e.clave) if e.clave else None
         origen, confianza = _procedencia(e.valor, base.get("valor") if base else None, base.get("confianza") if base else None)
         motor_e = motor if base else None
+        procedencia = (origen, confianza, motor_e)
         fragmento = e.fragmento if e.documento_id in documentos else None
         instanciacion_fragmento = uuid.UUID(e.documento_id) if fragmento else None
+        evidencia = {"fragmento": fragmento, "fragmento_instanciacion_id": instanciacion_fragmento,
+                     "fragmento_inicio": e.inicio if fragmento else None}
+        documento = ("recurso_documental", recurso.id)
+
+        if e.tipo == "fecha":
+            interpretacion = _interpretar_fecha(e, "La fecha")
+            nodo_fecha = _crear_fecha(db, e.valor, interpretacion, origen, confianza, motor_e)
+            db.flush()
+            db.add(Relacion(origen_tipo="fecha", origen_id=nodo_fecha.id, destino_tipo="recurso_documental",
+                            destino_id=recurso.id, tipo_relacion="temporal", codigo_ric="is_creation_date_of",
+                            origen=origen, confianza=confianza, motor=motor_e, confirmada_por_id=usuario_id, **evidencia))
+            if e.clave:
+                finales[e.clave] = {"valor": e.valor, "edtf": interpretacion.edtf, "fecha_subtipo": interpretacion.subtipo}
+            continue
+
+        if e.tipo == "agente":
+            if e.rol not in ("productor", "remitente", "destinatario", "mencionado"):
+                raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, remitente, destinatario o mencionado.")
+            if e.subtipo not in SUBTIPOS_AGENTE:
+                e.subtipo = "persona"
+        elif e.tipo == "mandato":
+            e.subtipo = e.subtipo if e.subtipo in SUBTIPOS_MANDATO else "otro"
+        else:
+            e.subtipo = None
+        if e.tipo == "tipo_actividad" and not any(x.tipo == "actividad" and x.tipo_clave == e.clave for x in entidades):
+            raise ErrorDescripcion(f"El tipo de actividad «{e.valor}» no está asignado a ninguna actividad: "
+                                   "asígneselo a una o descártelo. Un documento no se conecta a un tipo en abstracto.")
+        nodo = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
+        db.flush()
+        if e.clave:
+            nodos[e.clave] = nodo
+            finales[e.clave] = {"valor": nodo.nombre, "rol": e.rol, "subtipo": e.subtipo}
+        nodo_ref = ("entidad_vocabulario", nodo.id)
 
         if e.tipo == "forma_documental":
-            recurso.forma_documental_id = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id).id
-            continue
-        rol = e.rol if e.tipo == "agente" else None
-        if e.tipo == "agente" and rol not in ("productor", "remitente", "destinatario", "mencionado"):
-            raise ErrorDescripcion(f"Indique el rol de «{e.valor}»: productor, remitente, destinatario o mencionado.")
-        codigo, categoria = RELACION_POR_ROL[(e.tipo, rol)]
-        if e.tipo in CLASES_VOCABULARIO:
-            nodo = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
-            nodo_tipo = "entidad_vocabulario"
-        elif e.tipo == "fecha":
-            nodo = Fecha(id=uuid.uuid4(), expresion=e.valor[:200], normalizada=_fecha_iso(e.fecha_normalizada),
-                         origen=origen, confianza=confianza, motor=motor_e)
-            nodo_tipo = "fecha"
+            recurso.forma_documental_id = nodo.id
+        elif e.tipo in ("agente", "lugar"):
+            codigo, categoria = RELACION_POR_ROL[(e.tipo, e.rol if e.tipo == "agente" else None)]
+            db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
+                            destino_id=nodo.id, tipo_relacion=categoria, codigo_ric=codigo,
+                            rol=e.rol if e.tipo == "agente" else "lugar", origen=origen, confianza=confianza, motor=motor_e,
+                            confirmada_por_id=usuario_id, **evidencia))
+        elif e.tipo == "mandato":
+            if e.edtf:
+                expedicion = _interpretar_fecha(e, "La fecha de expedición")
+                f = _crear_fecha(db, expedicion.legible, expedicion, origen, confianza, motor_e)
+                db.flush()
+                _relacionar(db, ("fecha", f.id), nodo_ref, "is_creation_date_of", "temporal", usuario_id, procedencia)
+                finales[e.clave or ""] = finales.get(e.clave or "", {}) | {"edtf": expedicion.edtf}
+            if not any(x.tipo == "actividad" and x.mandato_clave == e.clave for x in entidades):
+                # Citado sin una actividad que regule: queda como mencionado.
+                db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
+                                destino_id=nodo.id, tipo_relacion="asociacion", codigo_ric="has_or_had_subject",
+                                rol="mandato", origen=origen, confianza=confianza, motor=motor_e,
+                                confirmada_por_id=usuario_id, **evidencia))
+        elif e.tipo == "actividad":
+            db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
+                            destino_id=nodo.id, tipo_relacion="asociacion", codigo_ric="documents",
+                            origen=origen, confianza=confianza, motor=motor_e, confirmada_por_id=usuario_id, **evidencia))
+            enlaces = {}
+            for campo, tipo_esperado in (("tipo_clave", "tipo_actividad"), ("agente_clave", "agente"),
+                                         ("mandato_clave", "mandato")):
+                clave = getattr(e, campo)
+                if not clave:
+                    continue
+                if clave not in nodos or por_clave[clave].tipo != tipo_esperado:
+                    raise ErrorDescripcion(f"La actividad «{e.valor}» apunta a una entidad que no está entre las "
+                                           "confirmadas (quizá se descartó). Revise su tipo, agente o mandato.")
+                enlaces[campo] = clave
+            if "tipo_clave" in enlaces:
+                _relacionar(db, nodo_ref, ("entidad_vocabulario", nodos[enlaces["tipo_clave"]].id),
+                            "has_activity_type", "asociacion", usuario_id, procedencia)
+            if "agente_clave" in enlaces:
+                _relacionar(db, ("entidad_vocabulario", nodos[enlaces["agente_clave"]].id), nodo_ref,
+                            "performs_or_performed", "asociacion", usuario_id, procedencia)
+            if "mandato_clave" in enlaces:
+                mandato = ("entidad_vocabulario", nodos[enlaces["mandato_clave"]].id)
+                _relacionar(db, mandato, nodo_ref, "regulates_or_regulated", "asociacion", usuario_id, procedencia)
+                if "agente_clave" in enlaces:
+                    _relacionar(db, mandato, ("entidad_vocabulario", nodos[enlaces["agente_clave"]].id),
+                                "authorizes", "asociacion", usuario_id, procedencia)
+            if e.edtf:
+                periodo = _interpretar_fecha(e, "El periodo")
+                f = _crear_fecha(db, periodo.legible, periodo, origen, confianza, motor_e)
+                db.flush()
+                _relacionar(db, ("fecha", f.id), nodo_ref, "is_date_associated_with", "temporal", usuario_id, procedencia)
+            if e.clave:
+                finales[e.clave] |= {"edtf": e.edtf, **{c: enlaces.get(c) for c in ("tipo_clave", "agente_clave",
+                                                                                     "mandato_clave")}}
+    return finales
+
+
+# --- Evidencia del trabajo con IA: una decisión por propuesta ------------------------------------
+
+CAMPOS_DECISION = {
+    "agente": ("valor", "rol", "subtipo"), "lugar": ("valor",), "forma_documental": ("valor",),
+    "tipo_actividad": ("valor",), "mandato": ("valor", "subtipo", "edtf"), "fecha": ("valor", "edtf", "fecha_subtipo"),
+    "actividad": ("valor", "edtf", "tipo_clave", "agente_clave", "mandato_clave"),
+}
+
+
+def _comparable(campos: tuple, datos: dict) -> dict:
+    return {c: (" ".join(str(datos.get(c)).split()) if datos.get(c) is not None else None) for c in campos}
+
+
+def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dict, finales: dict[str, dict],
+                         manuales: list[EntidadConfirmada], titulo: str, alcance: str, usuario_id: uuid.UUID) -> int:
+    """Compara cada propuesta del motor con lo que quedó publicado y deja un
+    evento de auditoría por cada una. El valor propuesto es el que guardó el
+    servidor al abrir el espacio de trabajo, no lo que diga el navegador."""
+    if not propuesta.get("disponible"):
+        return 0
+    comun = {"modelo": propuesta.get("motor"), "version_prompt": propuesta.get("version_prompt"),
+             "fondo_id": str(recurso.fondo_id), "titulo_documento": recurso.titulo}
+    n = 0
+
+    def evento(**datos):
+        nonlocal n
+        registrar(db, modulo="descripcion", accion="decision_ia", usuario_id=usuario_id,
+                  entidad_tipo="recurso_documental", entidad_id=recurso.id, nuevo=comun | datos)
+        n += 1
+
+    for p in propuesta.get("entidades", []):
+        campos = CAMPOS_DECISION.get(p["tipo"], ("valor",))
+        propuesto = _comparable(campos, p)
+        final = finales.get(p["clave"])
+        if final is None:
+            decision, final_c = "rechazada", None
         else:
-            nodo = Actividad(id=uuid.uuid4(), fondo_id=recurso.fondo_id, nombre=e.valor[:300],
-                             origen=origen, confianza=confianza, motor=motor_e)
-            nodo_tipo = "actividad"
-        db.add(nodo)
-        db.flush()
-        origen_nodo, destino_nodo = (("fecha", nodo.id), ("recurso_documental", recurso.id)) if e.tipo == "fecha" \
-            else (("recurso_documental", recurso.id), (nodo_tipo, nodo.id))
-        db.add(Relacion(
-            origen_tipo=origen_nodo[0], origen_id=origen_nodo[1], destino_tipo=destino_nodo[0], destino_id=destino_nodo[1],
-            tipo_relacion=categoria, codigo_ric=codigo, rol=rol or (e.tipo if e.tipo == "lugar" else None),
-            fragmento=fragmento, fragmento_instanciacion_id=instanciacion_fragmento,
-            fragmento_inicio=e.inicio if fragmento else None,
-            origen=origen, confianza=confianza, motor=motor_e, confirmada_por_id=usuario_id,
-        ))
+            final_c = _comparable(campos, final)
+            decision = "aceptada" if final_c == propuesto else "corregida"
+        evento(decision=decision, tipo=p["tipo"], clave=p["clave"], confianza=p.get("confianza"),
+               propuesto=propuesto, final=final_c)
+    for e in manuales:  # lo que el motor no propuso (omisiones del motor)
+        evento(decision="agregada", tipo=e.tipo, clave=e.clave, confianza=None, propuesto=None,
+               final=_comparable(CAMPOS_DECISION.get(e.tipo, ("valor",)), finales.get(e.clave or "", {"valor": e.valor})))
+    for tipo, propuesto, final in (("titulo", propuesta.get("titulo"), titulo), ("alcance", propuesta.get("alcance"), alcance)):
+        if propuesto:
+            p_c, f_c = " ".join(propuesto.split()), " ".join((final or "").split())
+            evento(decision="aceptada" if p_c == f_c else ("rechazada" if not f_c else "corregida"), tipo=tipo,
+                   clave=tipo, confianza=propuesta.get("confianza_alcance") if tipo == "alcance" else None,
+                   propuesto={"valor": p_c}, final={"valor": f_c} if f_c else None)
+    return n
 
 
 def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid.UUID | None) -> RecursoDocumental:
@@ -341,12 +513,17 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",
                         destino_id=d.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
                         origen="persona", confirmada_por_id=usuario_id))
-    _agregar_entidades(db, recurso, entidades, propuesta, usuario_id, ids_documentos)
+    claves_propuestas = {p.get("clave") for p in propuesta.get("entidades", [])}
+    for k, e in enumerate(entidades):  # toda entidad lleva clave, para enlazar la cadena de la actividad
+        e.clave = e.clave or f"m{k + 1}"
+    finales = _agregar_entidades(db, recurso, entidades, propuesta, usuario_id, ids_documentos)
     _cerrar(db, trabajo, "publicado")
     trabajo.recurso_id = recurso.id
     db.flush()
     registrar(db, modulo="descripcion", accion="descripcion_publicada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=recurso.id, nuevo=resumen(db, recurso))
+    registrar_decisiones(db, recurso, propuesta, finales, [e for e in entidades if e.clave not in claves_propuestas],
+                         titulo, alcance, usuario_id)
     return recurso
 
 
@@ -380,11 +557,16 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
                 # entidad citaba el documento originalmente (módulo 3).
                 antes = db.get(EntidadVocabulario, r.destino_original_id)
                 extra = {"antes_de_fusion": {"id": str(antes.id), "nombre": antes.nombre}} if antes else {}
+            if n.clase == "actividad":
+                extra |= {"contexto": contexto_actividad(db, n.id)}
+            if n.clase == "mandato":
+                extra |= {"expedicion": _fecha_de(db, n.id, "is_creation_date_of")}
         elif nodo_tipo == "fecha":
             n = db.get(Fecha, nodo_id)
             tipo, valor, subtipo = "fecha", n.expresion, None
-            extra = {"fecha_normalizada": n.normalizada.isoformat() if n.normalizada else None}
-        elif nodo_tipo == "actividad":
+            extra = {"fecha_normalizada": n.normalizada.isoformat() if n.normalizada else None,
+                     **_fecha_publica(n)}
+        elif nodo_tipo == "actividad":  # anteriores a la migración 0009 que no se movieron
             n = db.get(Actividad, nodo_id)
             tipo, valor, subtipo, extra = "actividad", n.nombre, None, {}
         else:
@@ -406,6 +588,46 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
         "actualizado_en": recurso.actualizado_en.isoformat() if recurso.actualizado_en else None,
     }
+
+
+def _fecha_publica(f: Fecha) -> dict:
+    return {"fecha_subtipo": f.subtipo, "edtf": f.edtf, "fecha_legible": fechas.legible(f.edtf, f.expresion),
+            "fecha_inicio": f.inicio.isoformat() if f.inicio else None, "fecha_fin": f.fin.isoformat() if f.fin else None}
+
+
+def _fecha_de(db: Session, nodo_id: uuid.UUID, codigo: str) -> dict | None:
+    f_id = db.scalar(select(Relacion.origen_id).where(Relacion.destino_id == nodo_id, Relacion.codigo_ric == codigo,
+                                                      Relacion.estado == "vigente", Relacion.origen_tipo == "fecha"))
+    f = db.get(Fecha, f_id) if f_id else None
+    return _fecha_publica(f) if f else None
+
+
+def _vocab_breve(db: Session, entidad_id: uuid.UUID) -> dict | None:
+    v = db.get(EntidadVocabulario, entidad_id)
+    return {"id": str(v.id), "nombre": v.nombre, "subtipo": v.subtipo} if v else None
+
+
+def contexto_actividad(db: Session, actividad_id: uuid.UUID) -> dict:
+    """La cadena documento → actividad → tipo de actividad → mandato, con el
+    agente que la ejerce, tal como quedó en el grafo (relaciones vigentes)."""
+    def destinos(codigo):
+        return db.scalars(select(Relacion.destino_id).where(Relacion.origen_id == actividad_id,
+                                                            Relacion.codigo_ric == codigo, Relacion.estado == "vigente")).all()
+
+    def origenes(codigo):
+        return db.scalars(select(Relacion.origen_id).where(Relacion.destino_id == actividad_id, Relacion.codigo_ric == codigo,
+                                                           Relacion.estado == "vigente",
+                                                           Relacion.origen_tipo == "entidad_vocabulario")).all()
+
+    tipos = [t for t in (_vocab_breve(db, i) for i in destinos("has_activity_type")) if t]
+    agentes = [a for a in (_vocab_breve(db, i) for i in origenes("performs_or_performed")) if a]
+    mandatos = []
+    for i in origenes("regulates_or_regulated"):
+        m = _vocab_breve(db, i)
+        if m:
+            mandatos.append(m | {"expedicion": _fecha_de(db, i, "is_creation_date_of")})
+    return {"tipo_actividad": tipos[0] if tipos else None, "tipos_actividad": tipos, "ejercida_por": agentes,
+            "regulada_por": mandatos, "periodo": _fecha_de(db, actividad_id, "is_date_associated_with")}
 
 
 # Datos de control del inventario (FUID), que escribe siempre una persona.
@@ -487,6 +709,8 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(
         Relacion.origen_id == recurso.id, Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente"))}
+    for k, e in enumerate(agregar):
+        e.clave = e.clave or f"m{k + 1}"
     _agregar_entidades(db, recurso, agregar, {}, usuario_id, documentos)
     db.flush()
     nuevo = resumen(db, recurso)

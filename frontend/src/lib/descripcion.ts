@@ -1,29 +1,47 @@
 import { pedir } from "./api";
 
-export type TipoEntidad = "agente" | "lugar" | "fecha" | "actividad" | "forma_documental";
+export type TipoEntidad = "agente" | "lugar" | "fecha" | "actividad" | "tipo_actividad" | "mandato" | "forma_documental";
 
 export const TIPO_NOMBRE: Record<TipoEntidad, string> = {
   agente: "Agente",
   lugar: "Lugar",
   fecha: "Fecha",
   actividad: "Actividad",
+  tipo_actividad: "Tipo de actividad",
+  mandato: "Mandato o norma",
   forma_documental: "Forma documental",
 };
 
+// Actividad, tipo de actividad y mandato comparten color: son una sola
+// familia, la del contexto institucional; los distingue su insignia.
 export const TIPO_CLASE: Record<TipoEntidad, string> = {
   agente: "agente",
   lugar: "alerta",
   fecha: "proceso",
-  actividad: "acento",
+  actividad: "contexto",
+  tipo_actividad: "contexto",
+  mandato: "contexto",
   forma_documental: "bien",
 };
 
-export const SUBTIPO_NOMBRE: Record<string, string> = {
+export const SUBTIPO_AGENTE: Record<string, string> = {
   persona: "Persona",
   entidad_corporativa: "Entidad corporativa",
   cargo: "Cargo",
   familia: "Familia",
+  mecanismo: "Mecanismo (software)",
 };
+
+export const SUBTIPO_MANDATO: Record<string, string> = {
+  ley: "Ley",
+  decreto: "Decreto",
+  ordenanza: "Ordenanza",
+  acuerdo: "Acuerdo",
+  resolucion: "Resolución",
+  otro: "Otro instrumento",
+};
+
+export const SUBTIPO_NOMBRE: Record<string, string> = { ...SUBTIPO_AGENTE, ...SUBTIPO_MANDATO };
 
 export const ROL_NOMBRE: Record<string, string> = {
   productor: "Productor",
@@ -47,7 +65,7 @@ export const ORIGEN_NOMBRE: Record<string, string> = {
   persona: "Escrito por una persona",
 };
 
-export const EN_VOCABULARIO: TipoEntidad[] = ["agente", "lugar", "forma_documental"];
+export const EN_VOCABULARIO: TipoEntidad[] = ["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"];
 
 export interface Coincidencia {
   id: string;

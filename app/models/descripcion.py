@@ -20,8 +20,19 @@ from app.models.enums import CODIGO_RELACION_RIC, TIPO_RELACION
 ORIGEN_DATO = ("motor", "motor_editado", "persona")
 ESTADO_REVISION = ("validado",)  # solo se publica lo que una persona validó
 
-CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental")
-SUBTIPO_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia")
+# Las seis clases reutilizables del vocabulario del fondo. Actividad, tipo
+# de actividad y mandato se agregaron en la versión actualizada del módulo
+# 2: la actividad es el ejercicio concreto y fechado de una competencia
+# (RiC-E15 Activity), el tipo de actividad es el valor controlado de esa
+# competencia (rico:ActivityType, no una entidad «Función», que no existe
+# en RiC-O) y el mandato es la norma que la regula (RiC-E17 Mandate).
+CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
+SUBTIPO_AGENTE = ("persona", "entidad_corporativa", "cargo", "familia", "mecanismo")
+# Tipo de instrumento jurídico de un mandato (rico:MandateType).
+SUBTIPO_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
+# Los tres niveles de precisión de una fecha (RiC-CM 1.0: Single Date,
+# Date Range, Date Set; en RiC-O 1.1 son tipos de rico:Date).
+SUBTIPO_FECHA = ("simple", "rango", "conjunto")
 ESTADO_ENTIDAD = ("activa", "fusionada")
 
 ESTADO_RELACION = ("vigente", "anulada")
@@ -65,19 +76,28 @@ class EntidadVocabulario(_Procedencia, Base):
 
 class Fecha(_Procedencia, Base):
     """RiC-CM Date (RiC-E18): la expresión tal como aparece en el documento
-    y, si se pudo, su forma normalizada. No se fuerza una fecha exacta."""
+    (RiC-A19) y su forma normalizada en EDTF (RiC-A29), con su subtipo:
+    simple, rango o conjunto. No se fuerza una fecha exacta: «c. 1948» o
+    «década de 1940» se guardan como tales (1948~, 194X)."""
 
     __tablename__ = "fechas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     expresion = Column(String(200), nullable=False)
-    normalizada = Column(Date, nullable=True)
+    subtipo = Column(Enum(*SUBTIPO_FECHA, name="subtipo_fecha"), nullable=False, default="simple",
+                     server_default="simple")
+    edtf = Column(String(200), nullable=True)  # vacío solo en fechas anteriores a esta versión
+    # Límites del intervalo que cubre (para ordenar y buscar), calculados del EDTF.
+    inicio = Column(Date, nullable=True)
+    fin = Column(Date, nullable=True)
+    normalizada = Column(Date, nullable=True)  # solo si es un día exacto
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
 
 
 class Actividad(_Procedencia, Base):
-    """RiC-CM Activity (RiC-E15): lo que el documento documenta
-    (p. ej. «sesión ordinaria del concejo»)."""
+    """Tabla de la primera versión. Desde la migración 0009 las actividades
+    viven en el vocabulario (clase «actividad»), con verificación de
+    duplicados; esta tabla se conserva sin uso (nada se borra)."""
 
     __tablename__ = "actividades"
 
@@ -115,6 +135,8 @@ class Relacion(_Procedencia, Base):
     # Si la relación se redirigió al fusionar dos entidades del vocabulario,
     # aquí queda a qué entidad apuntaba originalmente (trazabilidad).
     destino_original_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    # Lo mismo para el origen (p. ej. el agente que ejerce una actividad).
+    origen_original_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     confirmada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     anulada_en = Column(DateTime(timezone=True), nullable=True)

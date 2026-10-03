@@ -38,14 +38,44 @@ class Coincidencia:
     conexiones: int
 
 
+def _documentos_por_entidad(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, set[uuid.UUID]]:
+    """Descripciones (Record Resources) conectadas a cada entidad: las que la
+    citan directamente, las que la usan como forma documental y, para un tipo
+    de actividad, un mandato o el agente que ejerce una actividad, las que
+    documentan esa actividad (RiC-R033). Una actividad o un mandato no son
+    documentos: no se cuentan como tales."""
+    from sqlalchemy.orm import aliased
+
+    docs: dict[uuid.UUID, set[uuid.UUID]] = {i: set() for i in ids}
+    if not ids:
+        return docs
+    for entidad, recurso in db.execute(select(Relacion.destino_id, Relacion.origen_id).where(
+            Relacion.destino_id.in_(ids), Relacion.origen_tipo == "recurso_documental", Relacion.estado == "vigente")):
+        docs[entidad].add(recurso)
+    for entidad, recurso in db.execute(select(RecursoDocumental.forma_documental_id, RecursoDocumental.id)
+                                       .where(RecursoDocumental.forma_documental_id.in_(ids))):
+        docs[entidad].add(recurso)
+    # Entidades unidas a una actividad (en cualquier sentido) y documentos de esa actividad.
+    act = aliased(EntidadVocabulario)
+    vecinas = db.execute(
+        select(Relacion.origen_id, Relacion.destino_id).join(act, act.id == Relacion.destino_id)
+        .where(Relacion.origen_id.in_(ids), act.clase == "actividad", Relacion.estado == "vigente")
+        .union_all(select(Relacion.destino_id, Relacion.origen_id).join(act, act.id == Relacion.origen_id)
+                   .where(Relacion.destino_id.in_(ids), act.clase == "actividad", Relacion.estado == "vigente"))).all()
+    if vecinas:
+        actividades = {a for _, a in vecinas}
+        por_actividad: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for a, recurso in db.execute(select(Relacion.destino_id, Relacion.origen_id).where(
+                Relacion.destino_id.in_(actividades), Relacion.codigo_ric == "documents", Relacion.estado == "vigente")):
+            por_actividad.setdefault(a, set()).add(recurso)
+        for entidad, a in vecinas:
+            docs[entidad] |= por_actividad.get(a, set())
+    return docs
+
+
 def conexiones(db: Session, entidad_id: uuid.UUID) -> int:
-    """Documentos conectados a la entidad (relaciones vigentes, más los que
-    la usan como forma documental)."""
-    por_relacion = db.scalar(select(func.count(func.distinct(Relacion.origen_id))).where(
-        Relacion.destino_id == entidad_id, Relacion.estado == "vigente")) or 0
-    por_forma = db.scalar(select(func.count(RecursoDocumental.id)).where(
-        RecursoDocumental.forma_documental_id == entidad_id)) or 0
-    return por_relacion + por_forma
+    """Documentos conectados a la entidad."""
+    return len(_documentos_por_entidad(db, [entidad_id])[entidad_id])
 
 
 def verificar(db: Session, fondo_id: uuid.UUID, clase: str, valor: str, limite: int = 5) -> list[Coincidencia]:
@@ -83,24 +113,17 @@ def crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str, subtipo:
 
 def conexiones_de(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
     """Conexiones de varias entidades a la vez (para listados)."""
-    if not ids:
-        return {}
-    por_relacion = dict(db.execute(
-        select(Relacion.destino_id, func.count(func.distinct(Relacion.origen_id)))
-        .where(Relacion.destino_id.in_(ids), Relacion.estado == "vigente").group_by(Relacion.destino_id)).all())
-    por_forma = dict(db.execute(
-        select(RecursoDocumental.forma_documental_id, func.count(RecursoDocumental.id))
-        .where(RecursoDocumental.forma_documental_id.in_(ids)).group_by(RecursoDocumental.forma_documental_id)).all())
-    return {i: por_relacion.get(i, 0) + por_forma.get(i, 0) for i in ids}
+    return {i: len(d) for i, d in _documentos_por_entidad(db, list(ids)).items()}
 
 
 def documentos_conectados(db: Session, entidad_id: uuid.UUID, historicos: bool = False) -> list[RecursoDocumental]:
     """Descripciones conectadas hoy a la entidad; con `historicos`, las que
     la citaban antes de que se fusionara en otra."""
-    campo = Relacion.destino_original_id if historicos else Relacion.destino_id
-    ids = set(db.scalars(select(Relacion.origen_id).where(campo == entidad_id, Relacion.estado == "vigente")))
-    if not historicos:
-        ids |= set(db.scalars(select(RecursoDocumental.id).where(RecursoDocumental.forma_documental_id == entidad_id)))
+    if historicos:
+        ids = set(db.scalars(select(Relacion.origen_id).where(Relacion.destino_original_id == entidad_id,
+                                                              Relacion.estado == "vigente")))
+    else:
+        ids = _documentos_por_entidad(db, [entidad_id])[entidad_id]
     if not ids:
         return []
     return list(db.scalars(select(RecursoDocumental).where(RecursoDocumental.id.in_(ids))
@@ -133,6 +156,12 @@ def fusionar(db: Session, *, definitiva: EntidadVocabulario, absorbida: EntidadV
     movidas = db.execute(
         update(Relacion).where(Relacion.destino_id == absorbida.id, Relacion.estado == "vigente")
         .values(destino_id=definitiva.id, destino_original_id=func.coalesce(Relacion.destino_original_id, absorbida.id))
+    ).rowcount
+    # Y donde la entidad es el origen (el agente que ejerce una actividad,
+    # el mandato que la regula, la actividad con su tipo).
+    movidas += db.execute(
+        update(Relacion).where(Relacion.origen_id == absorbida.id, Relacion.estado == "vigente")
+        .values(origen_id=definitiva.id, origen_original_id=func.coalesce(Relacion.origen_original_id, absorbida.id))
     ).rowcount
     formas = db.execute(update(RecursoDocumental).where(RecursoDocumental.forma_documental_id == absorbida.id)
                         .values(forma_documental_id=definitiva.id)).rowcount
@@ -222,3 +251,69 @@ def deteccion_periodica(db: Session) -> int | None:
         fila.valor = ahora().isoformat()
     db.commit()
     return nuevas
+
+
+# --- Relaciones entre agentes (catálogo curado, verificadas en RiC-O 1.1) -----------------------------
+
+RELACION_AGENTES = {
+    "subordinado": ("has_or_had_subordinate", "jerarquía: tiene o tuvo como subordinado", "está o estuvo subordinado a"),
+    "sucesor": ("has_successor", "temporal: tiene como sucesor", "es sucesor de"),
+    "asociado": ("is_agent_associated_with_agent", "asociativa: está asociado con", "está asociado con"),
+}
+
+
+class ErrorRelacionAgentes(Exception):
+    pass
+
+
+def relacionar_agentes(db: Session, *, origen: EntidadVocabulario, destino: EntidadVocabulario, tipo: str,
+                       usuario_id: uuid.UUID, ip: str | None = None) -> Relacion:
+    """Relación declarada entre dos agentes del mismo fondo. Se guarda una
+    sola fila; su inversa (owl:inverseOf en RiC-O) se lee de ella, nunca se
+    duplica, para que anular una anule las dos lecturas a la vez."""
+    from app.servicios.auditoria import registrar
+
+    if tipo not in RELACION_AGENTES:
+        raise ErrorRelacionAgentes("Tipo de relación entre agentes desconocido.")
+    if origen.clase != "agente" or destino.clase != "agente" or origen.fondo_id != destino.fondo_id:
+        raise ErrorRelacionAgentes("Solo se relacionan agentes del mismo fondo.")
+    if origen.id == destino.id:
+        raise ErrorRelacionAgentes("Un agente no se relaciona consigo mismo.")
+    codigo = RELACION_AGENTES[tipo][0]
+    existente = db.scalar(select(Relacion).where(
+        Relacion.codigo_ric == codigo, Relacion.estado == "vigente",
+        ((Relacion.origen_id == origen.id) & (Relacion.destino_id == destino.id))
+        | ((Relacion.origen_id == destino.id) & (Relacion.destino_id == origen.id) if tipo == "asociado" else False)))
+    if existente is not None:
+        raise ErrorRelacionAgentes("Esa relación ya existe.")
+    r = Relacion(origen_tipo="entidad_vocabulario", origen_id=origen.id, destino_tipo="entidad_vocabulario",
+                 destino_id=destino.id, tipo_relacion="temporal" if tipo == "sucesor" else "asociacion",
+                 codigo_ric=codigo, origen="persona", confirmada_por_id=usuario_id)
+    db.add(r)
+    db.flush()
+    registrar(db, modulo="vocabularios", accion="agentes_relacionados", usuario_id=usuario_id,
+              entidad_tipo="entidad_vocabulario", entidad_id=origen.id, ip=ip,
+              nuevo={"relacion_id": str(r.id), "tipo": tipo, "codigo_ric": codigo, "con": str(destino.id)},
+              detalle=f"«{origen.nombre}» {RELACION_AGENTES[tipo][1].split(': ')[1]} «{destino.nombre}»")
+    return r
+
+
+def relaciones_de_agente(db: Session, agente_id: uuid.UUID) -> list[dict]:
+    """Las relaciones del agente leídas en los dos sentidos, con la inversa
+    cuando el agente es el destino."""
+    from app.models.enums import INVERSA_RICO, URI_RICO
+
+    codigos = [c for c, _, _ in RELACION_AGENTES.values()]
+    filas = db.scalars(select(Relacion).where(Relacion.codigo_ric.in_(codigos), Relacion.estado == "vigente",
+                                              (Relacion.origen_id == agente_id) | (Relacion.destino_id == agente_id))).all()
+    por_codigo = {c: (t, directa, inversa) for t, (c, directa, inversa) in RELACION_AGENTES.items()}
+    salida = []
+    for r in filas:
+        tipo, directa, inversa = por_codigo[r.codigo_ric]
+        es_origen = r.origen_id == agente_id
+        otro = db.get(EntidadVocabulario, r.destino_id if es_origen else r.origen_id)
+        salida.append({"relacion_id": str(r.id), "tipo": tipo, "codigo_ric": r.codigo_ric,
+                       "etiqueta": directa.split(": ")[1] if es_origen else inversa,
+                       "uri_rico": URI_RICO[r.codigo_ric] if es_origen else INVERSA_RICO[r.codigo_ric],
+                       "con": {"id": str(otro.id), "nombre": otro.nombre, "subtipo": otro.subtipo} if otro else None})
+    return salida

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import {
   MODULO_NOMBRE, MOTIVO_CIERRE, duracion, valor, type Cambio, type Consolidado, type Desglose, type Evento,
 } from "@/lib/auditoria";
@@ -192,11 +192,160 @@ function PanelConsolidado() {
   );
 }
 
+// --- Decisiones de IA (solo administrador): fuente del capítulo de evaluación --------------------
+
+interface Conteo {
+  aceptada: number; corregida: number; rechazada: number; agregada: number; propuestas: number;
+  pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_cobertura: number | null;
+}
+interface FilaDecision {
+  id: number; fecha: string; documento: { id: string; titulo: string | null }; tipo: string; tipo_nombre: string;
+  decision: "aceptada" | "corregida" | "rechazada" | "agregada"; propuesto: string | null; final: string | null;
+  confianza: number | null; modelo: string | null; version_prompt: string | null; por: string | null;
+}
+interface DatosDecisiones {
+  resumen: Conteo; por_tipo: (Conteo & { tipo_nombre: string })[]; modelos: string[]; versiones_prompt: string[];
+  total: number; filas: FilaDecision[];
+}
+
+const DECISION: Record<FilaDecision["decision"], { texto: string; clase: string }> = {
+  aceptada: { texto: "Aceptada", clase: "bien" },
+  corregida: { texto: "Corregida", clase: "alerta" },
+  rechazada: { texto: "Rechazada", clase: "error" },
+  agregada: { texto: "Agregada por la archivista", clase: "proceso" },
+};
+const TIPOS_DECISION: [string, string][] = [["agente", "Agente"], ["lugar", "Lugar"], ["fecha", "Fecha"],
+  ["forma_documental", "Forma documental"], ["actividad", "Actividad"], ["tipo_actividad", "Tipo de actividad"],
+  ["mandato", "Mandato o norma"], ["titulo", "Título"], ["alcance", "Alcance y contenido"]];
+
+function hoyMenos(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function DecisionesIA() {
+  const [tipo, setTipo] = useState("");
+  const [decision, setDecision] = useState("");
+  const [periodo, setPeriodo] = useState("todo");
+  const [datos, setDatos] = useState<DatosDecisiones | null>(null);
+  const [error, setError] = useState("");
+
+  const consulta = useCallback(() => {
+    const p = new URLSearchParams();
+    if (tipo) p.set("tipo", tipo);
+    if (decision) p.set("decision", decision);
+    if (periodo !== "todo") p.set("desde", hoyMenos(Number(periodo)));
+    return p.toString();
+  }, [tipo, decision, periodo]);
+
+  useEffect(() => {
+    setError("");
+    pedir<DatosDecisiones>(`/api/auditoria/decisiones-ia?${consulta()}`).then(setDatos)
+      .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudieron cargar las decisiones."));
+  }, [consulta]);
+
+  const r = datos?.resumen;
+  const pct = (x: number | null) => (x === null ? "—" : `${x} %`);
+  return (
+    <>
+      <h1>Decisiones de validación asistida por inteligencia artificial</h1>
+      <p className="sub">
+        Visible solo para la administración. Cada propuesta del motor frente a lo que finalmente quedó confirmado, clasificada
+        sola al publicar. Es la fuente de datos del capítulo de evaluación de la tesis.
+      </p>
+      <div className="filtros" style={{ alignItems: "center" }}>
+        <select className="selector" aria-label="Tipo de entidad" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+          <option value="">Todos los tipos de entidad</option>
+          {TIPOS_DECISION.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select className="selector" aria-label="Decisión" value={decision} onChange={(e) => setDecision(e.target.value)}>
+          <option value="">Todas las decisiones</option>
+          {Object.entries(DECISION).map(([k, v]) => <option key={k} value={k}>{v.texto}</option>)}
+        </select>
+        <select className="selector" aria-label="Periodo" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+          <option value="7">Últimos 7 días</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="todo">Todo el registro</option>
+        </select>
+        <button type="button" className="boton chico" disabled={!datos?.total}
+                onClick={() => descargar(`/api/auditoria/decisiones-ia/hoja-de-calculo?${consulta()}`).catch(() => undefined)}>
+          Descargar hoja de cálculo
+        </button>
+        {datos?.modelos.length ? <span className="insignia proceso">Motor de IA · {datos.modelos.join(", ")}</span> : null}
+      </div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      {!datos || !r ? <div className="cargando">Cargando…</div> : (
+        <>
+          <div className="resumen-preservacion">
+            <div className="cifra bien"><strong>{r.aceptada}</strong><span>Aceptadas · {pct(r.pct_aceptadas)}</span></div>
+            <div className="cifra alerta"><strong>{r.corregida}</strong><span>Corregidas · {pct(r.pct_corregidas)}</span></div>
+            <div className="cifra error"><strong>{r.rechazada}</strong><span>Rechazadas · {pct(r.pct_rechazadas)}</span></div>
+            <div className="cifra"><strong>{r.propuestas}</strong><span>Propuestas evaluadas</span></div>
+            <div className="cifra"><strong>{r.agregada}</strong><span>Agregadas por la archivista (el motor no las propuso)</span></div>
+          </div>
+          {datos.por_tipo.length > 1 && (
+            <div className="tarjeta">
+              <div className="tarjeta-cab">Por tipo de entidad</div>
+              <div className="tabla-desplazable">
+                <table className="tabla-permisos">
+                  <thead><tr><th>Tipo</th><th>Propuestas</th><th>Aceptadas</th><th>Corregidas</th><th>Rechazadas</th>
+                    <th>Agregadas</th><th title="De todo lo publicado, cuánto propuso el motor">Cobertura del motor</th></tr></thead>
+                  <tbody>
+                    {datos.por_tipo.map((t) => (
+                      <tr key={t.tipo_nombre}>
+                        <td>{t.tipo_nombre}</td><td>{t.propuestas}</td><td>{t.aceptada} ({pct(t.pct_aceptadas)})</td>
+                        <td>{t.corregida} ({pct(t.pct_corregidas)})</td><td>{t.rechazada} ({pct(t.pct_rechazadas)})</td>
+                        <td>{t.agregada}</td><td>{pct(t.pct_cobertura)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          <div className="tarjeta">
+            <div className="tarjeta-cab">Decisiones · {datos.total}{datos.total > datos.filas.length ? ` (se muestran ${datos.filas.length}; la hoja de cálculo las trae todas)` : ""}</div>
+            {datos.filas.length === 0 ? <div className="vacio">Todavía no hay decisiones registradas con estos filtros.</div> : (
+              <div className="tabla-desplazable">
+                <table className="tabla-permisos">
+                  <thead><tr><th>Fecha</th><th>Documento</th><th>Entidad</th><th>Propuesto por el motor</th><th>Valor final</th>
+                    <th>Decisión</th><th>Versión de la instrucción</th></tr></thead>
+                  <tbody>
+                    {datos.filas.map((f) => (
+                      <tr key={f.id}>
+                        <td>{hora.format(new Date(f.fecha))}</td>
+                        <td><Link to={`/descripcion/registro/${f.documento.id}`}>{f.documento.titulo || "Documento"}</Link></td>
+                        <td>{f.tipo_nombre}</td>
+                        <td>{f.propuesto || <span className="meta">—</span>}</td>
+                        <td>{f.final || <span className="meta">—</span>}</td>
+                        <td><span className={`insignia ${DECISION[f.decision].clase}`}>{DECISION[f.decision].texto}</span></td>
+                        <td>{f.version_prompt ? <code>{f.version_prompt}</code> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <p className="meta">
+            «Cobertura del motor» es la parte de lo publicado que el motor había propuesto. Estas cifras miden la aceptación de la
+            archivista, que ve la propuesta antes de decidir; la evaluación frente a descripciones hechas sin ver la IA es otro
+            procedimiento.
+          </p>
+        </>
+      )}
+    </>
+  );
+}
+
 export function Auditoria() {
   const { usuario } = useSesion();
   const veTodo = !!usuario && (usuario.es_administrador || usuario.permisos?.auditoria === "todo");
+  const esAdmin = !!usuario?.es_administrador;
   const [parametros, setParametros] = useSearchParams();
-  const pestana = veTodo && parametros.get("vista") === "consolidado" ? "consolidado" : "propia";
+  const vista = parametros.get("vista");
+  const pestana = esAdmin && vista === "decisiones" ? "decisiones" : veTodo && vista === "consolidado" ? "consolidado" : "propia";
   return (
     <>
       {veTodo && (
@@ -206,9 +355,14 @@ export function Auditoria() {
           <button type="button" role="tab" aria-selected={pestana === "consolidado"}
                   className={`pestana${pestana === "consolidado" ? " activa" : ""}`}
                   onClick={() => setParametros({ vista: "consolidado" })}>Panel consolidado</button>
+          {esAdmin && (
+            <button type="button" role="tab" aria-selected={pestana === "decisiones"}
+                    className={`pestana${pestana === "decisiones" ? " activa" : ""}`}
+                    onClick={() => setParametros({ vista: "decisiones" })}>Decisiones de IA</button>
+          )}
         </div>
       )}
-      {pestana === "propia" ? <MiTrazabilidad /> : <PanelConsolidado />}
+      {pestana === "propia" ? <MiTrazabilidad /> : pestana === "consolidado" ? <PanelConsolidado /> : <DecisionesIA />}
     </>
   );
 }

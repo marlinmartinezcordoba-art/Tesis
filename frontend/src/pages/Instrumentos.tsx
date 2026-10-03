@@ -8,6 +8,7 @@ import {
 } from "@/lib/instrumentos";
 import { useSesion } from "@/lib/sesion";
 import { PestanaGrafo } from "@/pages/GrafoFondo";
+import { CadenaActividad } from "@/components/ContextoActividad";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice";
@@ -100,6 +101,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
                 <FilaEntidad key={`${e.entidad_id}-${e.codigo_ric}-${e.rol}`} etiqueta={etiquetaRelacion(e)}>
                   {e.en_vocabulario ? entidad(e.valor, e.entidad_id, e.documentos) : e.valor}
                   {e.subtipo && <span className="meta"> ({SUBTIPO_NOMBRE[e.subtipo] || e.subtipo})</span>}
+                  {e.contexto && <CadenaActividad contexto={e.contexto} enlazar={false} />}
                 </FilaEntidad>
               ))}
               <dt>Alcance y contenido</dt><dd>{ficha.alcance_contenido || "—"}</dd>
@@ -428,7 +430,7 @@ function Indice({ fondo }: { fondo: { id: string; titulo: string } }) {
       <p className="sub">Vista de consulta, generada desde el vocabulario ya consolidado del fondo.</p>
       {error && <div className="aviso error">{error}</div>}
       {!datos && !error && <div className="cargando">Cargando…</div>}
-      {datos?.grupos.map((g) => (
+      {datos?.grupos.filter((g) => g.total > 0 || ["agente", "lugar", "forma_documental"].includes(g.clase)).map((g) => (
         <div className="tarjeta" key={g.clase}>
           <div className="tarjeta-cab">{CLASE_NOMBRE_PLURAL[g.clase]} · {g.total}</div>
           {g.total === 0 && <div className="vacio">Sin entradas.</div>}

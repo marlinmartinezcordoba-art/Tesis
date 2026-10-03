@@ -35,6 +35,8 @@ export const CLASES_NODO: { clase: string; nombre: string; ric: string }[] = [
   { clase: "forma_documental", nombre: "Forma documental", ric: "Documentary form type" },
   { clase: "fecha", nombre: "Fecha", ric: "Date" },
   { clase: "actividad", nombre: "Actividad", ric: "Activity" },
+  { clase: "tipo_actividad", nombre: "Tipo de actividad", ric: "Activity type" },
+  { clase: "mandato", nombre: "Mandato o norma", ric: "Mandate" },
   { clase: "instanciacion", nombre: "Archivo (instanciación)", ric: "Instantiation" },
 ];
 

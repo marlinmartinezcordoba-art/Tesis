@@ -280,7 +280,8 @@ def test_indice_agrupa_por_tipo_y_ordena_alfabeticamente(cliente, db, fondo_desc
     db.commit()
     datos = cliente.get("/api/instrumentos/indice", headers=archivista, params={"fondo_id": str(f["fondo"].id)}).json()
     _sin_nada_interno(datos)
-    assert [g["clase"] for g in datos["grupos"]] == ["agente", "lugar", "forma_documental"]
+    assert [g["clase"] for g in datos["grupos"]] == ["agente", "lugar", "forma_documental", "actividad",
+                                                     "tipo_actividad", "mandato"]
     agentes = datos["grupos"][0]
     assert [x["letra"] for x in agentes["letras"]] == ["A", "C", "G", "Z"]
     assert [e["nombre"] for x in agentes["letras"] for e in x["entidades"]] == [

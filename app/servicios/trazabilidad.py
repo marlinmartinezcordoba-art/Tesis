@@ -63,9 +63,11 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "edicion_liberada": ("Liberó una edición", None),
     "descripcion_publicada": ("Publicó una descripción", "Descripciones validadas"),
     "descripcion_editada": ("Corrigió una descripción", "Descripciones validadas"),
+    "decision_ia": ("Decidió sobre una propuesta de la IA", None),
     # Vocabularios
     "fusion_vocabulario": ("Fusionó entidades del vocabulario", "Entidades del vocabulario"),
     "sugerencia_fusion_descartada": ("Descartó una sugerencia de fusión", "Entidades del vocabulario"),
+    "agentes_relacionados": ("Relacionó dos agentes", "Entidades del vocabulario"),
     # Instrumentos
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),

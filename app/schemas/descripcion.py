@@ -4,7 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-TipoEntidad = Literal["agente", "lugar", "fecha", "actividad", "forma_documental"]
+TipoEntidad = Literal["agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental"]
+ClaseVocabulario = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"]
 
 
 class ElementoPorDescribir(BaseModel):
@@ -25,7 +26,7 @@ class IniciarIn(BaseModel):
 
 class VerificarIn(BaseModel):
     fondo_id: uuid.UUID
-    tipo: Literal["agente", "lugar", "forma_documental"]
+    tipo: ClaseVocabulario
     valor: str = Field(min_length=1, max_length=300)
 
 
@@ -43,10 +44,15 @@ class EntidadIn(BaseModel):
     subtipo: str | None = Field(default=None, max_length=40)
     rol: str | None = Field(default=None, max_length=40)
     fecha_normalizada: str | None = None
+    edtf: str | None = Field(default=None, max_length=200)
+    fecha_subtipo: Literal["simple", "rango", "conjunto"] | None = None
+    tipo_clave: str | None = Field(default=None, max_length=40)
+    agente_clave: str | None = Field(default=None, max_length=40)
+    mandato_clave: str | None = Field(default=None, max_length=40)
     fragmento: str | None = Field(default=None, max_length=500)
     documento_id: str | None = None
     inicio: int | None = None
-    clave: str | None = None
+    clave: str | None = Field(default=None, max_length=40)
     reutilizar_id: uuid.UUID | None = None
     crear_nueva: bool = False
 

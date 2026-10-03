@@ -114,6 +114,13 @@ CODIGO_RELACION_RIC = (
     "has_or_had_instantiation",  # RiC-R025 — Record Resource → Instantiation
     "documents",  # RiC-R033 — Record Resource → Activity que documenta
     "has_or_had_subject",  # RiC-R019 — Record Resource → lo que se menciona o trata
+    # -- contexto institucional y relaciones entre agentes (Módulo 2,
+    #    versión actualizada; verificadas contra RiC-O 1.1, archivo oficial) --
+    "has_activity_type",  # rico:hasActivityType — Activity → ActivityType (sin código R: es una propiedad de tipo)
+    "performs_or_performed",  # RiC-R060i — Agent → Activity que ejerce
+    "has_successor",  # RiC-R016 — Agent → Agent que lo sucede
+    "is_agent_associated_with_agent",  # RiC-R044 — vínculo entre agentes sin jerarquía ni sucesión
+    "is_date_associated_with",  # RiC-R068 — Date → la Activity (u otra cosa) que fecha
 )
 
 # Rango de cada código: URI en RiC-O 1.1, para la exportación.
@@ -126,6 +133,23 @@ URI_RICO = {
     "has_or_had_instantiation": "rico:hasOrHadInstantiation",
     "documents": "rico:documents",
     "has_or_had_subject": "rico:hasOrHadSubject",
+    "has_activity_type": "rico:hasActivityType",
+    "performs_or_performed": "rico:performsOrPerformed",
+    "regulates_or_regulated": "rico:regulatesOrRegulated",
+    "authorizes": "rico:authorizes",
+    "has_or_had_subordinate": "rico:hasOrHadSubordinate",
+    "has_successor": "rico:hasSuccessor",
+    "is_agent_associated_with_agent": "rico:isAgentAssociatedWithAgent",
+    "is_date_associated_with": "rico:isDateAssociatedWith",
+    "migrated_into": "rico:migratedInto",
+}
+
+# Inversa declarada en RiC-O 1.1 (owl:inverseOf) de las relaciones entre
+# agentes: se guarda una sola fila y la inversa se lee de ella.
+INVERSA_RICO = {
+    "has_or_had_subordinate": "rico:isOrWasSubordinateTo",
+    "has_successor": "rico:isSuccessorOf",
+    "is_agent_associated_with_agent": "rico:isAgentAssociatedWithAgent",  # simétrica
 }
 
 # Relación — de dónde salió la propuesta (CC-05, CC-08)

@@ -14,14 +14,16 @@ este archivo modifica ni borra eventos.
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.permisos import Actor, acceso_modulo, sin_permiso, usuario_actual
+from app.core.permisos import Actor, acceso_modulo, sin_permiso, solo_administrador, usuario_actual
 from app.db.base import ahora
 from app.db.session import get_db
 from app.models.usuario import Usuario
-from app.servicios import trazabilidad
+from app.servicios import decisiones_ia, trazabilidad
 
 router = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
                    dependencies=[Depends(acceso_modulo("auditoria"))])
@@ -82,3 +84,32 @@ def desglose(usuario_id: uuid.UUID, semana: date | None = None, _: Actor = Depen
     if usuario is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La persona no existe.")
     return trazabilidad.desglose(db, usuario, _dia(semana))
+
+
+# --- Decisiones de validación asistida por IA (solo administrador) -----------------------------------
+
+TipoDecision = Literal["agente", "lugar", "fecha", "forma_documental", "actividad", "tipo_actividad", "mandato",
+                       "titulo", "alcance"]
+Decision = Literal["aceptada", "corregida", "rechazada", "agregada"]
+
+
+def _filtros(tipo, decision, desde, hasta, fondo_id) -> dict:
+    if desde and hasta and desde > hasta:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La fecha inicial es posterior a la final.")
+    return {"tipo": tipo, "decision": decision, "desde": desde, "hasta": hasta, "fondo_id": fondo_id}
+
+
+@router.get("/decisiones-ia", summary="Cada propuesta del motor frente a lo que quedó confirmado")
+def decisiones(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
+               hasta: date | None = None, fondo_id: uuid.UUID | None = None,
+               _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    return decisiones_ia.consultar(db, **_filtros(tipo, decision, desde, hasta, fondo_id))
+
+
+@router.get("/decisiones-ia/hoja-de-calculo", summary="Las mismas decisiones en una hoja de cálculo (evaluación)")
+def decisiones_xlsx(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
+                    hasta: date | None = None, fondo_id: uuid.UUID | None = None,
+                    _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    contenido = decisiones_ia.hoja_de_calculo(db, **_filtros(tipo, decision, desde, hasta, fondo_id))
+    return Response(contenido, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="decisiones-ia.xlsx"'})

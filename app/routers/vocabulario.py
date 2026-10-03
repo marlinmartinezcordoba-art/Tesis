@@ -28,7 +28,7 @@ from app.servicios.auditoria import ip_de, registrar
 router = APIRouter(prefix="/api/vocabulario", tags=["Módulo 3 · Vocabularios"],
                    dependencies=[Depends(acceso_modulo("vocabularios"))])
 
-Clase = Literal["agente", "lugar", "forma_documental"]
+Clase = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"]
 
 
 class EntidadOut(BaseModel):
@@ -50,6 +50,11 @@ class VerificarIn(BaseModel):
 class FusionarIn(BaseModel):
     definitiva_id: uuid.UUID
     absorbida_id: uuid.UUID
+
+
+class RelacionAgentesIn(BaseModel):
+    destino_id: uuid.UUID
+    tipo: Literal["subordinado", "sucesor", "asociado"]
 
 
 class AprobarIn(BaseModel):
@@ -158,7 +163,22 @@ def detalle(entidad_id: uuid.UUID, db: Session = Depends(get_db)):
         "historial": [{"fecha": ev.fecha, "por": nombres.get(ev.usuario_id), "detalle": ev.detalle,
                        "relaciones_movidas": (ev.valor_nuevo or {}).get("relaciones_movidas"),
                        "origen": (ev.valor_nuevo or {}).get("origen")} for ev in eventos],
+        "relaciones_agente": vocabulario.relaciones_de_agente(db, e.id) if e.clase == "agente" else [],
     }
+
+
+@router.post("/{entidad_id}/relaciones-agente", status_code=status.HTTP_201_CREATED,
+             summary="Relacionar dos agentes: subordinación, sucesión o asociación (RiC-R045, R016, R044)")
+def relacionar_agentes(entidad_id: uuid.UUID, datos: RelacionAgentesIn, request: Request,
+                       actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    origen, destino = _entidad_o_404(db, entidad_id), _entidad_o_404(db, datos.destino_id)
+    try:
+        vocabulario.relacionar_agentes(db, origen=origen, destino=destino, tipo=datos.tipo, usuario_id=actor.id,
+                                       ip=ip_de(request))
+    except vocabulario.ErrorRelacionAgentes as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return vocabulario.relaciones_de_agente(db, origen.id)
 
 
 @router.post("/verificar", summary="Servicio de verificación por similitud (el que usa descripción)")

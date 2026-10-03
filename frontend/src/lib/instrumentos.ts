@@ -30,6 +30,8 @@ export interface EntidadFicha {
   codigo_ric: string;
   uri_rico: string | null;
   fecha_normalizada?: string | null;
+  fecha_legible?: string | null;
+  contexto?: import("@/components/ContextoActividad").ContextoActividad;
   en_vocabulario: boolean;
   documentos: number | null;
 }

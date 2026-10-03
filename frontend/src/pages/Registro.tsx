@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
+import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -22,6 +23,9 @@ interface EntidadRegistrada {
   origen: string;
   confianza: number | null;
   fecha_normalizada?: string | null;
+  fecha_legible?: string | null;
+  edtf?: string | null;
+  contexto?: ContextoActividad;
   entidad_id?: string;
   antes_de_fusion?: { id: string; nombre: string };
 }
@@ -142,7 +146,7 @@ export function RegistroDescripcion() {
           incluido_en_id: incluido !== registro.incluido_en?.id ? incluido : null,
           anular_relaciones: quitar, quitar_forma_documental: quitarForma,
           agregar_entidades: nuevas.map((n) => ({
-            tipo: n.tipo, valor: n.valor, subtipo: n.subtipo, rol: n.rol, fecha_normalizada: n.fecha_normalizada,
+            tipo: n.tipo, valor: n.valor, subtipo: n.subtipo, rol: n.rol, edtf: n.edtf, fecha_subtipo: n.fecha_subtipo,
             reutilizar_id: n.verif.reutilizarId || null, crear_nueva: !!n.verif.crearNueva,
           })),
           control: {
@@ -261,8 +265,11 @@ export function RegistroDescripcion() {
               <div className="nombre">
                 {veVocabulario && EN_VOCABULARIO.includes(e.tipo) && e.entidad_id
                   ? <Link to={`/vocabularios/${e.entidad_id}`}>{e.valor}</Link> : e.valor}
-                {e.subtipo ? ` · ${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}` : ""}{e.fecha_normalizada ? ` (${e.fecha_normalizada})` : ""}
+                {e.subtipo ? ` · ${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}` : ""}
+                {e.tipo === "fecha" && e.fecha_legible && e.fecha_legible !== e.valor ? ` · ${e.fecha_legible}` : ""}
+                {e.edtf && <code style={{ marginLeft: 6 }}>{e.edtf}</code>}
               </div>
+              {e.contexto && <CadenaActividad contexto={e.contexto} enlazar={veVocabulario} />}
               {e.antes_de_fusion && (
                 <div className="meta">
                   Antes citaba a{" "}

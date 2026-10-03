@@ -101,7 +101,8 @@ def aceptar_todo(espacio, **cambios):
     """Lo que envía la pantalla cuando el archivista acepta todas las propuestas."""
     entidades = []
     for e in espacio["propuesta"]["entidades"]:
-        entidades.append({k: e[k] for k in ("tipo", "valor", "subtipo", "rol", "fecha_normalizada", "fragmento",
+        entidades.append({k: e[k] for k in ("tipo", "valor", "subtipo", "rol", "fecha_normalizada", "edtf", "fecha_subtipo",
+                                             "tipo_clave", "agente_clave", "mandato_clave", "fragmento",
                                              "documento_id", "inicio", "clave")} | {"crear_nueva": True})
     datos = {"trabajo_id": espacio["trabajo_id"], "titulo": espacio["propuesta"]["titulo"],
              "alcance_contenido": espacio["propuesta"]["alcance"], "entidades": entidades}
@@ -181,7 +182,7 @@ def test_conjunto_como_expediente_sintetiza_y_cita_el_documento_correcto(cliente
             {"tipo": "agente", "subtipo": "entidad_corporativa", "rol": "productor", "valor": "Alcaldía Municipal",
              "fragmento": "la Alcaldía Municipal informa", "documento": 1, "confianza": 0.9},
             {"tipo": "lugar", "valor": "Tunja", "fragmento": "Tunja, 2 de abril de 1948", "documento": 2, "confianza": 0.9},
-            {"tipo": "fecha", "valor": "2 de abril de 1948", "fragmento": "2 de abril de 1948", "documento": 2, "confianza": 0.9},
+            {"tipo": "fecha", "valor": "2 de abril de 1948", "edtf": "1948-04-02", "fragmento": "2 de abril de 1948", "documento": 2, "confianza": 0.9},
         ],
     }
     m = MotorDePrueba(respuesta)
@@ -229,7 +230,7 @@ def test_sin_motor_se_describe_a_mano(cliente, db, fondo, archivista, monkeypatc
     assert espacio["propuesta"]["disponible"] is False and "a mano" in espacio["propuesta"]["aviso"]
     r = cliente.post("/api/descripcion/publicar", headers=archivista, json={
         "trabajo_id": espacio["trabajo_id"], "titulo": "Oficio sobre el archivo", "alcance_contenido": "Texto propio.",
-        "entidades": [{"tipo": "fecha", "valor": "1948"}]})
+        "entidades": [{"tipo": "fecha", "valor": "1948", "edtf": "1948", "fecha_subtipo": "simple"}]})
     assert r.status_code == 201
     registro = r.json()
     assert registro["origen_titulo"] == "persona" and registro["entidades"][0]["origen"] == "persona"
@@ -320,8 +321,8 @@ def test_la_verificacion_de_vocabulario_es_una_dependencia_real(cliente, db, fon
                  json={"fondo_id": str(fondo.id), "tipo": "agente", "valor": "Alcaldía"})
     assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(espacio)).status_code == 201
     assert ("agente", "Alcaldía") in llamadas
-    # Al publicar, cada agente, lugar y forma documental nuevos pasaron por el servicio.
-    assert {c for c, _ in llamadas} == {"agente", "lugar", "forma_documental"}
+    # Al publicar, cada agente, lugar, actividad y forma documental nuevos pasaron por el servicio.
+    assert {c for c, _ in llamadas} == {"agente", "lugar", "forma_documental", "actividad"}
 
 
 # --- Concurrencia -------------------------------------------------------------------------------

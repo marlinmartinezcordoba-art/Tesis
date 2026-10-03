@@ -68,6 +68,7 @@ class Arbol:
     nodos: dict[uuid.UUID, RecursoDocumental] = field(default_factory=dict)
     hijos: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=lambda: defaultdict(list))
     fechas: dict[uuid.UUID, tuple[date, date]] = field(default_factory=dict)
+    legibles: dict[uuid.UUID, list[str]] = field(default_factory=dict)
 
     def subarbol(self, raiz: uuid.UUID) -> list[uuid.UUID]:
         pila, vistos = [raiz], []
@@ -103,12 +104,20 @@ def arbol(db: Session, fondo: RecursoDocumental) -> Arbol:
         a.hijos[padre].append(r.id)
     # Fechas de creación (RiC-R080 is creation date of) normalizadas, de
     # cada descripción, propagadas a sus niveles superiores.
+    # Se usan los límites del intervalo EDTF (c. 1948 cubre todo 1948); una
+    # fecha sin límites conocidos (año desconocido) no cuenta.
+    from app.servicios import fechas as servicio_fechas
+
     propias: dict[uuid.UUID, list[date]] = defaultdict(list)
-    for destino, normalizada in db.execute(
-            select(Relacion.destino_id, Fecha.normalizada).join(Fecha, Fecha.id == Relacion.origen_id)
+    for destino, inicio, fin, normalizada, edtf, expresion in db.execute(
+            select(Relacion.destino_id, Fecha.inicio, Fecha.fin, Fecha.normalizada, Fecha.edtf, Fecha.expresion)
+            .join(Fecha, Fecha.id == Relacion.origen_id)
             .where(Relacion.codigo_ric == "is_creation_date_of", Relacion.estado == "vigente",
-                   Relacion.destino_id.in_(list(a.nodos)), Fecha.normalizada.is_not(None))).all():
-        propias[destino].append(normalizada)
+                   Relacion.destino_id.in_(list(a.nodos)))).all():
+        limites = [d for d in (inicio or normalizada, fin or normalizada) if d]
+        propias[destino].extend(limites)
+        if limites:
+            a.legibles.setdefault(destino, []).append(servicio_fechas.legible(edtf, expresion))
 
     def recorrer(n: uuid.UUID) -> list[date]:
         todas = list(propias.get(n, []))
@@ -123,8 +132,13 @@ def arbol(db: Session, fondo: RecursoDocumental) -> Arbol:
 
 
 def _fechas_texto(a: Arbol, r: RecursoDocumental) -> str | None:
+    # Un documento con una sola fecha propia: tal como se precisó (c. 1948).
+    if len(a.legibles.get(r.id, [])) == 1 and not a.hijos.get(r.id):
+        return a.legibles[r.id][0]
     if r.id in a.fechas:
         ini, fin = a.fechas[r.id]
+        if (ini.month, ini.day, fin.month, fin.day) == (1, 1, 12, 31):  # años completos: no se inventa el día
+            return str(ini.year) if ini.year == fin.year else f"{ini.year} – {fin.year}"
         return _fecha_corta(ini) if ini == fin else f"{_fecha_corta(ini)} – {_fecha_corta(fin)}"
     return r.fechas_extremas
 
@@ -194,7 +208,7 @@ def ficha(db: Session, recurso: RecursoDocumental) -> dict:
     entidades = []
     for e in base["entidades"]:
         propia = uuid.UUID(e["entidad_id"])
-        en_vocabulario = e["tipo"] in ("agente", "lugar", "forma_documental")
+        en_vocabulario = e["tipo"] in ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
         entidades.append({**e, "en_vocabulario": en_vocabulario,
                           "documentos": conexiones.get(propia) if en_vocabulario else None})
     return sin_campos_internos({
@@ -497,7 +511,7 @@ def indice(db: Session, fondo: RecursoDocumental) -> dict:
                                                           EntidadVocabulario.estado == "activa")).all()
     conexiones = vocabulario.conexiones_de(db, [e.id for e in activas])
     grupos = []
-    for clase in ("agente", "lugar", "forma_documental"):
+    for clase in ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"):
         entidades = sorted((e for e in activas if e.clase == clase), key=lambda e: (e.nombre_normalizado, e.nombre))
         letras = defaultdict(list)
         for e in entidades:
@@ -516,6 +530,9 @@ ETIQUETA_RELACION = {
     "has_or_had_subject": "trata de", "is_creation_date_of": "fecha de creación de", "documents": "documenta",
     "includes_or_included": "incluye", "has_or_had_instantiation": "tiene instanciación",
     "migrated_into": "migrada a", "forma_documental": "forma documental",
+    "has_activity_type": "es del tipo", "performs_or_performed": "ejerce", "regulates_or_regulated": "regula",
+    "authorizes": "autoriza a", "is_date_associated_with": "fecha de", "has_or_had_subordinate": "tiene como subordinado",
+    "has_successor": "tiene como sucesor", "is_agent_associated_with_agent": "asociado con",
 }
 MAX_NODOS_GRAFO = 150
 TIPOS_NODO_GRAFO = ("recurso_documental", "entidad_vocabulario", "fecha", "actividad", "instanciacion")
@@ -538,8 +555,10 @@ def _nodo_grafo(db: Session, tipo: str, nodo_id: uuid.UUID, fondo_id: uuid.UUID)
         return {"tipo": tipo, "clase": e.clase, "etiqueta": e.nombre, "subtitulo": e.subtipo}
     if tipo == "fecha":
         f = db.get(Fecha, nodo_id)
-        return {"tipo": tipo, "clase": "fecha", "etiqueta": f.expresion,
-                "subtitulo": f.normalizada.isoformat() if f.normalizada else None} if f else None
+        from app.servicios import fechas
+
+        return {"tipo": tipo, "clase": "fecha", "etiqueta": fechas.legible(f.edtf, f.expresion),
+                "subtitulo": f.edtf} if f else None
     if tipo == "actividad":
         a = db.get(Actividad, nodo_id)
         return {"tipo": tipo, "clase": "actividad", "etiqueta": a.nombre, "subtitulo": None} \

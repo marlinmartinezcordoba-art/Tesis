@@ -25,6 +25,9 @@
   --proc-bg: #dfe6ef;
   --agent: #6d4bd1;
   --agent-bg: #e7e0fa;
+  /* Contexto institucional: actividad, tipo de actividad y mandato (una sola familia). */
+  --ctx: #93437f;
+  --ctx-bg: #f6e1ef;
   --side-bg: #1f2b47;
   --side-fg: #e8edf6;
   --side-muted: #9aa8c4;
@@ -39,7 +42,7 @@
     --accent: #7ea2f0; --accent-ink: #0f1626; --accent-bg: #22304f;
     --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #f0a066; --warn-bg: #3a2717;
     --danger: #ec8a84; --danger-bg: #3a2222; --proc: #9fb6d2; --proc-bg: #233044;
-    --agent: #b3a0f0; --agent-bg: #2c2447;
+    --agent: #b3a0f0; --agent-bg: #2c2447; --ctx: #e8a2d3; --ctx-bg: #3b2236;
     color-scheme: dark;
   }
 }
@@ -48,7 +51,7 @@
   --accent: #7ea2f0; --accent-ink: #0f1626; --accent-bg: #22304f;
   --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #f0a066; --warn-bg: #3a2717;
   --danger: #ec8a84; --danger-bg: #3a2222; --proc: #9fb6d2; --proc-bg: #233044;
-  --agent: #b3a0f0; --agent-bg: #2c2447;
+  --agent: #b3a0f0; --agent-bg: #2c2447; --ctx: #e8a2d3; --ctx-bg: #3b2236;
   color-scheme: dark;
 }
 
@@ -148,6 +151,7 @@ h1 { font-size: 1.35rem; margin: 0 0 4px; }
 .insignia.proceso { background: var(--proc-bg); color: var(--proc); }
 .insignia.agente { background: var(--agent-bg); color: var(--agent); }
 .insignia.acento { background: var(--accent-bg); color: var(--accent); }
+.insignia.contexto { background: var(--ctx-bg); color: var(--ctx); }
 .pares { display: grid; grid-template-columns: 150px 1fr; gap: 10px 14px; font-size: .88rem; }
 .pares dt { color: var(--muted); font-weight: 600; font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; padding-top: 2px; }
 .pares dd { margin: 0; }
@@ -371,7 +375,9 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .n-lugar circle, i.n-lugar, .muestra-insignia.n-lugar { fill: var(--warn); background: var(--warn); }
 .n-forma_documental circle, i.n-forma_documental, .muestra-insignia.n-forma_documental { fill: var(--ok); background: var(--ok); }
 .n-fecha circle, i.n-fecha, .muestra-insignia.n-fecha { fill: var(--proc); background: var(--proc); }
-.n-actividad circle, i.n-actividad, .muestra-insignia.n-actividad { fill: #8a6fb0; background: #8a6fb0; }
+.n-actividad circle, i.n-actividad, .muestra-insignia.n-actividad { fill: var(--ctx); background: var(--ctx); }
+.n-tipo_actividad circle, i.n-tipo_actividad, .muestra-insignia.n-tipo_actividad { fill: var(--ctx); background: var(--ctx); opacity: .75; }
+.n-mandato circle, i.n-mandato, .muestra-insignia.n-mandato { fill: var(--ctx); background: var(--ctx); opacity: .55; }
 .n-instanciacion rect, i.n-instanciacion, .muestra-insignia.n-instanciacion { fill: var(--muted); background: var(--muted); }
 .muestra-insignia { color: #fff; }
 .leyenda-grafo { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .78rem; color: var(--muted); }
@@ -388,3 +394,17 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
   .svg-grafo { height: 420px; }
   .panel-nodo { position: static; }
 }
+
+/* Módulo 2 v2 · fechas EDTF y cadena de contexto */
+.selector-fecha { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-top: 8px; background: var(--bg); }
+.selector-fecha .fila-fecha { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.selector-fecha .fila-fecha .entrada, .selector-fecha .fila-fecha .selector { width: auto; min-width: 0; flex: 0 1 auto; }
+.selector-fecha .entrada.anio { width: 84px; }
+.selector-fecha .entrada.dia { width: 64px; }
+.selector-fecha .legible { margin-top: 8px; font-size: .84rem; }
+.selector-fecha .legible code { margin-left: 6px; }
+.contexto-actividad { margin-top: 8px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; align-items: center; font-size: .84rem; }
+.contexto-actividad label { color: var(--muted); font-size: .78rem; }
+.contexto-actividad .selector { width: 100%; }
+.linea-contexto { font-size: .82rem; color: var(--ctx); margin-top: 4px; }
+@media (max-width: 720px) { .contexto-actividad { grid-template-columns: 1fr; } }

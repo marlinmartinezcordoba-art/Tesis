@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { SelectorFecha } from "@/components/SelectorFecha";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir } from "@/lib/api";
 import {
   EN_VOCABULARIO, NIVEL_NOMBRE, ROL_NOMBRE, SUBTIPO_NOMBRE, TIPO_CLASE, TIPO_NOMBRE, nivelesSuperiores,
   verificacionInicial, verificarVocabulario, type Coincidencia, type NivelSuperior, type TipoEntidad, type Verificacion,
 } from "@/lib/descripcion";
+import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
 
 interface EntidadPropuesta {
   clave: string;
@@ -14,6 +16,11 @@ interface EntidadPropuesta {
   subtipo: string | null;
   rol: string | null;
   fecha_normalizada: string | null;
+  edtf: string | null;
+  fecha_subtipo: SubtipoFecha | null;
+  tipo_clave: string | null;
+  agente_clave: string | null;
+  mandato_clave: string | null;
   fragmento: string | null;
   documento_id: string | null;
   inicio: number | null;
@@ -31,6 +38,7 @@ interface Espacio {
     alcance: string;
     entidades: EntidadPropuesta[];
     motor: string | null;
+    version_prompt: string | null;
     disponible: boolean;
     aviso: string | null;
   } | null;
@@ -43,10 +51,28 @@ interface Item extends EntidadPropuesta {
   manual: boolean;
   editando: boolean;
   verif: Verificacion;
+  control: ControlFecha; // fecha de la entidad, periodo de la actividad o expedición del mandato
+  conPeriodo: boolean;
 }
 
-function porResolver(i: Item) {
-  return i.decision === "pendiente" || (i.decision === "aceptada" && ["sin_verificar", "verificando", "pregunta"].includes(i.verif.estado));
+// Lo que impide publicar: sin decidir, sin verificar en el vocabulario,
+// una fecha sin completar o un tipo de actividad que ninguna actividad usa.
+function porResolver(i: Item, todos: Item[]) {
+  if (i.decision === "pendiente") return true;
+  if (i.decision !== "aceptada") return false;
+  if (["sin_verificar", "verificando", "pregunta"].includes(i.verif.estado)) return true;
+  if (i.tipo === "fecha" && !i.edtf) return true;
+  if (i.tipo === "tipo_actividad") {
+    return !todos.some((a) => a.tipo === "actividad" && a.decision === "aceptada" && a.tipo_clave === i.clave);
+  }
+  return false;
+}
+
+function nuevoItem(e: EntidadPropuesta, manual = false): Item {
+  return {
+    ...e, decision: "pendiente", editada: false, manual, editando: false, verif: verificacionInicial(e.tipo),
+    control: desarmar(e.edtf, e.fecha_subtipo), conPeriodo: !!e.edtf,
+  };
 }
 
 // Texto del documento con los fragmentos citados resaltados.
@@ -102,9 +128,7 @@ export function EspacioTrabajo() {
     const p = espacio.propuesta;
     setTitulo(p?.titulo || "");
     setAlcance(p?.alcance || "");
-    setItems((p?.entidades || []).map((e) => ({
-      ...e, decision: "pendiente", editada: false, manual: false, editando: false, verif: verificacionInicial(e.tipo),
-    })));
+    setItems((p?.entidades || []).map((e) => nuevoItem(e)));
     nivelesSuperiores(espacio.fondo.id, espacio.nivel).then((opciones) => {
       setSuperiores(opciones);
       const destino = espacio.documentos.length === 1 ? espacio.documentos[0].expediente_destino_id : null;
@@ -146,20 +170,29 @@ export function EspacioTrabajo() {
   }
 
   function guardarEdicion(item: Item, e: EntidadManual) {
-    const nuevo = { ...item, valor: e.valor, subtipo: e.subtipo, rol: e.rol, fecha_normalizada: e.fecha_normalizada, editada: true };
+    const nuevo: Item = {
+      ...item, valor: e.valor, subtipo: e.subtipo, rol: e.rol, fecha_normalizada: e.fecha_normalizada,
+      edtf: item.tipo === "actividad" ? item.edtf : e.edtf, fecha_subtipo: (e.fecha_subtipo as SubtipoFecha) || item.fecha_subtipo,
+      control: item.tipo === "actividad" ? item.control : desarmar(e.edtf, e.fecha_subtipo as SubtipoFecha), editada: true,
+    };
     cambiar(item.clave, nuevo);
-    aceptar(nuevo as Item, e.valor);
+    aceptar(nuevo, e.valor);
   }
 
   function agregarManual(e: EntidadManual) {
-    const item: Item = {
-      clave: `m${Date.now()}`, ...e, fragmento: null, documento_id: null, inicio: null, confianza: null,
-      fragmento_localizado: false, decision: "pendiente", editada: false, manual: true, editando: false,
-      verif: verificacionInicial(e.tipo),
-    };
+    const item = nuevoItem({
+      clave: `m${Date.now()}`, ...e, fecha_subtipo: e.fecha_subtipo as SubtipoFecha | null, tipo_clave: null,
+      agente_clave: null, mandato_clave: null, fragmento: null, documento_id: null, inicio: null, confianza: null,
+      fragmento_localizado: false,
+    }, true);
     setItems((l) => [...l, item]);
     setAgregando(false);
     aceptar(item);
+  }
+
+  // Ajuste directo sobre la propuesta (fecha, periodo, cadena de la actividad).
+  function ajustar(item: Item, cambio: Partial<Item>) {
+    cambiar(item.clave, { ...cambio, editada: true });
   }
 
   function elegir(clave: string, desdeTexto = false) {
@@ -173,14 +206,20 @@ export function EspacioTrabajo() {
     setError("");
     setPublicando(true);
     const enviadas = items.filter((i) => i.decision === "aceptada");
+    const vigente = (clave: string | null) => (clave && enviadas.some((x) => x.clave === clave) ? clave : null);
     try {
       await pedir("/api/descripcion/publicar", {
         method: "POST",
         body: JSON.stringify({
           trabajo_id: espacio.trabajo_id, titulo, alcance_contenido: alcance, incluido_en_id: incluidoEn || null,
           entidades: enviadas.map((i) => ({
-            tipo: i.tipo, valor: i.valor, subtipo: i.subtipo, rol: i.rol, fecha_normalizada: i.fecha_normalizada,
-            fragmento: i.fragmento, documento_id: i.documento_id, inicio: i.inicio, clave: i.manual ? null : i.clave,
+            tipo: i.tipo, valor: i.valor, subtipo: i.subtipo, rol: i.rol, fecha_normalizada: null,
+            edtf: i.tipo === "actividad" && !i.conPeriodo ? null : i.edtf,
+            fecha_subtipo: i.tipo === "fecha" ? i.control.subtipo : null,
+            tipo_clave: i.tipo === "actividad" ? vigente(i.tipo_clave) : null,
+            agente_clave: i.tipo === "actividad" ? vigente(i.agente_clave) : null,
+            mandato_clave: i.tipo === "actividad" ? vigente(i.mandato_clave) : null,
+            fragmento: i.fragmento, documento_id: i.documento_id, inicio: i.inicio, clave: i.clave,
             reutilizar_id: i.verif.reutilizarId || null, crear_nueva: !!i.verif.crearNueva,
           })),
         }),
@@ -228,7 +267,9 @@ export function EspacioTrabajo() {
   }
 
   const umbral = espacio.umbral_confianza;
-  const pendientes = items.filter(porResolver).length;
+  const pendientes = items.filter((i) => porResolver(i, items)).length;
+  const opciones = (tipo: TipoEntidad) => items.filter((x) => x.tipo === tipo && x.decision !== "descartada");
+  const nombreDe = (clave: string | null) => items.find((x) => x.clave === clave)?.valor;
   const aceptadas = items.filter((i) => i.decision === "aceptada").length;
   const bajas = items.filter((i) => i.decision !== "descartada" && i.confianza !== null && i.confianza < umbral).length;
   const nombreDoc = (docId: string | null) => espacio.documentos.find((d) => d.id === docId)?.nombre;
@@ -240,6 +281,7 @@ export function EspacioTrabajo() {
       <p className="sub">
         {NIVEL_NOMBRE[espacio.nivel]} · {espacio.documentos.length} documento{espacio.documentos.length === 1 ? "" : "s"}
         {propuesta?.motor && propuesta.disponible && ` · propuesta del motor ${propuesta.motor}`}
+        {propuesta?.version_prompt && propuesta.disponible && <> · instrucción <code>{propuesta.version_prompt}</code></>}
       </p>
       {propuesta?.aviso && <div className="aviso alerta">{propuesta.aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
@@ -296,7 +338,67 @@ export function EspacioTrabajo() {
                                alCancelar={() => cambiar(i.clave, { editando: false })} />
                 ) : (
                   <>
-                    <div className="prop-valor">{i.valor}{i.fecha_normalizada ? ` (${i.fecha_normalizada})` : ""}</div>
+                    <div className="prop-valor">{i.valor}</div>
+                    {i.tipo === "fecha" && i.decision !== "descartada" && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <SelectorFecha valor={i.control}
+                                       alCambiar={(c, edtf) => ajustar(i, { control: c, edtf, fecha_subtipo: c.subtipo })} />
+                      </div>
+                    )}
+                    {i.tipo === "mandato" && (
+                      <div className="linea-contexto">
+                        {i.subtipo ? SUBTIPO_NOMBRE[i.subtipo] : "Instrumento"}{i.edtf ? ` · expedido ${legible(i.edtf)}` : ""}
+                      </div>
+                    )}
+                    {i.tipo === "tipo_actividad" && (
+                      <div className="linea-contexto">
+                        {items.filter((a) => a.tipo === "actividad" && a.tipo_clave === i.clave && a.decision !== "descartada")
+                          .map((a) => a.valor).join(" · ") || "Sin actividad: asígneselo a una o descártelo"}
+                      </div>
+                    )}
+                    {i.tipo === "actividad" && i.decision !== "descartada" && (
+                      <>
+                        <div className="linea-contexto">
+                          Tipo: {nombreDe(i.tipo_clave) || "sin asignar"}
+                          {i.agente_clave && ` · ejercida por ${nombreDe(i.agente_clave)}`}
+                          {i.mandato_clave && ` · regulada por ${nombreDe(i.mandato_clave)}`}
+                          {i.conPeriodo && i.edtf && ` · ${legible(i.edtf)}`}
+                        </div>
+                        <div className="contexto-actividad" onClick={(e) => e.stopPropagation()}>
+                          <label htmlFor={`ta-${i.clave}`}>Tipo de actividad</label>
+                          <select id={`ta-${i.clave}`} className="selector" value={i.tipo_clave || ""}
+                                  onChange={(e) => ajustar(i, { tipo_clave: e.target.value || null })}>
+                            <option value="">Sin asignar</option>
+                            {opciones("tipo_actividad").map((x) => <option key={x.clave} value={x.clave}>{x.valor}</option>)}
+                          </select>
+                          <label htmlFor={`ag-${i.clave}`}>Ejercida por</label>
+                          <select id={`ag-${i.clave}`} className="selector" value={i.agente_clave || ""}
+                                  onChange={(e) => ajustar(i, { agente_clave: e.target.value || null })}>
+                            <option value="">Sin indicar</option>
+                            {opciones("agente").map((x) => <option key={x.clave} value={x.clave}>{x.valor}</option>)}
+                          </select>
+                          <label htmlFor={`ma-${i.clave}`}>Mandato o norma</label>
+                          <select id={`ma-${i.clave}`} className="selector" value={i.mandato_clave || ""}
+                                  onChange={(e) => ajustar(i, { mandato_clave: e.target.value || null })}>
+                            <option value="">Sin mandato</option>
+                            {opciones("mandato").map((x) => <option key={x.clave} value={x.clave}>{x.valor}</option>)}
+                          </select>
+                          <label>
+                            <input type="checkbox" checked={i.conPeriodo} onChange={(e) => ajustar(i, { conPeriodo: e.target.checked })} /> Periodo
+                          </label>
+                          <span className="meta">{i.conPeriodo ? "" : "La actividad no tiene periodo indicado."}</span>
+                        </div>
+                        {i.conPeriodo && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <SelectorFecha valor={i.control} subtipos={["simple", "rango"]}
+                                           alCambiar={(c, edtf) => ajustar(i, { control: c, edtf })} />
+                          </div>
+                        )}
+                        {opciones("tipo_actividad").length === 0 && (
+                          <p className="pista">Para asignar un tipo de actividad, agréguelo con «+ Agregar una entidad».</p>
+                        )}
+                      </>
+                    )}
                     {i.fragmento && (
                       <div className="prop-frag">
                         «{i.fragmento}»{espacio.documentos.length > 1 && nombreDoc(i.documento_id) ? ` — ${nombreDoc(i.documento_id)}` : ""}
@@ -305,7 +407,9 @@ export function EspacioTrabajo() {
                     )}
                     <div className="acciones" onClick={(e) => e.stopPropagation()}>
                       {i.decision !== "aceptada" && i.decision !== "descartada" && (
-                        <button type="button" className="boton chico primario" onClick={() => aceptar(i)}>Aceptar</button>
+                        <button type="button" className="boton chico primario" disabled={i.tipo === "fecha" && !i.edtf}
+                                title={i.tipo === "fecha" && !i.edtf ? "Complete la fecha" : undefined}
+                                onClick={() => aceptar(i)}>Aceptar</button>
                       )}
                       {i.decision !== "descartada" && (
                         <button type="button" className="boton chico" onClick={() => cambiar(i.clave, { editando: true })}>Editar</button>

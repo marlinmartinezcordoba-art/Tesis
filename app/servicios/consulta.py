@@ -28,7 +28,8 @@ def ficha_publica(db: Session, recurso: RecursoDocumental) -> dict:
         "entidades": [
             {"entidad_id": e["entidad_id"], "tipo": e["tipo"], "valor": e["valor"], "subtipo": e["subtipo"],
              "rol": e["rol"], "codigo_ric": e["codigo_ric"], "uri_rico": e["uri_rico"],
-             **({"fecha_normalizada": e["fecha_normalizada"]} if "fecha_normalizada" in e else {})}
+             **{k: e[k] for k in ("fecha_normalizada", "fecha_subtipo", "edtf", "fecha_legible", "fecha_inicio",
+                                  "fecha_fin", "contexto", "expedicion") if k in e}}
             for e in d["entidades"]
         ],
         "instanciaciones": d["instanciaciones"],
