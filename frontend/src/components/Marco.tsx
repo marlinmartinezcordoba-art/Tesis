@@ -93,22 +93,19 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
   const [parametros] = useSearchParams();
   const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo));
   const actual = visibles.find((e) => pathname === e.ruta || pathname.startsWith(`${e.ruta}/`));
+  // Acordeón: un solo módulo abierto a la vez. Al llegar a otro módulo, sus
+  // vistas se abren y las del anterior se esconden (la barra no se alarga).
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set(actual ? [actual.ruta] : []));
-  // El módulo de la vista activa siempre queda expandido al llegar a él.
   useEffect(() => {
-    if (actual) setAbiertos((a) => (a.has(actual.ruta) ? a : new Set([...a, actual.ruta])));
-  }, [actual]);
+    setAbiertos(new Set(actual ? [actual.ruta] : []));
+  }, [actual?.ruta]);
 
   const grupos: [string, Entrada[]][] = [
     ["Trabajo archivístico", visibles.filter((e) => e.grupo === "trabajo")],
     ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
   ];
-  const alternar = (ruta: string) => setAbiertos((a) => {
-    const n = new Set(a);
-    if (n.has(ruta)) n.delete(ruta);
-    else n.add(ruta);
-    return n;
-  });
+  // Abrir un módulo cierra el que estaba abierto; tocar el abierto lo cierra.
+  const alternar = (ruta: string) => setAbiertos((a) => (a.has(ruta) ? new Set() : new Set([ruta])));
 
   return (
     <nav className="navegacion" aria-label="Módulos">

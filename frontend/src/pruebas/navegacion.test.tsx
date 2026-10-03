@@ -50,15 +50,28 @@ describe("árbol de submódulos", () => {
     }
   });
 
-  it("expandir un módulo revela exactamente sus vistas, y se pueden tener varios abiertos", () => {
+  it("acordeón: abrir un módulo revela exactamente sus vistas y esconde las del que estaba abierto", () => {
     montar("/vocabularios");
-    fireEvent.click(rama("Instrumentos"));
-    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "Índice", "RiC-O"]);
-    expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("true");
     // Sin ?vista, la primera vista del módulo es la activa.
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Vocabulario");
     fireEvent.click(rama("Instrumentos"));
-    expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("false");
+    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "Índice", "RiC-O"]);
+    expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("false");
+    expect(vistasVisibles("Vocabularios")).toEqual([]);
+    // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
+    fireEvent.click(rama("Instrumentos"));
+    expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
+  });
+
+  it("al pasar de un módulo a otro, las vistas del anterior se esconden solas", () => {
+    montar("/ingesta");
+    fireEvent.click(rama("Descripción"));
+    fireEvent.click(screen.getByRole("link", { name: "Descritas" }));
+    fireEvent.click(rama("Instrumentos"));
+    fireEvent.click(screen.getByRole("link", { name: "Grafo" }));
+    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=grafo");
+    const abiertos = screen.getAllByRole("button", { expanded: true }).map((b) => b.textContent);
+    expect(abiertos).toEqual(["Instrumentos"]);
   });
 
   it("elegir una vista navega a ella y pasa a ser la resaltada", () => {

@@ -46,7 +46,7 @@ Unifica la navegación en un solo árbol de submódulos y resuelve con un patró
 - **Expansión:**
   - el módulo de la vista activa se **expande solo** al llegar, también desde un enlace directo;
   - los demás empiezan contraídos;
-  - se pueden tener varios abiertos.
+  - **acordeón: un solo módulo abierto a la vez.** Al pasar a otro módulo, o al tocar el nombre de otro, las vistas del anterior se esconden solas; tocar el abierto lo cierra. *(Cambio pedido por la autora tras ver la primera versión: con varios abiertos la barra se volvía una lista larga. El prompt permitía varios a la vez.)*
 - **Vista activa:** fondo distinto y barra de acento a la izquierda, con `aria-current="page"`.
 - **Cada vista vive en la dirección:** `?vista=` para las vistas internas, y una ruta propia para Configuración de preservación. El componente `useVista` es el único que las lee. Si se pide una vista que el rol no tiene, cae en la primera permitida.
 - **Las filas de pestañas horizontales desaparecieron** de las siete pantallas. El encabezado muestra el título de la vista y su descripción.
@@ -190,14 +190,15 @@ Todas son GET y exigen sesión. Las dos pruebas que recorren todas las rutas rea
 
 ## 18. Pruebas automatizadas
 
-**Interfaz.** Es nuevo: **Vitest con Testing Library**, gratuitos, y el CI ahora corre `npm test`. Están en `frontend/src/pruebas/navegacion.test.tsx`, 5 pruebas:
+**Interfaz.** Es nuevo: **Vitest con Testing Library**, gratuitos, y el CI ahora corre `npm test`. Están en `frontend/src/pruebas/navegacion.test.tsx`, 6 pruebas:
 1. Llegar por la dirección de una vista interna (Sugerencias de fusión) **expande su módulo y la resalta**; los demás quedan contraídos.
-2. Expandir Instrumentos revela **exactamente** sus 6 vistas, en orden, y se pueden tener varios módulos abiertos.
-3. Elegir una vista navega a ella y pasa a ser la resaltada.
-4. Configuración de preservación es una vista del árbol con ruta propia.
-5. Cada rol ve solo sus vistas, y un módulo con una sola vista es un enlace simple.
+2. **Acordeón:** abrir Instrumentos revela **exactamente** sus 6 vistas, en orden, y esconde las de Vocabularios; tocar el módulo abierto lo cierra.
+3. Recorrer Ingesta → Descripción › Descritas → Instrumentos › Grafo deja abierto **solo** Instrumentos.
+4. Elegir una vista navega a ella y pasa a ser la resaltada.
+5. Configuración de preservación es una vista del árbol con ruta propia.
+6. Cada rol ve solo sus vistas, y un módulo con una sola vista es un enlace simple.
 
-Se comprobó que las pruebas **detectan una falla**: al quitar la expansión automática, fallan 4 de las 5. La quinta prueba los permisos, no la expansión.
+Se comprobó que las pruebas **detectan una falla**: al quitar la expansión automática fallaban 4 de las 5 originales, y al volver al comportamiento de varios módulos abiertos fallan las 2 del acordeón.
 
 **Servidor.** `tests/test_rediseno.py`, 9 pruebas:
 1. Mi trazabilidad muestra 15. **El Excel trae los 22 registros que cumplen el filtro**, con las columnas extra.
@@ -221,7 +222,7 @@ Se comprobó que las pruebas **detectan una falla**: al quitar la expansión aut
 - [x] Las ocho pantallas recorridas en el navegador, a 1360 px y a 390 px. Ninguna conserva pestañas horizontales y en todas la vista activa queda resaltada.
 - [x] Evidencia en `documentacion/anexos/rediseno-navegacion/`:
   1. árbol abierto desde la dirección;
-  2. varios módulos abiertos;
+  2. acordeón, antes y después (con varios abiertos frente a uno solo);
   3. Cargar con actividad reciente;
   4. visor sin descarga;
   5. Mi trazabilidad con 15 y el botón de exportar;
