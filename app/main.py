@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.routers import (alertas, auditoria, auth, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
+from app.routers import (alertas, auditoria, auth, busqueda, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
                          grafo, instrumentos, perfil_agn, preservacion, vocabulario)
 
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +52,7 @@ app.include_router(auditoria.gestion)
 app.include_router(auditoria.revision)
 app.include_router(exportacion.router)
 app.include_router(grafo.router)
+app.include_router(busqueda.router)
 app.include_router(evaluacion.router)
 app.include_router(publico.router)  # datos abiertos: el subconjunto público (INS-01, INS-04, INS-05, INS-08)
 app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atiende todo lo demás

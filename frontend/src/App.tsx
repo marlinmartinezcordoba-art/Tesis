@@ -4,6 +4,7 @@ import { Marco, inicioDe, veAlertas } from "@/components/Marco";
 import { puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Alertas } from "@/pages/Alertas";
+import { Buscar } from "@/pages/Buscar";
 import { Auditoria, TrazabilidadEntidad } from "@/pages/Auditoria";
 import { EvaluacionCiega } from "@/pages/Evaluacion";
 import { DefinirContrasena } from "@/pages/DefinirContrasena";
@@ -67,6 +68,7 @@ export default function App() {
       <Route path="/auditoria" element={<Protegida modulo="auditoria"><Auditoria /></Protegida>} />
       <Route path="/evaluacion" element={<Protegida modulo="descripcion" tipo="escribir"><EvaluacionCiega /></Protegida>} />
       <Route path="/auditoria/entidad/:tipo/:id" element={<Protegida modulo="auditoria"><TrazabilidadEntidad /></Protegida>} />
+      <Route path="/buscar" element={<Protegida modulo="catalogo"><Buscar /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />

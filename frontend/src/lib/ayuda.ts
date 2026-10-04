@@ -261,6 +261,19 @@ const GUIAS: Record<string, Guia> = {
         texto: "Cree la evaluación, agregue documentos aún sin describir, genere las propuestas (nadie las ve) e iníciela. Al final, «Ver resultados» muestra precisión, exhaustividad y F1. Al verlos, usted queda expuesta a las propuestas." },
     ],
   },
+  buscar: {
+    titulo: "Buscar en el archivo",
+    pasos: [
+      { titulo: "Una caja para todo.",
+        texto: "Busca a la vez en la descripción, en el texto de los documentos (OCR), en los códigos de referencia, en los identificadores (VIAF, ORCID…) y en las autoridades. No importan tildes, mayúsculas ni plurales." },
+      { titulo: "Frases y exclusiones.",
+        texto: "Entre comillas busca la frase exacta («archivo municipal»); un guion delante excluye una palabra (-1950)." },
+      { titulo: "Por qué aparece cada resultado.",
+        texto: "Cada documento dice dónde coincidió: descripción, texto del documento, código de referencia o la autoridad que cita. Afine por nivel, por años o por agente." },
+      { titulo: "Lo reservado no aparece.",
+        texto: "El perfil de consulta solo busca en lo publicado y de acceso público (Ley 1712, arts. 18 y 19): lo reservado no sale ni en los resultados ni en los conteos." },
+    ],
+  },
   alertas: {
     titulo: "Panel de alertas",
     pasos: [
@@ -304,6 +317,7 @@ export function guiaPara(ruta: string, vista: string | null): Guia | null {
   if (ruta.startsWith("/auditoria")) return GUIAS[`auditoria:${vista || "propia"}`] || GUIAS["auditoria:propia"];
   if (ruta.startsWith("/evaluacion")) return GUIAS.evaluacion;
   if (ruta.startsWith("/alertas")) return GUIAS.alertas;
+  if (ruta.startsWith("/buscar")) return GUIAS.buscar;
   if (ruta.startsWith("/usuarios")) return GUIAS.usuarios;
   if (ruta.startsWith("/perfil")) return GUIAS.perfil;
   return null;
