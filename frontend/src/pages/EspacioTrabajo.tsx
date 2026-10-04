@@ -15,7 +15,7 @@ import {
   verificacionInicial, verificarVocabulario, type Coincidencia, type NivelSuperior, type TipoEntidad, type Verificacion,
 } from "@/lib/descripcion";
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
-import { VisorDocumento } from "@/components/VisorDocumento";
+import { VisorDocumento, Zona } from "@/components/VisorDocumento";
 
 interface EntidadPropuesta {
   clave: string;
@@ -36,6 +36,9 @@ interface EntidadPropuesta {
   fragmento_localizado: boolean;
   existente_id?: string | null;
   existente_nombre?: string | null;
+  // Dónde está el fragmento en el documento (RF-OCR-001).
+  pagina?: number | null;
+  zona?: Zona | null;
 }
 
 interface Espacio {
@@ -58,6 +61,10 @@ interface Espacio {
     idiomas?: string[];
     confianza_idiomas?: number | null;
     contexto_enviado?: Record<string, number>;
+    // Registro inalterable de la propuesta (RF-AI-002).
+    propuesta_id?: string;
+    version_modelo?: string | null;
+    generada_en?: string | null;
   } | null;
   umbral_confianza: number;
 }
@@ -313,6 +320,9 @@ export function EspacioTrabajo() {
   const bajas = items.filter((i) => i.decision !== "descartada" && i.confianza !== null && i.confianza < umbral).length;
   const nombreDoc = (docId: string | null) => espacio.documentos.find((d) => d.id === docId)?.nombre;
   const propuesta = espacio.propuesta;
+  // La entidad elegida, para ir a su página en el visor y resaltar su zona.
+  const elegida = items.find((x) => x.clave === activa);
+  const zonaEn = (docId: string) => (elegida?.documento_id === docId && elegida.zona?.cajas?.length ? elegida.zona : null);
 
   return (
     <>
@@ -320,6 +330,7 @@ export function EspacioTrabajo() {
       <p className="sub">
         {NIVEL_NOMBRE[espacio.nivel]} · {espacio.documentos.length} documento{espacio.documentos.length === 1 ? "" : "s"}
         {propuesta?.motor && propuesta.disponible && ` · propuesta del motor ${propuesta.motor}`}
+        {propuesta?.version_modelo && propuesta.disponible && <> (versión {propuesta.version_modelo})</>}
         {propuesta?.version_prompt && propuesta.disponible && <> · instrucción <code>{propuesta.version_prompt}</code></>}
         {propuesta?.contexto_enviado && Object.keys(propuesta.contexto_enviado).length > 0 && (
           <> · el motor recibió {Object.values(propuesta.contexto_enviado).reduce((a, b) => a + b, 0)} entidad(es) del vocabulario del fondo</>
@@ -336,7 +347,7 @@ export function EspacioTrabajo() {
                 {d.nombre} — texto extraído{d.origen_texto === "ocr" ? " por OCR" : ""}
                 {d.confianza_ocr !== null && <> · confianza {confianzaTexto(d.confianza_ocr)}</>}
               </div>
-              <VisorDocumento base={`/api/descripcion/${d.id}/previsualizar`} alto={460} />
+              <VisorDocumento base={`/api/descripcion/${d.id}/previsualizar`} alto={460} resaltado={zonaEn(d.id)} />
               {d.ocr_baja_confianza && (
                 <div className="aviso alerta" role="note">
                   La lectura automática de este documento tuvo confianza {confianzaTexto(d.confianza_ocr ?? 0)}, por debajo
@@ -469,6 +480,7 @@ export function EspacioTrabajo() {
                     {i.fragmento && (
                       <div className="prop-frag">
                         «{i.fragmento}»{espacio.documentos.length > 1 && nombreDoc(i.documento_id) ? ` — ${nombreDoc(i.documento_id)}` : ""}
+                        {i.pagina && <span className="prop-pagina"> · pág. {i.pagina}</span>}
                         {!i.fragmento_localizado && !i.manual && " · no se encontró en el texto: verifíquelo"}
                       </div>
                     )}

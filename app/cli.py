@@ -165,8 +165,54 @@ def restaurar_paquete(ruta: str) -> int:
     return 0
 
 
+def paginar_textos() -> int:
+    """Documentos cargados antes del lote 5 (RF-OCR-001): vuelve a extraer su
+    texto para guardarlo por páginas, con las líneas y su caja, y ubica la
+    página y la zona de los fragmentos ya publicados que no la tienen. No
+    corre solo: con muchos documentos escaneados, repite el OCR de todos.
+    El texto nuevo sale del mismo archivo; los fragmentos se vuelven a ubicar
+    por su contenido."""
+    from app.models.descripcion import Relacion
+    from app.models.evidencia_ia import PaginaTexto
+    from app.models.instanciacion import Instanciacion
+    from app.servicios import almacen, evidencia, texto
+
+    hechos = fallidos = zonas = 0
+    with SessionLocal() as db:
+        con_paginas = select(PaginaTexto.instanciacion_id)
+        pendientes = db.scalars(select(Instanciacion.id).where(
+            Instanciacion.texto_extraido.is_not(None), Instanciacion.origen_texto.in_(("ocr", "capa_de_texto")),
+            Instanciacion.id.not_in(con_paginas))).all()
+        print(f"  {len(pendientes)} documento(s) sin páginas.")
+        for inst_id in pendientes:
+            inst = db.get(Instanciacion, inst_id)
+            try:
+                t = texto.extraer(almacen.ruta_absoluta(inst.ruta), inst.formato_mime, lambda *_: None)
+            except Exception as exc:  # noqa: BLE001 — un archivo malo no detiene a los demás
+                print(f"  · {inst.nombre_original}: no se pudo leer ({exc}).")
+                fallidos += 1
+                continue
+            if not t.paginas_texto:
+                continue
+            inst.texto_extraido = t.contenido
+            evidencia.guardar_paginas(db, inst, t.paginas_texto)
+            db.flush()
+            for rel in db.scalars(select(Relacion).where(Relacion.fragmento_instanciacion_id == inst.id,
+                                                         Relacion.fragmento.is_not(None),
+                                                         Relacion.fragmento_pagina.is_(None))):
+                zona = evidencia.ubicar(db, inst.id, rel.fragmento_inicio, rel.fragmento)
+                if zona:
+                    rel.fragmento_pagina, rel.fragmento_zona = zona["pagina"], zona
+                    zonas += 1
+            db.commit()
+            hechos += 1
+            print(f"  · {inst.nombre_original}: {len(t.paginas_texto)} página(s).")
+    print(f"  Listo: {hechos} documento(s) con páginas, {zonas} fragmento(s) ubicados, {fallidos} sin leer.")
+    return 0 if not fallidos else 1
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
-            "probar-preservacion": probar_preservacion}
+            "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos}
 CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete}
 
 if __name__ == "__main__":

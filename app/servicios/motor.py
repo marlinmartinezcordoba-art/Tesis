@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 import uuid
 from dataclasses import asdict, dataclass, field
 
@@ -71,6 +72,10 @@ class EntidadPropuesta:
     # en el contexto que se le entregó (o que coincide exactamente con ella).
     existente_id: str | None = None
     existente_nombre: str | None = None
+    # Dónde está el fragmento en el documento (RF-OCR-001): página y zona en
+    # fracciones de la página. Lo agrega servicios/propuestas_ia.
+    pagina: int | None = None
+    zona: dict | None = None
 
 
 @dataclass
@@ -101,9 +106,22 @@ class Propuesta:
     version_prompt: str | None = None
     disponible: bool = False
     aviso: str | None = None
+    # Evidencia de la generación (brecha RF-AI-002): la versión del modelo que
+    # respondió según el proveedor, cuándo y cuánto tardó, con qué parámetros
+    # y sobre qué entrada (huella de cada texto enviado).
+    version_modelo: str | None = None
+    generada_en: str | None = None
+    duracion_ms: int | None = None
+    parametros: dict = field(default_factory=dict)
+    entrada: dict = field(default_factory=dict)
+    # La respuesta del motor tal como llegó. Va al registro de la propuesta,
+    # no a la pantalla.
+    respuesta: dict | None = field(default=None, repr=False)
 
     def a_dict(self) -> dict:
-        return asdict(self)
+        datos = asdict(self)
+        datos.pop("respuesta", None)
+        return datos
 
 
 # --- Motor Gemini ------------------------------------------------------------------
@@ -180,11 +198,40 @@ NIVELES = {
 }
 
 
+TEMPERATURA = 0.1
+
+
+def parametros_de_generacion() -> dict:
+    """Lo que fija cómo responde el motor, además de la instrucción
+    (version_prompt): queda en cada propuesta."""
+    return {"temperatura": TEMPERATURA, "formato_respuesta": "application/json con esquema",
+            "max_caracteres_documento": MAX_CARACTERES_DOCUMENTO, "max_caracteres_total": MAX_CARACTERES_TOTAL}
+
+
+def entrada_de(documentos: list["Documento"], contexto: list["EntradaContexto"] | None) -> dict:
+    """Qué recibió el motor: de cada documento, cuántos caracteres se
+    enviaron y la huella SHA-256 de ese tramo (así se puede probar sobre qué
+    texto propuso, aunque el texto se vuelva a extraer); y el vocabulario
+    del fondo que se le mostró como contexto."""
+    docs, total = [], 0
+    for d in documentos:
+        texto = (d.texto or "")[:MAX_CARACTERES_DOCUMENTO]
+        texto = texto[: max(0, MAX_CARACTERES_TOTAL - total)]
+        total += len(texto)
+        docs.append({"id": str(d.id), "nombre": d.nombre, "caracteres_texto": len(d.texto or ""),
+                     "caracteres_enviados": len(texto), "huella_enviada": hashlib.sha256(texto.encode("utf-8")).hexdigest()})
+    return {"documentos": docs,
+            "contexto": [{"codigo": c.codigo, "id": c.id, "tipo": c.tipo, "nombre": c.nombre} for c in contexto or []]}
+
+
 class MotorGemini:
     def __init__(self, clave: str, modelo: str):
         self.clave = clave
         self.modelo = modelo
         self.nombre = modelo
+        # Lo que dijo el proveedor de la última respuesta: versión exacta del
+        # modelo y tokens usados.
+        self.ultima: dict = {}
 
     def analizar(self, documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None) -> dict:
         partes, total = [], 0
@@ -198,7 +245,7 @@ class MotorGemini:
         cuerpo = {
             "systemInstruction": {"parts": [{"text": INSTRUCCION}]},
             "contents": [{"role": "user", "parts": [{"text": pedido}]}],
-            "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json", "responseSchema": ESQUEMA},
+            "generationConfig": {"temperature": TEMPERATURA, "responseMimeType": "application/json", "responseSchema": ESQUEMA},
         }
         try:
             return json.loads(self._llamar(cuerpo))
@@ -224,7 +271,9 @@ class MotorGemini:
             log.warning("Gemini respondió %s: %s", r.status_code, r.text[:300])
             raise MotorError(f"El motor de análisis respondió con un error ({r.status_code}).")
         try:
-            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            datos = r.json()
+            self.ultima = {"version_modelo": datos.get("modelVersion"), "uso": datos.get("usageMetadata")}
+            return datos["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, ValueError) as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
 
@@ -414,16 +463,30 @@ def _enlazar_contexto(entidades: list[EntidadPropuesta], actividades: list[tuple
 
 
 def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None) -> Propuesta:
+    from app.db.base import ahora
+
     motor = motor_activo()
+    momento = ahora().isoformat()
     if motor is None:
         return Propuesta(aviso="No hay un motor de análisis configurado en el servidor. Puede describir a mano: "
-                               "escriba el título y el alcance, y agregue las entidades.")
+                               "escriba el título y el alcance, y agregue las entidades.", generada_en=momento)
+    comun = {"motor": motor.nombre, "version_prompt": VERSION_PROMPT, "generada_en": momento,
+             "parametros": parametros_de_generacion(), "entrada": entrada_de(documentos, contexto)}
     if not any((d.texto or "").strip() for d in documentos):
-        return Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT, aviso="Los documentos no tienen texto extraído (por ejemplo, una imagen "
-                                                   "sin texto legible). Describa a mano.")
+        return Propuesta(**comun, aviso="Los documentos no tienen texto extraído (por ejemplo, una imagen "
+                                         "sin texto legible). Describa a mano.")
+    inicio = time.monotonic()
     try:
         crudo = motor.analizar(documentos, nivel, contexto) if contexto else motor.analizar(documentos, nivel)
-        return normalizar(crudo, documentos, motor.nombre, contexto)
+        propuesta = normalizar(crudo, documentos, motor.nombre, contexto)
+        propuesta.respuesta = crudo
     except MotorError as exc:
-        return Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT,
-                         aviso=f"{exc} Puede describir a mano o volver a intentarlo más tarde.")
+        propuesta = Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT,
+                              aviso=f"{exc} Puede describir a mano o volver a intentarlo más tarde.")
+    ultima = getattr(motor, "ultima", None) or {}
+    propuesta.generada_en, propuesta.parametros, propuesta.entrada = momento, comun["parametros"], comun["entrada"]
+    propuesta.duracion_ms = int((time.monotonic() - inicio) * 1000)
+    propuesta.version_modelo = ultima.get("version_modelo")
+    if ultima.get("uso"):
+        propuesta.parametros = propuesta.parametros | {"uso_tokens": ultima["uso"]}
+    return propuesta

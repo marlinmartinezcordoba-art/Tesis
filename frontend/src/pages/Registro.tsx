@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
+import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
   CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
@@ -35,6 +36,7 @@ interface EntidadRegistrada {
   contexto?: ContextoActividad;
   entidad_id?: string;
   antes_de_fusion?: { id: string; nombre: string };
+  pagina?: number | null;
 }
 
 interface ClasificacionGuardada {
@@ -58,6 +60,7 @@ interface Registro {
   incluido_en: { id: string; titulo: string; nivel: string } | null;
   forma_documental: { id: string; nombre: string; origen: string } | null;
   entidades: EntidadRegistrada[];
+  propuestas_ia?: PropuestaRegistrada[];
   instanciaciones: InstanciacionRegistro[];
   proteccion: Proteccion;
   origen_titulo: string | null;
@@ -382,6 +385,7 @@ export function RegistroDescripcion() {
       <OriginalesFisicos recursoId={registro.id} instanciaciones={registro.instanciaciones} puede={puede && !editando}
                          alGuardar={(r) => cargar(r as Registro)} />
       <CompletitudDescripcion recursoId={registro.id} version={registro} />
+      <PropuestasIA propuestas={registro.propuestas_ia || []} puede={puede} />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>
@@ -417,6 +421,7 @@ export function RegistroDescripcion() {
               <div className="meta">
                 {e.uri_rico || e.codigo_ric} · {ORIGEN_NOMBRE[e.origen]}{e.confianza !== null ? ` · confianza ${Math.round(e.confianza * 100)} %` : ""}
                 {e.fragmento && ` · «${e.fragmento}»`}
+                {e.fragmento && e.pagina && <span className="prop-pagina"> · pág. {e.pagina}</span>}
               </div>
             </div>
             {editando && (

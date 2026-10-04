@@ -13,6 +13,13 @@ Extracción del texto que después usa el motor de descripción.
 
 Un archivo dañado o ilegible lanza ArchivoIlegible con un mensaje en
 lenguaje sencillo.
+
+Páginas y zonas (brecha RF-OCR-001): el texto de un PDF o de una imagen se
+guarda también partido por páginas (`Texto.paginas_texto`), con la posición
+de cada página en el texto completo. Con OCR, el texto se arma a partir de
+la tabla de palabras de Tesseract, y de cada línea queda su caja en
+fracciones de la página: así cada fragmento que cite el motor se ubica en
+su página y se resalta en el visor.
 """
 
 import os
@@ -20,7 +27,7 @@ import re
 import subprocess
 import tempfile
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 from xml.etree import ElementTree
@@ -50,12 +57,30 @@ class OcrNoDisponible(Exception):
 
 
 @dataclass
+class PaginaLeida:
+    """Una página del texto: su posición en el texto completo y, si hubo OCR,
+    sus líneas con la caja de cada una."""
+
+    numero: int
+    inicio: int
+    fin: int
+    origen: str  # ocr | capa_de_texto
+    ancho_px: int | None = None
+    alto_px: int | None = None
+    confianza: float | None = None
+    # [inicio, fin, x, y, ancho, alto, bloque]: posiciones en el texto completo
+    # y caja en fracciones de la página (0 a 1, desde arriba a la izquierda).
+    lineas: list[list] | None = None
+
+
+@dataclass
 class Texto:
     contenido: str | None
     origen: str  # capa_de_texto | ocr | sin_texto
     paginas: int | None = None
     confianza_ocr: float | None = None  # 0 a 100; solo si hubo OCR
     palabras_ocr: int | None = None  # cuántas palabras sostienen ese promedio
+    paginas_texto: list[PaginaLeida] | None = None
 
 
 @dataclass
@@ -64,6 +89,10 @@ class Lectura:
 
     texto: str
     confianzas: list[float]  # una por palabra reconocida
+    # Una entrada por página de la imagen: (texto, ancho, alto, confianza,
+    # líneas [inicio, fin, x, y, ancho, alto, bloque] con posiciones en el
+    # texto de esa página).
+    paginas: list[tuple] = field(default_factory=list)
 
 
 def promedio(lecturas: list[Lectura]) -> tuple[float | None, int]:
@@ -91,6 +120,89 @@ def _confianzas_tsv(tsv: str) -> list[float]:
         if conf >= 0 and partes[11].strip():
             salida.append(conf)
     return salida
+
+
+def _estructura_tsv(tsv: str) -> list[tuple]:
+    """Arma el texto de cada página desde la tabla de Tesseract, con la
+    posición y la caja de cada línea. Las líneas de un mismo párrafo van
+    separadas por un salto; los párrafos, por una línea en blanco (lo mismo
+    que la salida de texto de Tesseract, pero con posiciones exactas)."""
+    paginas: dict[int, dict] = {}
+    for i, linea in enumerate(tsv.splitlines()):
+        p = linea.split("\t")
+        if i == 0 or len(p) < 12:
+            continue
+        try:
+            nivel, pagina, bloque, parrafo, renglon = (int(x) for x in p[:5])
+            izq, arriba, ancho, alto = (int(x) for x in p[6:10])
+        except ValueError:
+            continue
+        if nivel == 1:
+            paginas[pagina] = {"ancho": ancho, "alto": alto, "lineas": {}, "confianzas": []}
+            continue
+        pag = paginas.setdefault(pagina, {"ancho": 0, "alto": 0, "lineas": {}, "confianzas": []})
+        clave = (bloque, parrafo, renglon)
+        if nivel == 4:
+            pag["lineas"].setdefault(clave, {"caja": (izq, arriba, ancho, alto), "palabras": []})
+        elif nivel == 5:
+            palabra = p[11].replace("\x00", "").strip()
+            if not palabra:
+                continue
+            pag["lineas"].setdefault(clave, {"caja": (izq, arriba, ancho, alto), "palabras": []})["palabras"].append(palabra)
+            try:
+                conf = float(p[10])
+            except ValueError:
+                conf = -1
+            if conf >= 0:
+                pag["confianzas"].append(conf)
+    salida = []
+    for numero in sorted(paginas):
+        pag = paginas[numero]
+        w, h = pag["ancho"] or 1, pag["alto"] or 1
+        texto, lineas, anterior = "", [], None
+        for (bloque, parrafo, _), datos in pag["lineas"].items():
+            if not datos["palabras"]:
+                continue
+            if anterior is not None:
+                texto += "\n" if anterior == (bloque, parrafo) else "\n\n"
+            inicio = len(texto)
+            texto += " ".join(datos["palabras"])
+            izq, arriba, ancho, alto = datos["caja"]
+            lineas.append([inicio, len(texto), round(izq / w, 4), round(arriba / h, 4),
+                           round(ancho / w, 4), round(alto / h, 4), bloque])
+            anterior = (bloque, parrafo)
+        confianza = round(sum(pag["confianzas"]) / len(pag["confianzas"]), 1) if pag["confianzas"] else None
+        salida.append((texto, pag["ancho"], pag["alto"], confianza, lineas))
+    return salida
+
+
+def _unir_paginas(partes: list[tuple], origen: str) -> tuple[str, list[PaginaLeida]]:
+    """Une las páginas con una línea en blanco y corre las posiciones de cada
+    página (y de sus líneas) al texto completo. Recorta al máximo de
+    caracteres sin dejar posiciones fuera del texto."""
+    texto, paginas = "", []
+    for numero, (contenido, ancho, alto, confianza, lineas) in enumerate(partes, start=1):
+        if numero > 1:
+            texto += "\n\n"
+        base = len(texto)
+        texto += contenido
+        paginas.append(PaginaLeida(numero, base, len(texto), origen, ancho or None, alto or None, confianza,
+                                   [[a + base, b + base, *resto] for a, b, *resto in lineas] if lineas is not None else None))
+    if len(texto) > MAXIMO_CARACTERES:
+        texto = texto[:MAXIMO_CARACTERES]
+        paginas = [p for p in paginas if p.inicio < MAXIMO_CARACTERES]
+        for p in paginas:
+            p.fin = min(p.fin, MAXIMO_CARACTERES)
+            if p.lineas:
+                p.lineas = [l for l in p.lineas if l[0] < MAXIMO_CARACTERES]
+    return texto, paginas
+
+
+def _limpiar_pagina(texto: str) -> str:
+    texto = texto.replace("\x00", "")
+    texto = re.sub(r"[ \t]+\n", "\n", texto)
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+    return texto.strip()
 
 
 def _limpiar(texto: str) -> str:
@@ -147,7 +259,12 @@ def _tesseract(imagen: Path) -> Lectura:
         _ejecutar_tesseract(imagen, base)
         texto = base.with_suffix(".txt").read_text("utf-8", "replace") if base.with_suffix(".txt").exists() else ""
         tsv = base.with_suffix(".tsv").read_text("utf-8", "replace") if base.with_suffix(".tsv").exists() else ""
-    return Lectura(texto, _confianzas_tsv(tsv))
+    paginas = _estructura_tsv(tsv) if tsv else []
+    if paginas:
+        # El texto sale de la misma tabla que da las posiciones: así cada
+        # fragmento se ubica exactamente en su línea.
+        texto = "\n\n".join(p[0] for p in paginas)
+    return Lectura(texto, _confianzas_tsv(tsv), paginas)
 
 
 # Tesseract usa OpenMP: con varios procesos a la vez (trabajador, pruebas en
@@ -192,7 +309,10 @@ def _imagen(ruta: Path, progreso: Progreso) -> Texto:
     progreso(10, f"Reconociendo texto (OCR) · {paginas} página{'s' if paginas != 1 else ''}")
     lectura = _tesseract(ruta)
     confianza, palabras = promedio([lectura])
-    return Texto(_limpiar(lectura.texto) or None, "ocr", paginas, confianza, palabras)
+    if not lectura.paginas:
+        return Texto(_limpiar(lectura.texto) or None, "ocr", paginas, confianza, palabras)
+    contenido, estructura = _unir_paginas(lectura.paginas, "ocr")
+    return Texto(contenido or None, "ocr", paginas, confianza, palabras, estructura if contenido else None)
 
 
 def _pdf(ruta: Path, progreso: Progreso) -> Texto:
@@ -209,10 +329,12 @@ def _pdf(ruta: Path, progreso: Progreso) -> Texto:
         capa = []
         for i in range(total):
             pagina = documento[i]
-            capa.append(pagina.get_textpage().get_text_range())
-        texto_capa = _limpiar("\n\n".join(capa))
-        if len(texto_capa) >= MINIMO_CARACTERES_POR_PAGINA * total:
-            return Texto(texto_capa, "capa_de_texto", total)
+            capa.append(_limpiar_pagina(pagina.get_textpage().get_text_range()))
+        if sum(len(c) for c in capa) >= MINIMO_CARACTERES_POR_PAGINA * total:
+            # Con capa de texto: la página de cada tramo; la zona exacta se
+            # busca en el PDF al citar un fragmento (servicios/evidencia.py).
+            texto_capa, estructura = _unir_paginas([(c, None, None, None, None) for c in capa], "capa_de_texto")
+            return Texto(texto_capa, "capa_de_texto", total, paginas_texto=estructura)
 
         # Escaneado: OCR página por página, sin guardar nada en disco más
         # que la imagen temporal de la página en curso.
@@ -227,9 +349,27 @@ def _pdf(ruta: Path, progreso: Progreso) -> Texto:
                 imagen.close()
                 partes.append(_tesseract(destino))
         confianza, palabras = promedio(partes)
-        return Texto(_limpiar("\n\n".join(p.texto for p in partes)) or None, "ocr", total, confianza, palabras)
+        if not all(p.paginas for p in partes):
+            return Texto(_limpiar("\n\n".join(p.texto for p in partes)) or None, "ocr", total, confianza, palabras)
+        # Una página del PDF es una imagen: su única página de Tesseract.
+        contenido, estructura = _unir_paginas(
+            [("\n\n".join(x[0] for x in p.paginas), *p.paginas[0][1:4],
+              _desplazar([x for x in p.paginas])) for p in partes], "ocr")
+        return Texto(contenido or None, "ocr", total, confianza, palabras, estructura if contenido else None)
     finally:
         documento.close()
+
+
+def _desplazar(paginas: list[tuple]) -> list[list]:
+    """Líneas de varias páginas de Tesseract unidas en una sola (rara vez una
+    página de PDF da más de una), con sus posiciones corridas."""
+    lineas, base = [], 0
+    for i, (texto, *_resto, propias) in enumerate(paginas):
+        if i:
+            base += 2
+        lineas += [[a + base, b + base, *r] for a, b, *r in propias]
+        base += len(texto)
+    return lineas
 
 
 def extraer(ruta: Path, mime: str | None, progreso: Progreso) -> Texto:

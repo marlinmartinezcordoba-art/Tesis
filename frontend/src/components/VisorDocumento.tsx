@@ -6,16 +6,29 @@ interface InfoVisor {
   admite: boolean; total: number; texto: string | null; origen_texto: string | null;
 }
 
+/** Zona de un fragmento citado (RF-OCR-001): página y cajas en fracciones de la página. */
+export interface Zona {
+  pagina: number;
+  cajas: { x: number; y: number; ancho: number; alto: number }[];
+}
+
 // Visor de documentos sin descarga: muestra las páginas como imagen
 // (PDF e imágenes) generadas por el servidor, nunca el archivo original, y
 // respeta el nivel de acceso del documento. `base` es la ruta del módulo:
 // /api/ingesta/<id>/previsualizar o /api/descripcion/<id>/previsualizar.
-export function VisorDocumento({ base, alto = 520 }: { base: string; alto?: number }) {
+// Con `resaltado`, va a la página del fragmento y marca su zona.
+export function VisorDocumento({ base, alto = 520, resaltado = null }: { base: string; alto?: number; resaltado?: Zona | null }) {
   const [info, setInfo] = useState<InfoVisor | null>(null);
   const [error, setError] = useState("");
   const [pagina, setPagina] = useState(1);
   const [url, setUrl] = useState<string | null>(null);
   const [verTexto, setVerTexto] = useState(false);
+
+  useEffect(() => {
+    if (!resaltado) return;
+    setPagina(resaltado.pagina);
+    setVerTexto(false);
+  }, [resaltado]);
 
   useEffect(() => {
     setInfo(null);
@@ -63,9 +76,19 @@ export function VisorDocumento({ base, alto = 520 }: { base: string; alto?: numb
         {verTexto ? (
           info.texto ? <pre className="visor-texto">{info.texto}</pre>
             : <p className="pista">Este formato no se puede mostrar como imagen y no tiene texto extraído.</p>
-        ) : url ? <img src={url} alt={`Página ${pagina} de ${info.nombre}`} draggable={false} />
-          : <div className="cargando">Cargando la página…</div>}
+        ) : url ? (
+          <div className="visor-hoja">
+            <img src={url} alt={`Página ${pagina} de ${info.nombre}`} draggable={false} />
+            {resaltado && resaltado.pagina === pagina && resaltado.cajas.map((c, i) => (
+              <span key={i} className="visor-zona" aria-hidden="true" style={{
+                left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: `${c.ancho * 100}%`, height: `${c.alto * 100}%` }} />
+            ))}
+          </div>
+        ) : <div className="cargando">Cargando la página…</div>}
       </div>
+      {resaltado && resaltado.pagina === pagina && !verTexto && (
+        <p className="pista visor-nota">Resaltado: de dónde salió la entidad elegida (página {resaltado.pagina}).</p>
+      )}
       <p className="pista visor-nota">Vista de consulta: el visor no entrega el archivo original.</p>
     </div>
   );

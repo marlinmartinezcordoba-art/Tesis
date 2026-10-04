@@ -31,7 +31,7 @@ from app.routers.fondos import fondo_o_404
 from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
-from app.servicios import consulta, descripcion, motor, parametros, vocabulario
+from app.servicios import consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -131,10 +131,36 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
     # fondo que ya aparecen en el texto, para poder reutilizarlas.
     contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
     propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel, contexto)
-    trabajo.propuesta = json.dumps(propuesta.a_dict(), ensure_ascii=False)
+    # Evidencia (RF-AI-002 y RF-OCR-001): página y zona de cada fragmento, y la
+    # propuesta guardada como registro inalterable.
+    propuestas_ia.ubicar_fragmentos(db, propuesta)
+    registro = propuestas_ia.registrar(db, propuesta, origen="descripcion", fondo_id=trabajo.fondo_id,
+                                       nivel=trabajo.nivel, instanciaciones=[d.id for d in documentos],
+                                       solicitada_por_id=actor.id, trabajo_id=trabajo.id)
+    datos = propuesta.a_dict()
+    if registro is not None:
+        trabajo.propuesta_id = registro.id
+        datos["propuesta_id"] = str(registro.id)
+    trabajo.propuesta = json.dumps(datos, ensure_ascii=False)
     descripcion.latido(db, trabajo)
     db.commit()
     return _espacio(db, trabajo)
+
+
+@router.get("/propuestas/{propuesta_id}", summary="Una propuesta del motor completa, con su huella verificada (RF-AI-002)")
+def ver_propuesta(propuesta_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
+                  db: Session = Depends(get_db)):
+    """Lo que el motor recibió, lo que respondió tal cual y la propuesta ya
+    controlada. Solo el equipo que describe: contiene fragmentos del texto,
+    también de documentos reservados."""
+    from app.models.evidencia_ia import PropuestaIA
+
+    if not actor.puede("descripcion", "escribir"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Su rol no tiene permiso para esta acción.")
+    p = db.get(PropuestaIA, propuesta_id)
+    if p is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La propuesta no existe.")
+    return propuestas_ia.out(p, completa=True)
 
 
 @router.get("/trabajos/{trabajo_id}", summary="Reabrir la pantalla de un trabajo en curso")

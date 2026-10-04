@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import alertas, almacen, comprobaciones, formato, mecanismos, parametros, segunda_copia, texto
+from app.servicios import (alertas, almacen, comprobaciones, evidencia, formato, mecanismos, parametros, segunda_copia,
+                           texto)
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -164,6 +165,8 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         inst.texto_extraido, inst.origen_texto, inst.paginas = t.contenido, t.origen, t.paginas
         inst.confianza_ocr, inst.palabras_ocr = t.confianza_ocr, t.palabras_ocr
         inst.texto_en = ahora()
+        # Páginas y líneas con su caja: para ubicar cada fragmento citado (RF-OCR-001).
+        evidencia.guardar_paginas(db, inst, t.paginas_texto)
         programa = mecanismos.de_texto(t.origen)
         if programa:
             inst.mecanismo_texto_id = mecanismos.obtener(db, inst.fondo_id, *programa).id

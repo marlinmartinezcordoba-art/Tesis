@@ -12,7 +12,7 @@ un instrumento exportado (ver app/servicios/consulta.py).
 import uuid
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import declared_attr
 
 from app.db.base import Base, ahora
@@ -210,6 +210,13 @@ class Relacion(_Procedencia, Base):
     fragmento = Column(Text, nullable=True)
     fragmento_instanciacion_id = Column(UUID(as_uuid=True), ForeignKey("instanciaciones.id", ondelete="SET NULL"), nullable=True)
     fragmento_inicio = Column(Integer, nullable=True)
+    # Dónde está el fragmento en el documento (RF-OCR-001): página y zona
+    # ({x, y, ancho, alto, cajas: [...]}, fracciones de la página), fijadas al
+    # crear la relación aunque el texto se vuelva a extraer después.
+    fragmento_pagina = Column(Integer, nullable=True)
+    fragmento_zona = Column(JSONB, nullable=True)
+    # La propuesta del motor de la que salió (RF-AI-002), si salió de una.
+    propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True, index=True)
     estado = Column(Enum(*ESTADO_RELACION, name="estado_relacion"), nullable=False, default="vigente", index=True)
     # Si la relación se redirigió al fusionar dos entidades del vocabulario,
     # aquí queda a qué entidad apuntaba originalmente (trazabilidad).
@@ -239,7 +246,9 @@ class TrabajoDescripcion(Base):
     nivel = Column(String(40), nullable=False)
     # Reapertura de una descripción ya publicada (si no, es una nueva).
     recurso_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id"), nullable=True)
-    propuesta = Column(Text, nullable=True)  # JSON de la propuesta del motor
+    propuesta = Column(Text, nullable=True)  # JSON de la propuesta del motor (copia de trabajo)
+    # El registro inalterable de esa propuesta (RF-AI-002).
+    propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True)
     estado = Column(Enum(*ESTADO_TRABAJO, name="estado_trabajo"), nullable=False, default="abierto", index=True)
     iniciado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     ultima_actividad = Column(DateTime(timezone=True), default=ahora, nullable=False)

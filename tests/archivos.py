@@ -82,3 +82,47 @@ def pdf_danado() -> bytes:
 def desconocido() -> bytes:
     """Bytes sin ninguna firma conocida, con una extensión inventada."""
     return b"\x13\x37RICORA" + os.urandom(512)
+
+
+def pdf_escaneado_paginas(paginas: list[list[str]]) -> bytes:
+    """PDF escaneado de varias páginas (sin capa de texto): cada página es una
+    imagen con sus líneas, desde arriba (RF-OCR-001)."""
+    imagenes = []
+    fuente = ImageFont.load_default(size=60)
+    for lineas in paginas:
+        img = Image.new("L", (1700, 2200), 255)
+        dibujo = ImageDraw.Draw(img)
+        for i, linea in enumerate(lineas):
+            dibujo.text((120, 300 + i * 140), linea, fill=0, font=fuente)
+        imagenes.append(img.convert("RGB"))
+    salida = io.BytesIO()
+    imagenes[0].save(salida, format="PDF", save_all=True, append_images=imagenes[1:], resolution=150)
+    return salida.getvalue()
+
+
+def pdf_con_paginas(textos: list[str]) -> bytes:
+    """PDF válido de varias páginas con capa de texto: una línea por página,
+    a 1/4 de la altura desde arriba."""
+    objetos = [b"<< /Type /Catalog /Pages 2 0 R >>", None]
+    hijos = []
+    for texto in textos:
+        flujo = f"BT /F1 14 Tf 72 594 Td ({texto}) Tj ET".encode("latin-1")
+        n_pagina, n_flujo = len(objetos) + 1, len(objetos) + 2
+        hijos.append(f"{n_pagina} 0 R")
+        objetos.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {n_flujo} 0 R "
+                       f"/Resources << /Font << /F1 {len(textos) * 2 + 3} 0 R >> >> >>".encode())
+        objetos.append(b"<< /Length " + str(len(flujo)).encode() + b" >>\nstream\n" + flujo + b"\nendstream")
+    objetos[1] = f"<< /Type /Pages /Kids [{' '.join(hijos)}] /Count {len(textos)} >>".encode()
+    objetos.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    salida = io.BytesIO()
+    salida.write(b"%PDF-1.4\n")
+    posiciones = []
+    for i, obj in enumerate(objetos, start=1):
+        posiciones.append(salida.tell())
+        salida.write(f"{i} 0 obj\n".encode() + obj + b"\nendobj\n")
+    xref = salida.tell()
+    salida.write(f"xref\n0 {len(objetos) + 1}\n0000000000 65535 f \n".encode())
+    for p in posiciones:
+        salida.write(f"{p:010d} 00000 n \n".encode())
+    salida.write(f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return salida.getvalue()

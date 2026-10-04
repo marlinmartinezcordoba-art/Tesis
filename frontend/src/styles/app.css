@@ -703,3 +703,7 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
   .busqueda-cuerpo { grid-template-columns: 1fr; }
   .caja-busqueda { order: 3; max-width: none; flex-basis: 100%; }
 }
+/* Evidencia de la IA (RF-OCR-001): zona del fragmento sobre la página */
+.visor-hoja { position: relative; display: inline-block; max-width: 100%; }
+.visor-zona { position: absolute; background: rgba(214, 158, 46, .28); outline: 2px solid var(--warn); border-radius: 2px; pointer-events: none; }
+.prop-pagina { font-weight: 600; white-space: nowrap; }

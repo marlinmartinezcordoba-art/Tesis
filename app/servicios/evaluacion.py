@@ -194,7 +194,7 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
     """El motor propone cada documento como lo haría en Descripción (con el
     vocabulario del fondo como contexto). Nadie ve el resultado aquí: queda
     guardado y se compara al final."""
-    from app.servicios import motor, vocabulario
+    from app.servicios import motor, propuestas_ia, vocabulario
 
     if ev.estado != "preparacion":
         raise ErrorEvaluacion("Las propuestas se generan antes de iniciar la evaluación.", 409)
@@ -205,10 +205,16 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
         contexto = vocabulario.contexto_para_motor(db, ev.fondo_id, inst.texto_extraido or "")
         p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original, texto=inst.texto_extraido)],
                            "unidad_documental", contexto)
+        # La propuesta queda como registro inalterable (RF-AI-002), también si falló.
+        propuestas_ia.ubicar_fragmentos(db, p)
+        registro = propuestas_ia.registrar(db, p, origen="evaluacion", fondo_id=ev.fondo_id, nivel="unidad_documental",
+                                           instanciaciones=[inst.id], solicitada_por_id=usuario_id, evaluacion_id=ev.id,
+                                           estado="evaluada")
         if not p.disponible:
             avisos.append(f"{inst.nombre_original}: {p.aviso or 'el motor no respondió'}")
             continue
         d.propuesta, d.motor, d.version_prompt, d.generada_en = p.a_dict(), p.motor, p.version_prompt, ahora()
+        d.propuesta_id = registro.id if registro else None
         hechas += 1
     db.flush()
     registrar(db, modulo="evaluacion", accion="propuestas_generadas", usuario_id=usuario_id, entidad_tipo="evaluacion",

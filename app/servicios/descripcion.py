@@ -56,7 +56,7 @@ from app.models.descripcion import (
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.models.usuario import Usuario
-from app.servicios import fechas, mecanismos, ric_o, vocabulario
+from app.servicios import evidencia as servicio_evidencia, fechas, mecanismos, ric_o, vocabulario
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
@@ -113,8 +113,12 @@ def expirar(db: Session) -> None:
 
 
 def _cerrar(db: Session, trabajo: TrabajoDescripcion, estado: str) -> None:
+    from app.servicios import propuestas_ia
+
     trabajo.estado = estado
     trabajo.cerrado_en = ahora()
+    # La propuesta del motor se conserva siempre; solo cambia su estado.
+    propuestas_ia.cerrar(db, trabajo.propuesta_id, estado)
     db.execute(update(TrabajoInstanciacion).where(TrabajoInstanciacion.trabajo_id == trabajo.id)
                .values(abierto=False))
 
@@ -354,8 +358,13 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
         procedencia = (origen, confianza, motor_e)
         fragmento = e.fragmento if e.documento_id in documentos else None
         instanciacion_fragmento = uuid.UUID(e.documento_id) if fragmento else None
+        # Página y zona del fragmento, calculadas aquí con el texto guardado
+        # (no con lo que diga el navegador) y fijadas en la relación (RF-OCR-001).
+        zona = servicio_evidencia.ubicar(db, instanciacion_fragmento, e.inicio, fragmento) if fragmento else None
         evidencia = {"fragmento": fragmento, "fragmento_instanciacion_id": instanciacion_fragmento,
-                     "fragmento_inicio": e.inicio if fragmento else None}
+                     "fragmento_inicio": e.inicio if fragmento else None,
+                     "fragmento_pagina": zona["pagina"] if zona else None, "fragmento_zona": zona,
+                     "propuesta_id": uuid.UUID(propuesta["propuesta_id"]) if base and propuesta.get("propuesta_id") else None}
         documento = ("recurso_documental", recurso.id)
 
         if e.tipo == "fecha":
@@ -567,7 +576,8 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
         return 0
     motor = mecanismos.preparar_motor(db, recurso.fondo_id or recurso.id, propuesta.get("motor"), usuario_id)
     comun = {"modelo": propuesta.get("motor"), "mecanismo_id": str(motor.id) if motor else None,
-             "version_prompt": propuesta.get("version_prompt"),
+             "version_prompt": propuesta.get("version_prompt"), "propuesta_id": propuesta.get("propuesta_id"),
+             "version_modelo": propuesta.get("version_modelo"),
              "fondo_id": str(recurso.fondo_id), "titulo_documento": recurso.titulo}
     n = 0
 
@@ -825,6 +835,10 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     _partes(db, recurso, partes or [], usuario_id, ids_documentos)
     _cerrar(db, trabajo, "publicado")
     trabajo.recurso_id = recurso.id
+    if trabajo.propuesta_id:
+        from app.models.evidencia_ia import PropuestaIA
+
+        db.get(PropuestaIA, trabajo.propuesta_id).recurso_id = recurso.id
     db.flush()
     registrar(db, modulo="descripcion", accion="descripcion_publicada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=recurso.id, nuevo=resumen(db, recurso))
@@ -854,6 +868,8 @@ def _clasificacion_de(db: Session, recurso: RecursoDocumental) -> dict:
 def detalle(db: Session, recurso: RecursoDocumental) -> dict:
     """Vista interna completa, con origen y confianza de cada dato. Solo
     para las pantallas de trabajo y la auditoría."""
+    from app.servicios import propuestas_ia
+
     superior = db.get(RecursoDocumental, recurso.incluido_en_id) if recurso.incluido_en_id else None
     forma = db.get(EntidadVocabulario, recurso.forma_documental_id) if recurso.forma_documental_id else None
     entidades, instanciaciones = [], []
@@ -925,6 +941,8 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
             "relacion_id": str(r.id), "entidad_id": str(nodo_id), "tipo": tipo, "valor": valor, "subtipo": subtipo,
             "rol": r.rol, "codigo_ric": r.codigo_ric, "uri_rico": ric_o.uri(r.codigo_ric),
             "fragmento": r.fragmento, "documento_id": str(r.fragmento_instanciacion_id) if r.fragmento_instanciacion_id else None,
+            "pagina": r.fragmento_pagina, "zona": r.fragmento_zona,
+            "propuesta_id": str(r.propuesta_id) if r.propuesta_id else None,
             "origen": r.origen, "confianza": r.confianza, "motor": r.motor, "estado_revision": r.estado_revision, **extra,
             **({"periodo": r.fecha_edtf, "periodo_legible": fechas.legible(r.fecha_edtf), "nota": r.nota}
                if r.codigo_ric == "has_or_had_holder" else {}),
@@ -937,6 +955,8 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
         "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),
         "proteccion": {"datos_personales": recurso.datos_personales, "nota_accesibilidad": recurso.nota_accesibilidad},
+        # Las propuestas del motor que llevaron a esta descripción (RF-AI-002).
+        "propuestas_ia": [propuestas_ia.out(p) for p in propuestas_ia.de_recurso(db, recurso.id)],
         "idiomas": recurso.idiomas or [], "origen_idiomas": recurso.origen_idiomas,
         "confianza_idiomas": recurso.confianza_idiomas,
         "condiciones_acceso": recurso.condiciones_acceso, "condiciones_uso": recurso.condiciones_uso,

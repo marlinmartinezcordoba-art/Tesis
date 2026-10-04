@@ -48,6 +48,8 @@ class EvaluacionDocumento(Base):
     motor = Column(String(120), nullable=True)
     version_prompt = Column(String(16), nullable=True)
     generada_en = Column(DateTime(timezone=True), nullable=True)
+    # El registro inalterable de esa propuesta (RF-AI-002).
+    propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True)
 
 
 class Anotacion(Base):
