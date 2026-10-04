@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { PerfilAgnVista } from "@/components/PerfilAgn";
+import { CompletitudFondo } from "@/components/PerfilAgn";
 import { ErrorAPI, descargar, pedir, puede as tienePermiso } from "@/lib/api";
 import { NIVEL_NOMBRE, SUBTIPO_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
@@ -17,7 +17,7 @@ import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 
-type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico" | "agn";
+type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
 const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
 
 function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; actual?: Miga; ir: (id: string | null) => void }) {
@@ -689,13 +689,15 @@ export function Instrumentos() {
             <>
               <Catalogo nivel={nivel} ir={(id) => cambiar({ nodo: id })} abrir={(id) => cambiar({ ficha: id })} />
               {nivel.actual.nivel === "fondo" && <ResumenFondo fondoId={nivel.fondo.id} />}
+              {nivel.actual.nivel === "fondo" && tienePermiso(usuario, "instrumentos") && (
+                <CompletitudFondo fondoId={nivel.fondo.id} abrir={(id) => cambiar({ ficha: id })} />
+              )}
             </>
           )}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
           {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} />}
           {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
-          {pestana === "agn" && <PerfilAgnVista fondoId={nivel.fondo.id} abrir={(id) => cambiar({ ficha: id })} />}
           <Proposito vista={pestana} />
           {pestana === "grafo" && (
             <PestanaGrafo fondo={nivel.fondo} centro={parametros.get("centro")}

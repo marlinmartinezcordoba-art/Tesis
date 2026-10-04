@@ -355,6 +355,18 @@ def catalogo() -> dict:
 
 # --- Calidad de metadatos según el perfil (KPI del AGN, fase 3) --------------------------------------
 
+# Cómo se nombra cada criterio en pantalla: en lenguaje de descripción, no con el nombre del elemento del AGN.
+ETIQUETA_CRITERIO = {
+    "identificador": "Código de referencia", "titulo": "Título", "fechas": "Fechas", "productor": "Productor",
+    "tipo_documental": "Tipo documental", "extension": "Volumen (folios o tamaño)", "soporte": "Soporte",
+    "acceso": "Clasificación de acceso (Ley 1712)", "instanciacion": "Documento digital u original vinculado",
+    "idioma": "Idioma", "alcance": "Alcance y contenido", "datos_personales": "Revisión de datos personales (Ley 1581)",
+    "disposicion": "Disposición final (TRD)", "ubicacion_fisica": "Ubicación del original físico",
+    "estado_conservacion": "Estado de conservación del original", "formato_identificado": "Formato identificado (PRONOM)",
+    "integridad_verificada": "Integridad verificada", "identificador_externo_productor":
+        "Identificador externo del productor (ORCID, ROR, VIAF…)", "accesibilidad": "Versión accesible (Ley 1680)",
+}
+
 LIMITE_TITULO = 255
 LIMITE_IDENTIFICADOR = 50
 NIVELES_RECORD = ("unidad_documental", "parte_documental")
@@ -427,8 +439,7 @@ def calidad(db: Session, recurso: RecursoDocumental) -> dict:
         ("identificador_externo_productor", "AGN-AGE-03", "avanzado", bool(productores), externos),
         ("accesibilidad", "AGN-TRA-02", "avanzado", True, bool(recurso.nota_accesibilidad)),
     ]
-    nombres = {f.id: f.elemento for f in CATALOGO}
-    salida = [{"clave": c, "fila": fila, "elemento": nombres[fila], "nivel": nivel, "aplica": aplica,
+    salida = [{"clave": c, "fila": fila, "elemento": ETIQUETA_CRITERIO[c], "nivel": nivel, "aplica": aplica,
                "cumple": cumple if aplica else None} for c, fila, nivel, aplica, cumple in criterios]
     avisos = []
     if recurso.titulo and len(recurso.titulo) > LIMITE_TITULO:

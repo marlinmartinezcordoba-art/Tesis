@@ -54,7 +54,7 @@ describe("árbol de submódulos", () => {
     // Sin ?vista, la primera vista del módulo es la activa.
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Vocabulario");
     fireEvent.click(rama("Instrumentos"));
-    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O", "Perfil AGN"]);
+    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O"]);
     expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("false");
     expect(vistasVisibles("Vocabularios")).toEqual([]);
     // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
@@ -104,7 +104,7 @@ describe("árbol de submódulos", () => {
   it("el perfil de consulta ve el índice y no lo que no puede usar; el equipo interno usa Vocabularios", () => {
     // Consulta: catálogo, grafo, índice y RiC-O; sin inventario ni guía (se generan) y sin Vocabularios.
     expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo", "Índice", "RiC-O"]);
-    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O", "Perfil AGN"]);
+    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo", "Inventario", "Guía", "RiC-O"]);
     montar("/instrumentos?vista=indice", CONSULTA);
     expect(screen.queryByRole("link", { name: "Vocabulario" })).toBeNull();
     expect(screen.getByText("Consulta del archivo")).toBeTruthy();

@@ -684,10 +684,3 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .campo .opcion-radio { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-weight: 400; text-transform: none; letter-spacing: normal; font-size: .9rem; color: var(--ink); }
 .campo .opcion-radio input { margin-top: 4px; }
 
-/* Perfil AGN (RiC-Col) */
-.tabla-perfil { width: 100%; border-collapse: collapse; font-size: .85rem; }
-.tabla-perfil th, .tabla-perfil td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-.tabla-perfil th { font-weight: 600; color: var(--muted); font-size: .78rem; text-transform: none; }
-.tabla-perfil code { font-size: .78rem; overflow-wrap: anywhere; }
-.tabla-perfil .tachado { text-decoration: line-through; color: var(--danger); }
-.envoltura-tabla { overflow-x: auto; }

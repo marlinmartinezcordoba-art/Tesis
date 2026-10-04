@@ -3,11 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
-  CLASIFICACION_VACIA, CamposRegistro, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  proteccionParaEnviar,
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
 } from "@/components/DescripcionV3";
-import { CalidadDescripcion, OriginalesFisicos, ProteccionDatos, type InstanciacionRegistro, type Proteccion } from "@/components/PerfilAgn";
+import { CompletitudDescripcion, OriginalesFisicos, type InstanciacionRegistro, type Proteccion } from "@/components/PerfilAgn";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -130,8 +131,6 @@ export function RegistroDescripcion() {
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [control, setControl] = useState<Record<keyof Control, string>>(
     { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "", tomo: "", otra_unidad: "", frecuencia_consulta: "" });
-  const [proteccion, setProteccion] = useState({ datos: "", nota: "" });
-  const veInstrumentos = tienePermiso(usuario, "instrumentos");
 
   function cargar(r: Registro) {
     setRegistro(r);
@@ -145,14 +144,14 @@ export function RegistroDescripcion() {
     setCampos({ idiomas: r.idiomas, clasificacion: clasificacionInicial(r.clasificacion), condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
                 isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
-                escrituras: r.isadg.escrituras || [] });
+                escrituras: r.isadg.escrituras || [],
+                datosPersonales: r.proteccion?.datos_personales || "", notaAccesibilidad: r.proteccion?.nota_accesibilidad || "" });
     setControl({
       codigo_referencia: r.control.codigo_referencia || "", caja: r.control.caja || "", carpeta: r.control.carpeta || "",
       folios: r.control.folios === null ? "" : String(r.control.folios), soporte: r.control.soporte || "",
       tomo: r.control.tomo || "", otra_unidad: r.control.otra_unidad || "",
       frecuencia_consulta: r.control.frecuencia_consulta || "",
     });
-    setProteccion({ datos: r.proteccion?.datos_personales || "", nota: r.proteccion?.nota_accesibilidad || "" });
     nivelesSuperiores(r.fondo_id, r.nivel).then(setSuperiores).catch(() => undefined);
   }
 
@@ -218,11 +217,7 @@ export function RegistroDescripcion() {
             tomo: control.tomo.trim() || null, otra_unidad: control.otra_unidad.trim() || null,
             frecuencia_consulta: control.frecuencia_consulta.trim().toLowerCase() || null,
           },
-          // Perfil AGN: solo lo que cambió (cada cambio queda en la auditoría).
-          proteccion: {
-            datos_personales: proteccion.datos && proteccion.datos !== (registro.proteccion?.datos_personales || "") ? proteccion.datos : null,
-            nota_accesibilidad: proteccion.nota !== (registro.proteccion?.nota_accesibilidad || "") ? proteccion.nota : null,
-          },
+          proteccion: proteccionParaEnviar(campos, registro.proteccion),
         }),
       });
       setTrabajo(null);
@@ -310,6 +305,10 @@ export function RegistroDescripcion() {
                 {registro.origen_idiomas && <span className="meta"> · {ORIGEN_NOMBRE[registro.origen_idiomas]}</span>}</dd>
               <dt>Condiciones de acceso</dt><dd>{registro.condiciones_acceso || "—"}</dd>
               <dt>Condiciones de uso</dt><dd>{registro.condiciones_uso || "—"}</dd>
+              <dt>Datos personales</dt>
+              <dd>{DATOS_PERSONALES.find(([k]) => k === registro.proteccion?.datos_personales)?.[1]
+                ?? <span className="texto-alerta">Sin revisar (Ley 1581)</span>}</dd>
+              <dt>Versión accesible</dt><dd>{registro.proteccion?.nota_accesibilidad || "—"}</dd>
               <dt>Historia archivística</dt><dd>{registro.historia_archivistica || "—"}</dd>
               <dt>Secuencia</dt>
               <dd>{registro.secuencia.length === 0 ? "—" : registro.secuencia.map((x) => (
@@ -380,10 +379,9 @@ export function RegistroDescripcion() {
         </div>
       </div>
 
-      <ProteccionDatos valor={proteccion} editando={editando} alCambiar={setProteccion} />
       <OriginalesFisicos recursoId={registro.id} instanciaciones={registro.instanciaciones} puede={puede && !editando}
                          alGuardar={(r) => cargar(r as Registro)} />
-      {veInstrumentos && <CalidadDescripcion recursoId={registro.id} version={registro} />}
+      <CompletitudDescripcion recursoId={registro.id} version={registro} />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>

@@ -36,6 +36,9 @@ export interface CamposRegistroValor {
   // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
   isadg: Record<string, string>;
   escrituras: string[];
+  // Ley 1581 de 2012 (clase de datos personales; vacío = sin revisar) y Ley 1680 de 2013 (versión accesible).
+  datosPersonales: string;
+  notaAccesibilidad: string;
 }
 
 // Elementos de ISAD(G) que se escriben a mano; el resto sale de otros datos
@@ -64,7 +67,29 @@ export const ESCRITURAS: Record<string, string> = {
 
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
-           isadg: {}, escrituras: [] };
+           isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
+}
+
+export const DATOS_PERSONALES: [string, string][] = [
+  ["no_contiene", "No contiene datos personales"],
+  ["personales", "Contiene datos personales (nombres, documentos de identidad, direcciones…)"],
+  ["sensibles", "Contiene datos sensibles (salud, origen étnico, creencias, orientación sexual…)"],
+  ["menores", "Contiene datos de niños, niñas o adolescentes"],
+];
+
+/** Lo que se envía al publicar o corregir: solo lo que cambió frente a `antes` (null = no cambia). */
+export function proteccionParaEnviar(v: CamposRegistroValor, antes?: { datos_personales: string | null; nota_accesibilidad: string | null }) {
+  return {
+    datos_personales: v.datosPersonales && v.datosPersonales !== (antes?.datos_personales || "") ? v.datosPersonales : null,
+    nota_accesibilidad: v.notaAccesibilidad !== (antes?.nota_accesibilidad || "") ? v.notaAccesibilidad : null,
+  };
+}
+
+/** Datos sensibles o de menores en algo que quedaría público: Ley 1712 (art. 18) y Ley 1581 (arts. 5 a 7). */
+export function datosSensiblesEnPublico(v: CamposRegistroValor, heredada?: { acceso: string } | null): boolean {
+  if (!["sensibles", "menores"].includes(v.datosPersonales)) return false;
+  const acceso = v.clasificacion.acceso === "hereda" ? heredada?.acceso || "publico" : v.clasificacion.acceso;
+  return acceso === "publico";
 }
 
 const OPCIONES_ACCESO: [Clasificacion["acceso"], string, string][] = [
@@ -235,6 +260,23 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
       <div className="campo">
+        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · lo revisa una persona)</span></label>
+        <select id="datos-personales" className="selector" value={valor.datosPersonales}
+                onChange={(e) => alCambiar({ ...valor, datosPersonales: e.target.value })}>
+          <option value="">Sin revisar</option>
+          {DATOS_PERSONALES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+        </select>
+        {datosSensiblesEnPublico(valor, heredada) ? (
+          <div className="aviso alerta" role="status" style={{ marginTop: 6 }}>
+            Quedaría pública con datos {valor.datosPersonales === "menores" ? "de menores de edad" : "sensibles"}:
+            clasifíquela (Ley 1712, art. 18, literal a) o anonimice la versión de consulta (Ley 1581, arts. 5 a 7).
+          </div>
+        ) : (
+          <div className="pista">No es lo mismo que la clasificación de arriba: un documento público puede tener datos
+            personales que se anonimizan al consultarlo. No sale en el catálogo público ni en los datos abiertos.</div>
+        )}
+      </div>
+      <div className="campo">
         <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(ISAD-G 3.4.1 · opcional · las decide la institución, no el motor)</span></label>
         <textarea id="acceso" className="entrada" rows={2} value={valor.condicionesAcceso} maxLength={5000}
                   placeholder="Ej.: «Consulta en sala con cita previa» o «Contiene datos de salud de terceros»"
@@ -247,6 +289,12 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         <textarea id="uso" className="entrada" rows={2} value={valor.condicionesUso} maxLength={5000}
                   placeholder="Condición para copiarlo o reproducirlo"
                   onChange={(e) => alCambiar({ ...valor, condicionesUso: e.target.value })} />
+      </div>
+      <div className="campo">
+        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · opcional · se muestra en la ficha pública)</span></label>
+        <textarea id="accesible" className="entrada" rows={2} value={valor.notaAccesibilidad} maxLength={2000}
+                  placeholder="Ej.: «Transcripción en texto plano para lector de pantalla»"
+                  onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
       <div className="campo">
         <label htmlFor="historia">Historia archivística <span className="meta">(ISAD-G 3.2.3 · cómo llegó a su custodio actual)</span></label>

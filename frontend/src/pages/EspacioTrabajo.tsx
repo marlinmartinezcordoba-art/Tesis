@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, clasificacionParaEnviar, parteParaEnviar,
+  proteccionParaEnviar,
   partePendiente,
   type CamposRegistroValor, type ParteBorrador,
 } from "@/components/DescripcionV3";
@@ -253,6 +254,7 @@ export function EspacioTrabajo() {
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso || null,
           clasificacion: clasificacionParaEnviar(campos.clasificacion),
+          proteccion: proteccionParaEnviar(campos),
           condiciones_uso: campos.condicionesUso || null,
           historia_archivistica: campos.historiaArchivistica || null,
           isadg: campos.isadg, escrituras: campos.escrituras,

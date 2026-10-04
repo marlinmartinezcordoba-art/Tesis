@@ -16,12 +16,12 @@
 |---|---|---|
 | Catálogo de 57 correspondencias en tres capas (RiC, AGN, RICORA). Cada fila tiene el código tal como lo cita el AGN y la correspondencia correcta | `app/servicios/perfil_agn.py` | `tests/test_perfil_agn.py::test_cada_termino_rico_del_perfil_existe_en_el_owl_oficial`, `::test_cada_codigo_ric_cm_citado_como_correcto_es_real` |
 | 13 erratas del esquema del AGN, con página y corrección | `perfil_agn.ERRATAS` | `::test_catalogo_y_excel_por_la_api` |
-| Consulta y descarga: `GET /api/perfil-agn` y `/api/perfil-agn/catalogo.xlsx` | `app/routers/perfil_agn.py` | ídem |
-| Calidad de metadatos por descripción y por fondo, en tres niveles de madurez (básico, intermedio, avanzado), con avisos e incoherencias. Rutas: `/api/perfil-agn/calidad/{id}` y `/api/perfil-agn/fondos/{id}` | `perfil_agn.calidad`, `calidad_fondo` | `::test_productor_heredado_del_nivel_superior_y_kpi_del_fondo` |
+| Consulta y descarga por API, sin pantalla: `GET /api/calidad/correspondencias` y `/api/calidad/correspondencias.xlsx` | `app/routers/perfil_agn.py` | ídem |
+| Calidad de metadatos por descripción y por fondo, en tres niveles de madurez (básico, intermedio, avanzado), con avisos e incoherencias. Rutas: `/api/calidad/descripciones/{id}` y `/api/calidad/fondos/{id}` | `perfil_agn.calidad`, `calidad_fondo` | `::test_productor_heredado_del_nivel_superior_y_kpi_del_fondo` |
 | Estado de conservación (bueno, regular, malo, restaurado) y signatura topográfica (depósito, estante, entrepaño) del original físico, con corrección auditada | migración `0031`; `descripcion.registrar_original_fisico`, `actualizar_original_fisico`; `PATCH /api/descripcion/registros/{id}/original-fisico/{inst}` | `::test_original_fisico_con_estado_y_signatura_se_corrige_con_auditoria_y_sale_en_rico` |
 | Datos personales (Ley 1581: no contiene, personales, sensibles, de menores) y nota de accesibilidad (Ley 1680) en la descripción | `recursos_documentales.datos_personales`, `nota_accesibilidad`; campo `proteccion` al publicar y al corregir | `::test_datos_sensibles_en_documento_publico_es_incoherencia_y_la_nota_de_accesibilidad_es_publica` |
 | ORCID (personas) y ROR (instituciones), con dígito de control y `owl:sameAs` | `autoridad.orcid_normalizado`, `ror_normalizado`, `URI_EXTERNA` | `::test_orcid_y_ror_con_digito_de_control_y_tipo_de_agente` |
-| Pantallas: vista **Instrumentos › Perfil AGN** (calidad del fondo, correspondencias, erratas) y, en la ficha de cada descripción, las tarjetas de datos personales y accesibilidad, original físico y calidad | `frontend/src/components/PerfilAgn.tsx` | `frontend/src/pruebas/navegacion.test.tsx` |
+| En la interfaz no hay un módulo del AGN: sus reglas viven en el flujo normal. El formulario de descripción (al publicar y al corregir) tiene los datos personales y la versión accesible, y avisa en el mismo formulario si quedarían datos sensibles en público. La ficha de cada descripción muestra el original físico y la tarjeta «Completitud de la descripción». El resumen del fondo, en Instrumentos › Catálogo, muestra la completitud de todas las descripciones | `frontend/src/components/DescripcionV3.tsx`, `frontend/src/components/PerfilAgn.tsx` | `frontend/src/pruebas/navegacion.test.tsx` |
 
 ## 2. Decisiones
 
@@ -38,7 +38,7 @@
 | Datos personales (Ley 1581) | Mezclarlos con la clasificación de la Ley 1712; campo separado | Campo separado, que avisa si el documento es sensible y público | Son dos normas distintas: un documento público puede contener datos personales que se anonimizan al consultarlo | Que se marque «sensibles» y se deje público. Aparece como incoherencia en la ficha y en el fondo |
 | Datos personales en el RDF y en la ficha pública | Exportarlos; no | No se exportan ni se publican | Principio de minimización (Ley 1581) que el propio AGN cita | Ninguno |
 | Nota de accesibilidad | Interna; pública | Sale en la ficha pública | Ley 1680: quien consulta debe saber si hay versión accesible antes de pedir el documento | Ninguno |
-| Dónde vive el perfil | Módulo nuevo; Instrumentos | Instrumentos, vista «Perfil AGN» (lectura del módulo de instrumentos) | Es un instrumento de control de la descripción; no crea otra base de datos (especificación §21: «no crear bases paralelas por módulo») | Ninguno |
+| Dónde vive el perfil | Módulo o vista propia; lógica dentro del flujo | Lógica dentro del flujo: campos en el formulario de descripción, avisos en el formulario, completitud en la ficha y en el resumen del fondo; las correspondencias y las erratas, solo por API y en los anexos | Lo pidió la usuaria: el AGN es una regla del trabajo, no un lugar al que ir. Así no se crea otra base de datos (especificación §21) | Quien consulte el sistema no ve el catálogo de correspondencias. Queda en la documentación y en la matriz |
 
 ## 3. Lo que sigue pendiente frente al AGN
 
@@ -51,7 +51,7 @@
 
 ## 4. Erratas del esquema del AGN
 
-Las 13 erratas, con su página y su corrección, están en `perfil_agn.ERRATAS`. Se consultan en la vista «Perfil AGN » Erratas» y en la hoja «Erratas_AGN» de la matriz auditada. Lo esencial:
+Las 13 erratas, con su página y su corrección, están en `perfil_agn.ERRATAS`. Se consultan por API (`/api/calidad/correspondencias`) y en la hoja «Erratas_AGN» de la matriz auditada. Lo esencial:
 
 - versión de RiC-CM mal fechada y contradictoria;
 - códigos de entidad, atributo y relación del borrador de 2016;

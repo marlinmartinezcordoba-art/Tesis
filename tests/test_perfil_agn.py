@@ -68,17 +68,17 @@ def test_capas_estados_y_niveles_validos_y_ids_unicos():
 
 
 def test_catalogo_y_excel_por_la_api(cliente, archivista):
-    r = cliente.get("/api/perfil-agn", headers=archivista)
+    r = cliente.get("/api/calidad/correspondencias", headers=archivista)
     assert r.status_code == 200, r.text
     datos = r.json()
     assert datos["fuentes"]["agn"]["version"] == "1.4" and datos["fuentes"]["ric_o"]["version"] == "1.1"
     assert datos["codigos_agn_incorrectos"] > 0 and len(datos["erratas"]) == len(perfil_agn.ERRATAS)
-    x = cliente.get("/api/perfil-agn/catalogo.xlsx", headers=archivista)
+    x = cliente.get("/api/calidad/correspondencias.xlsx", headers=archivista)
     assert x.status_code == 200
     libro = load_workbook(io.BytesIO(x.content))
     assert libro.sheetnames == ["Perfil RiC-Col", "Erratas del esquema AGN", "Fuentes"]
     assert libro["Perfil RiC-Col"].max_row == len(perfil_agn.CATALOGO) + 1
-    assert cliente.get("/api/perfil-agn").status_code == 401
+    assert cliente.get("/api/calidad/correspondencias").status_code == 401
 
 
 # --- ORCID y ROR (AGN, tabla 5) ------------------------------------------------------------------
@@ -149,7 +149,7 @@ def test_datos_sensibles_en_documento_publico_es_incoherencia_y_la_nota_de_acces
     assert r.json()["proteccion"]["datos_personales"] == "sensibles"
     assert db.scalar(select(RegistroAuditoria).where(RegistroAuditoria.accion == "proteccion_datos_declarada"))
 
-    c = cliente.get(f"/api/perfil-agn/calidad/{o114.id}", headers=archivista).json()
+    c = cliente.get(f"/api/calidad/descripciones/{o114.id}", headers=archivista).json()
     assert c["incoherencias"] and "Ley 1712" in c["incoherencias"][0]
     criterio = {x["clave"]: x for x in c["criterios"]}
     assert criterio["datos_personales"]["cumple"] and criterio["accesibilidad"]["cumple"]
@@ -164,7 +164,7 @@ def test_datos_sensibles_en_documento_publico_es_incoherencia_y_la_nota_de_acces
     r = _editar(cliente, archivista, o114.id, clasificacion={
         "acceso": "clasificado", "fundamento": "Ley 1712 de 2014, art. 18, literal a"})
     assert r.status_code == 200, r.text
-    assert cliente.get(f"/api/perfil-agn/calidad/{o114.id}", headers=archivista).json()["incoherencias"] == []
+    assert cliente.get(f"/api/calidad/descripciones/{o114.id}", headers=archivista).json()["incoherencias"] == []
 
 
 def test_productor_heredado_del_nivel_superior_y_kpi_del_fondo(cliente, db, fondo_descrito, archivista):
@@ -173,14 +173,14 @@ def test_productor_heredado_del_nivel_superior_y_kpi_del_fondo(cliente, db, fond
     serie = fondo_descrito["serie"]
     c = perfil_agn.calidad(db, serie)
     assert {x["clave"]: x["cumple"] for x in c["criterios"]}["productor"] is False
-    k = cliente.get(f"/api/perfil-agn/fondos/{fondo_descrito['fondo'].id}", headers=archivista)
+    k = cliente.get(f"/api/calidad/fondos/{fondo_descrito['fondo'].id}", headers=archivista)
     assert k.status_code == 200, k.text
     datos = k.json()
     assert datos["descripciones"] >= 5
     por_clave = {x["clave"]: x for x in datos["criterios"]}
     assert 0 <= por_clave["titulo"]["porcentaje"] <= 100 and por_clave["titulo"]["porcentaje"] == 100
     assert sum(datos["nivel_alcanzado"].values()) == datos["descripciones"]
-    assert cliente.get(f"/api/perfil-agn/fondos/{uuid.uuid4()}", headers=archivista).status_code == 404
+    assert cliente.get(f"/api/calidad/fondos/{uuid.uuid4()}", headers=archivista).status_code == 404
 
 
 def test_literal_de_conservacion_no_aparece_sin_dato(db, fondo_descrito):
