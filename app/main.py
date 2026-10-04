@@ -6,11 +6,13 @@ aparte en un servidor de 2 GB de memoria.
 
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.session import get_db
 from app.routers import (alertas, auditoria, auth, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
                          grafo, instrumentos, perfil_agn, preservacion, vocabulario)
 
@@ -59,6 +61,7 @@ app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atien
 RUTAS_PUBLICAS = {
     "/api/salud",
     "/api/auth/login",
+    "/api/auth/login/segundo-factor",
     "/api/auth/refresh",
     "/api/auth/logout",
     "/api/auth/recuperar",
@@ -82,9 +85,13 @@ RUTAS_PUBLICAS = {
 }
 
 
-@app.get("/api/salud", tags=["Sistema"], summary="Verificación de que el servicio responde")
-def salud() -> dict:
-    return {"estado": "ok"}
+@app.get("/api/salud", tags=["Sistema"],
+         summary="Salud del sistema: base de datos, almacén, trabajador y respaldo (para un monitor externo)")
+def salud(db: Session = Depends(get_db)):
+    from app.servicios import salud as servicio_salud
+
+    codigo, datos = servicio_salud.estado(db)
+    return JSONResponse(datos, status_code=codigo)
 
 
 @app.middleware("http")

@@ -28,7 +28,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import mecanismos, preservacion, procesamiento, respaldo, sesiones, vocabulario
+from app.servicios import mecanismos, preservacion, procesamiento, respaldo, salud, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -48,6 +48,7 @@ def main() -> None:
     ultima_revision_sesiones = ultima_replica = float("-inf")
     log.info("Trabajador de ingesta en marcha.")
     while not _detener:
+        salud.latir()  # señal de vida para /api/salud (brecha RF-OPS-001)
         try:
             with SessionLocal() as db:
                 if not liberado:

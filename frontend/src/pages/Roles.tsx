@@ -9,6 +9,7 @@ export interface RolInfo {
   activo: boolean;
   permisos: Record<string, string>;
   usuarios: number;
+  doble_factor?: boolean; // el rol exige segundo factor
 }
 
 const MODULOS: { clave: string; nombre: string; niveles: [string, string][] }[] = [
@@ -121,6 +122,19 @@ export function PanelRoles({ roles, alCambiar }: { roles: RolInfo[] | null; alCa
     }
   }
 
+  async function exigir(r: RolInfo) {
+    setError("");
+    const exigirlo = !r.doble_factor;
+    if (exigirlo && !window.confirm(`Las ${r.usuarios} persona(s) con el rol «${r.nombre}» deberán configurar el segundo factor `
+        + "la próxima vez que entren, antes de poder trabajar. ¿Continuar?")) return;
+    try {
+      await pedir(`/api/auth/roles/${r.clave}/doble-factor`, { method: "PUT", body: JSON.stringify({ exigir: exigirlo }) });
+      alCambiar(exigirlo ? `El rol «${r.nombre}» exige segundo factor.` : `El rol «${r.nombre}» ya no exige segundo factor.`);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo cambiar el rol.");
+    }
+  }
+
   return (
     <>
       <p className="sub">
@@ -150,7 +164,12 @@ export function PanelRoles({ roles, alCambiar }: { roles: RolInfo[] | null; alCa
                 {r.base && <span className="insignia agente">Base</span>}
                 <span className={`insignia ${r.activo ? "bien" : "error"}`}>{r.activo ? "Activo" : "Inactivo"}</span>
                 <span className="insignia proceso">{r.usuarios} usuario{r.usuarios === 1 ? "" : "s"}</span>
+                {r.doble_factor && <span className="insignia alerta">Exige segundo factor</span>}
               </div>
+              <label className="opcion-radio" style={{ margin: 0 }}>
+                <input type="checkbox" checked={!!r.doble_factor} onChange={() => exigir(r)} />
+                <span className="meta">Exigir segundo factor</span>
+              </label>
               {!r.base && (
                 <div className="acciones">
                   <button type="button" className="boton chico" onClick={() => setEditando(r.clave)}>Editar</button>

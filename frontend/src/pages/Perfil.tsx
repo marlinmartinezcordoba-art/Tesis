@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
+import { DobleFactor } from "@/components/DobleFactor";
 import { Reglas } from "@/components/Reglas";
 import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
 import { reglasContrasena } from "@/lib/contrasena";
@@ -14,6 +16,7 @@ interface Perfil {
 }
 
 export function Perfil() {
+  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso;
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [actual, setActual] = useState("");
   const [nueva, setNueva] = useState("");
@@ -54,6 +57,7 @@ export function Perfil() {
     <>
       <h1>Mi perfil</h1>
       <p className="sub">El rol lo asigna únicamente un administrador; nadie puede cambiárselo a sí mismo.</p>
+      {aviso && <div className="aviso alerta" role="status">{aviso}</div>}
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Datos de la cuenta</div>
@@ -74,6 +78,8 @@ export function Perfil() {
           )}
         </div>
       </div>
+
+      <DobleFactor />
 
       <form className="tarjeta" onSubmit={cambiar}>
         <div className="tarjeta-cab">Cambiar contraseña</div>

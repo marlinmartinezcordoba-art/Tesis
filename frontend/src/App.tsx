@@ -34,6 +34,10 @@ function Protegida({ modulo, tipo = "leer", permitir, children }: {
   if (!usuario) return <Navigate to="/ingresar" replace state={{ desde: ubicacion.pathname }} />;
   const permitido = (!modulo || puede(usuario, modulo, tipo)) && (!permitir || permitir(usuario));
   if (!permitido) return <Navigate to={inicioDe(usuario)} replace />;
+  // El rol exige segundo factor y la cuenta no lo tiene: primero se configura.
+  if (usuario.doble_factor_requerido && !usuario.doble_factor && ubicacion.pathname !== "/perfil") {
+    return <Navigate to="/perfil" replace state={{ aviso: "Su rol exige segundo factor: configúrelo para seguir trabajando." }} />;
+  }
   return <Marco>{children}</Marco>;
 }
 

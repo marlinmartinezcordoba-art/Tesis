@@ -38,6 +38,10 @@ class Accion:
     ENLACE_ENVIADO = "enlace_enviado"  # invitación o recuperación generada por el administrador
     SESIONES_REVOCADAS = "sesiones_revocadas"
     CUENTA_ADMINISTRADORA_RESTABLECIDA = "cuenta_administradora_restablecida"
+    SEGUNDO_FACTOR_ACTIVADO = "segundo_factor_activado"
+    SEGUNDO_FACTOR_DESACTIVADO = "segundo_factor_desactivado"
+    SEGUNDO_FACTOR_RESTABLECIDO = "segundo_factor_restablecido"  # por el administrador (teléfono perdido)
+    CODIGO_RESPALDO_USADO = "codigo_respaldo_usado"
 
 
 def ip_de(request: Request | None) -> str | None:
@@ -75,3 +79,36 @@ def registrar(
     )
     db.add(evento)
     return evento
+
+
+# --- Cadena de huellas (brecha RF-AUD-002) --------------------------------------------------------
+
+def verificar_cadena(db: Session) -> dict:
+    """Recalcula en la base de datos la huella de cada evento con la del
+    anterior (la misma función que usa el disparador) y dice dónde se rompe
+    la cadena, si se rompe. El último eslabón es el sello que se guarda
+    fuera del sistema: con él se demuestra que nada se cambió hasta ahí."""
+    from sqlalchemy import text
+
+    fila = db.execute(text("""
+        WITH c AS (
+            SELECT r.id, r.orden, r.fecha, r.huella, r.huella_anterior,
+                   lag(r.huella) OVER (ORDER BY r.orden) AS previa,
+                   lag(r.orden) OVER (ORDER BY r.orden) AS orden_previo,
+                   auditoria_huella(r, lag(r.huella) OVER (ORDER BY r.orden)) AS calculada
+            FROM registro_auditoria r WHERE r.orden IS NOT NULL)
+        SELECT (SELECT count(*) FROM c) AS total,
+               (SELECT orden FROM c WHERE huella IS DISTINCT FROM calculada
+                   OR huella_anterior IS DISTINCT FROM previa
+                   OR orden <> coalesce(orden_previo, 0) + 1 ORDER BY orden LIMIT 1) AS roto_en,
+               (SELECT count(*) FROM registro_auditoria WHERE orden IS NULL) AS sin_encadenar,
+               (SELECT orden FROM c ORDER BY orden DESC LIMIT 1) AS ultimo_orden,
+               (SELECT huella FROM c ORDER BY orden DESC LIMIT 1) AS ultima_huella,
+               (SELECT fecha FROM c ORDER BY orden DESC LIMIT 1) AS ultima_fecha
+    """)).mappings().one()
+    integra = fila["roto_en"] is None and fila["sin_encadenar"] == 0
+    return {"integra": integra, "eventos": fila["total"], "roto_en": fila["roto_en"],
+            "sin_encadenar": fila["sin_encadenar"],
+            "sello": {"orden": fila["ultimo_orden"], "huella": fila["ultima_huella"],
+                      "fecha": fila["ultima_fecha"].isoformat() if fila["ultima_fecha"] else None}}
+

@@ -16,7 +16,10 @@ from tests.conftest import crear_usuario, ingresar
 
 # Rutas que modifican algo pero son del propio usuario sobre su propia
 # cuenta (cualquier rol autenticado puede usarlas).
-PROPIAS = {"/api/auth/logout", "/api/auth/refresh", "/api/auth/perfil", "/api/auth/perfil/contrasena"}
+PROPIAS = {"/api/auth/logout", "/api/auth/refresh", "/api/auth/perfil", "/api/auth/perfil/contrasena",
+           # Segundo factor de la propia cuenta (brecha RF-SEC-003).
+           "/api/auth/perfil/doble-factor", "/api/auth/perfil/doble-factor/iniciar",
+           "/api/auth/perfil/doble-factor/activar", "/api/auth/perfil/doble-factor/desactivar"}
 
 
 @pytest.fixture()

@@ -188,6 +188,9 @@ function RevisionSemana({ lunes, revisiones, alCambiar }: {
 }) {
   const [nota, setNota] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [cadena, setCadena] = useState<{ integra: boolean; eventos: number; roto_en: number | null;
+                                         sello: { orden: number | null; huella: string | null } } | null>(null);
+  useEffect(() => { pedir<typeof cadena>("/api/auditoria/cadena").then(setCadena).catch(() => undefined); }, [revisiones]);
   async function marcar() {
     setOcupado(true);
     try {
@@ -204,6 +207,18 @@ function RevisionSemana({ lunes, revisiones, alCambiar }: {
         ? "Nadie ha dejado constancia de revisar el registro de esta semana. "
         : `Revisada por ${revisiones.map((r) => `${r.por || "—"} (${new Date(r.fecha).toLocaleDateString("es-CO")})`).join(", ")}. `}
       La revisión periódica del registro es el nivel 4 de Control en NDSA.
+      {cadena && (cadena.integra ? (
+        <div style={{ marginTop: 6 }}>
+          <span className="insignia bien">Cadena íntegra</span> {cadena.eventos} eventos encadenados. Sello actual:
+          {" "}<code title="Anótelo o expórtelo fuera del sistema: si alguien rehace el registro, ya no coincidirá">
+            n.º {cadena.sello.orden} · {cadena.sello.huella?.slice(0, 16)}…</code>
+        </div>
+      ) : (
+        <div className="aviso error" role="alert" style={{ marginTop: 6 }}>
+          La cadena de huellas del registro se rompe en el evento n.º {cadena.roto_en}: alguien alteró o quitó eventos
+          por fuera del sistema. Conserve el respaldo y avise a la administración.
+        </div>
+      ))}
       <div className="filtros" style={{ marginTop: 8 }}>
         <input type="text" placeholder="Nota (opcional): qué se revisó o qué se encontró" value={nota} maxLength={1000}
                onChange={(e) => setNota(e.target.value)} aria-label="Nota de la revisión" style={{ flex: 1 }} />

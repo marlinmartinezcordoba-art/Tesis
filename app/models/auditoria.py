@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Column, DateTime, FetchedValue, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base, ahora
@@ -29,3 +29,8 @@ class RegistroAuditoria(Base):
     valor_nuevo = Column(JSONB, nullable=True)
     detalle = Column(Text, nullable=True)
     ip = Column(String(64), nullable=True)
+    # Cadena de huellas (brecha RF-AUD-002): la llena la base de datos al
+    # insertar (disparador de la migración 0032), nunca la aplicación.
+    orden = Column(BigInteger, nullable=True, unique=True, index=True, server_default=FetchedValue())
+    huella_anterior = Column(String(64), nullable=True, server_default=FetchedValue())
+    huella = Column(String(64), nullable=True, server_default=FetchedValue())

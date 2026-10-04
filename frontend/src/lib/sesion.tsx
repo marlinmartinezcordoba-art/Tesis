@@ -5,7 +5,11 @@ import type { UsuarioBreve } from "./api";
 interface Sesion {
   usuario: UsuarioBreve | null;
   cargando: boolean;
-  ingresar: (correo: string, contrasena: string) => Promise<void>;
+  /** null si entró; el desafío si falta el segundo factor. */
+  ingresar: (correo: string, contrasena: string) => Promise<string | null>;
+  segundoFactor: (desafio: string, codigo: string) => Promise<void>;
+  /** Vuelve a leer la cuenta (p. ej. después de activar el segundo factor). */
+  refrescar: () => Promise<void>;
   salir: () => Promise<void>;
 }
 
@@ -22,7 +26,18 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   }, []);
 
   const ingresar = useCallback(async (correo: string, contrasena: string) => {
-    setUsuario(await api.ingresar(correo, contrasena));
+    const r = await api.ingresar(correo, contrasena);
+    if ("desafio" in r) return r.desafio;
+    setUsuario(r);
+    return null;
+  }, []);
+
+  const segundoFactor = useCallback(async (desafio: string, codigo: string) => {
+    setUsuario(await api.ingresarSegundoFactor(desafio, codigo));
+  }, []);
+
+  const refrescar = useCallback(async () => {
+    await api.renovar();
   }, []);
 
   const salir = useCallback(async () => {
@@ -30,7 +45,8 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     setUsuario(null);
   }, []);
 
-  const valor = useMemo(() => ({ usuario, cargando, ingresar, salir }), [usuario, cargando, ingresar, salir]);
+  const valor = useMemo(() => ({ usuario, cargando, ingresar, segundoFactor, refrescar, salir }),
+                        [usuario, cargando, ingresar, segundoFactor, refrescar, salir]);
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
 

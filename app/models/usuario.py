@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base, ahora
@@ -26,6 +26,13 @@ class Usuario(Base):
     activo = Column(Boolean, nullable=False, default=True)
     contrasena_hash = Column(String(255), nullable=True)
     contrasena_cambiada_en = Column(DateTime(timezone=True), nullable=True)
+    # Segundo factor (TOTP). El secreto nunca se devuelve después de activarlo
+    # ni se escribe en la auditoría; de los códigos de respaldo solo hay huellas.
+    mfa_secreto = Column(String(64), nullable=True)
+    mfa_activo = Column(Boolean, nullable=False, default=False, server_default="false")
+    mfa_activado_en = Column(DateTime(timezone=True), nullable=True)
+    mfa_ultimo_paso = Column(BigInteger, nullable=True)
+    mfa_respaldo = Column(JSONB, nullable=True)
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     actualizado_en = Column(DateTime(timezone=True), default=ahora, onupdate=ahora, nullable=False)

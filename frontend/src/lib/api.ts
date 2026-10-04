@@ -44,6 +44,8 @@ export interface UsuarioBreve {
   iniciales: string;
   es_administrador: boolean;
   permisos: Record<string, string>;
+  doble_factor?: boolean; // la cuenta usa segundo factor
+  doble_factor_requerido?: boolean; // su rol lo exige
 }
 
 interface RespuestaSesion {
@@ -160,8 +162,19 @@ export async function descargar(ruta: string, opciones: RequestInit = {}): Promi
   return r.headers;
 }
 
-export async function ingresar(correo: string, contrasena: string): Promise<UsuarioBreve> {
+/** Primer paso: la contraseña. Si la cuenta tiene segundo factor, devuelve el desafío en lugar de la sesión. */
+export async function ingresar(correo: string, contrasena: string): Promise<UsuarioBreve | { desafio: string }> {
   const r = await llamar("/api/auth/login", { method: "POST", body: JSON.stringify({ correo, contrasena }) }, false);
+  const cuerpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status));
+  if ((cuerpo as { segundo_factor?: boolean }).segundo_factor) return { desafio: (cuerpo as { desafio: string }).desafio };
+  token = (cuerpo as RespuestaSesion).token_acceso;
+  return (cuerpo as RespuestaSesion).usuario;
+}
+
+/** Segundo paso: el código de la aplicación de autenticación o uno de respaldo. */
+export async function ingresarSegundoFactor(desafio: string, codigo: string): Promise<UsuarioBreve> {
+  const r = await llamar("/api/auth/login/segundo-factor", { method: "POST", body: JSON.stringify({ desafio, codigo }) }, false);
   const cuerpo = await r.json().catch(() => ({}));
   if (!r.ok) throw new ErrorAPI(r.status, mensajeDe(cuerpo, r.status));
   token = (cuerpo as RespuestaSesion).token_acceso;

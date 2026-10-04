@@ -19,6 +19,7 @@ interface Usuario {
   ultimo_ingreso: string | null;
   sesiones_abiertas: number;
   creado_en: string;
+  doble_factor?: boolean;
 }
 
 interface Entrega {
@@ -202,6 +203,20 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
                       alCambiar(r.mensaje);
                     })}>
               Cerrar sesiones
+            </button>
+          )}
+          {u.doble_factor && !propio && (
+            <button type="button" className="boton chico" disabled={ocupado}
+                    onClick={() => {
+                      if (window.confirm(`¿Quitar el segundo factor de ${u.nombre}? Úselo si perdió el teléfono: se cierran sus `
+                          + "sesiones y deberá configurarlo de nuevo.")) {
+                        accion(async () => {
+                          const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/doble-factor/restablecer`, { method: "POST" });
+                          alCambiar(r.mensaje);
+                        });
+                      }
+                    }}>
+              Restablecer segundo factor
             </button>
           )}
           {!propio && (u.activo ? (

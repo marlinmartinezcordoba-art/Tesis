@@ -139,7 +139,21 @@ def usuario_actual(
     rol = db.get(Rol, usuario.rol)
     actor = Actor(usuario=usuario, sesion=sesion, permisos=dict(rol.permisos or {}) if rol and rol.activo else {})
     request.state.actor = actor
+    # Brecha RF-SEC-003: si el rol exige segundo factor y la cuenta no lo
+    # tiene, solo puede usar Mi perfil (para configurarlo) hasta tenerlo.
+    if not usuario.mfa_activo and not request.url.path.startswith("/api/auth/perfil") \
+            and doble_factor_requerido(db, usuario):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="segundo_factor_requerido")
     return actor
+
+
+def doble_factor_requerido(db: Session | None, usuario: Usuario) -> bool:
+    """Si el rol de la persona está en el parámetro «doble_factor_roles»."""
+    if db is None:
+        return False
+    from app.servicios import parametros
+
+    return usuario.rol in (parametros.leer(db, "doble_factor_roles") or [])
 
 
 def requiere_roles(*roles: str):

@@ -8,19 +8,20 @@ sesión, y la gestión de usuarios exige además el rol administrador.
 
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
-from app.core import correo
+from app.core import correo, doble_factor
 from app.core.config import settings
 from app.core.permisos import (
     ADMINISTRADOR,
     Actor,
     acceso_modulo,
+    doble_factor_requerido,
     usuario_actual,
 )
 from app.core.seguridad import (
@@ -39,6 +40,10 @@ from app.models.rol import MODULOS_CONFIGURABLES, NIVELES_POR_MODULO, Rol
 from app.models.usuario import Usuario
 from app.schemas.auth import (
     CambiarContrasenaIn,
+    CodigoIn,
+    DesactivarDobleFactorIn,
+    ExigirDobleFactorIn,
+    SegundoFactorIn,
     DefinirContrasenaIn,
     EnlaceInfoOut,
     EntregaOut,
@@ -57,7 +62,7 @@ from app.schemas.auth import (
     UsuarioOut,
     UsuariosOut,
 )
-from app.servicios import enlaces, sesiones
+from app.servicios import enlaces, parametros, sesiones
 from app.servicios.auditoria import Accion, ip_de, registrar
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticación y autorización"])
@@ -90,6 +95,8 @@ def _breve(usuario: Usuario) -> UsuarioBreve:
         iniciales=usuario.iniciales,
         es_administrador=usuario.rol == ADMINISTRADOR,
         permisos=_permisos(usuario),
+        doble_factor=usuario.mfa_activo,
+        doble_factor_requerido=doble_factor_requerido(object_session(usuario), usuario),
     )
 
 
@@ -180,6 +187,7 @@ def _usuario_out(db: Session, usuario: Usuario) -> UsuarioOut:
         ultimo_ingreso=ultimo,
         sesiones_abiertas=abiertas,
         creado_en=usuario.creado_en,
+        doble_factor=usuario.mfa_activo,
     )
 
 
@@ -219,6 +227,78 @@ def ingresar(datos: IngresoIn, request: Request, response: Response, db: Session
         db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=MENSAJE_INGRESO_FALLIDO)
 
+    if usuario.mfa_activo:
+        # Contraseña correcta, pero falta el código: no se abre sesión todavía.
+        db.commit()
+        return JSONResponse({"segundo_factor": True, "desafio": _desafio(usuario),
+                             "expira_en": int(DESAFIO_VIGENCIA.total_seconds())}, headers={"Cache-Control": "no-store"})
+    sesion, galleta = sesiones.abrir(db, usuario, ip=ip, navegador=request.headers.get("user-agent"))
+    db.commit()
+    return _respuesta_sesion(response, usuario, sesion, galleta)
+
+
+# --- segundo factor (brecha RF-SEC-003) ----------------------------------------------
+
+DESAFIO_VIGENCIA = timedelta(minutes=5)
+
+
+def _desafio(usuario: Usuario) -> str:
+    import jwt as pyjwt
+
+    instante = datetime.now(timezone.utc)
+    return pyjwt.encode({"sub": str(usuario.id), "typ": "segundo_factor", "iat": instante,
+                         "exp": instante + DESAFIO_VIGENCIA}, settings.secret_key, algorithm="HS256")
+
+
+def _usuario_del_desafio(db: Session, desafio: str) -> Usuario:
+    import jwt as pyjwt
+
+    try:
+        carga = pyjwt.decode(desafio, settings.secret_key, algorithms=["HS256"], options={"require": ["exp", "sub", "typ"]})
+    except pyjwt.PyJWTError as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="El paso de verificación venció. Ingrese de nuevo.") from exc
+    if carga.get("typ") != "segundo_factor":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="El paso de verificación venció. Ingrese de nuevo.")
+    usuario = db.get(Usuario, uuid.UUID(carga["sub"]))
+    if usuario is None or not usuario.activo or not usuario.mfa_activo:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=MENSAJE_INGRESO_FALLIDO)
+    return usuario
+
+
+def _comprobar_segundo_factor(db: Session, usuario: Usuario, valor: str, ip: str | None) -> bool:
+    """Código de la aplicación o, si no, uno de los de respaldo (que se gasta)."""
+    paso = doble_factor.verificar(usuario.mfa_secreto or "", valor, usuario.mfa_ultimo_paso)
+    if paso is not None:
+        usuario.mfa_ultimo_paso = paso
+        return True
+    huella_valor = doble_factor.huella_respaldo(valor)
+    respaldo = list(usuario.mfa_respaldo or [])
+    if huella_valor in respaldo:
+        respaldo.remove(huella_valor)
+        usuario.mfa_respaldo = respaldo
+        registrar(db, modulo="autenticacion", accion=Accion.CODIGO_RESPALDO_USADO, usuario_id=usuario.id,
+                  entidad_tipo="usuario", entidad_id=usuario.id, nuevo={"quedan": len(respaldo)}, ip=ip)
+        return True
+    return False
+
+
+@router.post("/login/segundo-factor", response_model=SesionOut,
+             summary="Segundo paso del ingreso: el código de la aplicación de autenticación o uno de respaldo")
+def ingresar_segundo_factor(datos: SegundoFactorIn, request: Request, response: Response,
+                            db: Session = Depends(get_db)):
+    usuario = _usuario_del_desafio(db, datos.desafio)
+    ip = ip_de(request)
+    if _intentos_fallidos_recientes(db, usuario.correo, usuario) >= settings.intentos_fallidos_maximos:
+        registrar(db, modulo="autenticacion", accion=Accion.INGRESO_BLOQUEADO, usuario_id=usuario.id,
+                  entidad_tipo="correo", entidad_id=huella(usuario.correo), ip=ip)
+        db.commit()
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"Demasiados intentos fallidos. Espere {settings.minutos_bloqueo} minutos e intente de nuevo.")
+    if not _comprobar_segundo_factor(db, usuario, datos.codigo, ip):
+        registrar(db, modulo="autenticacion", accion=Accion.INGRESO_FALLIDO, usuario_id=usuario.id,
+                  entidad_tipo="correo", entidad_id=huella(usuario.correo), ip=ip, detalle="Código del segundo factor")
+        db.commit()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="El código no es correcto o ya se usó.")
     sesion, galleta = sesiones.abrir(db, usuario, ip=ip, navegador=request.headers.get("user-agent"))
     db.commit()
     return _respuesta_sesion(response, usuario, sesion, galleta)
@@ -349,6 +429,69 @@ def cambiar_contrasena(datos: CambiarContrasenaIn, request: Request, actor: Acto
     return MensajeOut(mensaje="Contraseña actualizada." + (" Se cerraron sus otras sesiones abiertas." if otras else ""))
 
 
+@router.get("/perfil/doble-factor", summary="Si la cuenta usa segundo factor y si su rol lo exige")
+def estado_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    u = actor.usuario
+    return {"activo": u.mfa_activo, "activado_en": u.mfa_activado_en, "requerido": doble_factor_requerido(db, u),
+            "codigos_respaldo": len(u.mfa_respaldo or []) if u.mfa_activo else 0}
+
+
+@router.post("/perfil/doble-factor/iniciar", summary="Generar la clave para la aplicación de autenticación")
+def iniciar_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    u = actor.usuario
+    if u.mfa_activo:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="El segundo factor ya está activo. Desactívelo para cambiar de teléfono.")
+    u.mfa_secreto = doble_factor.generar_secreto()
+    u.mfa_ultimo_paso = None
+    db.commit()
+    # Única vez que la clave sale del servidor: la persona la escribe o escanea en su aplicación.
+    return JSONResponse({"clave": u.mfa_secreto, "uri": doble_factor.uri(u.mfa_secreto, u.correo)},
+                        headers={"Cache-Control": "no-store"})
+
+
+@router.post("/perfil/doble-factor/activar", summary="Confirmar con un código y recibir los códigos de respaldo")
+def activar_doble_factor(datos: CodigoIn, request: Request, actor: Actor = Depends(usuario_actual),
+                         db: Session = Depends(get_db)):
+    u = actor.usuario
+    if u.mfa_activo or not u.mfa_secreto:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Primero genere la clave para su aplicación.")
+    paso = doble_factor.verificar(u.mfa_secreto, datos.codigo, None)
+    if paso is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail="El código no coincide. Revise que la hora del teléfono esté bien y escriba el código actual.")
+    codigos = doble_factor.nuevos_codigos_respaldo()
+    u.mfa_activo, u.mfa_activado_en, u.mfa_ultimo_paso = True, ahora(), paso
+    u.mfa_respaldo = [doble_factor.huella_respaldo(c) for c in codigos]
+    ip = ip_de(request)
+    otras = sesiones.cerrar_todas(db, u.id, "segundo_factor_activado", excepto=actor.sesion.id, ip=ip)
+    registrar(db, modulo="autenticacion", accion=Accion.SEGUNDO_FACTOR_ACTIVADO, usuario_id=u.id, entidad_tipo="usuario",
+              entidad_id=u.id, nuevo={"codigos_respaldo": len(codigos), "otras_sesiones_cerradas": otras}, ip=ip)
+    db.commit()
+    return JSONResponse({"codigos_respaldo": codigos}, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/perfil/doble-factor/desactivar", response_model=MensajeOut, summary="Quitar el segundo factor de la propia cuenta")
+def desactivar_doble_factor(datos: DesactivarDobleFactorIn, request: Request, actor: Actor = Depends(usuario_actual),
+                            db: Session = Depends(get_db)):
+    u = actor.usuario
+    if not u.mfa_activo:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="La cuenta no tiene segundo factor.")
+    if doble_factor_requerido(db, u):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Su rol exige segundo factor: no se puede quitar.")
+    ip = ip_de(request)
+    if not verificar_contrasena(datos.contrasena, u.contrasena_hash) or not _comprobar_segundo_factor(db, u, datos.codigo, ip):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="La contraseña o el código no son correctos.")
+    _quitar_doble_factor(u)
+    registrar(db, modulo="autenticacion", accion=Accion.SEGUNDO_FACTOR_DESACTIVADO, usuario_id=u.id,
+              entidad_tipo="usuario", entidad_id=u.id, ip=ip)
+    db.commit()
+    return MensajeOut(mensaje="Se quitó el segundo factor de su cuenta.")
+
+
+def _quitar_doble_factor(u: Usuario) -> None:
+    u.mfa_activo, u.mfa_secreto, u.mfa_activado_en, u.mfa_ultimo_paso, u.mfa_respaldo = False, None, None, None, None
+
+
 # --- gestión de usuarios (solo administrador) ----------------------------------------
 
 usuarios = APIRouter(prefix="/api/auth", tags=["Autenticación y autorización"],
@@ -470,6 +613,24 @@ def enviar_enlace(usuario_id: uuid.UUID, request: Request, actor: Actor = Depend
     return EntregaOut(**entrega.__dict__)
 
 
+@usuarios.post("/usuarios/{usuario_id}/doble-factor/restablecer", response_model=MensajeOut,
+               summary="Quitar el segundo factor de una cuenta (teléfono perdido); cierra sus sesiones")
+def restablecer_doble_factor(usuario_id: uuid.UUID, request: Request, actor: Actor = Depends(usuario_actual),
+                             db: Session = Depends(get_db)):
+    u = db.get(Usuario, usuario_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La persona no existe.")
+    if not u.mfa_activo:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Esa cuenta no tiene segundo factor.")
+    _quitar_doble_factor(u)
+    ip = ip_de(request)
+    cerradas = sesiones.cerrar_todas(db, u.id, "segundo_factor_restablecido", ip=ip)
+    registrar(db, modulo="autenticacion", accion=Accion.SEGUNDO_FACTOR_RESTABLECIDO, usuario_id=actor.id,
+              entidad_tipo="usuario", entidad_id=u.id, nuevo={"sesiones_cerradas": cerradas}, ip=ip)
+    db.commit()
+    return MensajeOut(mensaje=f"Se quitó el segundo factor de {u.nombre}. Deberá configurarlo de nuevo al entrar.")
+
+
 @usuarios.post("/usuarios/{usuario_id}/cerrar-sesiones", response_model=MensajeOut,
                summary="Revocar todas las sesiones abiertas de un usuario")
 def cerrar_sesiones(usuario_id: uuid.UUID, request: Request, actor: Actor = Depends(usuario_actual),
@@ -514,7 +675,23 @@ def _rol_out(db: Session, rol: Rol) -> RolOut:
     usuarios_activos = db.scalar(select(func.count(Usuario.id)).where(Usuario.rol == rol.clave, Usuario.activo.is_(True))) or 0
     return RolOut(clave=rol.clave, nombre=rol.nombre, descripcion=rol.descripcion, base=rol.base, activo=rol.activo,
                   permisos={m: (rol.permisos or {}).get(m, "ninguno") for m in MODULOS_CONFIGURABLES},
-                  usuarios=usuarios_activos)
+                  usuarios=usuarios_activos,
+                  doble_factor=rol.clave in (parametros.leer(db, "doble_factor_roles") or []))
+
+
+@usuarios.put("/roles/{clave}/doble-factor", response_model=RolOut,
+              summary="Exigir (o dejar de exigir) segundo factor a las personas de un rol")
+def exigir_doble_factor(clave: str, datos: ExigirDobleFactorIn, request: Request,
+                        actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    rol = db.get(Rol, clave)
+    if rol is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El rol no existe.")
+    roles = [r for r in (parametros.leer(db, "doble_factor_roles") or []) if r != clave]
+    if datos.exigir:
+        roles.append(clave)
+    parametros.cambiar(db, "doble_factor_roles", sorted(roles), actor.id, "autenticacion", ip=ip_de(request))
+    db.commit()
+    return _rol_out(db, rol)
 
 
 def _clave_para(db: Session, nombre: str) -> str:

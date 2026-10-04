@@ -52,6 +52,9 @@ DEFINICIONES: dict[str, Definicion] = {
                                               "respaldo fuera del servidor."),
     "rdf_base_publicada": Definicion(None, lambda v: None if v is None or isinstance(v, str) else "Debe ser un texto.",
                                      "Base de las URI con la que se publicó por primera vez (no debe cambiar)."),
+    "doble_factor_roles": Definicion([], lambda v: None if isinstance(v, list) and all(isinstance(x, str) for x in v)
+                                     else "Debe ser una lista de claves de rol.",
+                                     "Roles que deben usar segundo factor (código de una aplicación de autenticación) para entrar."),
     "rdf_uris_publicas": Definicion(False, lambda v: None if isinstance(v, bool) else "Debe ser verdadero o falso.",
                                     "Si las URI de RiC-O (/id/…) se resuelven sin iniciar sesión. Apagado por "
                                     "defecto: encenderlo publica en internet lo descrito con acceso público."),

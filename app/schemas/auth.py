@@ -29,6 +29,10 @@ class UsuarioBreve(BaseModel):
     iniciales: str
     es_administrador: bool = False
     permisos: dict[str, str] = {}
+    # Segundo factor: si la cuenta lo usa y si su rol lo exige (la interfaz
+    # lleva a configurarlo antes de dejar trabajar).
+    doble_factor: bool = False
+    doble_factor_requerido: bool = False
 
 
 class SesionOut(BaseModel):
@@ -37,6 +41,24 @@ class SesionOut(BaseModel):
     expira_en: int  # segundos
     rol: Rol
     usuario: UsuarioBreve
+
+
+class SegundoFactorIn(BaseModel):
+    desafio: str = Field(max_length=2000)
+    codigo: str = Field(min_length=6, max_length=20)  # 6 dígitos o un código de respaldo XXXX-XXXX
+
+
+class ExigirDobleFactorIn(BaseModel):
+    exigir: bool
+
+
+class CodigoIn(BaseModel):
+    codigo: str = Field(min_length=6, max_length=20)
+
+
+class DesactivarDobleFactorIn(BaseModel):
+    contrasena: str = Field(max_length=200)
+    codigo: str = Field(min_length=6, max_length=20)
 
 
 class RecuperarIn(BaseModel):
@@ -86,6 +108,7 @@ class UsuarioOut(BaseModel):
     ultimo_ingreso: datetime | None
     sesiones_abiertas: int
     creado_en: datetime
+    doble_factor: bool = False
 
 
 class UsuariosOut(BaseModel):
@@ -131,6 +154,7 @@ class RolOut(BaseModel):
     activo: bool
     permisos: dict[str, str]
     usuarios: int
+    doble_factor: bool = False  # el rol exige segundo factor
 
 
 class RolIn(BaseModel):

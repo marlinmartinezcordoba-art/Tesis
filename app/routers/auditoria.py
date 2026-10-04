@@ -127,12 +127,26 @@ revision = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
 @revision.post("/consolidado/revisado", summary="Dejar constancia de que se revisó el registro de la semana")
 def marcar_revisado(datos: RevisionIn, request: Request, actor: Actor = Depends(_revisor_del_registro),
                     db: Session = Depends(get_db)):
+    from app.servicios.auditoria import verificar_cadena
+
     lunes = trazabilidad.lunes_de(_dia(datos.semana))
+    # Quien revisa deja constancia también del sello de la cadena en ese
+    # momento: si después alguien rehace la cadena entera, el sello anotado
+    # (y exportado fuera del sistema) ya no coincide.
+    cadena = verificar_cadena(db)
     registrar(db, modulo="auditoria", accion="consolidado_revisado", usuario_id=actor.id, entidad_tipo="semana",
               entidad_id=lunes.isoformat(), ip=ip_de(request), detalle=f"Semana del {lunes.isoformat()}",
-              nuevo={"semana": lunes.isoformat(), "nota": datos.nota})
+              nuevo={"semana": lunes.isoformat(), "nota": datos.nota, "cadena_integra": cadena["integra"],
+                     "sello": cadena["sello"]})
     db.commit()
     return {"revisiones": trazabilidad.revisiones_de(db, lunes)}
+
+
+@router.get("/cadena", summary="Verificar la cadena de huellas del registro de auditoría y obtener su sello")
+def cadena(_: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
+    from app.servicios.auditoria import verificar_cadena
+
+    return verificar_cadena(db)
 
 
 @router.get("/panel-consolidado/exportar", summary="La semana seleccionada completa (personas y sesiones), en Excel")

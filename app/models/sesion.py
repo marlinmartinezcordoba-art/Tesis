@@ -12,6 +12,8 @@ MOTIVO_CIERRE = (
     "cambio_contrasena",  # cambió o restableció la contraseña
     "cuenta_desactivada",  # un administrador desactivó la cuenta
     "reutilizacion_token",  # alguien presentó un token de renovación ya usado
+    "segundo_factor_activado",  # activó el segundo factor: las demás sesiones se cierran
+    "segundo_factor_restablecido",  # un administrador le quitó el segundo factor (teléfono perdido)
 )
 
 
