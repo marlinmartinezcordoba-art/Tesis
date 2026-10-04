@@ -100,7 +100,36 @@ async def cabeceras_seguridad(request, call_next):
     respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
     respuesta.headers.setdefault("X-Frame-Options", "DENY")
     respuesta.headers.setdefault("Referrer-Policy", "no-referrer")
+    # Brecha NFR-01 (lote 3): política de contenido, permisos del navegador y HSTS.
+    respuesta.headers.setdefault("Content-Security-Policy", politica_contenido(request.url.path, request.url.scheme == "https"))
+    respuesta.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+    respuesta.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if request.url.scheme == "https":
+        # Un año, con subdominios: el navegador no vuelve a intentar HTTP.
+        respuesta.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return respuesta
+
+
+# Lo único externo que carga la interfaz: las fuentes tipográficas (Google
+# Fonts) y el mapa de un lugar (OpenStreetMap, en un marco). Nada de scripts
+# de terceros. La documentación de la API (Swagger) trae su propio código de
+# un CDN y por eso tiene una política aparte, solo en /api/docs.
+POLITICA_INTERFAZ = (
+    "default-src 'self'; script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; "
+    "img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.openstreetmap.org; "
+    "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+)
+POLITICA_DOCS = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; "
+    "connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+)
+
+
+def politica_contenido(ruta: str, https: bool) -> str:
+    politica = POLITICA_DOCS if ruta.startswith("/api/docs") else POLITICA_INTERFAZ
+    return politica + ("; upgrade-insecure-requests" if https else "")
 
 
 # --- Interfaz React compilada -------------------------------------------------

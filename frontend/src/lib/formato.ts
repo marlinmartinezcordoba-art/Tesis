@@ -19,7 +19,9 @@ export function dia(iso: string | null | undefined): string {
 
 const numero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
-export function peso(bytes: number): string {
+export function peso(bytes: number | null | undefined): string {
+  // Un original en papel (registro físico, sin archivo) no tiene tamaño.
+  if (bytes == null) return "sin archivo digital";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${numero.format(bytes / 1024)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${numero.format(bytes / 1024 / 1024)} MB`;

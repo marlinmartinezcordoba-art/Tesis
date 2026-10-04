@@ -71,7 +71,13 @@ def cuenta_administradora() -> int:
         else:
             anterior = {"rol": usuario.rol, "activo": usuario.activo}
             accion = "restablecida"
-        cambio_contrasena = not usuario.contrasena_hash or not verificar_contrasena(contrasena, usuario.contrasena_hash)
+        # Brecha NFR-01 (lote 3): la contraseña del secreto solo se aplica al
+        # crear la cuenta o si se pide expresamente (RICORA_ADMIN_RESTABLECER=1,
+        # p. ej. si nadie recuerda la contraseña). Antes cada despliegue
+        # deshacía el cambio hecho en «Mi perfil».
+        restablecer = os.getenv("RICORA_ADMIN_RESTABLECER", "0") == "1"
+        cambio_contrasena = (not usuario.contrasena_hash or (
+            restablecer and not verificar_contrasena(contrasena, usuario.contrasena_hash)))
         usuario.rol = "administrador"
         usuario.activo = True
         if cambio_contrasena:
@@ -86,7 +92,8 @@ def cuenta_administradora() -> int:
                       entidad_tipo="usuario", entidad_id=usuario.id, anterior=anterior, nuevo=nuevo,
                       detalle="Despliegue del servidor")
         db.commit()
-    print(f"  Cuenta administradora {accion}" + ("." if accion == "creada" else " (contraseña restablecida)." if cambio_contrasena else " (sin cambios de contraseña)."))
+    print(f"  Cuenta administradora {accion}" + ("." if accion == "creada" else " (contraseña restablecida por RICORA_ADMIN_RESTABLECER)."
+                                                  if cambio_contrasena else " (su contraseña no se toca: la cambia la persona en «Mi perfil»)."))
     return 0
 
 

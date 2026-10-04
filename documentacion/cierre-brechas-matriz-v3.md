@@ -54,12 +54,30 @@ Base: la auditoría del 4 de octubre de 2026 (`RICORA_MATRIZ_MAESTRA_REQUISITOS_
 | Cuántos paquetes conservar en el servidor | Todos; los dos últimos | Los dos últimos | Cada paquete ocupa tanto como el almacén entero | El disco: la salud avisa si queda menos del 5 % |
 | Objetivos por defecto | — | RPO de 168 h (7 días), RTO de 8 h, prueba semanal | Coinciden con el aviso existente de copia externa cada 7 días y con una jornada laboral para volver a operar | La entidad debe ajustarlos según su valoración del riesgo |
 
+## Lote 3 · Endurecimiento
+
+| Requisito | Antes | Después | Qué se hizo | Evidencia |
+|---|---|---|---|---|
+| NFR-01 Seguridad | Parcial | Parcial (avanza; pasa a Cumple cuando el despliegue confirme HTTPS) | **HTTPS sin comprar dominio**: si no hay nombre propio, el despliegue usa `<ip-con-guiones>.sslip.io`, un nombre gratuito que apunta a la IP del servidor, y Caddy obtiene el certificado de Let's Encrypt. Quien entre por la dirección numérica se envía al nombre con HTTPS. **Sin caída silenciosa**: si el HTTPS falla, RICORA sigue disponible por HTTP, pero lo dice en tres lugares: un aviso en el resumen del despliegue de GitHub, una franja roja en el ingreso y en cada pantalla («no cargue documentos clasificados o reservados») y la salud del sistema en «degradado». **Cabeceras**: política de contenido (CSP) que solo admite código propio, prohíbe incrustar RICORA en otros sitios y bloquea objetos; HSTS de un año solo cuando la conexión es HTTPS. **Contraseña del administrador**: el despliegue ya no la restablece; solo la fija al crear la cuenta o si se pide expresamente con `RICORA_ADMIN_RESTABLECER=1` | `app/main.py` (cabeceras), `Caddyfile`, `.github/workflows/deploy.yml`, `app/servicios/salud.py::_conexion`, `frontend/src/components/SinCifrar.tsx`, `app/cli.py::cuenta_administradora`, `tests/test_brechas_lote3.py`, `frontend/src/pruebas/sinCifrar.test.ts` |
+
+### Decisiones del lote 3
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Nombre para el certificado | Comprar un dominio; certificado autofirmado; nombre gratuito sslip.io | sslip.io, con el dominio propio como opción (`RICORA_DOMINIO`) | Let's Encrypt no emite certificados para una IP sola. sslip.io es gratuito y no requiere registro; un certificado autofirmado haría que el navegador advierta en cada ingreso y entrena a las personas a ignorar avisos | Depende de un servicio de terceros para resolver el nombre y de sus límites de emisión. Para producción institucional: un dominio propio. `RICORA_DOMINIO=ninguno` lo desactiva |
+| Si el HTTPS falla | Detener el despliegue; seguir en HTTP en silencio (como antes); seguir en HTTP avisando | Seguir en HTTP avisando en tres lugares | Detener el despliegue deja al archivo sin servicio por un problema de red (p. ej. el puerto 443 cerrado en el cortafuegos). Callarlo era el defecto de la auditoría | Que alguien cargue un documento reservado pese a la franja: la franja aparece antes de ingresar la contraseña |
+| Redirección desde la IP | Ninguna; permanente (301); temporal (302) | Temporal | Si el HTTPS fallara después, un 301 quedaría memorizado en los navegadores y RICORA sería inaccesible por la IP | Ninguno |
+| Política de contenido | Ninguna; estricta sin estilos en línea; estricta en guiones y permisiva en estilos | Guiones solo propios; estilos propios y en línea | React aplica estilos en línea (posiciones del grafo, barras de progreso). Los guiones, que son el riesgo real de robo de sesión, quedan restringidos a RICORA. La documentación de la API (`/api/docs`) tiene su propia política porque usa Swagger desde un CDN | Un estilo en línea inyectado podría alterar la apariencia, no ejecutar código |
+| HSTS | Siempre; solo con HTTPS; con precarga | Solo con HTTPS, un año, sin precarga | En HTTP la cabecera no tiene efecto y, con un nombre prestado como sslip.io, la precarga comprometería un dominio que no es nuestro | Si se vuelve a HTTP con el mismo nombre, los navegadores que ya entraron exigirán HTTPS durante un año: por eso la vuelta a HTTP usa la IP, no el nombre |
+| Contraseña del administrador en cada despliegue | Restablecerla siempre (como antes); no tocarla nunca; solo al crear o a pedido | Solo al crear la cuenta o con `RICORA_ADMIN_RESTABLECER=1` | Restablecerla deshacía el cambio hecho en «Mi perfil» y dejaba la contraseña viviendo para siempre en un secreto. Sin una salida, quien la olvide queda fuera | Que el secreto `RICORA_ADMIN_RESTABLECER=1` quede puesto: el despliegue lo advierte para que se borre |
+
+**Pendiente para cerrar NFR-01:** confirmar en el registro del despliegue que el certificado se emitió («HTTPS activo en https://…»). Si el aviso dice que el puerto 443 no responde, hay que abrirlo en el cortafuegos del Droplet (DigitalOcean › Networking › Firewalls), sin costo.
+
 ## Pendiente (lotes siguientes)
 
 | Lote | Requisitos | Qué falta |
 |---|---|---|
 | Métricas | RF-OPS-001, NFR-10 | Métricas de uso y de rendimiento expuestas para un monitor |
-| 3 · Endurecimiento | NFR-01 | Quitar la caída a HTTP; cabeceras CSP y HSTS; no restablecer la contraseña del administrador en cada despliegue |
 | 4 · Búsqueda | RF-SEARCH-001/002 | Buscador de texto completo (PostgreSQL) sobre texto, metadatos e identificadores, que respete la Ley 1712 |
 | 5 · Evidencia de la IA | RF-AI-002, RF-OCR-001 | Propuesta del motor como registro propio con fecha y versión; página y bloque de cada fragmento |
 | 6 · Versiones y API | RF-RIC-001/002, RF-INT-003 | Versiones consultables de cada descripción; esquemas de respuesta en OpenAPI con prueba |

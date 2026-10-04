@@ -1,7 +1,14 @@
 # HTTPS automático para el nombre de RICORA (variable RICORA_DOMINIO).
 # Caddy obtiene y renueva el certificado solo, y redirige http → https
-# para ese nombre. No se agrega ninguna redirección permanente adicional.
+# para ese nombre.
 {$RICORA_DOMINIO} {
 	encode gzip
 	reverse_proxy web:8000
+}
+
+# Quien entre por la dirección numérica (http://IP, enlaces antiguos) se
+# envía al nombre con HTTPS. Redirección temporal (302): si el HTTPS fallara y
+# el despliegue volviera a HTTP, los navegadores no la habrán memorizado.
+http:// {
+	redir https://{$RICORA_DOMINIO}{uri} 302
 }

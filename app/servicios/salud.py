@@ -7,7 +7,9 @@ pocos minutos sin sesión.
 - almacén de archivos: existe, se puede escribir y le queda espacio;
 - trabajador: dejó su latido hace poco (procesa la ingesta, verifica la
   integridad, hace los respaldos);
-- respaldo: el último respaldo con simulacro correcto no está atrasado.
+- respaldo: el último respaldo con simulacro correcto no está atrasado;
+- conexión: la dirección pública usa HTTPS (lote 3, NFR-01). Si el despliegue
+  tuvo que quedarse en HTTP, se dice aquí y no solo en su registro.
 
 Solo la base de datos decide el código HTTP (503 si no responde): sin ella
 nada funciona. Lo demás deja el estado en «degradado» con el motivo, sin
@@ -20,6 +22,7 @@ import tempfile
 import time
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -95,9 +98,22 @@ def _respaldo(db: Session) -> dict:
     return {"ok": True, "hace_horas": int(atraso.total_seconds() // 3600)}
 
 
+LOCALES = {"localhost", "127.0.0.1", "::1"}
+
+
+def _conexion() -> dict:
+    url = urlsplit(settings.url_publica)
+    if url.scheme == "https":
+        return {"ok": True, "cifrada": True}
+    if (url.hostname or "") in LOCALES:
+        return {"ok": True, "cifrada": False, "nota": "Instalación local, sin HTTPS."}
+    return {"ok": False, "cifrada": False,
+            "motivo": "RICORA se publica sin HTTPS: no cargue documentos clasificados o reservados."}
+
+
 def estado(db: Session) -> tuple[int, dict]:
     base = _base(db)
-    piezas = {"base_de_datos": base}
+    piezas = {"base_de_datos": base, "conexion": _conexion()}
     if base["ok"]:
         piezas |= {"almacen": _almacen(), "trabajador": _trabajador(), "respaldo": _respaldo(db)}
     else:

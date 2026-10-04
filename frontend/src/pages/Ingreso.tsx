@@ -1,3 +1,4 @@
+import { AvisoSinCifrar } from "../components/SinCifrar";
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Marca } from "@/components/Marco";
@@ -48,6 +49,7 @@ export function Ingreso() {
       <form className="acceso-tarjeta" onSubmit={enviar}>
         <Marca />
         <h1>Iniciar sesión</h1>
+        <AvisoSinCifrar />
         <p className="sub">Ingrese con su correo institucional</p>
         {aviso && !error && <div className="aviso bien">{aviso}</div>}
         {error && <div className="aviso error" role="alert">{error}</div>}

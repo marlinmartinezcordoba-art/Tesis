@@ -1,3 +1,4 @@
+import { AvisoSinCifrar } from "./SinCifrar";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@/lib/api";
@@ -306,6 +307,7 @@ export function Marco({ children }: { children: ReactNode }) {
             <MenuPersona />
           </div>
         </div>
+        <AvisoSinCifrar />
         {children}
       </main>
     </div>

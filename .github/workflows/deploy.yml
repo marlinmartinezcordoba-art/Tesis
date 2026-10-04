@@ -6,14 +6,19 @@ name: Probar y desplegar en el Droplet
 # Secretos (Settings → Secrets and variables → Actions):
 #   DROPLET_HOST, DROPLET_USER, DROPLET_SSH_KEY   acceso al servidor
 #   RICORA_ADMIN_CORREO     correo de la cuenta administradora (con él se ingresa)
-#   RICORA_ADMIN_PASSWORD   su contraseña (se restablece en cada despliegue)
+#   RICORA_ADMIN_PASSWORD   su contraseña inicial: solo se aplica al crear la
+#                           cuenta. Para forzarla de nuevo (nadie la recuerda),
+#                           cree el secreto RICORA_ADMIN_RESTABLECER=1 por un
+#                           despliegue y bórrelo después
 #   RICORA_ADMIN_NOMBRE     nombre que se muestra (opcional)
 #   RICORA_ADMIN_USER       usuario de la versión anterior; solo se usa si no
 #                           hay RICORA_ADMIN_CORREO (ingresa como <usuario>@ricora.local)
 #   EMAIL_HOST_USER         correo desde el que salen invitaciones y recuperaciones
 #   EMAIL_HOST_PASSWORD     su contraseña de aplicación (Gmail: 16 letras)
 #   EMAIL_HOST              servidor SMTP (por defecto smtp.gmail.com)
-#   RICORA_DOMINIO          nombre propio para HTTPS (opcional)
+#   RICORA_DOMINIO          nombre propio para HTTPS (opcional). Sin él, se usa
+#                           <ip-con-guiones>.sslip.io (gratis) para tener HTTPS
+#                           igual; RICORA_DOMINIO=ninguno lo desactiva
 #   GEMINI_API_KEY          clave de Google AI Studio para el motor de análisis
 #                           de la descripción (sin ella, se describe a mano)
 on:
@@ -107,6 +112,7 @@ jobs:
           RICORA_ADMIN_NOMBRE: ${{ secrets.RICORA_ADMIN_NOMBRE }}
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           RICORA_DOMINIO: ${{ secrets.RICORA_DOMINIO }}
+          RICORA_ADMIN_RESTABLECER: ${{ secrets.RICORA_ADMIN_RESTABLECER }}
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
@@ -114,7 +120,7 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
+          envs: GEMINI_API_KEY,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,RICORA_ADMIN_RESTABLECER,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
           command_timeout: 25m
           script: |
             set -e
@@ -166,12 +172,19 @@ jobs:
             poner EMAIL_HOST_USER "$EMAIL_HOST_USER"
             poner EMAIL_HOST_PASSWORD "$EMAIL_HOST_PASSWORD"
 
-            # HTTPS con nombre propio: solo si el nombre ya apunta a este servidor.
+            # HTTPS (brecha NFR-01, lote 3). Sin nombre propio se usa uno
+            # gratuito que resuelve a la IP: 203.0.113.5 → 203-0-113-5.sslip.io.
+            # Así Caddy obtiene el certificado de Let's Encrypt sin comprar dominio.
+            if [ -z "$RICORA_DOMINIO" ] && echo "$DROPLET_HOST" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+              RICORA_DOMINIO="$(echo "$DROPLET_HOST" | tr . -).sslip.io"
+              echo "  Sin nombre propio: se usa $RICORA_DOMINIO para HTTPS."
+            fi
+            [ "$RICORA_DOMINIO" = "ninguno" ] && RICORA_DOMINIO=""
             https=0
             if [ -n "$RICORA_DOMINIO" ]; then
               resuelve=$(getent ahostsv4 "$RICORA_DOMINIO" | awk 'NR==1{print $1}')
               if [ "$resuelve" = "$DROPLET_HOST" ]; then https=1; else
-                echo "  aviso: $RICORA_DOMINIO apunta a ${resuelve:-ninguna dirección}, no a este servidor; se sigue sin HTTPS."
+                echo "::warning title=Sin HTTPS::$RICORA_DOMINIO apunta a ${resuelve:-ninguna dirección}, no a este servidor. RICORA queda en HTTP: no cargue documentos clasificados o reservados."
               fi
             fi
             if [ "$https" = 1 ]; then
@@ -241,7 +254,11 @@ jobs:
                 sleep 5
               done
               if [ "$segura" != 1 ]; then
-                echo "  HTTPS no respondió: se vuelve a la dirección numérica. Registro de Caddy:"
+                # Se conserva la disponibilidad, pero no en silencio: el aviso
+                # queda en el resumen del despliegue y la aplicación muestra una
+                # franja y marca la salud como «degradado».
+                echo "::warning title=Sin HTTPS::HTTPS no respondió en $RICORA_DOMINIO (¿puerto 443 cerrado en el cortafuegos del Droplet?). RICORA queda en HTTP: no cargue documentos clasificados o reservados."
+                echo "  Registro de Caddy:"
                 docker compose logs --tail 40 caddy || true
                 docker compose rm -sf caddy || true
                 quitar COMPOSE_PROFILES
@@ -251,12 +268,16 @@ jobs:
                 poner RICORA_GALLETA_SEGURA 0
                 poner RICORA_URL_PUBLICA "http://$DROPLET_HOST"
                 docker compose up -d --force-recreate web
+              else
+                echo "  HTTPS activo en https://$RICORA_DOMINIO"
               fi
             fi
 
-            # Siempre: la cuenta administradora vuelve a quedar activa, con rol
-            # administrador y la contraseña del secreto.
-            docker compose exec -T web python -m app.cli cuenta-administradora || echo "  aviso: no se pudo configurar la cuenta administradora"
+            # Siempre: la cuenta administradora vuelve a quedar activa y con rol
+            # administrador. Su contraseña solo se fija al crearla (o con
+            # RICORA_ADMIN_RESTABLECER=1): ya no se pisa la que cambió la persona.
+            [ "${RICORA_ADMIN_RESTABLECER:-0}" = 1 ] && echo "::warning title=Contraseña restablecida::RICORA_ADMIN_RESTABLECER=1: borre ese secreto después de este despliegue."
+            docker compose exec -T -e RICORA_ADMIN_RESTABLECER="${RICORA_ADMIN_RESTABLECER:-0}" web python -m app.cli cuenta-administradora || echo "  aviso: no se pudo configurar la cuenta administradora"
             echo "== Motor de análisis =="
             docker compose exec -T web python -m app.cli probar-motor || echo "  aviso: no se pudo probar el motor"
             docker compose exec -T web python -m app.cli probar-preservacion || echo "  aviso: la migración a PDF/A no funciona en el servidor"
