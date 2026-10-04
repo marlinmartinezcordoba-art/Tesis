@@ -133,6 +133,9 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "respaldo_bd": ("Respaldó la base de datos", "Respaldos de la base de datos"),
     "simulacro_restauracion": ("Probó restaurar un respaldo de la base", None),
     "respaldo_descargado": ("Descargó un respaldo fuera del servidor", None),
+    "paquete_recuperacion": ("Armó el paquete de recuperación ante desastres", None),
+    "simulacro_recuperacion": ("Probó restaurar el sistema completo desde el paquete de recuperación", None),
+    "paquete_recuperacion_descargado": ("Descargó el paquete de recuperación fuera del servidor", None),
 }
 
 

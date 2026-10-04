@@ -50,6 +50,14 @@ DEFINICIONES: dict[str, Definicion] = {
     "respaldo_dias_copia_externa": Definicion(7, _entero_entre(1, 90),
                                               "Cada cuántos días, como máximo, alguien debe llevarse el último "
                                               "respaldo fuera del servidor."),
+    # Recuperación ante desastres (NFR-04): los objetivos y cada cuánto se
+    # arma y se prueba el paquete completo (0 = solo cuando lo pida el administrador).
+    "rpo_horas": Definicion(168, _entero_entre(1, 8760),
+                            "Pérdida máxima aceptable de información, en horas (RPO): cada cuánto debe salir una copia completa fuera del servidor."),
+    "rto_horas": Definicion(8, _entero_entre(1, 720),
+                            "Tiempo máximo para volver a tener el sistema funcionando tras perder el servidor, en horas (RTO)."),
+    "recuperacion_frecuencia_dias": Definicion(7, _entero_entre(0, 365),
+                                               "Cada cuántos días se arma y se prueba el paquete de recuperación (0 = solo a mano)."),
     "rdf_base_publicada": Definicion(None, lambda v: None if v is None or isinstance(v, str) else "Debe ser un texto.",
                                      "Base de las URI con la que se publicó por primera vez (no debe cambiar)."),
     "doble_factor_roles": Definicion([], lambda v: None if isinstance(v, list) and all(isinstance(x, str) for x in v)

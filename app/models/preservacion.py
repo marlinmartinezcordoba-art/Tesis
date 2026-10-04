@@ -19,7 +19,7 @@ Instantiation (RiC-E06), nunca en el Record Resource.
 
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base, ahora
@@ -189,3 +189,39 @@ class ComprobacionTecnica(Base):
     detalle = Column(JSONB, nullable=True)
     origen = Column(String(20), nullable=False)  # ingesta, migracion, manual
     realizada_en = Column(DateTime(timezone=True), nullable=False, default=ahora)
+
+
+ESTADO_PAQUETE = ("en_curso", "correcto", "fallido")
+
+
+class PaqueteRecuperacion(Base):
+    """Paquete de recuperación ante desastres (brechas NFR-04, NFR-07 y
+    RF-OPS-001): en un solo archivo .tar, el volcado de la base con su
+    simulacro correcto, todos los archivos del almacén y un manifiesto con
+    la huella de cada uno, el sello de la auditoría y la migración vigente.
+    Con él (y las variables de entorno) se levanta RICORA en un servidor
+    nuevo. Su simulacro lo restaura entero en una base y una carpeta nuevas,
+    verifica todo y mide cuánto tarda: es el tiempo de recuperación real."""
+
+    __tablename__ = "paquetes_recuperacion"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False, index=True)
+    terminado_en = Column(DateTime(timezone=True), nullable=True)
+    origen = Column(String(20), nullable=False, default="periodico")  # periodico | manual
+    estado = Column(String(20), nullable=False, default="en_curso")  # ESTADO_PAQUETE
+    respaldo_id = Column(UUID(as_uuid=True), ForeignKey("respaldos_bd.id"), nullable=True)
+    archivo = Column(String(300), nullable=True)
+    tamano_bytes = Column(BigInteger, nullable=True)
+    huella = Column(String(64), nullable=True)  # SHA-256 del .tar
+    archivos = Column(Integer, nullable=True)
+    bytes_archivos = Column(BigInteger, nullable=True)
+    error = Column(String(1000), nullable=True)
+    simulacro_en = Column(DateTime(timezone=True), nullable=True)
+    simulacro_estado = Column(String(20), nullable=True)  # correcto | fallido
+    simulacro_segundos = Column(Integer, nullable=True)
+    simulacro_detalle = Column(JSONB, nullable=True)
+    descargado_en = Column(DateTime(timezone=True), nullable=True)
+    descargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    depurado_en = Column(DateTime(timezone=True), nullable=True)
+    creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)

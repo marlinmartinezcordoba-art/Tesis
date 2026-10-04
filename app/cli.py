@@ -15,9 +15,11 @@ rol, quedó desactivada u olvidó la contraseña sin correo configurado.
 import os
 import sys
 import uuid
+from pathlib import Path
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.seguridad import cifrar_contrasena, problemas_contrasena, verificar_contrasena
 from app.db.base import ahora
 from app.db.session import SessionLocal
@@ -135,11 +137,35 @@ def probar_preservacion() -> int:
     return 0 if ok else 1
 
 
+def restaurar_paquete(ruta: str) -> int:
+    """Levanta RICORA en un servidor nuevo desde un paquete de recuperación
+    (NFR-07): restaura la base en DATABASE_URL (que debe estar vacía) y los
+    archivos en DIRECTORIO_ALMACENAMIENTO (vacío), y lo verifica todo."""
+    from app.servicios import recuperacion
+
+    paquete = Path(ruta)
+    if not paquete.is_file():
+        print(f"  No existe el paquete {ruta}.")
+        return 1
+    try:
+        informe = recuperacion.restaurar(paquete, settings.database_url, Path(settings.directorio_almacenamiento))
+    except recuperacion.ErrorRecuperacion as exc:
+        print(f"  La restauración NO sirve: {exc}")
+        return 1
+    print(f"  Restauración completa y verificada en {informe['segundos']} s: {informe['archivos_verificados']} de "
+          f"{informe['archivos']} archivos con su huella, cadena de la auditoría íntegra (evento {informe['auditoria']['orden']}).")
+    print("  Siga con: alembic upgrade head (si el código es más nuevo que la migración " + informe["migracion"] + ") y levante el servicio.")
+    return 0
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
             "probar-preservacion": probar_preservacion}
+CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete}
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] in CON_ARGUMENTO:
+        sys.exit(CON_ARGUMENTO[sys.argv[1]](sys.argv[2]))
     if len(sys.argv) != 2 or sys.argv[1] not in COMANDOS:
-        print("Uso: python -m app.cli " + "|".join(COMANDOS))
+        print("Uso: python -m app.cli " + "|".join(COMANDOS) + " | restaurar-paquete <paquete.tar>")
         sys.exit(2)
     sys.exit(COMANDOS[sys.argv[1]]())

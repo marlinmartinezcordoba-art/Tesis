@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
@@ -278,6 +278,145 @@ function Respaldos() {
   );
 }
 
+// --- Recuperación ante desastres (solo administrador; NFR-04 y NFR-07) ----------------------------
+
+interface Paquete {
+  id: string; creado_en: string; estado: "en_curso" | "correcto" | "fallido"; tamano_bytes: number | null;
+  huella: string | null; archivos: number | null; error: string | null; simulacro_estado: "correcto" | "fallido" | null;
+  simulacro_segundos: number | null; archivos_verificados: number | null; simulacro_error: string | null;
+  descargado_en: string | null; depurado_en: string | null; ausentes: string[];
+}
+interface EstadoRecuperacion {
+  objetivos: { rpo_horas: number; rto_horas: number; aprovisionar_horas: number };
+  escenarios: { clave: string; escenario: string; mecanismo: string; rpo: string; rto: string;
+                rpo_actual_horas: number | null; rto_medido_horas: number | null; cumple: boolean }[];
+  ultimo_paquete: Paquete | null; paquetes: Paquete[]; frecuencia_dias: number;
+}
+
+function horasTexto(h: number | null) {
+  if (h === null) return "sin medir";
+  if (h === 0) return "ninguna";
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`;
+  return h < 48 ? `${Math.round(h * 10) / 10} h` : `${Math.round(h / 24)} días`;
+}
+
+function Recuperacion() {
+  const [datos, setDatos] = useState<EstadoRecuperacion | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [aviso, setAviso] = useState<{ tipo: "bien" | "error"; texto: string } | null>(null);
+  const [objetivos, setObjetivos] = useState({ rpo_horas: 168, rto_horas: 8, frecuencia_dias: 7 });
+  const cargar = useCallback(() => {
+    pedir<EstadoRecuperacion>("/api/preservacion/recuperacion").then((d) => {
+      setDatos(d);
+      setObjetivos({ rpo_horas: d.objetivos.rpo_horas, rto_horas: d.objetivos.rto_horas, frecuencia_dias: d.frecuencia_dias });
+    }).catch(() => setDatos(null));
+  }, []);
+  useEffect(cargar, [cargar]);
+
+  async function generar() {
+    setOcupado(true); setAviso(null);
+    try {
+      const p = await pedir<Paquete>("/api/preservacion/recuperacion", { method: "POST" });
+      setAviso(p.simulacro_estado === "correcto"
+        ? { tipo: p.ausentes.length ? "error" : "bien",
+            texto: `Paquete listo y restaurado de prueba completo en ${p.simulacro_segundos} s: ${p.archivos_verificados} archivos con su huella.`
+              + (p.ausentes.length ? ` Faltan en el disco y no entraron: ${p.ausentes.join(", ")}. Repóngalos desde la segunda copia.` : "") }
+        : { tipo: "error", texto: `El paquete o su restauración de prueba falló: ${p.error || p.simulacro_error || "revise el registro"}` });
+      cargar();
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo armar el paquete." });
+    } finally { setOcupado(false); }
+  }
+
+  async function bajar(p: Paquete) {
+    try {
+      const h = await descargar(`/api/preservacion/recuperacion/${p.id}/descargar`);
+      setAviso({ tipo: "bien", texto: `Descargado. Guárdelo en un disco fuera del servidor y fuera de línea; su huella SHA-256 es ${h.get("X-Huella-SHA256")}.` });
+      cargar();
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudo descargar." });
+    }
+  }
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    try {
+      setDatos(await pedir<EstadoRecuperacion>("/api/preservacion/recuperacion/objetivos",
+                                               { method: "PUT", body: JSON.stringify(objetivos) }));
+      setAviso({ tipo: "bien", texto: "Objetivos de recuperación guardados." });
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err instanceof ErrorAPI ? err.message : "No se pudieron guardar." });
+    }
+  }
+
+  if (!datos) return null;
+  const vivo = datos.paquetes.find((p) => p.estado === "correcto" && !p.depurado_en);
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">
+        <span>Recuperación ante desastres</span>
+        <button type="button" className="boton chico" disabled={ocupado} onClick={generar}>
+          {ocupado ? "Armando y probando…" : "Armar paquete y probar"}
+        </button>
+      </div>
+      <div className="tarjeta-cuerpo">
+        <p className="sub" style={{ marginTop: 0 }}>
+          El paquete de recuperación lleva la base, todos los documentos digitales y su manifiesto de huellas: con él se
+          levanta RICORA en un servidor nuevo. {datos.frecuencia_dias ? `Cada ${datos.frecuencia_dias} días` : "Cuando usted lo pida"} el
+          sistema lo arma y lo restaura de prueba completo en una base y una carpeta aparte, y mide cuánto tarda. Descárguelo a un
+          disco fuera del servidor: es la única copia que sobrevive a perder el servidor.
+        </p>
+        {aviso && <div className={`aviso ${aviso.tipo}`} role="status">{aviso.texto}</div>}
+        <div className="tabla-desplazable">
+          <table className="tabla">
+            <thead><tr><th>Escenario</th><th>Cómo se recupera</th><th>Pérdida posible (RPO)</th><th>Tiempo de vuelta (RTO)</th><th /></tr></thead>
+            <tbody>
+              {datos.escenarios.map((e) => (
+                <tr key={e.clave}>
+                  <td>{e.escenario}</td>
+                  <td className="meta">{e.mecanismo}</td>
+                  <td>{horasTexto(e.rpo_actual_horas)} <span className="meta">· objetivo {horasTexto(datos.objetivos.rpo_horas)}</span></td>
+                  <td>{horasTexto(e.rto_medido_horas)} <span className="meta">· objetivo {horasTexto(datos.objetivos.rto_horas)}</span></td>
+                  <td><span className={`insignia ${e.cumple ? "bien" : "alerta"}`}>{e.cumple ? "Cumple" : "No cumple"}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="pista">El tiempo de vuelta tras perder el servidor suma la restauración medida y {datos.objetivos.aprovisionar_horas} h
+          estimadas para instalar un servidor nuevo. La pérdida posible es el tiempo desde la última descarga del paquete.</p>
+        {datos.ultimo_paquete ? (
+          <p>
+            Último paquete probado: {dia(datos.ultimo_paquete.creado_en)} · {datos.ultimo_paquete.archivos} archivos ·{" "}
+            {datos.ultimo_paquete.tamano_bytes ? peso(datos.ultimo_paquete.tamano_bytes) : "—"} · restaurado en{" "}
+            {datos.ultimo_paquete.simulacro_segundos} s · {datos.ultimo_paquete.descargado_en
+              ? `descargado el ${dia(datos.ultimo_paquete.descargado_en)}` : <span className="texto-alerta">nunca descargado</span>}
+          </p>
+        ) : <div className="vacio">Todavía no hay un paquete de recuperación probado.</div>}
+        {vivo && <button type="button" className="boton chico primario" onClick={() => bajar(vivo)}>Descargar el último paquete</button>}
+        <form onSubmit={guardar} className="rejilla" style={{ marginTop: 14, alignItems: "end" }}>
+          <div className="campo" style={{ margin: 0 }}>
+            <label htmlFor="rpo">Pérdida máxima aceptable (horas)</label>
+            <input id="rpo" type="number" min={1} max={8760} className="entrada" value={objetivos.rpo_horas}
+                   onChange={(e) => setObjetivos({ ...objetivos, rpo_horas: Number(e.target.value) })} />
+          </div>
+          <div className="campo" style={{ margin: 0 }}>
+            <label htmlFor="rto">Tiempo máximo para volver (horas)</label>
+            <input id="rto" type="number" min={1} max={720} className="entrada" value={objetivos.rto_horas}
+                   onChange={(e) => setObjetivos({ ...objetivos, rto_horas: Number(e.target.value) })} />
+          </div>
+          <div className="campo" style={{ margin: 0 }}>
+            <label htmlFor="frec">Armar y probar cada (días; 0 = a mano)</label>
+            <input id="frec" type="number" min={0} max={365} className="entrada" value={objetivos.frecuencia_dias}
+                   onChange={(e) => setObjetivos({ ...objetivos, frecuencia_dias: Number(e.target.value) })} />
+          </div>
+          <button type="submit" className="boton chico">Guardar objetivos</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const ESTADO_MIGRACION: Record<string, string> = { completada: "completada", fallida: "fallida", en_curso: "en curso", esperando_archivo: "esperando el archivo convertido" };
 
 // --- Configuración (solo administrador) --------------------------------------------------------
@@ -342,6 +481,7 @@ export function ConfiguracionPreservacion() {
       )}
 
       <Respaldos />
+      <Recuperacion />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Frecuencia de la verificación de integridad</div>

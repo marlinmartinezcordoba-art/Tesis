@@ -27,6 +27,7 @@ export const TIPO_ALERTA: Record<string, string> = {
   respaldo_fallido: "Respaldo fallido",
   respaldo_atrasado: "Respaldo atrasado",
   respaldo_sin_copia_externa: "Respaldo sin copia fuera del servidor",
+  recuperacion_fallida: "Recuperación ante desastres fallida",
   verificacion_atrasada: "Verificación de integridad atrasada",
   huella_referencia_alterada: "Huella de referencia alterada",
   exportacion_no_conforme: "Exportación RiC-O no conforme",

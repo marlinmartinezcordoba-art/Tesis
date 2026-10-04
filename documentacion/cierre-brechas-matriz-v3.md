@@ -31,13 +31,35 @@ Base: la auditoría del 4 de octubre de 2026 (`RICORA_MATRIZ_MAESTRA_REQUISITOS_
 | Anclaje externo | Ninguno; servicio de sellado de tiempo; sello en la revisión semanal | Sello en la revisión semanal y visible en Auditoría | Sin costo. Quien revisa anota el sello y queda en la exportación a Excel. Si alguien rehace toda la cadena, el sello anotado deja de coincidir | El dueño de la base podría rehacer la cadena entera entre dos revisiones; el sello anotado fuera lo delata |
 | Código HTTP de la salud | 503 ante cualquier falla; solo ante la base | Solo ante la base | Un trabajador detenido o un respaldo atrasado no impiden consultar ni describir. Tumbar el servicio por eso haría más daño | Un monitor que solo mire el código no verá lo «degradado»: debe leer `estado` |
 
+## Lote 2 · Recuperación ante desastres
+
+| Requisito | Antes | Después | Qué se hizo | Evidencia |
+|---|---|---|---|---|
+| NFR-04 RPO/RTO por escenario | No existe | Cumple | Cinco escenarios con su mecanismo: archivo dañado, error humano, base corrupta, pérdida del servidor y secuestro de datos. Cada uno tiene objetivos de pérdida máxima (RPO) y de tiempo de vuelta (RTO) como parámetros del administrador, y el sistema los compara con lo medido: horas desde el último respaldo y desde la última descarga del paquete, y duración real del último simulacro. Se ven en **Preservación › Configuración › Recuperación ante desastres** | `app/servicios/recuperacion.py::estado`, `tests/test_brechas_lote2.py::test_rpo_y_rto_por_escenario_frente_a_lo_medido` |
+| NFR-07 Restauración probada | Parcial | Cumple | El **paquete de recuperación** es un solo .tar con el volcado de la base, todos los documentos del almacén y un manifiesto con la huella de cada archivo, el sello de la auditoría y la migración, leídos en la misma instantánea del volcado. El **simulacro integral** lo restaura en una base y una carpeta nuevas y verifica las filas de las tablas clave, la huella de cada archivo y la cadena de la auditoría; mide el tiempo de cada paso. Corre solo cada N días (parámetro) o a mano. En un servidor nuevo: `python -m app.cli restaurar-paquete paquete.tar`, que se niega a restaurar sobre una base con datos | `app/servicios/recuperacion.py`, migración `0034`, `tests/test_brechas_lote2.py` (restauración completa, archivo alterado, base con datos, ruta maliciosa en el .tar) |
+| TC-11 Restaurar y comprobar integridad | Parcial | Cumple | Lo anterior, con pg_dump y pg_restore reales | ídem |
+| RF-OPS-001 Respaldo fuera del servidor | Parcial | Parcial (solo faltan métricas) | El paquete descargable incluye los archivos, no solo la base. Su descarga cuenta como copia externa del respaldo y cierra la alerta de «sin copia fuera del servidor» | `recuperacion.registrar_descarga`; ruta `GET /api/preservacion/recuperacion/{id}/descargar` |
+| RF-GOV-001 Varias organizaciones | Parcial | No aplica | Fuera del alcance de la tesis, por decisión acordada | — |
+| NFR-05 Escalado horizontal | No cumple | No aplica | Fuera del alcance de la tesis, por decisión acordada | — |
+
+### Decisiones del lote 2
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Dónde va la copia fuera del servidor | Almacenamiento en la nube (S3, Drive); disco externo del administrador | Descarga del administrador a un disco fuera del servidor y fuera de línea | Sin costo y sin credenciales de terceros en el servidor. Una copia fuera de línea resiste el secuestro de datos, que también cifraría una copia en la nube conectada | Que nadie lo descargue: el sistema lo mide (RPO del escenario) y avisa |
+| Qué lleva el paquete | Solo la base; base + archivos; todo, con las claves incluidas | Base + archivos + manifiesto, sin claves | Sin los archivos no se recuperan los documentos. Con las claves dentro, perder el disco sería perder también los secretos | Hay que guardar las claves aparte, en el gestor de secretos |
+| Coherencia entre base y archivos | Listar los archivos al empacar; listarlos en la instantánea del volcado | En la instantánea del volcado | Lo restaurado y lo empaquetado coinciden exactamente aunque se carguen documentos mientras se arma | Ninguno |
+| Dónde se prueba | En otro servidor; en una base y una carpeta efímeras del mismo servidor | Efímeras del mismo servidor, automático | Sin costo y repetible. Prueba el paquete, no la instalación | No mide el tiempo de instalar un servidor nuevo: se suman 2 h estimadas y documentadas |
+| Un archivo que falta en el disco | Detener el paquete; empacar lo que hay y avisar | Empacar lo que hay; el faltante queda en el manifiesto y genera una alerta alta | Un solo archivo perdido no puede dejar al archivo sin copia de recuperación. Se repone desde la segunda copia (hallazgo de la prueba visual del lote 2) | Que se ignore la alerta: queda abierta hasta el próximo paquete completo |
+| Cuántos paquetes conservar en el servidor | Todos; los dos últimos | Los dos últimos | Cada paquete ocupa tanto como el almacén entero | El disco: la salud avisa si queda menos del 5 % |
+| Objetivos por defecto | — | RPO de 168 h (7 días), RTO de 8 h, prueba semanal | Coinciden con el aviso existente de copia externa cada 7 días y con una jornada laboral para volver a operar | La entidad debe ajustarlos según su valoración del riesgo |
+
 ## Pendiente (lotes siguientes)
 
 | Lote | Requisitos | Qué falta |
 |---|---|---|
-| 2 · Recuperación | NFR-04, NFR-07, RF-OPS-001 | RPO/RTO por escenario; respaldo del almacén de archivos fuera del servidor; simulacro completo (base + archivos + configuración) en un entorno nuevo; métricas |
+| Métricas | RF-OPS-001, NFR-10 | Métricas de uso y de rendimiento expuestas para un monitor |
 | 3 · Endurecimiento | NFR-01 | Quitar la caída a HTTP; cabeceras CSP y HSTS; no restablecer la contraseña del administrador en cada despliegue |
 | 4 · Búsqueda | RF-SEARCH-001/002 | Buscador de texto completo (PostgreSQL) sobre texto, metadatos e identificadores, que respete la Ley 1712 |
 | 5 · Evidencia de la IA | RF-AI-002, RF-OCR-001 | Propuesta del motor como registro propio con fecha y versión; página y bloque de cada fragmento |
 | 6 · Versiones y API | RF-RIC-001/002, RF-INT-003 | Versiones consultables de cada descripción; esquemas de respuesta en OpenAPI con prueba |
-| Fuera de alcance (propuesto) | RF-GOV-001, NFR-05 | Varias organizaciones en un solo sistema y escalado horizontal: decisiones propias, no del AGN, sin valor para el piloto de la tesis |

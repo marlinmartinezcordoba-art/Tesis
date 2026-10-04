@@ -28,7 +28,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
-from app.servicios import mecanismos, preservacion, procesamiento, respaldo, salud, sesiones, vocabulario
+from app.servicios import mecanismos, preservacion, procesamiento, recuperacion, respaldo, salud, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -77,6 +77,10 @@ def main() -> None:
                 hecho = respaldo.periodico(db)
                 if hecho is not None:
                     log.info("Respaldo de la base: %s, simulacro %s.", hecho.estado, hecho.simulacro_estado)
+                # Recuperación ante desastres: paquete completo y su simulacro (NFR-07).
+                paquete = recuperacion.periodico(db)
+                if paquete is not None:
+                    log.info("Paquete de recuperación: %s, simulacro %s.", paquete.estado, paquete.simulacro_estado)
                 if time.monotonic() - ultima_replica >= 60:
                     replicadas = preservacion.replicar_pendientes(db)
                     if replicadas:

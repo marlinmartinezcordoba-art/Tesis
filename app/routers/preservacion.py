@@ -25,7 +25,8 @@ from app.db.session import get_db
 from app.models.preservacion import Migracion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
-from app.servicios import comprobaciones, derechos, ndsa, paquete, parametros, preservacion, respaldo, segunda_copia
+from app.servicios import (comprobaciones, derechos, ndsa, paquete, parametros, preservacion, recuperacion, respaldo,
+                           segunda_copia)
 from app.servicios.auditoria import ip_de
 
 router = APIRouter(prefix="/api/preservacion", tags=["Módulo 5 · Preservación"])
@@ -170,6 +171,53 @@ def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = 
     # La huella va en el encabezado: quien lo guarde puede comprobar que llegó entero.
     return FileResponse(r.archivo, filename=Path(r.archivo).name, media_type="application/octet-stream",
                         headers={"X-Huella-SHA256": r.huella or ""})
+
+
+# --- Recuperación ante desastres (NFR-04, NFR-07) ----------------------------------------------
+
+
+@router.get("/recuperacion", summary="Objetivos RPO/RTO por escenario frente a lo medido, y paquetes de recuperación")
+def estado_recuperacion(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
+    return recuperacion.estado(db)
+
+
+@router.post("/recuperacion", summary="Armar el paquete de recuperación y restaurarlo de prueba completo (administrador)")
+async def generar_recuperacion(actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    p = await run_in_threadpool(recuperacion.generar_y_probar, db, "manual", actor.id)
+    db.commit()
+    return recuperacion.out(p)
+
+
+class ObjetivosIn(BaseModel):
+    rpo_horas: int = Field(ge=1, le=8760)
+    rto_horas: int = Field(ge=1, le=720)
+    frecuencia_dias: int = Field(ge=0, le=365)
+
+
+@router.put("/recuperacion/objetivos", summary="Fijar los objetivos de recuperación (administrador)")
+def objetivos_recuperacion(datos: ObjetivosIn, request: Request, actor: Actor = Depends(solo_administrador),
+                           db: Session = Depends(get_db)):
+    for clave, valor in (("rpo_horas", datos.rpo_horas), ("rto_horas", datos.rto_horas),
+                         ("recuperacion_frecuencia_dias", datos.frecuencia_dias)):
+        parametros.cambiar(db, clave, valor, actor.id, "preservacion", ip=ip_de(request))
+    db.commit()
+    return recuperacion.estado(db)
+
+
+@router.get("/recuperacion/{paquete_id}/descargar", summary="Descargar el paquete de recuperación fuera del servidor (administrador)")
+def descargar_recuperacion(paquete_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                           db: Session = Depends(get_db)):
+    from pathlib import Path
+
+    from app.models.preservacion import PaqueteRecuperacion
+
+    p = db.get(PaqueteRecuperacion, paquete_id)
+    if p is None or p.estado != "correcto" or p.depurado_en is not None or not p.archivo or not Path(p.archivo).exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Ese paquete no está disponible en el servidor.")
+    recuperacion.registrar_descarga(db, p, actor.id, ip_de(request))
+    db.commit()
+    return FileResponse(p.archivo, filename=Path(p.archivo).name, media_type="application/x-tar",
+                        headers={"X-Huella-SHA256": p.huella or ""})
 
 
 @router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones")

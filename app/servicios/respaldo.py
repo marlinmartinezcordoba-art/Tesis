@@ -89,7 +89,8 @@ def _sha256(ruta: Path) -> str:
     return h.hexdigest()
 
 
-def respaldar(db: Session, origen: str = "periodico", usuario_id: uuid.UUID | None = None) -> RespaldoBaseDatos:
+def respaldar(db: Session, origen: str = "periodico", usuario_id: uuid.UUID | None = None,
+              en_instantanea=None) -> RespaldoBaseDatos:
     """Vuelca la base y deja el registro. No lanza: un fallo queda como
     respaldo «fallido» con su error y su alerta."""
     url = make_url(settings.database_url)
@@ -104,6 +105,9 @@ def respaldar(db: Session, origen: str = "periodico", usuario_id: uuid.UUID | No
             with con.begin():
                 instantanea = con.execute(text("SELECT pg_export_snapshot()")).scalar()
                 medidas = _medir(con)
+                # Lo que otro proceso necesite leer de esta misma instantánea
+                # (el paquete de recuperación: sus archivos y el sello de la auditoría).
+                extra = en_instantanea(con) if en_instantanea else None
                 proceso = subprocess.run(
                     [settings.pg_dump, "--format=custom", "--no-owner", "--no-acl", f"--snapshot={instantanea}",
                      "--file", str(archivo), *_argumentos_conexion(url)],
@@ -113,6 +117,7 @@ def respaldar(db: Session, origen: str = "periodico", usuario_id: uuid.UUID | No
         r.archivo, r.tamano_bytes, r.huella = str(archivo), archivo.stat().st_size, _sha256(archivo)
         Path(f"{archivo}.sha256").write_text(f"{r.huella}  {archivo.name}\n", encoding="utf-8")
         r.conteos, r.estado = medidas, "correcto"
+        r.extra_instantanea = extra
     except (OSError, subprocess.SubprocessError, ErrorRespaldo, Exception) as exc:  # noqa: BLE001
         r.estado, r.error = "fallido", str(exc)[:1000]
         _alertar_fallo(db, r, "El respaldo de la base de datos falló")
