@@ -12,6 +12,10 @@ from app.db.base import Base, ahora
 ESTADO_INGESTA = ("procesando", "duplicado_pendiente", "error", "listo_para_descripcion", "registro_fisico")
 # Tipo de soporte de un original físico (rico:CarrierType, RiC-A05).
 TIPO_SOPORTE = ("papel", "pergamino", "papel_fotografico", "microfilme", "cinta_magnetica", "disco_optico", "otro")
+# Estado de conservación del original físico: vocabulario del Esquema de
+# Metadatos del AGN v1.4 (tabla 4). Se exporta dentro de la nota de
+# características físicas (RiC-A31), que en RiC-CM incluye el estado.
+ESTADO_CONSERVACION = ("bueno", "regular", "malo", "restaurado")
 ESTADOS_COLA = ("procesando", "duplicado_pendiente", "error")
 
 # Paso interno del procesamiento, solo para mostrar el avance.
@@ -45,6 +49,12 @@ class Instanciacion(Base):
     ubicacion_fisica = Column(String(300), nullable=True)
     # Estado físico y de conservación (ISAD-G 3.4.4; rico:physicalCharacteristicsNote, RiC-A31).
     caracteristicas_fisicas = Column(Text, nullable=True)
+    estado_conservacion = Column(String(20), nullable=True)  # ESTADO_CONSERVACION
+    # Signatura topográfica (AGN tabla 4): depósito, estante y entrepaño; la
+    # caja y la carpeta van en los datos de control del documento (FUID).
+    deposito = Column(String(40), nullable=True)
+    estante = Column(String(40), nullable=True)
+    entrepano = Column(String(40), nullable=True)
     tipo_declarado = Column(String(200), nullable=True)  # lo que dijo el navegador; no se usa para decidir nada
 
     estado = Column(Enum(*ESTADO_INGESTA, name="estado_ingesta"), nullable=False, default="procesando", index=True)

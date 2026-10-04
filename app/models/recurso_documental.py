@@ -16,6 +16,10 @@ NIVEL_DESCRIPCION = ("fondo", "seccion", "subseccion", "serie", "subserie", "exp
                      "parte_documental")
 
 
+# Categoría de datos personales (Ley 1581 de 2012, arts. 3, 5 y 7).
+DATOS_PERSONALES = ("no_contiene", "personales", "sensibles", "menores")
+
+
 class RecursoDocumental(Base):
     """RiC-CM: Record Resource (RiC-E02) — Record Set en los niveles de
     agrupación y Record en la unidad documental.
@@ -102,3 +106,11 @@ class RecursoDocumental(Base):
     tomo = Column(String(30), nullable=True)
     otra_unidad = Column(String(60), nullable=True)
     frecuencia_consulta = Column(String(10), nullable=True)
+    # Ley 1581 de 2012 y Esquema de Metadatos del AGN (protección de datos,
+    # minimización): qué clase de datos personales contiene. Vacío = sin
+    # revisar. No es la clasificación de acceso de la Ley 1712: un documento
+    # público puede contener datos personales que se anonimizan al consultarlo.
+    datos_personales = Column(String(20), nullable=True)  # DATOS_PERSONALES
+    # Accesibilidad (Ley 1680 de 2013; AGN, principio 3): si hay una versión
+    # accesible, en qué formato y con qué ayudas (texto alternativo, lectura).
+    nota_accesibilidad = Column(Text, nullable=True)

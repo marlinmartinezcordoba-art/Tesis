@@ -42,8 +42,10 @@ TIPO_LUGAR = ("pais", "departamento", "provincia", "municipio", "corregimiento",
               "otro")
 # Esquemas de identificador: interno de la institución o de una autoridad
 # externa reconocida (rico:hasOrHadIdentifier + rico:IdentifierType).
-ESQUEMA_IDENTIFICADOR = ("interno", "viaf", "wikidata", "isni", "lcnaf", "otro")
-ESQUEMA_EXTERNO = ("viaf", "wikidata", "isni", "lcnaf")
+# ORCID (personas) y ROR (instituciones): los recomienda el Esquema de
+# Metadatos del AGN v1.4, tabla 5 (identificador del agente).
+ESQUEMA_IDENTIFICADOR = ("interno", "viaf", "wikidata", "isni", "lcnaf", "orcid", "ror", "otro")
+ESQUEMA_EXTERNO = ("viaf", "wikidata", "isni", "lcnaf", "orcid", "ror")
 # ISAAR 5.4.5 y ISDF 5.4.5: mínimo, parcial o completo (hallazgo VOC-01).
 NIVEL_DETALLE = ("minimo", "parcial", "completo")
 ESTADO_ELABORACION = ("borrador", "revisado", "definitivo")  # ISAAR 5.4.4

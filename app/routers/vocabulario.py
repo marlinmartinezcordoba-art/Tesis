@@ -58,7 +58,7 @@ class NombreIn(BaseModel):
 
 
 class IdentificadorIn(BaseModel):
-    esquema: Literal["interno", "viaf", "wikidata", "isni", "lcnaf", "otro"]
+    esquema: Literal["interno", "viaf", "wikidata", "isni", "lcnaf", "orcid", "ror", "otro"]
     valor: str = Field(min_length=1, max_length=200)
 
 
@@ -299,7 +299,7 @@ def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
 
 
 @router.post("/{entidad_id}/identificadores", status_code=status.HTTP_201_CREATED,
-             summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF)")
+             summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF, ORCID, ROR)")
 def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request: Request,
                           actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)

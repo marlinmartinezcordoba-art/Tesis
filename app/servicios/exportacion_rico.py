@@ -761,9 +761,15 @@ def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
     if i.soporte:  # original físico: su tipo de soporte (RiC-A05, rico:CarrierType)
         prop, clase_ap = _apoyo("tipo_soporte")
         g.add((s, prop, _concepto(ex, "tipo-de-soporte", i.soporte, clase_ap, i.soporte.replace("_", " ").capitalize())))
-    if i.caracteristicas_fisicas:  # ISAD-G 3.4.4 (hallazgo DES-07), RiC-A31
-        g.add((s, _a("caracteristicas_fisicas"), Literal(i.caracteristicas_fisicas)))
-    if i.ubicacion_fisica:
+    # ISAD-G 3.4.4 (hallazgo DES-07), RiC-A31. El estado de conservación del
+    # AGN (tabla 4) va en la misma nota: RiC-CM define Physical
+    # Characteristics como «apariencia y estado físico», y no tiene otro atributo.
+    nota_fisica = "; ".join(x for x in (
+        f"Estado de conservación: {i.estado_conservacion}" if i.estado_conservacion else None,
+        i.caracteristicas_fisicas) if x)
+    if nota_fisica:
+        g.add((s, _a("caracteristicas_fisicas"), Literal(nota_fisica)))
+    if i.ubicacion_fisica or i.deposito or i.estante or i.entrepano:
         ex.omitidas["ubicación física de un original (sin propiedad de dato en RiC-O para una Instantiation)"] += 1
     if i.formato_puid:
         # El formato identificado, con su ficha en el registro PRONOM.

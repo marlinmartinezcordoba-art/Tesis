@@ -109,9 +109,18 @@ class ClasificacionIn(BaseModel):
     vigente_hasta: date | None = None  # obligatorio si es reservada (art. 22: máximo 15 años)
 
 
+class ProteccionIn(BaseModel):
+    """Esquema de Metadatos del AGN v1.4: protección de datos (Ley 1581 de
+    2012, minimización) y accesibilidad (Ley 1680 de 2013). None: no cambia;
+    texto vacío en la nota: se borra."""
+    datos_personales: Literal["no_contiene", "personales", "sensibles", "menores"] | None = None
+    nota_accesibilidad: str | None = Field(default=None, max_length=2000)
+
+
 class PublicarIn(CamposRegistro):
     trabajo_id: uuid.UUID
     clasificacion: ClasificacionIn | None = None  # vacío: hereda la del nivel superior
+    proteccion: ProteccionIn | None = None
     titulo: str = Field(max_length=300)
     alcance_contenido: str = Field(default="", max_length=5000)
     incluido_en_id: uuid.UUID | None = None
@@ -144,6 +153,7 @@ class EditarIn(CamposRegistro):
     # Clasificación del acceso (Ley 1712): una nueva, o volver a heredar la del nivel superior.
     clasificacion: ClasificacionIn | None = None
     clasificacion_hereda: bool = False
+    proteccion: ProteccionIn | None = None
 
 
 class NivelSuperiorOut(BaseModel):

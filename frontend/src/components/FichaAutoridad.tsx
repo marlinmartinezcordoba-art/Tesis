@@ -67,7 +67,7 @@ interface Props {
 }
 
 const ESQUEMA_NOMBRE: Record<string, string> = {
-  interno: "Código interno", viaf: "VIAF", wikidata: "Wikidata", isni: "ISNI", lcnaf: "LCNAF", otro: "Otro esquema",
+  interno: "Código interno", viaf: "VIAF", wikidata: "Wikidata", isni: "ISNI", lcnaf: "LCNAF", orcid: "ORCID (persona)", ror: "ROR (institución)", otro: "Otro esquema",
 };
 const TIPO_NOMBRE_FORMA: Record<string, string> = {
   paralela: "Forma paralela (otra lengua)", normalizada: "Forma normalizada según otras reglas", otra: "Otra forma (variante, sigla)",
@@ -573,7 +573,8 @@ function Identificadores({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; e
               {Object.entries(ESQUEMA_NOMBRE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <input className="entrada" required aria-label="Valor" value={valor} onChange={(e) => setValor(e.target.value)}
-                   placeholder={esquema === "wikidata" ? "Q2841" : esquema === "viaf" ? "Número VIAF" : "Valor"} />
+                   placeholder={esquema === "wikidata" ? "Q2841" : esquema === "viaf" ? "Número VIAF" : esquema === "orcid" ? "0000-0002-1825-0097"
+                     : esquema === "ror" ? "05dxps055" : "Valor"} />
           </div>
           {error && <div className="aviso error" role="alert">{error}</div>}
           <div className="acciones" style={{ marginTop: 8 }}>

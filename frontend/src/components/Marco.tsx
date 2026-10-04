@@ -57,7 +57,9 @@ const ENTRADAS: Entrada[] = [
     // El índice es la puerta de consulta por nombres; el equipo interno trabaja
     // los mismos términos en Vocabularios, así que no lo ve dos veces.
     { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") },
-    { vista: "rico", nombre: "RiC-O" }] },
+    { vista: "rico", nombre: "RiC-O" },
+    // Perfil RiC-Col del AGN: correspondencias, erratas y calidad del fondo.
+    { vista: "agn", nombre: "Perfil AGN", permitir: (u) => puede(u, "instrumentos") }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },

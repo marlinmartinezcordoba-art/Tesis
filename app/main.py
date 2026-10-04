@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.routers import (alertas, auditoria, auth, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
-                         grafo, instrumentos, preservacion, vocabulario)
+                         grafo, instrumentos, perfil_agn, preservacion, vocabulario)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,6 +43,7 @@ app.include_router(descripcion.router)
 app.include_router(descripcion.catalogo)
 app.include_router(vocabulario.router)
 app.include_router(instrumentos.router)
+app.include_router(perfil_agn.router)
 app.include_router(preservacion.router)
 app.include_router(auditoria.router)
 app.include_router(auditoria.gestion)

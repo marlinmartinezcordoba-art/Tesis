@@ -9,6 +9,7 @@ corrige con auditoría de valores anteriores y nuevos.
 
 import json
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -243,6 +244,24 @@ def _clasificar(db: Session, recurso, c, usuario_id) -> None:
                       vigente_hasta=c.vigente_hasta if c.acceso == "reservado" else None, usuario_id=usuario_id)
 
 
+def _proteger(db: Session, recurso, p, usuario_id) -> None:
+    """Datos personales (Ley 1581) y accesibilidad (Ley 1680) del perfil AGN."""
+    if p is None:
+        return
+    anterior = {"datos_personales": recurso.datos_personales, "nota_accesibilidad": recurso.nota_accesibilidad}
+    if p.datos_personales is not None:
+        recurso.datos_personales = p.datos_personales
+    if p.nota_accesibilidad is not None:
+        recurso.nota_accesibilidad = p.nota_accesibilidad.strip() or None
+    nuevo = {"datos_personales": recurso.datos_personales, "nota_accesibilidad": recurso.nota_accesibilidad}
+    if nuevo != anterior:
+        registrar(db, modulo="descripcion", accion="proteccion_datos_declarada", usuario_id=usuario_id,
+                  entidad_tipo="recurso_documental", entidad_id=recurso.id,
+                  detalle=f"Datos personales y accesibilidad de «{recurso.titulo}»",
+                  anterior={k: v for k, v in anterior.items() if nuevo[k] != v},
+                  nuevo={k: v for k, v in nuevo.items() if anterior[k] != v})
+
+
 @router.post("/publicar", status_code=status.HTTP_201_CREATED, summary="Publicar la descripción (una sola transacción)")
 def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     try:
@@ -258,6 +277,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
+        _proteger(db, recurso, datos.proteccion, actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -488,10 +508,23 @@ def individualizar(recurso_id: uuid.UUID, datos: IndividualizarIn, actor: Actor 
     return descripcion.detalle(db, r)
 
 
-class OriginalFisicoIn(BaseModel):
+class DatosFisicosAgn(BaseModel):
+    """Esquema de Metadatos del AGN v1.4, tabla 4: estado de conservación y signatura topográfica."""
+    estado_conservacion: Literal["bueno", "regular", "malo", "restaurado"] | None = None
+    deposito: str | None = Field(default=None, max_length=40)
+    estante: str | None = Field(default=None, max_length=40)
+    entrepano: str | None = Field(default=None, max_length=40)
+
+
+class OriginalFisicoIn(DatosFisicosAgn):
     soporte: str
     ubicacion: str | None = Field(default=None, max_length=300)
     caracteristicas_fisicas: str | None = Field(default=None, max_length=5000)  # ISAD-G 3.4.4
+
+
+class OriginalFisicoEditarIn(DatosFisicosAgn):
+    ubicacion: str | None = Field(default=None, max_length=300)
+    caracteristicas_fisicas: str | None = Field(default=None, max_length=5000)
 
 
 @router.get("/registros/{recurso_id}/isadg", summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
@@ -513,7 +546,27 @@ def original_fisico(recurso_id: uuid.UUID, datos: OriginalFisicoIn, actor: Actor
     recurso = _recurso_o_404(db, recurso_id)
     try:
         descripcion.registrar_original_fisico(db, recurso, soporte=datos.soporte, ubicacion=datos.ubicacion,
-                                              usuario_id=actor.id, caracteristicas=datos.caracteristicas_fisicas)
+                                              usuario_id=actor.id, caracteristicas=datos.caracteristicas_fisicas,
+                                              datos_agn=datos.model_dump(include=set(DatosFisicosAgn.model_fields)))
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, recurso)
+
+
+@router.patch("/registros/{recurso_id}/original-fisico/{instanciacion_id}",
+              summary="Corregir la ubicación, la signatura o el estado de conservación del original físico")
+def editar_original_fisico(recurso_id: uuid.UUID, instanciacion_id: uuid.UUID, datos: OriginalFisicoEditarIn,
+                           actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    inst = db.get(Instanciacion, instanciacion_id)
+    try:
+        if inst is None:
+            raise descripcion.ErrorDescripcion("Ese original físico no existe.", 404)
+        descripcion.actualizar_original_fisico(db, recurso, inst, usuario_id=actor.id, ubicacion=datos.ubicacion,
+                                               caracteristicas=datos.caracteristicas_fisicas,
+                                               datos_agn=datos.model_dump(include=set(DatosFisicosAgn.model_fields)))
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -578,6 +631,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         elif datos.clasificacion_hereda:
             _volver_a_heredar(db, recurso, actor.id)
+        _proteger(db, recurso, datos.proteccion, actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

@@ -896,7 +896,9 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
                 instanciaciones.append({"id": str(inst.id), "nombre": inst.nombre_original,
                                         "custodios": custodios_de(db, inst.id),
                                         **({"fisica": True, "soporte": inst.soporte, "ubicacion": inst.ubicacion_fisica,
-                                            "caracteristicas_fisicas": inst.caracteristicas_fisicas}
+                                            "caracteristicas_fisicas": inst.caracteristicas_fisicas,
+                                            **{c: getattr(inst, c) for c in CAMPOS_FISICO_AGN},
+                                            "signatura": signatura_topografica(inst)}
                                            if inst.estado == "registro_fisico" else {})})
             continue
         nodo_tipo, nodo_id = (r.origen_tipo, r.origen_id) if r.destino_id == recurso.id else (r.destino_tipo, r.destino_id)
@@ -934,6 +936,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "incluido_en": {"id": str(superior.id), "titulo": superior.titulo, "nivel": superior.nivel} if superior else None,
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
         "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),
+        "proteccion": {"datos_personales": recurso.datos_personales, "nota_accesibilidad": recurso.nota_accesibilidad},
         "idiomas": recurso.idiomas or [], "origen_idiomas": recurso.origen_idiomas,
         "confianza_idiomas": recurso.confianza_idiomas,
         "condiciones_acceso": recurso.condiciones_acceso, "condiciones_uso": recurso.condiciones_uso,
@@ -1243,8 +1246,34 @@ def individualizar(db: Session, conjunto: RecursoDocumental, inst: Instanciacion
     return r
 
 
+# Estado de conservación y signatura topográfica del original físico
+# (Esquema de Metadatos del AGN v1.4, tabla 4).
+CAMPOS_FISICO_AGN = ("estado_conservacion", "deposito", "estante", "entrepano")
+
+
+def signatura_topografica(inst: Instanciacion) -> str | None:
+    partes = [f"{etiqueta} {valor}" for etiqueta, valor in (("Depósito", inst.deposito), ("estante", inst.estante),
+                                                              ("entrepaño", inst.entrepano)) if valor]
+    return ", ".join(partes) or None
+
+
+def _datos_fisicos(inst: Instanciacion, datos: dict) -> None:
+    from app.models.instanciacion import ESTADO_CONSERVACION
+
+    for campo, valor in datos.items():
+        if campo not in CAMPOS_FISICO_AGN:
+            raise ErrorDescripcion(f"«{campo}» no es un dato del original físico.")
+        valor = " ".join((valor or "").split())[:40] or None
+        if campo == "estado_conservacion" and valor:
+            valor = valor.lower()
+            if valor not in ESTADO_CONSERVACION:
+                raise ErrorDescripcion("Estado de conservación: " + ", ".join(ESTADO_CONSERVACION) + ".")
+        setattr(inst, campo, valor)
+
+
 def registrar_original_fisico(db: Session, recurso: RecursoDocumental, *, soporte: str, ubicacion: str | None,
-                              usuario_id: uuid.UUID, caracteristicas: str | None = None) -> Instanciacion:
+                              usuario_id: uuid.UUID, caracteristicas: str | None = None,
+                              datos_agn: dict | None = None) -> Instanciacion:
     """El original en papel (u otro soporte) como Instantiation sin archivo,
     con su tipo de soporte (rico:CarrierType). Cada archivo digital del
     documento queda como derivado de él (RiC-R014): la digitalización."""
@@ -1259,6 +1288,7 @@ def registrar_original_fisico(db: Session, recurso: RecursoDocumental, *, soport
                            estado="registro_fisico", paso="terminado", progreso=100, soporte=soporte,
                            ubicacion_fisica=(ubicacion or "").strip() or None, cargado_por_id=usuario_id,
                            caracteristicas_fisicas=(caracteristicas or "").strip()[:5000] or None)
+    _datos_fisicos(fisico, datos_agn or {})
     db.add(fisico)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",
@@ -1272,8 +1302,36 @@ def registrar_original_fisico(db: Session, recurso: RecursoDocumental, *, soport
     registrar(db, modulo="descripcion", accion="original_fisico_registrado", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=recurso.id, detalle=f"Original en {soporte} de «{recurso.titulo}»",
               nuevo={"instanciacion": str(fisico.id), "soporte": soporte, "ubicacion": fisico.ubicacion_fisica,
+                     **{c: getattr(fisico, c) for c in CAMPOS_FISICO_AGN},
                      "digitalizaciones": [str(d.id) for d in digitales]})
     return fisico
+
+
+def actualizar_original_fisico(db: Session, recurso: RecursoDocumental, inst: Instanciacion, *, usuario_id: uuid.UUID,
+                               ubicacion: str | None = None, caracteristicas: str | None = None,
+                               datos_agn: dict | None = None) -> Instanciacion:
+    """El estado de conservación cambia con el tiempo (una restauración, un
+    deterioro): se corrige aquí y la auditoría guarda el valor anterior."""
+    vinculo = db.scalar(select(Relacion.id).where(Relacion.origen_id == recurso.id, Relacion.destino_id == inst.id,
+                                                  Relacion.codigo_ric == "has_or_had_instantiation",
+                                                  Relacion.estado == "vigente"))
+    if vinculo is None or inst.estado != "registro_fisico":
+        raise ErrorDescripcion("Ese original físico no pertenece a esta descripción.", 404)
+    campos = ("ubicacion_fisica", "caracteristicas_fisicas", *CAMPOS_FISICO_AGN)
+    anterior = {c: getattr(inst, c) for c in campos}
+    if ubicacion is not None:
+        inst.ubicacion_fisica = ubicacion.strip()[:300] or None
+    if caracteristicas is not None:
+        inst.caracteristicas_fisicas = caracteristicas.strip()[:5000] or None
+    _datos_fisicos(inst, {k: v for k, v in (datos_agn or {}).items() if v is not None})
+    nuevo = {c: getattr(inst, c) for c in campos}
+    if nuevo != anterior:
+        db.flush()
+        registrar(db, modulo="descripcion", accion="original_fisico_actualizado", usuario_id=usuario_id,
+                  entidad_tipo="instanciacion", entidad_id=inst.id, detalle=f"Original físico de «{recurso.titulo}»",
+                  anterior={k: v for k, v in anterior.items() if nuevo[k] != v},
+                  nuevo={k: v for k, v in nuevo.items() if anterior[k] != v})
+    return inst
 
 
 

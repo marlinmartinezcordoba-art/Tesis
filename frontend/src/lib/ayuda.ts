@@ -151,6 +151,17 @@ const GUIAS: Record<string, Guia> = {
         texto: "Los programas del sistema (mecanismos) no aparecen aquí." },
     ],
   },
+  "instrumentos:agn": {
+    titulo: "Instrumentos · Perfil AGN",
+    pasos: [
+      { titulo: "La adaptación colombiana de RiC, aplicada al fondo.",
+        texto: "El Esquema de Metadatos del AGN (versión 1.4) adapta RiC-CM 1.0 a Colombia. Es un instrumento de referencia, no obligatorio: orienta qué datos llenar y con qué reglas." },
+      { titulo: "Calidad del fondo.",
+        texto: "Cada descripción se mide en tres niveles (básico, intermedio, avanzado). Las incoherencias, como datos sensibles en un documento público, se corrigen primero." },
+      { titulo: "Correspondencias y erratas.",
+        texto: "Cada elemento del AGN con su equivalente en RiC-CM, RiC-O y el campo del sistema. Cuando el AGN cita un código que no existe en RiC, se muestra tachado con el correcto." },
+    ],
+  },
   "instrumentos:rico": {
     titulo: "Instrumentos · RiC-O",
     pasos: [

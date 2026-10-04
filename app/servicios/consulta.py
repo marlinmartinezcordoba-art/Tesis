@@ -63,6 +63,8 @@ def ficha_publica(db: Session, recurso: RecursoDocumental, visibles: set[uuid.UU
         "condiciones_acceso": d["condiciones_acceso"],
         "historia_archivistica": d["historia_archivistica"],
         "condiciones_uso": d["condiciones_uso"],
+        # Ley 1680 de 2013 (AGN, principio 3): quien consulta sabe si hay versión accesible.
+        "nota_accesibilidad": d["proteccion"]["nota_accesibilidad"],
         "tipo_parte": d["tipo_parte"]["nombre"] if d["tipo_parte"] else None,
         "partes": [{"id": p["id"], "titulo": p["titulo"], "tipo_parte": p["tipo_parte"],
                     "alcance_contenido": p["alcance_contenido"],

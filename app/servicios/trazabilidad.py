@@ -123,6 +123,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "inclusion_adicional": ("Incluyó una descripción en otro conjunto", None),
     "documento_individualizado": ("Separó un documento de su conjunto", None),
     "original_fisico_registrado": ("Registró el original físico de un documento", None),
+    "original_fisico_actualizado": ("Corrigió la ubicación, la signatura o el estado de conservación del original físico", None),
+    "proteccion_datos_declarada": ("Declaró los datos personales (Ley 1581) o la versión accesible de una descripción", None),
     "segunda_copia_reposicion_encargada": ("Encargó rehacer una segunda copia", None),
     "respaldo_bd": ("Respaldó la base de datos", "Respaldos de la base de datos"),
     "simulacro_restauracion": ("Probó restaurar un respaldo de la base", None),

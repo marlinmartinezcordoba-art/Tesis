@@ -7,6 +7,7 @@ import {
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
 } from "@/components/DescripcionV3";
+import { CalidadDescripcion, OriginalesFisicos, ProteccionDatos, type InstanciacionRegistro, type Proteccion } from "@/components/PerfilAgn";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import {
@@ -56,7 +57,8 @@ interface Registro {
   incluido_en: { id: string; titulo: string; nivel: string } | null;
   forma_documental: { id: string; nombre: string; origen: string } | null;
   entidades: EntidadRegistrada[];
-  instanciaciones: { id: string; nombre: string }[];
+  instanciaciones: InstanciacionRegistro[];
+  proteccion: Proteccion;
   origen_titulo: string | null;
   origen_alcance: string | null;
   publicado_en: string | null;
@@ -128,6 +130,8 @@ export function RegistroDescripcion() {
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [control, setControl] = useState<Record<keyof Control, string>>(
     { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "", tomo: "", otra_unidad: "", frecuencia_consulta: "" });
+  const [proteccion, setProteccion] = useState({ datos: "", nota: "" });
+  const veInstrumentos = tienePermiso(usuario, "instrumentos");
 
   function cargar(r: Registro) {
     setRegistro(r);
@@ -148,6 +152,7 @@ export function RegistroDescripcion() {
       tomo: r.control.tomo || "", otra_unidad: r.control.otra_unidad || "",
       frecuencia_consulta: r.control.frecuencia_consulta || "",
     });
+    setProteccion({ datos: r.proteccion?.datos_personales || "", nota: r.proteccion?.nota_accesibilidad || "" });
     nivelesSuperiores(r.fondo_id, r.nivel).then(setSuperiores).catch(() => undefined);
   }
 
@@ -212,6 +217,11 @@ export function RegistroDescripcion() {
             folios: control.folios.trim() === "" ? null : Number(control.folios),
             tomo: control.tomo.trim() || null, otra_unidad: control.otra_unidad.trim() || null,
             frecuencia_consulta: control.frecuencia_consulta.trim().toLowerCase() || null,
+          },
+          // Perfil AGN: solo lo que cambió (cada cambio queda en la auditoría).
+          proteccion: {
+            datos_personales: proteccion.datos && proteccion.datos !== (registro.proteccion?.datos_personales || "") ? proteccion.datos : null,
+            nota_accesibilidad: proteccion.nota !== (registro.proteccion?.nota_accesibilidad || "") ? proteccion.nota : null,
           },
         }),
       });
@@ -369,6 +379,11 @@ export function RegistroDescripcion() {
           )}
         </div>
       </div>
+
+      <ProteccionDatos valor={proteccion} editando={editando} alCambiar={setProteccion} />
+      <OriginalesFisicos recursoId={registro.id} instanciaciones={registro.instanciaciones} puede={puede && !editando}
+                         alGuardar={(r) => cargar(r as Registro)} />
+      {veInstrumentos && <CalidadDescripcion recursoId={registro.id} version={registro} />}
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>

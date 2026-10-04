@@ -18,6 +18,7 @@ Nada se borra: un nombre, un identificador, un hito o un vínculo que sobra
 queda «anulado», con quién y cuándo en auditoría.
 """
 
+import re
 import uuid
 from datetime import date
 from dataclasses import dataclass
@@ -299,6 +300,14 @@ def agregar_identificador(db: Session, e: EntidadVocabulario, *, esquema: str, v
         raise ErrorAutoridad("Un identificador VIAF es numérico.")
     if esquema == "isni" and not (len(valor.replace(" ", "")) == 16):
         raise ErrorAutoridad("Un ISNI tiene 16 caracteres.")
+    if esquema == "orcid":
+        if e.subtipo != "persona":
+            raise ErrorAutoridad("ORCID identifica personas: úselo solo en la ficha de una persona.")
+        valor = orcid_normalizado(valor)
+    if esquema == "ror":
+        if e.subtipo != "entidad_corporativa":
+            raise ErrorAutoridad("ROR identifica instituciones: úselo solo en la ficha de una entidad corporativa.")
+        valor = ror_normalizado(valor)
     if db.scalar(select(IdentificadorEntidad.id).where(IdentificadorEntidad.entidad_id == e.id,
                                                        IdentificadorEntidad.esquema == esquema,
                                                        IdentificadorEntidad.valor == valor,
@@ -324,7 +333,38 @@ URI_EXTERNA = {
     "wikidata": "http://www.wikidata.org/entity/{}",
     "isni": "https://isni.org/isni/{}",
     "lcnaf": "http://id.loc.gov/authorities/names/{}",
+    "orcid": "https://orcid.org/{}",
+    "ror": "https://ror.org/{}",
 }
+
+
+def orcid_normalizado(valor: str) -> str:
+    """0000-0002-1825-0097: cuatro grupos de cuatro y dígito de control
+    ISO 7064 11,2 (puede ser X). Acepta la URL completa."""
+    v = valor.strip().removeprefix("https://orcid.org/").removeprefix("http://orcid.org/").replace("-", "").upper()
+    if not re.fullmatch(r"\d{15}[\dX]", v):
+        raise ErrorAutoridad("Un ORCID tiene 16 caracteres en cuatro grupos, por ejemplo 0000-0002-1825-0097.")
+    total = 0
+    for d in v[:15]:
+        total = (total + int(d)) * 2
+    control = (12 - total % 11) % 11
+    if v[15] != ("X" if control == 10 else str(control)):
+        raise ErrorAutoridad("El dígito de control del ORCID no coincide: revise el número.")
+    return "-".join(v[i:i + 4] for i in range(0, 16, 4))
+
+
+def ror_normalizado(valor: str) -> str:
+    """Nueve caracteres: un 0, seis en base 32 de Crockford y dos dígitos de
+    control (ISO 7064 97-10). Acepta la URL completa."""
+    v = valor.strip().removeprefix("https://ror.org/").removeprefix("http://ror.org/").lower()
+    if not re.fullmatch(r"0[0-9a-hjkmnp-tv-z]{6}\d{2}", v):
+        raise ErrorAutoridad("Un ROR tiene nueve caracteres y empieza por 0, por ejemplo 05dxps055.")
+    numero = 0
+    for c in v[1:7]:
+        numero = numero * 32 + "0123456789abcdefghjkmnpqrstvwxyz".index(c)
+    if 98 - (numero * 100) % 97 != int(v[7:]):
+        raise ErrorAutoridad("Los dígitos de control del ROR no coinciden: revise el identificador.")
+    return v
 
 
 def uri_externa(esquema: str, valor: str) -> str | None:
