@@ -21,3 +21,4 @@ from app.models.rol import Rol  # noqa: F401
 from app.models.sesion import Sesion  # noqa: F401
 from app.models.token_acceso import TokenUnUso  # noqa: F401
 from app.models.usuario import Usuario  # noqa: F401
+from app.models.version_descripcion import VersionDescripcion  # noqa: F401

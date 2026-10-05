@@ -304,6 +304,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
+        descripcion.versionar(db, recurso, "publicacion", actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -486,6 +487,7 @@ def crear_agrupacion(datos: AgrupacionIn, actor: Actor = Depends(acceso_modulo("
             db, fondo_id=datos.fondo_id, nivel=datos.nivel, titulo=datos.titulo, incluido_en_id=datos.incluido_en_id,
             usuario_id=actor.id, codigo_referencia=datos.codigo_referencia, fechas_extremas=datos.fechas_extremas,
             alcance=datos.alcance_contenido, productor_id=datos.productor_id)
+        descripcion.versionar(db, r, "agrupacion", actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -643,7 +645,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
     recurso = _recurso_o_404(db, recurso_id)
     try:
         trabajo = descripcion.trabajo_propio(db, datos.trabajo_id, actor.id)
-        descripcion.editar(
+        cambio = descripcion.editar(
             db, recurso=recurso, trabajo=trabajo, usuario_id=actor.id, titulo=datos.titulo,
             alcance=datos.alcance_contenido, incluido_en_id=datos.incluido_en_id, anular=datos.anular_relaciones,
             quitar_forma=datos.quitar_forma_documental,
@@ -658,6 +660,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
         elif datos.clasificacion_hereda:
             _volver_a_heredar(db, recurso, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
+        descripcion.versionar(db, recurso, "edicion", actor.id, hubo_cambio=cambio)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -668,6 +671,57 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
         _deshacer_recortes(db)
         raise
     _confirmar_recortes(db)
+    return descripcion.detalle(db, recurso)
+
+
+# --- Versiones y atributos (RF-RIC-001 y RF-RIC-002) ----------------------------------------------
+
+
+@router.get("/atributos", summary="Catálogo de atributos: tipo, cardinalidad, ISAD(G), RiC-O y procedencia")
+def catalogo_atributos(actor: Actor = Depends(acceso_modulo("descripcion"))):
+    from app.servicios import atributos
+
+    return atributos.catalogo()
+
+
+@router.get("/registros/{recurso_id}/versiones", summary="Versiones de la descripción, con autor y cambios")
+def versiones_de(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
+                 db: Session = Depends(get_db)):
+    from app.servicios import versiones
+
+    return versiones.historial(db, _recurso_o_404(db, recurso_id))
+
+
+@router.get("/registros/{recurso_id}/versiones/{numero}", summary="Una versión completa (atributos y contexto)")
+def version(recurso_id: uuid.UUID, numero: int, actor: Actor = Depends(acceso_modulo("descripcion")),
+            db: Session = Depends(get_db)):
+    from app.servicios import versiones
+
+    try:
+        v = versiones.una(db, _recurso_o_404(db, recurso_id), numero)
+    except versiones.ErrorVersion as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.codigo)
+    return {"numero": v.numero, "motivo": v.motivo, "creada_en": v.creada_en.isoformat(), "huella": v.huella,
+            "integra": versiones.integra(db, v), "contenido": v.contenido}
+
+
+@router.post("/registros/{recurso_id}/versiones/{numero}/restaurar",
+             summary="Volver a los atributos de una versión anterior (crea una versión nueva)")
+def restaurar_version(recurso_id: uuid.UUID, numero: int, request: Request,
+                      actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.servicios import versiones
+
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        nueva = versiones.restaurar(db, recurso, numero, actor.id)
+    except versiones.ErrorVersion as exc:
+        db.rollback()
+        return JSONResponse({"detail": str(exc)}, status_code=exc.codigo)
+    registrar(db, modulo="descripcion", accion="descripcion_restaurada", usuario_id=actor.id,
+              entidad_tipo="recurso_documental", entidad_id=recurso.id, request=request,
+              detalle=f"«{recurso.titulo}»: restaurada la versión {numero} como versión {nueva.numero}",
+              nuevo={"restaurada_de": numero, "version_nueva": nueva.numero})
+    db.commit()
     return descripcion.detalle(db, recurso)
 
 

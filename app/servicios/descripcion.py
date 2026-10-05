@@ -626,10 +626,21 @@ def _idiomas(valores) -> list[str] | None:
 
     if valores is None:
         return None
+    _cardinalidad("idiomas", valores)
     limpios = idiomas_validos(valores)
     if len(limpios) != len([v for v in valores if str(v or "").strip()]):
         raise ErrorDescripcion("Cada idioma se indica con su código ISO 639-3 de tres letras (spa, lat, eng…).")
     return limpios or None
+
+
+def _cardinalidad(clave: str, valores) -> None:
+    """La cardinalidad del catálogo de atributos (RF-RIC-002)."""
+    from app.servicios import atributos
+
+    try:
+        atributos.validar_cardinalidad(clave, valores)
+    except atributos.ErrorAtributo as exc:
+        raise ErrorDescripcion(str(exc)) from exc
 
 
 def _texto_libre(valor: str | None) -> str | None:
@@ -670,6 +681,8 @@ def _isadg(recurso: RecursoDocumental, textos: dict | None, escrituras: list[str
     """Resto de los elementos de ISAD-G (hallazgo DES-07), de una persona."""
     from app.servicios import isadg
 
+    if escrituras is not None:
+        _cardinalidad("escrituras", escrituras)
     try:
         isadg.aplicar(recurso, textos, escrituras)
     except isadg.ErrorIsadg as exc:
@@ -847,6 +860,14 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     return recurso
 
 
+def versionar(db: Session, recurso: RecursoDocumental, motivo: str, usuario_id: uuid.UUID | None,
+              hubo_cambio: bool = False) -> None:
+    """La versión de la descripción tras publicar o corregir (RF-RIC-001)."""
+    from app.servicios import versiones
+
+    versiones.registrar(db, recurso, motivo, usuario_id, hubo_cambio=hubo_cambio)
+
+
 # --- Lectura (interna) y corrección posterior -------------------------------------------------------
 
 
@@ -955,6 +976,8 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "forma_documental": {"id": str(forma.id), "nombre": forma.nombre, "origen": forma.origen} if forma else None,
         "entidades": entidades, "instanciaciones": instanciaciones, "control": control_de(recurso),
         "proteccion": {"datos_personales": recurso.datos_personales, "nota_accesibilidad": recurso.nota_accesibilidad},
+        # Cada atributo con su fuente y su cardinalidad (RF-RIC-002).
+        "atributos": atributos_con_fuente(recurso),
         # Las propuestas del motor que llevaron a esta descripción (RF-AI-002).
         "propuestas_ia": [propuestas_ia.out(p) for p in propuestas_ia.de_recurso(db, recurso.id)],
         "idiomas": recurso.idiomas or [], "origen_idiomas": recurso.origen_idiomas,
@@ -1027,6 +1050,12 @@ def control_de(recurso: RecursoDocumental) -> dict:
     return {c: getattr(recurso, c) for c in CAMPOS_CONTROL}
 
 
+def atributos_con_fuente(recurso: RecursoDocumental) -> list[dict]:
+    from app.servicios import atributos
+
+    return atributos.con_fuente(recurso)
+
+
 def resumen(db: Session, recurso: RecursoDocumental) -> dict:
     """Lo que queda en auditoría: los datos descriptivos, con su procedencia."""
     d = detalle(db, recurso)
@@ -1068,7 +1097,8 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            condiciones_uso: str | None = None, precede_a_id: uuid.UUID | None = None,
            sigue_a_id: uuid.UUID | None = None, agregar_partes: list[ParteConfirmada] | None = None,
            historia_archivistica: str | None = None, isadg_textos: dict | None = None,
-           escrituras: list[str] | None = None) -> None:
+           escrituras: list[str] | None = None) -> bool:
+    """Aplica la corrección. Devuelve si algo cambió."""
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
     anterior = resumen(db, recurso)
@@ -1129,6 +1159,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         registrar(db, modulo="descripcion", accion="descripcion_editada", usuario_id=usuario_id,
                   entidad_tipo="recurso_documental", entidad_id=recurso.id, anterior=cambios_ant, nuevo=cambios_nuevo)
     _cerrar(db, trabajo, "publicado")
+    return nuevo != anterior
 
 
 # --- Agrupaciones sin archivos propios e inclusiones adicionales (CM-02, CM-21) ---------------------

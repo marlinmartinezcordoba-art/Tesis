@@ -88,13 +88,15 @@ class ParteIn(BaseModel):
 
 class CamposRegistro(BaseModel):
     """Idioma, condiciones de acceso y de uso, y secuencia (versión 3)."""
-    idiomas: list[str] | None = Field(default=None, max_length=5)
+    # Tope contra abusos; la cardinalidad real (5) la valida el catálogo de
+    # atributos con un mensaje claro (RF-RIC-002).
+    idiomas: list[str] | None = Field(default=None, max_length=50)
     condiciones_acceso: str | None = Field(default=None, max_length=5000)
     condiciones_uso: str | None = Field(default=None, max_length=5000)
     historia_archivistica: str | None = Field(default=None, max_length=20000)
     # Resto de ISAD-G (DES-07): {campo: texto}; ver app/servicios/isadg.py.
     isadg: dict[str, str | None] | None = None
-    escrituras: list[str] | None = Field(default=None, max_length=10)
+    escrituras: list[str] | None = Field(default=None, max_length=50)
     precede_a_id: uuid.UUID | None = None
     sigue_a_id: uuid.UUID | None = None
 

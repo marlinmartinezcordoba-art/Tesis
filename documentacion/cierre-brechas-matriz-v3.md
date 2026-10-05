@@ -117,9 +117,27 @@ Base: la auditoría del 4 de octubre de 2026 (`RICORA_MATRIZ_MAESTRA_REQUISITOS_
 | Páginas de los documentos anteriores | Repetir el OCR de todo al desplegar; dejarlos sin páginas; una orden a pedido | Orden a pedido: `python -m app.cli paginar-textos` | Repetir el OCR de todo en cada despliegue consumiría el servidor. La orden ubica también los fragmentos ya publicados | Hasta que se ejecute, los documentos anteriores muestran el fragmento sin página |
 | Páginas cuando se repite la extracción | Conservar todas las versiones; reemplazarlas | Reemplazarlas | Son un derivado del texto y del archivo, que no cambia. Lo que no puede cambiar (la evidencia publicada y la propuesta) ya quedó copiado | Ninguno |
 
+## Lote 6a · Versiones y atributos
+
+| Requisito | Antes | Después | Qué se hizo | Evidencia |
+|---|---|---|---|---|
+| RF-RIC-001 Versiones consultables y restaurables | Parcial | Cumple | Cada publicación, corrección o restauración de una descripción deja una **versión numerada** con la instantánea de sus atributos (con su procedencia) y de su contexto (entidades, documentos, partes, secuencia, nivel superior), su autor, la fecha y el motivo. La ficha muestra el historial con **lo que cambió** en cada versión (antes → después, y si la fuente pasó del motor a una persona). **Restaurar** una versión anterior crea una versión nueva: nada se pierde. Las versiones no se modifican ni se borran (disparador) y la base calcula su huella. Las descripciones ya publicadas recibieron su versión 1 («estado al activar el versionado») | migración `0037`, `app/servicios/versiones.py`, rutas `GET /api/descripcion/registros/{id}/versiones`, `…/versiones/{n}`, `POST …/versiones/{n}/restaurar`, `frontend/src/components/Versiones.tsx`, `tests/test_brechas_lote6.py` (editar dos veces → 3 versiones con autor y cambios; restaurar la 1 → versión 4) |
+| RF-RIC-002 Atributos con tipo, cardinalidad y fuente | Parcial | Cumple | **Catálogo de atributos** de la descripción: tipo, cardinalidad, elemento ISAD(G), propiedad RiC-O y de dónde sale su procedencia. Al publicar y al corregir se valida la cardinalidad con un mensaje claro («Lenguas admite como máximo 5 valores»). La ficha muestra cada atributo con su valor, su **fuente** (motor, motor corregido, persona) y la confianza del motor | `app/servicios/atributos.py`, `GET /api/descripcion/atributos`, `tests/test_brechas_lote6.py::test_un_atributo_multivaluado_rechaza_pasar_de_su_cardinalidad`, `::test_cada_valor_muestra_su_fuente_en_la_vista_interna` |
+
+### Decisiones del lote 6a
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo guardar las versiones | Tablas temporales de PostgreSQL (extensión); copiar la fila entera; instantánea JSON por versión | Instantánea JSON de los atributos del catálogo y del contexto | No requiere extensiones. El catálogo define qué se versiona, y una prueba exige que la migración y el catálogo coincidan. Comparar dos versiones es comparar dos JSON | Una columna nueva que no se agregue al catálogo no se versiona: la prueba lo detecta |
+| Qué devuelve «restaurar» | Todo (atributos y relaciones); solo atributos | Solo atributos, con su procedencia | Cada relación ya tiene su propia historia: se anula, nunca se borra, con quién y cuándo. Revivir relaciones en bloque mezclaría dos historias y podría reponer un agente fusionado o un documento que ya se describió en otra parte | Quien quiera volver a una relación quitada lo hace desde «Corregir», con la versión anterior a la vista |
+| Cuándo nace una versión | En cada guardado; solo si algo cambió | Solo si algo cambió | Una corrección sin cambios no llena el historial de versiones idénticas | Ninguno |
+| Descripciones anteriores al versionado | Sin versiones; versión 1 con lo que hay | Versión 1 «estado al activar el versionado», solo con los atributos | El contexto anterior no se conoce y no se inventa; la ficha lo dice | La primera corrección siempre crea versión, aunque solo cambie el contexto |
+| Restaurar mientras alguien edita | Permitirlo; impedirlo | Impedirlo | Dos cambios a la vez sobre la misma descripción se pisarían | Ninguno |
+| Procedencia de los atributos que no propone el motor | Una columna de origen para cada uno; deducirla | Deducirla: «persona», porque el motor no los propone; el autor y la fecha quedan en las versiones | Treinta columnas de origen que siempre dirían «persona» no agregan información | Si un día el motor propone otro atributo, hay que agregarle su columna de origen (el catálogo lo declara) |
+
 ## Pendiente (lotes siguientes)
 
 | Lote | Requisitos | Qué falta |
 |---|---|---|
 | Métricas | RF-OPS-001, NFR-10 | Métricas de uso y de rendimiento expuestas para un monitor |
-| 6 · Versiones y API | RF-RIC-001/002, RF-INT-003 | Versiones consultables de cada descripción; esquemas de respuesta en OpenAPI con prueba |
+| 6b · Contrato de la API | RF-INT-003 | Esquema de respuesta en las 143 rutas que no lo declaran; versión /api/v1; prueba del contrato OpenAPI |

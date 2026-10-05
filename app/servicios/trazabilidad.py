@@ -75,6 +75,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "edicion_liberada": ("Liberó una edición", None),
     "descripcion_publicada": ("Publicó una descripción", "Descripciones validadas"),
     "descripcion_editada": ("Corrigió una descripción", "Descripciones validadas"),
+    "descripcion_restaurada": ("Restauró una versión anterior de una descripción", "Descripciones validadas"),
     "decision_ia": ("Decidió sobre una propuesta de la IA", None),
     "recorte_creado": ("Recortó una parte documental como instanciación propia", "Descripciones validadas"),
     # Vocabularios

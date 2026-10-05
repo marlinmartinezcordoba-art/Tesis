@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
+import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/components/Versiones";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
   CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
@@ -61,6 +62,7 @@ interface Registro {
   forma_documental: { id: string; nombre: string; origen: string } | null;
   entidades: EntidadRegistrada[];
   propuestas_ia?: PropuestaRegistrada[];
+  atributos?: AtributoConFuente[];
   instanciaciones: InstanciacionRegistro[];
   proteccion: Proteccion;
   origen_titulo: string | null;
@@ -386,6 +388,9 @@ export function RegistroDescripcion() {
                          alGuardar={(r) => cargar(r as Registro)} />
       <CompletitudDescripcion recursoId={registro.id} version={registro} />
       <PropuestasIA propuestas={registro.propuestas_ia || []} puede={puede} />
+      <AtributosConFuente atributos={registro.atributos || []} />
+      <VersionesDescripcion recursoId={registro.id} puede={puede} editando={editando} marca={registro}
+                            alRestaurar={(r) => cargar(r as Registro)} />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>

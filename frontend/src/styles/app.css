@@ -707,3 +707,10 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .visor-hoja { position: relative; display: inline-block; max-width: 100%; }
 .visor-zona { position: absolute; background: rgba(214, 158, 46, .28); outline: 2px solid var(--warn); border-radius: 2px; pointer-events: none; }
 .prop-pagina { font-weight: 600; white-space: nowrap; }
+/* Versiones de la descripción (RF-RIC-001) y atributos con fuente (RF-RIC-002) */
+.version-cambios { margin: 6px 0 2px; padding-left: 18px; font-size: .82rem; line-height: 1.55; }
+.version-cambios .agregado { color: var(--ok); }
+.version-cambios .quitado { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 1px; }
+.atributos-fuente summary { cursor: pointer; list-style: none; }
+.atributos-fuente table { margin: 0; }
+.atributos-fuente td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .82rem; }
