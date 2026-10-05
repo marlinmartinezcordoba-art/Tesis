@@ -21,6 +21,9 @@ from app.core.permisos import Actor, acceso_modulo, lectura_catalogo
 from app.db.session import get_db
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
+from app.schemas.respuestas_ingesta import VistaPreviaDocumento
+from app.schemas.respuestas_instrumentos import (BorradorGuia, FichaConsulta, IndiceTerminos, NivelCatalogo,
+                                                 ResumenFondo, SubgrafoFondo, VistaPreviaInventario)
 from app.servicios import instrumentos
 from app.servicios.auditoria import registrar
 
@@ -100,7 +103,8 @@ def ve_restringidos(actor: Actor) -> bool:
     return actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir")
 
 
-@router.get("/catalogo", summary="Un nivel del árbol del fondo, para navegar por migas de pan")
+@router.get("/catalogo", responses={200: {"model": NivelCatalogo, "description": "Un nivel del árbol del fondo."}},
+            summary="Un nivel del árbol del fondo, para navegar por migas de pan")
 def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, actor: Actor = Depends(lectura_catalogo),
              db: Session = Depends(get_db)):
     try:
@@ -109,7 +113,8 @@ def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, actor: Actor
         raise _error(exc) from exc
 
 
-@router.get("/catalogo/{recurso_id}", summary="Ficha de consulta: descripción, entidades y preservación")
+@router.get("/catalogo/{recurso_id}", responses={200: {"model": FichaConsulta, "description": "Ficha de consulta."}},
+            summary="Ficha de consulta: descripción, entidades y preservación")
 def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     try:
         return instrumentos.ficha(db, _recurso_o_404(db, recurso_id), ve_restringidos(actor))
@@ -117,7 +122,8 @@ def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: S
         raise _error(exc) from exc
 
 
-@router.get("/grafo", summary="Vecindario de un nodo del grafo RiC (alias de /api/grafo, sin filtros)")
+@router.get("/grafo", responses={200: {"model": SubgrafoFondo, "description": "Nodos y aristas del vecindario."}},
+            summary="Vecindario de un nodo del grafo RiC (alias de /api/grafo, sin filtros)")
 def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, actor: Actor = Depends(lectura_catalogo),
           db: Session = Depends(get_db)):
     from app.servicios import grafo as servicio_grafo
@@ -137,7 +143,9 @@ def grafo(fondo_id: uuid.UUID, centro: str | None = None, profundidad: int = 1, 
         raise _error(exc) from exc
 
 
-@router.get("/previsualizar/{instanciacion_id}", summary="Visor de la ficha: páginas que se pueden mostrar (sin descarga)")
+@router.get("/previsualizar/{instanciacion_id}",
+            responses={200: {"model": VistaPreviaDocumento, "description": "Páginas que se pueden mostrar y texto extraído."}},
+            summary="Visor de la ficha: páginas que se pueden mostrar (sin descarga)")
 def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     from app.servicios import previsualizacion
 
@@ -148,7 +156,8 @@ def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(lectura_ca
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
 
 
-@router.get("/previsualizar/{instanciacion_id}/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+@router.get("/previsualizar/{instanciacion_id}/{pagina}", responses={200: {"content": {"image/png": {}}, "description": "Página del documento como imagen PNG."}},
+            summary="Una página como imagen PNG (nunca el original)")
 def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(lectura_catalogo),
                          db: Session = Depends(get_db)):
     from app.servicios import previsualizacion
@@ -171,7 +180,8 @@ def _documento_publicado(db: Session, instanciacion_id: uuid.UUID) -> None:
         raise previsualizacion.ErrorPrevisualizacion("El documento no existe en el catálogo.", 404)
 
 
-@router.get("/resumen", summary="Resumen del fondo: composición, productores, lugares, formas, archivos y fechas")
+@router.get("/resumen", responses={200: {"model": ResumenFondo, "description": "Resumen del fondo."}},
+            summary="Resumen del fondo: composición, productores, lugares, formas, archivos y fechas")
 def resumen(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     from app.servicios import resumen_fondo
 
@@ -179,7 +189,8 @@ def resumen(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: S
                                  actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
 
 
-@router.get("/indice", summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
+@router.get("/indice", responses={200: {"model": IndiceTerminos, "description": "Índice de términos del fondo."}},
+            summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
 def indice(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     return instrumentos.indice(db, fondo_o_404(db, fondo_id),
                                actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
@@ -197,14 +208,17 @@ def _inventario(db: Session, recurso_id: uuid.UUID) -> tuple[dict, dict | None]:
     return datos, alerta
 
 
-@router.post("/inventario/vista-previa", summary="Arma el inventario FUID en pantalla y avisa los pendientes")
+@router.post("/inventario/vista-previa",
+             responses={200: {"model": VistaPreviaInventario, "description": "Inventario FUID en pantalla."}},
+             summary="Arma el inventario FUID en pantalla y avisa los pendientes")
 def vista_previa(datos: NivelIn, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
     inventario, alerta = _inventario(db, datos.recurso_id)
     db.commit()
     return {**inventario, "alerta": alerta}
 
 
-@router.post("/inventario", summary="Genera y descarga el inventario FUID en hoja de cálculo")
+@router.post("/inventario", responses={200: {"content": {XLSX: {}}, "description": "Inventario FUID en hoja de cálculo."}},
+             summary="Genera y descarga el inventario FUID en hoja de cálculo")
 def inventario(datos: InventarioIn, request: Request, actor: Actor = Depends(acceso_modulo("instrumentos")),
                db: Session = Depends(get_db)):
     inventario, alerta = _inventario(db, datos.recurso_id)
@@ -221,12 +235,14 @@ def inventario(datos: InventarioIn, request: Request, actor: Actor = Depends(acc
 # --- Guía --------------------------------------------------------------------------------------
 
 
-@router.post("/guia", summary="Borrador de la nota de presentación, redactado por el motor")
+@router.post("/guia", responses={200: {"model": BorradorGuia, "description": "Borrador de la nota de presentación."}},
+             summary="Borrador de la nota de presentación, redactado por el motor")
 def guia(datos: GuiaIn, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
     return instrumentos.redactar_guia(db, fondo_o_404(db, datos.fondo_id))
 
 
-@router.post("/guia/exportar", summary="Descarga la guía con el texto que dejó el archivista")
+@router.post("/guia/exportar", responses={200: {"content": {DOCX: {}}, "description": "Guía del fondo en documento de texto."}},
+             summary="Descarga la guía con el texto que dejó el archivista")
 def guia_exportar(datos: GuiaExportarIn, request: Request, actor: Actor = Depends(acceso_modulo("instrumentos")),
                   db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, datos.fondo_id)

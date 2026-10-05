@@ -38,8 +38,10 @@ from app.models.sesion import Sesion
 from app.models.token_acceso import TokenUnUso
 from app.models.rol import MODULOS_CONFIGURABLES, NIVELES_POR_MODULO, Rol
 from app.models.usuario import Usuario
+from app.schemas import respuestas_auditoria as ra
 from app.schemas.auth import (
     CambiarContrasenaIn,
+    DesafioSegundoFactorOut,
     CodigoIn,
     DesactivarDobleFactorIn,
     ExigirDobleFactorIn,
@@ -200,7 +202,8 @@ def _validar_contrasena(contrasena: str, correo_usuario: str) -> None:
 # --- rutas públicas --------------------------------------------------------------
 
 
-@router.post("/login", response_model=SesionOut, summary="Iniciar sesión con correo y contraseña")
+# La sesión, o el desafío si la cuenta tiene segundo factor (RF-SEC-003).
+@router.post("/login", response_model=SesionOut | DesafioSegundoFactorOut, summary="Iniciar sesión con correo y contraseña")
 def ingresar(datos: IngresoIn, request: Request, response: Response, db: Session = Depends(get_db)):
     sesiones.cerrar_vencidas(db)
     correo_normalizado = _normalizar(datos.correo)
@@ -429,14 +432,16 @@ def cambiar_contrasena(datos: CambiarContrasenaIn, request: Request, actor: Acto
     return MensajeOut(mensaje="Contraseña actualizada." + (" Se cerraron sus otras sesiones abiertas." if otras else ""))
 
 
-@router.get("/perfil/doble-factor", summary="Si la cuenta usa segundo factor y si su rol lo exige")
+@router.get("/perfil/doble-factor", responses={200: {"model": ra.EstadoDobleFactorOut, "description": "Estado del segundo factor de la cuenta"}},
+    summary="Si la cuenta usa segundo factor y si su rol lo exige")
 def estado_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
     u = actor.usuario
     return {"activo": u.mfa_activo, "activado_en": u.mfa_activado_en, "requerido": doble_factor_requerido(db, u),
             "codigos_respaldo": len(u.mfa_respaldo or []) if u.mfa_activo else 0}
 
 
-@router.post("/perfil/doble-factor/iniciar", summary="Generar la clave para la aplicación de autenticación")
+@router.post("/perfil/doble-factor/iniciar", responses={200: {"model": ra.ClaveDobleFactorOut, "description": "Clave para la aplicación de autenticación"}},
+    summary="Generar la clave para la aplicación de autenticación")
 def iniciar_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
     u = actor.usuario
     if u.mfa_activo:
@@ -449,7 +454,8 @@ def iniciar_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = D
                         headers={"Cache-Control": "no-store"})
 
 
-@router.post("/perfil/doble-factor/activar", summary="Confirmar con un código y recibir los códigos de respaldo")
+@router.post("/perfil/doble-factor/activar", responses={200: {"model": ra.CodigosRespaldoOut, "description": "Códigos de respaldo de un solo uso"}},
+    summary="Confirmar con un código y recibir los códigos de respaldo")
 def activar_doble_factor(datos: CodigoIn, request: Request, actor: Actor = Depends(usuario_actual),
                          db: Session = Depends(get_db)):
     u = actor.usuario

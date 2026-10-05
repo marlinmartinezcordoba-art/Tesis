@@ -31,6 +31,10 @@ from app.routers.fondos import fondo_o_404
 from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
+from app.schemas.respuestas_descripcion import (
+    AtributoCatalogo, CustodiosOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut, FichaPublicaOut, PaginasOut,
+    PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut, ReferenciaBreve, VersionCompleta, VersionResumen,
+)
 from app.servicios import consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
 from app.servicios.auditoria import registrar
 
@@ -80,7 +84,8 @@ def cola(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
         en_edicion_por=quien) for i, quien in filas]
 
 
-@router.get("/buscar-publicadas", summary="Descripciones publicadas del fondo por título (para declarar la secuencia)")
+@router.get("/buscar-publicadas", responses={200: {"model": list[ReferenciaBreve], "description": "Descripciones publicadas que coinciden con el título"}},
+            summary="Descripciones publicadas del fondo por título (para declarar la secuencia)")
 def buscar_publicadas(fondo_id: uuid.UUID, q: str = "", db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     consulta = select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
@@ -107,7 +112,8 @@ def niveles_superiores(fondo_id: uuid.UUID, nivel: str, db: Session = Depends(ge
 # --- Espacio de trabajo -----------------------------------------------------------------------
 
 
-@router.post("/iniciar", summary="Marcar en edición y obtener la propuesta del motor")
+@router.post("/iniciar", responses={200: {"model": EspacioTrabajoOut, "description": "El espacio de trabajo con la propuesta del motor"}},
+             summary="Marcar en edición y obtener la propuesta del motor")
 async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acceso_modulo("descripcion")),
                   db: Session = Depends(get_db)):
     try:
@@ -147,7 +153,8 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
     return _espacio(db, trabajo)
 
 
-@router.get("/propuestas/{propuesta_id}", summary="Una propuesta del motor completa, con su huella verificada (RF-AI-002)")
+@router.get("/propuestas/{propuesta_id}", responses={200: {"model": PropuestaIAOut, "description": "La propuesta completa: entrada, respuesta y contenido controlado"}},
+            summary="Una propuesta del motor completa, con su huella verificada (RF-AI-002)")
 def ver_propuesta(propuesta_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
                   db: Session = Depends(get_db)):
     """Lo que el motor recibió, lo que respondió tal cual y la propuesta ya
@@ -163,7 +170,8 @@ def ver_propuesta(propuesta_id: uuid.UUID, actor: Actor = Depends(acceso_modulo(
     return propuestas_ia.out(p, completa=True)
 
 
-@router.get("/trabajos/{trabajo_id}", summary="Reabrir la pantalla de un trabajo en curso")
+@router.get("/trabajos/{trabajo_id}", responses={200: {"model": EspacioTrabajoOut, "description": "El espacio de trabajo en curso"}},
+            summary="Reabrir la pantalla de un trabajo en curso")
 def ver_trabajo(trabajo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     try:
         trabajo = descripcion.trabajo_propio(db, trabajo_id, actor.id)
@@ -288,7 +296,8 @@ def _proteger(db: Session, recurso, p, usuario_id) -> None:
                   nuevo={k: v for k, v in nuevo.items() if anterior[k] != v})
 
 
-@router.post("/publicar", status_code=status.HTTP_201_CREATED, summary="Publicar la descripción (una sola transacción)")
+@router.post("/publicar", status_code=status.HTTP_201_CREATED, responses={201: {"model": DetalleDescripcionOut, "description": "La descripción publicada, vista interna"}},
+             summary="Publicar la descripción (una sola transacción)")
 def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     try:
         trabajo = descripcion.trabajo_propio(db, datos.trabajo_id, actor.id)
@@ -331,6 +340,7 @@ def _documento_del_trabajo(db: Session, trabajo_id: uuid.UUID, instanciacion_id:
 
 
 @router.get("/trabajos/{trabajo_id}/documentos/{instanciacion_id}/paginas",
+            responses={200: {"model": PaginasOut, "description": "Si se puede mostrar como imagen y cuántas páginas tiene"}},
             summary="Cuántas páginas tiene el documento y si se puede mostrar como imagen")
 def paginas(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
             db: Session = Depends(get_db)):
@@ -349,6 +359,7 @@ def paginas(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, actor: Actor = D
 
 
 @router.get("/trabajos/{trabajo_id}/documentos/{instanciacion_id}/paginas/{pagina}",
+            responses={200: {"content": {"image/png": {}}, "description": "Imagen PNG de la página"}},
             summary="Imagen PNG de una página del documento")
 def pagina(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, pagina: int,
            actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -369,7 +380,8 @@ def pagina(trabajo_id: uuid.UUID, instanciacion_id: uuid.UUID, pagina: int,
 # --- Previsualización (visor sin descarga), el mismo de la cola de ingesta --------------------------------------------------------
 
 
-@router.get("/{instanciacion_id}/previsualizar", summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
+@router.get("/{instanciacion_id}/previsualizar", responses={200: {"model": PrevisualizacionOut, "description": "Datos del visor"}},
+            summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
 def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     from app.servicios import previsualizacion
 
@@ -379,7 +391,8 @@ def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_mod
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
 
 
-@router.get("/{instanciacion_id}/previsualizar/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+@router.get("/{instanciacion_id}/previsualizar/{pagina}", responses={200: {"content": {"image/png": {}}, "description": "Imagen PNG de la página"}},
+            summary="Una página como imagen PNG (nunca el original)")
 def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(acceso_modulo("descripcion")),
                          db: Session = Depends(get_db)):
     from fastapi.responses import Response
@@ -421,7 +434,8 @@ def publicadas(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
                          en_edicion_por=editores.get(r.id)) for r in filas]
 
 
-@router.get("/publicadas/exportar", summary="Todas las descripciones publicadas del fondo, en Excel (más recientes primero)")
+@router.get("/publicadas/exportar", responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}, "description": "Hoja de cálculo con las descripciones publicadas"}},
+            summary="Todas las descripciones publicadas del fondo, en Excel (más recientes primero)")
 def publicadas_xlsx(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     from fastapi.responses import Response
 
@@ -441,7 +455,8 @@ def publicadas_xlsx(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": 'attachment; filename="descripciones-publicadas.xlsx"'})
 
 
-@router.get("/productividad", summary="Lo descrito hoy por quien consulta y el total del fondo (dato del panel consolidado)")
+@router.get("/productividad", responses={200: {"model": ProductividadOut, "description": "Lo descrito hoy y el total del fondo"}},
+            summary="Lo descrito hoy por quien consulta y el total del fondo (dato del panel consolidado)")
 def productividad(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     from datetime import timedelta
 
@@ -461,7 +476,8 @@ def productividad(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("des
     return {"hoy_por_mi": por_mi, "total_fondo": total}
 
 
-@router.get("/registros/{recurso_id}", summary="Descripción publicada, vista interna (con origen y confianza)")
+@router.get("/registros/{recurso_id}", responses={200: {"model": DetalleDescripcionOut, "description": "La descripción publicada, vista interna"}},
+            summary="Descripción publicada, vista interna (con origen y confianza)")
 def ver(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
     return descripcion.detalle(db, _recurso_o_404(db, recurso_id))
 
@@ -478,6 +494,7 @@ class AgrupacionIn(BaseModel):
 
 
 @router.post("/agrupaciones", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": DetalleDescripcionOut, "description": "La agrupación creada, vista interna"}},
              summary="Crear una sección, subsección, serie, subserie o expediente sin archivos propios")
 def crear_agrupacion(datos: AgrupacionIn, actor: Actor = Depends(acceso_modulo("descripcion")),
                      db: Session = Depends(get_db)):
@@ -500,6 +517,7 @@ class InclusionIn(BaseModel):
 
 
 @router.post("/registros/{recurso_id}/inclusiones", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": DetalleDescripcionOut, "description": "La descripción con su nueva inclusión"}},
              summary="Incluir además en otro conjunto (p. ej. una colección facticia)")
 def agregar_inclusion(recurso_id: uuid.UUID, datos: InclusionIn,
                       actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -520,6 +538,7 @@ class IndividualizarIn(BaseModel):
 
 
 @router.post("/registros/{recurso_id}/individualizar", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": DetalleDescripcionOut, "description": "El nuevo Record del documento individualizado"}},
              summary="Dar a un documento del conjunto su propio Record (luego se describe al reabrirlo)")
 def individualizar(recurso_id: uuid.UUID, datos: IndividualizarIn, actor: Actor = Depends(acceso_modulo("descripcion")),
                    db: Session = Depends(get_db)):
@@ -555,7 +574,8 @@ class OriginalFisicoEditarIn(DatosFisicosAgn):
     caracteristicas_fisicas: str | None = Field(default=None, max_length=5000)
 
 
-@router.get("/registros/{recurso_id}/isadg", summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
+@router.get("/registros/{recurso_id}/isadg", responses={200: {"model": FichaIsadgOut, "description": "Ficha ISAD(G) con los 26 elementos"}},
+            summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
 def ficha_isadg(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
     from app.servicios import isadg
 
@@ -568,6 +588,7 @@ def ficha_isadg(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/registros/{recurso_id}/original-fisico", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": DetalleDescripcionOut, "description": "La descripción con el original físico registrado"}},
              summary="Registrar el original físico (papel…) como instanciación")
 def original_fisico(recurso_id: uuid.UUID, datos: OriginalFisicoIn, actor: Actor = Depends(acceso_modulo("descripcion")),
                     db: Session = Depends(get_db)):
@@ -584,6 +605,7 @@ def original_fisico(recurso_id: uuid.UUID, datos: OriginalFisicoIn, actor: Actor
 
 
 @router.patch("/registros/{recurso_id}/original-fisico/{instanciacion_id}",
+              responses={200: {"model": DetalleDescripcionOut, "description": "La descripción con el original físico corregido"}},
               summary="Corregir la ubicación, la signatura o el estado de conservación del original físico")
 def editar_original_fisico(recurso_id: uuid.UUID, instanciacion_id: uuid.UUID, datos: OriginalFisicoEditarIn,
                            actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -609,6 +631,7 @@ class CustodioIn(BaseModel):
 
 
 @router.post("/instanciaciones/{instanciacion_id}/custodios", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": CustodiosOut, "description": "El tramo registrado y la cadena de custodia"}},
              summary="Un tramo de la custodia de un archivo o de un original físico (RiC-R039i)")
 def custodio_de_instanciacion(instanciacion_id: uuid.UUID, datos: CustodioIn,
                               actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -624,7 +647,8 @@ def custodio_de_instanciacion(instanciacion_id: uuid.UUID, datos: CustodioIn,
     return {"relacion_id": str(r.id), "custodios": descripcion.custodios_de(db, inst.id)}
 
 
-@router.post("/registros/{recurso_id}/reabrir", summary="Reabrir una descripción publicada para corregirla")
+@router.post("/registros/{recurso_id}/reabrir", responses={200: {"model": ReabrirOut, "description": "El trabajo de corrección y la descripción actual"}},
+             summary="Reabrir una descripción publicada para corregirla")
 def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     recurso = _recurso_o_404(db, recurso_id)
     try:
@@ -639,7 +663,8 @@ def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descrip
     return {"trabajo_id": str(trabajo.id), "descripcion": descripcion.detalle(db, recurso)}
 
 
-@router.patch("/{recurso_id}", summary="Corregir una descripción publicada (queda en auditoría)")
+@router.patch("/{recurso_id}", responses={200: {"model": DetalleDescripcionOut, "description": "La descripción corregida, vista interna"}},
+              summary="Corregir una descripción publicada (queda en auditoría)")
 def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso_modulo("descripcion")),
            db: Session = Depends(get_db)):
     recurso = _recurso_o_404(db, recurso_id)
@@ -677,14 +702,16 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
 # --- Versiones y atributos (RF-RIC-001 y RF-RIC-002) ----------------------------------------------
 
 
-@router.get("/atributos", summary="Catálogo de atributos: tipo, cardinalidad, ISAD(G), RiC-O y procedencia")
+@router.get("/atributos", responses={200: {"model": list[AtributoCatalogo], "description": "Catálogo de atributos de la descripción"}},
+            summary="Catálogo de atributos: tipo, cardinalidad, ISAD(G), RiC-O y procedencia")
 def catalogo_atributos(actor: Actor = Depends(acceso_modulo("descripcion"))):
     from app.servicios import atributos
 
     return atributos.catalogo()
 
 
-@router.get("/registros/{recurso_id}/versiones", summary="Versiones de la descripción, con autor y cambios")
+@router.get("/registros/{recurso_id}/versiones", responses={200: {"model": list[VersionResumen], "description": "Versiones de la descripción, la más reciente primero"}},
+            summary="Versiones de la descripción, con autor y cambios")
 def versiones_de(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")),
                  db: Session = Depends(get_db)):
     from app.servicios import versiones
@@ -692,7 +719,8 @@ def versiones_de(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("de
     return versiones.historial(db, _recurso_o_404(db, recurso_id))
 
 
-@router.get("/registros/{recurso_id}/versiones/{numero}", summary="Una versión completa (atributos y contexto)")
+@router.get("/registros/{recurso_id}/versiones/{numero}", responses={200: {"model": VersionCompleta, "description": "La versión completa con su huella verificada"}},
+            summary="Una versión completa (atributos y contexto)")
 def version(recurso_id: uuid.UUID, numero: int, actor: Actor = Depends(acceso_modulo("descripcion")),
             db: Session = Depends(get_db)):
     from app.servicios import versiones
@@ -706,6 +734,7 @@ def version(recurso_id: uuid.UUID, numero: int, actor: Actor = Depends(acceso_mo
 
 
 @router.post("/registros/{recurso_id}/versiones/{numero}/restaurar",
+             responses={200: {"model": DetalleDescripcionOut, "description": "La descripción con la versión restaurada"}},
              summary="Volver a los atributos de una versión anterior (crea una versión nueva)")
 def restaurar_version(recurso_id: uuid.UUID, numero: int, request: Request,
                       actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -746,7 +775,8 @@ def _volver_a_heredar(db: Session, recurso, usuario_id) -> None:
 catalogo = APIRouter(prefix="/api/catalogo", tags=["Catálogo de consulta"])
 
 
-@catalogo.get("/registros/{recurso_id}", summary="Ficha de consulta de una descripción publicada")
+@catalogo.get("/registros/{recurso_id}", responses={200: {"model": FichaPublicaOut, "description": "Ficha de consulta de la descripción"}},
+              summary="Ficha de consulta de una descripción publicada")
 def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     from app.routers.instrumentos import ve_restringidos
     from app.servicios import instrumentos

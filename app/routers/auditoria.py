@@ -29,6 +29,7 @@ from app.db.base import ahora
 from app.db.session import get_db
 from app.models.hallazgo import COMPONENTES, HallazgoConformidad
 from app.models.usuario import Usuario
+from app.schemas import respuestas_auditoria as ra
 from app.servicios import decisiones_ia, hallazgos, trazabilidad
 from app.servicios.auditoria import ip_de, registrar
 
@@ -53,12 +54,14 @@ def _solo_de(actor: Actor) -> uuid.UUID | None:
     return None if actor.ve_toda_la_auditoria else actor.id
 
 
-@router.get("/acciones", summary="Tipos de acción disponibles para filtrar")
+@router.get("/acciones", responses={200: {"model": list[ra.AccionDisponible], "description": "Tipos de acción con su módulo y etiqueta"}},
+    summary="Tipos de acción disponibles para filtrar")
 def acciones(actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
     return trazabilidad.acciones_de(db, _solo_de(actor))
 
 
-@router.get("/mi-trazabilidad", summary="Acciones del usuario autenticado, filtrables por tipo, módulo y fechas")
+@router.get("/mi-trazabilidad", responses={200: {"model": ra.TrazabilidadPropiaOut, "description": "Acciones propias, paginadas"}},
+    summary="Acciones del usuario autenticado, filtrables por tipo, módulo y fechas")
 def mi_trazabilidad(accion: str | None = None, modulo: str | None = None, desde: date | None = None,
                     hasta: date | None = None, antes_de: int | None = None, limite: int = Query(200, ge=1, le=500),
                     actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
@@ -75,7 +78,8 @@ def _xlsx(contenido: bytes, nombre: str) -> Response:
     return Response(contenido, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
-@router.get("/trazabilidad/exportar", summary="Toda la trazabilidad propia que cumple los filtros, en Excel")
+@router.get("/trazabilidad/exportar", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con la trazabilidad propia"}},
+    summary="Toda la trazabilidad propia que cumple los filtros, en Excel")
 def mi_trazabilidad_xlsx(accion: str | None = None, modulo: str | None = None, desde: date | None = None,
                          hasta: date | None = None, actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
     if desde and hasta and desde > hasta:
@@ -84,7 +88,8 @@ def mi_trazabilidad_xlsx(accion: str | None = None, modulo: str | None = None, d
                  "mi-trazabilidad.xlsx")
 
 
-@router.get("/entidad/{entidad_id}", summary="Historial de auditoría de una entidad")
+@router.get("/entidad/{entidad_id}", responses={200: {"model": ra.TrazabilidadEntidadOut, "description": "Historial de la entidad"}},
+    summary="Historial de auditoría de una entidad")
 def entidad(entidad_id: str, tipo: str = Query(..., max_length=60), actor: Actor = Depends(usuario_actual),
             db: Session = Depends(get_db)):
     if tipo not in trazabilidad.MODULO_DE_ENTIDAD:
@@ -101,7 +106,8 @@ def _dia(semana: date | None) -> date:
     return semana or ahora().astimezone(trazabilidad._zona()).date()
 
 
-@router.get("/consolidado", summary="Panel semanal por persona: días, horas conectadas y acciones")
+@router.get("/consolidado", responses={200: {"model": ra.ConsolidadoOut, "description": "Panel semanal por persona"}},
+    summary="Panel semanal por persona: días, horas conectadas y acciones")
 def consolidado(semana: date | None = None, _: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
     datos = trazabilidad.consolidado(db, _dia(semana))
     return datos | {"revisiones": trazabilidad.revisiones_de(db, trazabilidad.lunes_de(_dia(semana)))}
@@ -124,7 +130,8 @@ revision = APIRouter(prefix="/api/auditoria", tags=["Auditoría (transversal)"],
                      dependencies=[Depends(_revisor_del_registro)])
 
 
-@revision.post("/consolidado/revisado", summary="Dejar constancia de que se revisó el registro de la semana")
+@revision.post("/consolidado/revisado", responses={200: {"model": ra.RevisionesOut, "description": "Constancias de revisión de la semana"}},
+    summary="Dejar constancia de que se revisó el registro de la semana")
 def marcar_revisado(datos: RevisionIn, request: Request, actor: Actor = Depends(_revisor_del_registro),
                     db: Session = Depends(get_db)):
     from app.servicios.auditoria import verificar_cadena
@@ -142,20 +149,23 @@ def marcar_revisado(datos: RevisionIn, request: Request, actor: Actor = Depends(
     return {"revisiones": trazabilidad.revisiones_de(db, lunes)}
 
 
-@router.get("/cadena", summary="Verificar la cadena de huellas del registro de auditoría y obtener su sello")
+@router.get("/cadena", responses={200: {"model": ra.CadenaOut, "description": "Estado de la cadena de huellas y su sello"}},
+    summary="Verificar la cadena de huellas del registro de auditoría y obtener su sello")
 def cadena(_: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
     from app.servicios.auditoria import verificar_cadena
 
     return verificar_cadena(db)
 
 
-@router.get("/panel-consolidado/exportar", summary="La semana seleccionada completa (personas y sesiones), en Excel")
+@router.get("/panel-consolidado/exportar", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con el panel de la semana"}},
+    summary="La semana seleccionada completa (personas y sesiones), en Excel")
 def consolidado_xlsx(semana: date | None = None, _: Actor = Depends(ve_todo), db: Session = Depends(get_db)):
     dia = _dia(semana)
     return _xlsx(trazabilidad.hoja_consolidado(db, dia), f"panel-consolidado-{trazabilidad.lunes_de(dia).isoformat()}.xlsx")
 
 
-@router.get("/consolidado/{usuario_id}", summary="Desglose sesión por sesión de una persona en la semana")
+@router.get("/consolidado/{usuario_id}", responses={200: {"model": ra.DesgloseOut, "description": "Sesiones de la persona en la semana"}},
+    summary="Desglose sesión por sesión de una persona en la semana")
 def desglose(usuario_id: uuid.UUID, semana: date | None = None, _: Actor = Depends(ve_todo),
              db: Session = Depends(get_db)):
     usuario = db.get(Usuario, usuario_id)
@@ -177,15 +187,18 @@ def _filtros(tipo, decision, desde, hasta, fondo_id) -> dict:
     return {"tipo": tipo, "decision": decision, "desde": desde, "hasta": hasta, "fondo_id": fondo_id}
 
 
-@router.get("/decisiones-ia", summary="Cada propuesta del motor frente a lo que quedó confirmado")
+@router.get("/decisiones-ia", responses={200: {"model": ra.DecisionesIAOut, "description": "Decisiones de validación asistida y sus conteos"}},
+    summary="Cada propuesta del motor frente a lo que quedó confirmado")
 def decisiones(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
                hasta: date | None = None, fondo_id: uuid.UUID | None = None, limite: int = Query(500, ge=1, le=500),
                _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     return decisiones_ia.consultar(db, limite=limite, **_filtros(tipo, decision, desde, hasta, fondo_id))
 
 
-@router.get("/decisiones-ia/exportar", summary="Todas las decisiones que cumplen los filtros, con los conteos, en Excel")
-@router.get("/decisiones-ia/hoja-de-calculo", summary="Las mismas decisiones en una hoja de cálculo (evaluación)")
+@router.get("/decisiones-ia/exportar", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con las decisiones"}},
+    summary="Todas las decisiones que cumplen los filtros, con los conteos, en Excel")
+@router.get("/decisiones-ia/hoja-de-calculo", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con las decisiones"}},
+    summary="Las mismas decisiones en una hoja de cálculo (evaluación)")
 def decisiones_xlsx(tipo: TipoDecision | None = None, decision: Decision | None = None, desde: date | None = None,
                     hasta: date | None = None, fondo_id: uuid.UUID | None = None,
                     _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
@@ -220,13 +233,15 @@ def _error(exc: hallazgos.ErrorHallazgo) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
 
-@router.get("/hallazgos", summary="Hallazgos de conformidad con RiC, filtrables por estado y componente")
+@router.get("/hallazgos", responses={200: {"model": ra.HallazgosOut, "description": "Hallazgos y conteos por estado"}},
+    summary="Hallazgos de conformidad con RiC, filtrables por estado y componente")
 def ver_hallazgos(estado: EstadoHallazgo | None = None, componente: Componente | None = None,
                   _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     return hallazgos.listar(db, estado=estado, componente=componente)
 
 
-@router.get("/hallazgos/hoja-de-calculo", summary="Los mismos hallazgos, con los mismos filtros, en una hoja de cálculo")
+@router.get("/hallazgos/hoja-de-calculo", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con los hallazgos"}},
+    summary="Los mismos hallazgos, con los mismos filtros, en una hoja de cálculo")
 def hallazgos_xlsx(estado: EstadoHallazgo | None = None, componente: Componente | None = None,
                    _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     return Response(hallazgos.hoja_de_calculo(db, estado=estado, componente=componente),
@@ -234,7 +249,8 @@ def hallazgos_xlsx(estado: EstadoHallazgo | None = None, componente: Componente 
                     headers={"Content-Disposition": 'attachment; filename="hallazgos-de-conformidad.xlsx"'})
 
 
-@gestion.post("/hallazgos", status_code=status.HTTP_201_CREATED, summary="Registrar un hallazgo de conformidad")
+@gestion.post("/hallazgos", status_code=status.HTTP_201_CREATED, responses={201: {"model": ra.HallazgoOut, "description": "Hallazgo registrado"}},
+    summary="Registrar un hallazgo de conformidad")
 def crear_hallazgo(datos: HallazgoIn, request: Request, actor: Actor = Depends(solo_administrador),
                    db: Session = Depends(get_db)):
     try:
@@ -247,7 +263,8 @@ def crear_hallazgo(datos: HallazgoIn, request: Request, actor: Actor = Depends(s
     return hallazgos.out(h)
 
 
-@gestion.patch("/hallazgos/{hallazgo_id}", summary="Cambiar el estado, la fecha de cierre o la acción de un hallazgo")
+@gestion.patch("/hallazgos/{hallazgo_id}", responses={200: {"model": ra.HallazgoOut, "description": "Hallazgo actualizado"}},
+    summary="Cambiar el estado, la fecha de cierre o la acción de un hallazgo")
 def cambiar_hallazgo(hallazgo_id: uuid.UUID, datos: HallazgoCambio, request: Request,
                      actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     h = db.get(HallazgoConformidad, hallazgo_id)
@@ -271,12 +288,14 @@ class EtiquetaIn(BaseModel):
     nota: str | None = Field(default=None, max_length=300)
 
 
-@router.get("/versiones-prompt", summary="Versiones de la instrucción presentes en las decisiones, con su etiqueta")
+@router.get("/versiones-prompt", responses={200: {"model": list[ra.VersionPromptOut], "description": "Versiones de la instrucción con su etiqueta"}},
+    summary="Versiones de la instrucción presentes en las decisiones, con su etiqueta")
 def ver_versiones(_: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     return hallazgos.versiones(db)
 
 
-@gestion.put("/versiones-prompt/{version}", summary="Poner o cambiar la etiqueta legible de una versión")
+@gestion.put("/versiones-prompt/{version}", responses={200: {"model": list[ra.VersionPromptOut], "description": "Versiones de la instrucción con su etiqueta"}},
+    summary="Poner o cambiar la etiqueta legible de una versión")
 def etiquetar_version(version: str, datos: EtiquetaIn, request: Request, actor: Actor = Depends(solo_administrador),
                       db: Session = Depends(get_db)):
     try:

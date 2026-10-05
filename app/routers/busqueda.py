@@ -19,12 +19,14 @@ from app.core.permisos import Actor, lectura_catalogo
 from app.db.session import get_db
 from app.models.recurso_documental import NIVEL_DESCRIPCION
 from app.routers.instrumentos import ve_restringidos
+from app.schemas.respuestas_sistema import ResultadoBusquedaOut
 from app.servicios import busqueda
 
 router = APIRouter(prefix="/api/buscar", tags=["Búsqueda"])
 
 
-@router.get("", summary="Buscar en descripciones, texto de los documentos, identificadores y autoridades")
+@router.get("", responses={200: {"model": ResultadoBusquedaOut, "description": "Resultados paginados con sus facetas"}},
+            summary="Buscar en descripciones, texto de los documentos, identificadores y autoridades")
 def buscar(q: str = Query(..., min_length=2, max_length=busqueda.LARGO_MAXIMO),
            fondo_id: uuid.UUID | None = None,
            alcance: Literal["todo", "descripcion", "texto", "autoridades"] = "todo",

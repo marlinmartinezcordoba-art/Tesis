@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.permisos import Actor, lectura_catalogo
 from app.db.session import get_db
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_grafo as rg
 from app.servicios import exportacion_rico, grafo
 from app.servicios.auditoria import ip_de, registrar
 from app.servicios.instrumentos import ErrorInstrumento
@@ -64,12 +65,14 @@ def _error(exc: ErrorInstrumento) -> HTTPException:
     return HTTPException(exc.codigo, detail=str(exc))
 
 
-@router.get("/opciones", summary="Opciones del panel de filtros y entidades que pueden ser raíz")
+@router.get("/opciones", responses={200: {"model": rg.OpcionesGrafo, "description": "Opciones de filtro y entidades raíz posibles"}},
+             summary="Opciones del panel de filtros y entidades que pueden ser raíz")
 def opciones(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     return grafo.opciones(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
 
 
-@router.get("/{tipo}/{ident}", summary="Subgrafo acotado alrededor de una entidad raíz (1 a 3 saltos, con filtros)")
+@router.get("/{tipo}/{ident}", responses={200: {"model": rg.Subgrafo, "description": "Nodos y relaciones del subgrafo"}},
+             summary="Subgrafo acotado alrededor de una entidad raíz (1 a 3 saltos, con filtros)")
 def subgrafo(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, saltos: int = Query(1, ge=1, le=3),
              filtros: grafo.Filtros = Depends(_filtros), actor: Actor = Depends(lectura_catalogo),
              db: Session = Depends(get_db)):
@@ -79,7 +82,8 @@ def subgrafo(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, sal
         raise _error(exc) from exc
 
 
-@router.get("/{tipo}/{ident}/ficha", summary="Resumen, atributos y relaciones de la entidad seleccionada")
+@router.get("/{tipo}/{ident}/ficha", responses={200: {"model": rg.FichaGrafo, "description": "Ficha de la entidad seleccionada"}},
+             summary="Resumen, atributos y relaciones de la entidad seleccionada")
 def ficha(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, actor: Actor = Depends(lectura_catalogo),
           db: Session = Depends(get_db)):
     try:
@@ -88,7 +92,8 @@ def ficha(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, actor:
         raise _error(exc) from exc
 
 
-@router.get("/{tipo}/{ident}/relaciones/exportar", summary="Todas las relaciones de la entidad, en Excel")
+@router.get("/{tipo}/{ident}/relaciones/exportar", responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}, "description": "Libro de Excel con todas las relaciones de la entidad"}},
+             summary="Todas las relaciones de la entidad, en Excel")
 def relaciones_excel(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None,
                      actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     try:
@@ -99,7 +104,8 @@ def relaciones_excel(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = N
                     headers={"Content-Disposition": f'attachment; filename="relaciones-{ident}.xlsx"'})
 
 
-@router.get("/{tipo}/{ident}/exportar", summary="El fragmento visible del grafo en RiC-O (Turtle o JSON-LD); GET como toda consulta")
+@router.get("/{tipo}/{ident}/exportar", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}}, "description": "Fragmento del grafo en RiC-O (Turtle o JSON-LD)"}},
+             summary="El fragmento visible del grafo en RiC-O (Turtle o JSON-LD); GET como toda consulta")
 def exportar(request: Request, tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None,
              saltos: int = Query(1, ge=1, le=3), formato: Literal["turtle", "jsonld"] = "turtle",
              filtros: grafo.Filtros = Depends(_filtros), actor: Actor = Depends(lectura_catalogo),

@@ -28,6 +28,7 @@ from app.models.descripcion import EntidadVocabulario, Fecha, Hito, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_preservacion as R
 from app.servicios import alertas, conformidad_rico, exportacion_rico, parametros
 from app.servicios.auditoria import ip_de, registrar
 
@@ -43,7 +44,9 @@ def _exportacion(db: Session, actor: Actor, fondo_id: uuid.UUID, incluir_restrin
     return fondo, exportacion_rico.exportar(db, fondo, incluir_restringidos)
 
 
-@router.get("/rdf", summary="El fondo en RiC-O 1.1 (Turtle o JSON-LD)")
+@router.get("/rdf", summary="El fondo en RiC-O 1.1 (Turtle o JSON-LD)",
+            responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
+                             "description": "El fondo en RDF; X-RICORA-Conformidad dice si pasó OWL y SHACL"}})
 def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld"] = "turtle",
         incluir_restringidos: bool = False, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     fondo, ex = _exportacion(db, actor, fondo_id, incluir_restringidos)
@@ -73,7 +76,8 @@ def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonl
                              "X-RICORA-Conformidad": "conforme" if conforme else "no-conforme"})
 
 
-@router.get("/conformidad", summary="Conformidad de la exportación con RiC-O 1.1 (OWL y SHACL)")
+@router.get("/conformidad", summary="Conformidad de la exportación con RiC-O 1.1 (OWL y SHACL)",
+            responses={200: {"model": R.ReporteConformidad, "description": "Reporte de conformidad con RiC-O 1.1"}})
 def conformidad(request: Request, fondo_id: uuid.UUID, incluir_restringidos: bool = False,
                 actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     fondo, ex = _exportacion(db, actor, fondo_id, incluir_restringidos)
@@ -179,7 +183,10 @@ def _actor_si_hay(request: Request, db: Session = Depends(get_db)) -> Actor | No
         return None
 
 
-@uris.get("/id/{ruta:path}", summary="Descripción RDF de un nodo (URI de RiC-O)", include_in_schema=True)
+@uris.get("/id/{ruta:path}", summary="Descripción RDF de un nodo (URI de RiC-O)", include_in_schema=True,
+          responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
+                           "description": "El nodo en RiC-O, según la cabecera Accept o la extensión (.ttl, .jsonld)"},
+                     301: {"description": "La entidad se fusionó: redirige a la URI que la absorbió"}})
 def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: Actor | None = Depends(_actor_si_hay)):
     if actor is None and not parametros.leer(db, "rdf_uris_publicas"):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="no_autenticado", headers={"WWW-Authenticate": "Bearer"})

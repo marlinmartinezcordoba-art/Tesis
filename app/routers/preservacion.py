@@ -25,6 +25,7 @@ from app.db.session import get_db
 from app.models.preservacion import Migracion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_preservacion as R
 from app.servicios import (comprobaciones, derechos, ndsa, paquete, parametros, preservacion, recuperacion, respaldo,
                            segunda_copia)
 from app.servicios.auditoria import ip_de
@@ -80,7 +81,9 @@ def _inst(db: Session, inst_id: uuid.UUID):
         raise _error(exc) from exc
 
 
-@router.get("/panel", summary="Resumen por nivel de riesgo e instanciaciones que requieren atención")
+@router.get("/panel", summary="Resumen por nivel de riesgo e instanciaciones que requieren atención",
+             responses={200: {"model": R.PanelPreservacion,
+                             "description": "Resumen del fondo e instanciaciones que requieren atención"}})
 def panel(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     datos = preservacion.panel(db, fondo_id)
@@ -88,7 +91,8 @@ def panel(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends
     return datos
 
 
-@router.get("/eventos-recientes", summary="Línea de tiempo: última verificación, migración y restauración del fondo")
+@router.get("/eventos-recientes", summary="Línea de tiempo: última verificación, migración y restauración del fondo",
+             responses={200: {"model": R.EventosRecientes, "description": "Últimos eventos de preservación del fondo"}})
 def eventos_recientes(fondo_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     from sqlalchemy import func, select
 
@@ -137,7 +141,8 @@ def _simulacro_reciente(db: Session) -> dict | None:
 # --- Respaldo de la base de datos y simulacro de restauración (PRE-10) ------------------------------
 
 
-@router.get("/respaldos", summary="Respaldos de la base de datos y sus simulacros de restauración")
+@router.get("/respaldos", summary="Respaldos de la base de datos y sus simulacros de restauración",
+             responses={200: {"model": R.ListaRespaldos, "description": "Respaldos recientes de la base de datos"}})
 def respaldos(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
     from sqlalchemy import select
 
@@ -149,14 +154,18 @@ def respaldos(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
             "dias_copia_externa": parametros.leer(db, "respaldo_dias_copia_externa")}
 
 
-@router.post("/respaldos", summary="Respaldar la base ahora y probar su restauración (administrador)")
+@router.post("/respaldos", summary="Respaldar la base ahora y probar su restauración (administrador)",
+             responses={200: {"model": R.RespaldoBaseDatosOut,
+                             "description": "Respaldo hecho y su simulacro de restauración"}})
 async def respaldar_ahora(request: Request, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     r = await run_in_threadpool(respaldo.respaldar_y_probar, db, "manual", actor.id)
     db.commit()
     return respaldo.out(r)
 
 
-@router.get("/respaldos/{respaldo_id}/descargar", summary="Descargar un respaldo fuera del servidor (administrador)")
+@router.get("/respaldos/{respaldo_id}/descargar", summary="Descargar un respaldo fuera del servidor (administrador)",
+             responses={200: {"content": {"application/octet-stream": {}},
+                             "description": "Archivo del respaldo; su huella SHA-256 va en X-Huella-SHA256"}})
 def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
                        db: Session = Depends(get_db)):
     from pathlib import Path
@@ -176,12 +185,16 @@ def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = 
 # --- Recuperación ante desastres (NFR-04, NFR-07) ----------------------------------------------
 
 
-@router.get("/recuperacion", summary="Objetivos RPO/RTO por escenario frente a lo medido, y paquetes de recuperación")
+@router.get("/recuperacion", summary="Objetivos RPO/RTO por escenario frente a lo medido, y paquetes de recuperación",
+             responses={200: {"model": R.EstadoRecuperacion,
+                             "description": "Objetivos de recuperación frente a lo medido"}})
 def estado_recuperacion(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
     return recuperacion.estado(db)
 
 
-@router.post("/recuperacion", summary="Armar el paquete de recuperación y restaurarlo de prueba completo (administrador)")
+@router.post("/recuperacion", summary="Armar el paquete de recuperación y restaurarlo de prueba completo (administrador)",
+             responses={200: {"model": R.PaqueteRecuperacionOut,
+                             "description": "Paquete de recuperación armado y su simulacro"}})
 async def generar_recuperacion(actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     p = await run_in_threadpool(recuperacion.generar_y_probar, db, "manual", actor.id)
     db.commit()
@@ -194,7 +207,9 @@ class ObjetivosIn(BaseModel):
     frecuencia_dias: int = Field(ge=0, le=365)
 
 
-@router.put("/recuperacion/objetivos", summary="Fijar los objetivos de recuperación (administrador)")
+@router.put("/recuperacion/objetivos", summary="Fijar los objetivos de recuperación (administrador)",
+             responses={200: {"model": R.EstadoRecuperacion,
+                             "description": "Estado de la recuperación con los objetivos nuevos"}})
 def objetivos_recuperacion(datos: ObjetivosIn, request: Request, actor: Actor = Depends(solo_administrador),
                            db: Session = Depends(get_db)):
     for clave, valor in (("rpo_horas", datos.rpo_horas), ("rto_horas", datos.rto_horas),
@@ -204,7 +219,9 @@ def objetivos_recuperacion(datos: ObjetivosIn, request: Request, actor: Actor = 
     return recuperacion.estado(db)
 
 
-@router.get("/recuperacion/{paquete_id}/descargar", summary="Descargar el paquete de recuperación fuera del servidor (administrador)")
+@router.get("/recuperacion/{paquete_id}/descargar", summary="Descargar el paquete de recuperación fuera del servidor (administrador)",
+             responses={200: {"content": {"application/x-tar": {}},
+                             "description": "Paquete de recuperación (.tar); su huella SHA-256 va en X-Huella-SHA256"}})
 def descargar_recuperacion(paquete_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
                            db: Session = Depends(get_db)):
     from pathlib import Path
@@ -220,12 +237,16 @@ def descargar_recuperacion(paquete_id: uuid.UUID, request: Request, actor: Actor
                         headers={"X-Huella-SHA256": p.huella or ""})
 
 
-@router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones")
+@router.get("/instanciacion/{inst_id}", summary="Ficha técnica, historial de verificaciones y de migraciones",
+             responses={200: {"model": R.DetalleInstanciacion,
+                             "description": "Ficha técnica de preservación de la instanciación"}})
 def detalle(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     return preservacion.detalle(db, _inst(db, inst_id))
 
 
-@router.get("/instanciacion/{inst_id}/premis", summary="PREMIS 3.0 de la instanciación (XML, validado contra el XSD)")
+@router.get("/instanciacion/{inst_id}/premis", summary="PREMIS 3.0 de la instanciación (XML, validado contra el XSD)",
+             responses={200: {"content": {"application/xml": {}},
+                             "description": "Metadatos PREMIS 3.0 de la instanciación"}})
 def premis(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     from app.servicios.preservacion import aplicacion_creadora
 
@@ -236,7 +257,9 @@ def premis(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends
                     headers={"Content-Disposition": f'inline; filename="premis-{inst.id}.xml"'})
 
 
-@router.get("/instanciacion/{inst_id}/comprobaciones", summary="Antivirus y validación de formato de la instanciación")
+@router.get("/instanciacion/{inst_id}/comprobaciones", summary="Antivirus y validación de formato de la instanciación",
+             responses={200: {"model": list[R.ComprobacionTecnicaOut],
+                             "description": "Últimas comprobaciones de antivirus y de validación"}})
 def ver_comprobaciones(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Session = Depends(get_db)):
     inst = _inst(db, inst_id)
     return [{"tipo": c.tipo, "herramienta": c.herramienta, "resultado": c.resultado, "perfil": c.perfil,
@@ -244,14 +267,17 @@ def ver_comprobaciones(inst_id: uuid.UUID, _: Actor = Depends(modulo), db: Sessi
             for c in (comprobaciones.ultima(db, inst.id, t) for t in ("antivirus", "validacion")) if c is not None]
 
 
-@router.get("/ndsa", summary="Niveles NDSA 2.0 por área, calculados del estado real del sistema")
+@router.get("/ndsa", summary="Niveles NDSA 2.0 por área, calculados del estado real del sistema",
+             responses={200: {"model": R.NivelesNdsa, "description": "Niveles NDSA 2.0 alcanzados por área"}})
 def niveles_ndsa(_: Actor = Depends(modulo), db: Session = Depends(get_db)):
     return {"version": "NDSA Levels of Digital Preservation 2.0 (2019)",
             "regla": "Un nivel cuenta solo si se cumplen todos sus requisitos y los de los niveles inferiores.",
             "areas": ndsa.niveles(db)}
 
 
-@router.post("/instanciacion/{inst_id}/verificar", summary="Verificar la integridad ahora")
+@router.post("/instanciacion/{inst_id}/verificar", summary="Verificar la integridad ahora",
+             responses={200: {"model": R.ResultadoVerificacion,
+                             "description": "Resultado de la verificación de integridad"}})
 def verificar(inst_id: uuid.UUID, request: Request, actor: Actor = Depends(modulo), db: Session = Depends(get_db)):
     inst = _inst(db, inst_id)
     v = preservacion.verificar(db, inst, origen="manual", usuario_id=actor.id, ip=ip_de(request))
@@ -269,7 +295,8 @@ def _migracion_out(db: Session, m: Migracion) -> dict:
             if m.instanciacion_resultado_id else None}
 
 
-@router.post("/instanciacion/{inst_id}/migrar", summary="Aprobar la migración a un formato destino")
+@router.post("/instanciacion/{inst_id}/migrar", summary="Aprobar la migración a un formato destino",
+             responses={200: {"model": R.MigracionOut, "description": "Migración aprobada y su resultado"}})
 def migrar(inst_id: uuid.UUID, datos: MigrarIn, request: Request, actor: Actor = Depends(modulo),
            db: Session = Depends(get_db)):
     if not datos.aprobada:
@@ -285,7 +312,8 @@ def migrar(inst_id: uuid.UUID, datos: MigrarIn, request: Request, actor: Actor =
     return _migracion_out(db, m)
 
 
-@router.post("/instanciacion/{inst_id}/migrar/cargar", summary="Cargar el archivo convertido por fuera")
+@router.post("/instanciacion/{inst_id}/migrar/cargar", summary="Cargar el archivo convertido por fuera",
+             responses={200: {"model": R.MigracionOut, "description": "Migración con el archivo convertido cargado"}})
 async def cargar(inst_id: uuid.UUID, request: Request, actor: Actor = Depends(modulo), db: Session = Depends(get_db)):
     # Como en la ingesta: el archivo se lee solo después de verificar sesión y permiso.
     formulario = await request.form(max_files=1)
@@ -322,7 +350,8 @@ def _aprobada(datos: AprobacionIn, que: str) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{que} necesita la aprobación explícita.")
 
 
-@router.post("/instanciacion/{inst_id}/restaurar", summary="Restaurar la copia primaria desde la segunda copia")
+@router.post("/instanciacion/{inst_id}/restaurar", summary="Restaurar la copia primaria desde la segunda copia",
+             responses={200: {"model": R.DetalleInstanciacion, "description": "Ficha técnica tras la restauración"}})
 def restaurar(inst_id: uuid.UUID, datos: AprobacionIn, request: Request, actor: Actor = Depends(modulo),
               db: Session = Depends(get_db)):
     _aprobada(datos, "La restauración")
@@ -336,7 +365,9 @@ def restaurar(inst_id: uuid.UUID, datos: AprobacionIn, request: Request, actor: 
     return preservacion.detalle(db, inst)
 
 
-@router.post("/instanciacion/{inst_id}/segunda-copia/reponer", summary="Rehacer la segunda copia desde la primaria")
+@router.post("/instanciacion/{inst_id}/segunda-copia/reponer", summary="Rehacer la segunda copia desde la primaria",
+             responses={200: {"model": R.DetalleInstanciacion,
+                             "description": "Ficha técnica con la segunda copia rehecha"}})
 def reponer(inst_id: uuid.UUID, datos: AprobacionIn, request: Request, actor: Actor = Depends(modulo),
             db: Session = Depends(get_db)):
     _aprobada(datos, "Rehacer la segunda copia")
@@ -350,7 +381,8 @@ def reponer(inst_id: uuid.UUID, datos: AprobacionIn, request: Request, actor: Ac
     return preservacion.detalle(db, inst)
 
 
-@router.put("/derechos", summary="Declarar los derechos de una instanciación o de un Record Resource")
+@router.put("/derechos", summary="Declarar los derechos de una instanciación o de un Record Resource",
+             responses={200: {"model": R.DerechosDeclarados, "description": "Declaración de derechos registrada"}})
 def declarar_derechos(datos: DerechosIn, request: Request, actor: Actor = Depends(modulo), db: Session = Depends(get_db)):
     try:
         d = derechos.declarar(db, **datos.model_dump(), usuario_id=actor.id, ip=ip_de(request))
@@ -366,7 +398,9 @@ def _descarga(ruta, nombre: str) -> FileResponse:
 
 
 @router.post("/instanciacion/{inst_id}/exportar-paquete",
-             summary="Paquete de información de archivo (AIP, BagIt + PREMIS) de una instanciación")
+             summary="Paquete de información de archivo (AIP, BagIt + PREMIS) de una instanciación",
+             responses={200: {"content": {"application/zip": {}},
+                             "description": "Paquete de información de archivo (BagIt + PREMIS) en .zip"}})
 def exportar_paquete(inst_id: uuid.UUID, request: Request, actor: Actor = Depends(modulo),
                      db: Session = Depends(get_db)):
     inst = _inst(db, inst_id)
@@ -380,7 +414,9 @@ def exportar_paquete(inst_id: uuid.UUID, request: Request, actor: Actor = Depend
 
 
 @router.post("/expediente/{recurso_id}/exportar-paquete",
-             summary="Paquete consolidado (AIP) de todas las instanciaciones de un expediente")
+             summary="Paquete consolidado (AIP) de todas las instanciaciones de un expediente",
+             responses={200: {"content": {"application/zip": {}},
+                             "description": "Paquete consolidado del expediente en .zip"}})
 def exportar_paquete_expediente(recurso_id: uuid.UUID, request: Request, actor: Actor = Depends(modulo),
                                 db: Session = Depends(get_db)):
     expediente = db.get(RecursoDocumental, recurso_id)
@@ -418,12 +454,16 @@ def _segunda_copia_configuracion(db: Session) -> dict:
             "pendientes": len(preservacion.sin_segunda_copia(db))}
 
 
-@router.get("/configuracion", summary="Frecuencia de verificación y tabla de formatos soportados")
+@router.get("/configuracion", summary="Frecuencia de verificación y tabla de formatos soportados",
+             responses={200: {"model": R.ConfiguracionPreservacion,
+                             "description": "Configuración de preservación vigente"}})
 def ver_configuracion(_: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     return _configuracion(db)
 
 
-@router.put("/configuracion", summary="Cambiar la frecuencia y la tabla de formatos soportados")
+@router.put("/configuracion", summary="Cambiar la frecuencia y la tabla de formatos soportados",
+             responses={200: {"model": R.ConfiguracionPreservacion,
+                             "description": "Configuración de preservación actualizada"}})
 def cambiar_configuracion(datos: ConfiguracionIO, request: Request, actor: Actor = Depends(solo_administrador),
                           db: Session = Depends(get_db)):
     try:

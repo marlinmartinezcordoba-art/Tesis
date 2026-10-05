@@ -43,6 +43,13 @@ class SesionOut(BaseModel):
     usuario: UsuarioBreve
 
 
+class DesafioSegundoFactorOut(BaseModel):
+    """Primer paso del ingreso cuando la cuenta tiene segundo factor: falta el código."""
+    segundo_factor: bool
+    desafio: str
+    expira_en: int  # segundos
+
+
 class SegundoFactorIn(BaseModel):
     desafio: str = Field(max_length=2000)
     codigo: str = Field(min_length=6, max_length=20)  # 6 dígitos o un código de respaldo XXXX-XXXX

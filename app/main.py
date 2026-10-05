@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.routers import (alertas, auditoria, auth, busqueda, descripcion, evaluacion, exportacion, fondos, ingesta, publico,
                          grafo, instrumentos, perfil_agn, preservacion, vocabulario)
+from app.schemas.respuestas_sistema import SaludOut
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +29,12 @@ app = FastAPI(
     description=(
         "Sistema de descripción archivística multinivel y preservación digital "
         "basado en Records in Contexts (RiC-CM 1.0, RiC-O 1.1) del Consejo "
-        "Internacional de Archivos. Proyecto de tesis de maestría."
+        "Internacional de Archivos. Proyecto de tesis de maestría.\n\n"
+        "**Versión de la API: 1.** Toda ruta `/api/…` responde también como "
+        "`/api/v1/…`, que es la dirección estable para integraciones: un cambio "
+        "incompatible se publicará como `/api/v2/…` sin retirar la v1. Cada "
+        "respuesta declara su esquema aquí, y la batería de pruebas valida cada "
+        "respuesta real contra él (prueba de contrato)."
     ),
     version="2.0.0",
     docs_url="/api/docs",
@@ -87,12 +93,44 @@ RUTAS_PUBLICAS = {
 
 
 @app.get("/api/salud", tags=["Sistema"],
+         responses={200: {"model": SaludOut, "description": "El sistema responde (estado «ok» o «degradado»)"},
+                    503: {"model": SaludOut, "description": "La base de datos no responde (estado «caido»)"}},
          summary="Salud del sistema: base de datos, almacén, trabajador y respaldo (para un monitor externo)")
 def salud(db: Session = Depends(get_db)):
     from app.servicios import salud as servicio_salud
 
     codigo, datos = servicio_salud.estado(db)
     return JSONResponse(datos, status_code=codigo)
+
+
+VERSION_API = "1"
+
+
+class VersionApi:
+    """Brecha RF-INT-003: /api/v1/… es la dirección estable de la API. Se
+    atiende como /api/… (las mismas rutas, permisos y pruebas) y toda
+    respuesta de la API dice su versión en X-API-Version."""
+
+    def __init__(self, app):
+        self.siguiente = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope["path"].startswith("/api/"):
+            return await self.siguiente(scope, receive, send)
+        if scope["path"].startswith("/api/v1/"):
+            ruta = "/api/" + scope["path"][len("/api/v1/"):]
+            scope = dict(scope, path=ruta, raw_path=ruta.encode())
+
+        async def enviar(mensaje):
+            if mensaje["type"] == "http.response.start":
+                mensaje.setdefault("headers", [])
+                mensaje["headers"] = list(mensaje["headers"]) + [(b"x-api-version", VERSION_API.encode())]
+            await send(mensaje)
+
+        await self.siguiente(scope, receive, enviar)
+
+
+app.add_middleware(VersionApi)
 
 
 @app.middleware("http")

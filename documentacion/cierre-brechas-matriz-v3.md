@@ -135,9 +135,24 @@ Base: la auditoría del 4 de octubre de 2026 (`RICORA_MATRIZ_MAESTRA_REQUISITOS_
 | Restaurar mientras alguien edita | Permitirlo; impedirlo | Impedirlo | Dos cambios a la vez sobre la misma descripción se pisarían | Ninguno |
 | Procedencia de los atributos que no propone el motor | Una columna de origen para cada uno; deducirla | Deducirla: «persona», porque el motor no los propone; el autor y la fecha quedan en las versiones | Treinta columnas de origen que siempre dirían «persona» no agregan información | Si un día el motor propone otro atributo, hay que agregarle su columna de origen (el catálogo lo declara) |
 
+## Lote 6b · Contrato de la API
+
+| Requisito | Antes | Después | Qué se hizo | Evidencia |
+|---|---|---|---|---|
+| RF-INT-003 API documentada y verificada | Parcial | Cumple | Las 193 operaciones de la API (178 rutas) declaran en OpenAPI qué devuelven: un esquema JSON (147 lo tenían vacío) o el tipo de archivo (Excel, Word, PDF, imagen, RDF Turtle/JSON-LD, XML, ZIP). **Prueba de contrato:** durante toda la batería (548 pruebas), cada respuesta real se valida contra el esquema de su ruta; si una ruta devuelve algo distinto de lo que dice, falla la prueba que la llamó. Una prueba exige que ninguna ruta quede sin esquema, resumen ni etiqueta. **Versión 1:** `/api/v1/…` es la dirección estable para integraciones (un cambio incompatible será `/api/v2/…` sin retirar la v1), y cada respuesta lleva `X-API-Version: 1` | `app/schemas/respuestas_*.py`, `app/main.py::VersionApi`, `tests/contrato.py`, `tests/conftest.py::ClienteConContrato`, `tests/test_contrato_api.py`; documentación en `/api/docs` |
+
+### Decisiones del lote 6b
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo declarar los esquemas | `response_model` (FastAPI filtra la salida); solo documentarlos en `responses` | Documentarlos en `responses`, sin filtrar | `response_model` descarta los campos no declarados: un esquema incompleto rompería la interfaz en silencio. Documentado y verificado, el esquema no puede cambiar lo que recibe la interfaz | Un campo nuevo que no se declare pasa igual (los modelos admiten campos extra): la documentación puede quedarse corta, pero no equivocada |
+| Cómo verificar el contrato | schemathesis (pruebas generadas al azar contra el servidor); validar las respuestas reales de las pruebas | Validar cada respuesta real de la batería | Usa los datos y los permisos reales de 548 pruebas (reservas, roles, segundo factor), sin dependencias nuevas. schemathesis generaría peticiones sin sesión ni datos válidos y casi todo respondería 401 o 422 | Una ruta que ninguna prueba llama no se verifica en tiempo de ejecución (sí se exige su esquema) |
+| Primera validación | — | 8 diferencias encontradas y corregidas (p. ej. elementos ISAD(G) sin propiedad RiC-O, ingreso con segundo factor) | Es la prueba de que el contrato se verifica de verdad, no solo se escribe | Ninguno |
+| Versión de la API | Sin versión; `/api/v1` como rutas duplicadas; `/api/v1` como alias | Alias: las mismas rutas, permisos y pruebas | Duplicar rutas duplicaría los permisos y las pruebas de seguridad; el alias no puede divergir | Cuando haya una v2, habrá que decidir qué rutas cambian |
+| Esquemas de las 146 rutas | Escribirlos uno por uno en serie; repartirlos | Repartidos en cinco grupos de módulos, revisados luego por la prueba de contrato | Mismo criterio para todos (campos que pueden faltar con valor por defecto, nulos declarados) y verificación automática al final | Los campos internos más variables (contenido del motor, cambios de una versión) quedan como objeto genérico |
+
 ## Pendiente (lotes siguientes)
 
 | Lote | Requisitos | Qué falta |
 |---|---|---|
 | Métricas | RF-OPS-001, NFR-10 | Métricas de uso y de rendimiento expuestas para un monitor |
-| 6b · Contrato de la API | RF-INT-003 | Esquema de respuesta en las 143 rutas que no lo declaran; versión /api/v1; prueba del contrato OpenAPI |

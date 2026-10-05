@@ -20,6 +20,7 @@ from app.core.permisos import Actor, sin_permiso, solo_administrador, usuario_ac
 from app.db.session import get_db
 from app.models.evaluacion import Anotacion, Evaluacion
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_evaluacion as re_
 from app.servicios import evaluacion
 from app.servicios.auditoria import registrar
 
@@ -85,7 +86,8 @@ def _hecho(db: Session, funcion, *args, **kwargs):
     return resultado
 
 
-@router.get("", summary="Evaluaciones: todas para la administración; las en curso para quien anota")
+@router.get("", responses={200: {"model": list[re_.EvaluacionOut], "description": "Evaluaciones del fondo"}},
+    summary="Evaluaciones: todas para la administración; las en curso para quien anota")
 def listar(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session = Depends(get_db)):
     consulta = select(Evaluacion).where(Evaluacion.fondo_id == fondo_id).order_by(Evaluacion.creada_en.desc())
     if not actor.es_administrador:
@@ -93,7 +95,8 @@ def listar(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session =
     return [evaluacion.evaluacion_out(db, e) for e in db.scalars(consulta).all()]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, summary="Crear una evaluación")
+@router.post("", status_code=status.HTTP_201_CREATED, responses={201: {"model": re_.EvaluacionOut, "description": "Evaluación creada"}},
+    summary="Crear una evaluación")
 def crear(datos: EvaluacionIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     fondo_o_404(db, datos.fondo_id)
     ev = _hecho(db, evaluacion.crear, db, fondo_id=datos.fondo_id, nombre=datos.nombre, protocolo=datos.protocolo,
@@ -101,7 +104,8 @@ def crear(datos: EvaluacionIn, actor: Actor = Depends(solo_administrador), db: S
     return evaluacion.evaluacion_out(db, ev)
 
 
-@router.post("/{evaluacion_id}/documentos", summary="Agregar documentos aún no descritos")
+@router.post("/{evaluacion_id}/documentos", responses={200: {"model": re_.EvaluacionOut, "description": "Evaluación con los documentos agregados"}},
+    summary="Agregar documentos aún no descritos")
 def documentos(evaluacion_id: uuid.UUID, datos: DocumentosIn, actor: Actor = Depends(solo_administrador),
                db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
@@ -109,14 +113,16 @@ def documentos(evaluacion_id: uuid.UUID, datos: DocumentosIn, actor: Actor = Dep
     return evaluacion.evaluacion_out(db, ev)
 
 
-@router.post("/{evaluacion_id}/propuestas", summary="Generar, sin mostrarlas, las propuestas del motor")
+@router.post("/{evaluacion_id}/propuestas", responses={200: {"model": re_.PropuestasGeneradasOut, "description": "Propuestas generadas y avisos"}},
+    summary="Generar, sin mostrarlas, las propuestas del motor")
 def propuestas(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     resultado = _hecho(db, evaluacion.generar_propuestas, db, ev, actor.id)
     return resultado | {"evaluacion": evaluacion.evaluacion_out(db, ev)}
 
 
-@router.post("/{evaluacion_id}/estado", summary="Iniciar o cerrar la evaluación")
+@router.post("/{evaluacion_id}/estado", responses={200: {"model": re_.EvaluacionOut, "description": "Evaluación con su nuevo estado"}},
+    summary="Iniciar o cerrar la evaluación")
 def estado(evaluacion_id: uuid.UUID, datos: EstadoIn, actor: Actor = Depends(solo_administrador),
            db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
@@ -124,13 +130,15 @@ def estado(evaluacion_id: uuid.UUID, datos: EstadoIn, actor: Actor = Depends(sol
     return evaluacion.evaluacion_out(db, ev)
 
 
-@router.get("/{evaluacion_id}/tareas", summary="Los documentos de la evaluación y lo que la persona ya hizo")
+@router.get("/{evaluacion_id}/tareas", responses={200: {"model": re_.TareasOut, "description": "Tareas de la persona en la evaluación"}},
+    summary="Los documentos de la evaluación y lo que la persona ya hizo")
 def tareas(evaluacion_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     return {"evaluacion": evaluacion.evaluacion_out(db, ev), "tareas": evaluacion.tareas(db, ev, actor.id)}
 
 
-@router.post("/{evaluacion_id}/documentos/{inst_id}/anotar", summary="Empezar (o retomar) una descripción ciega o asistida")
+@router.post("/{evaluacion_id}/documentos/{inst_id}/anotar", responses={200: {"model": re_.AnotacionOut, "description": "Anotación iniciada o retomada"}},
+    summary="Empezar (o retomar) una descripción ciega o asistida")
 def anotar(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, datos: AnotarIn, actor: Actor = Depends(evaluador),
            db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
@@ -138,7 +146,8 @@ def anotar(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, datos: AnotarIn, actor:
     return evaluacion.anotacion_out(db, a)
 
 
-@router.put("/anotaciones/{anotacion_id}", summary="Guardar o enviar una descripción")
+@router.put("/anotaciones/{anotacion_id}", responses={200: {"model": re_.AnotacionOut, "description": "Anotación guardada o enviada"}},
+    summary="Guardar o enviar una descripción")
 def guardar(anotacion_id: uuid.UUID, datos: DatosIn, actor: Actor = Depends(evaluador), db: Session = Depends(get_db)):
     a = db.get(Anotacion, anotacion_id)
     if a is None:
@@ -148,14 +157,16 @@ def guardar(anotacion_id: uuid.UUID, datos: DatosIn, actor: Actor = Depends(eval
 
 
 @router.post("/{evaluacion_id}/documentos/{inst_id}/propuesta",
-             summary="Ver la propuesta del motor para calificarla (desde ahí ya no se describe a ciegas)")
+             responses={200: {"model": re_.DescripcionEvaluada, "description": "Propuesta del motor para calificarla"}},
+    summary="Ver la propuesta del motor para calificarla (desde ahí ya no se describe a ciegas)")
 def ver_propuesta(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, actor: Actor = Depends(evaluador),
                   db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     return _hecho(db, evaluacion.ver_propuesta, db, ev, inst_id, actor.id)
 
 
-@router.put("/{evaluacion_id}/documentos/{inst_id}/calificacion", summary="Calificar la propuesta con la rúbrica 1–5")
+@router.put("/{evaluacion_id}/documentos/{inst_id}/calificacion", responses={200: {"model": re_.CalificadoOut, "description": "Calificación registrada"}},
+    summary="Calificar la propuesta con la rúbrica 1–5")
 def calificar(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, datos: CalificacionIn, actor: Actor = Depends(evaluador),
               db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
@@ -163,7 +174,8 @@ def calificar(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, datos: CalificacionI
     return {"calificado": True}
 
 
-@router.post("/anotaciones/{anotacion_id}/anular", summary="Anular una anotación (no se borra)")
+@router.post("/anotaciones/{anotacion_id}/anular", responses={200: {"model": re_.EstadoAnulacionOut, "description": "Anotación anulada"}},
+    summary="Anular una anotación (no se borra)")
 def anular(anotacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     a = db.get(Anotacion, anotacion_id)
     if a is None:
@@ -176,13 +188,15 @@ def anular(anotacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), 
     return {"estado": a.estado}
 
 
-@router.get("/{evaluacion_id}/resultados", summary="Precisión, exhaustividad, F1, acuerdo, tiempos y rúbrica")
+@router.get("/{evaluacion_id}/resultados", responses={200: {"model": re_.ResultadosOut, "description": "Resultados de la evaluación"}},
+    summary="Precisión, exhaustividad, F1, acuerdo, tiempos y rúbrica")
 def resultados(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     return _hecho(db, evaluacion.resultados, db, ev, actor.id)
 
 
-@router.get("/{evaluacion_id}/resultados/hoja-de-calculo", summary="Los resultados en una hoja de cálculo")
+@router.get("/{evaluacion_id}/resultados/hoja-de-calculo", responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}, "description": "Hoja de cálculo con los resultados"}},
+    summary="Los resultados en una hoja de cálculo")
 def resultados_xlsx(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     datos = _hecho(db, evaluacion.resultados, db, ev, actor.id)

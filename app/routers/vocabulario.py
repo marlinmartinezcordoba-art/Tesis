@@ -24,6 +24,7 @@ from app.models.auditoria import RegistroAuditoria
 from app.models.descripcion import EntidadVocabulario, SugerenciaFusion
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_vocabulario as rv
 from app.servicios import autoridad, parametros, vocabulario
 from app.servicios.auditoria import ip_de, registrar
 
@@ -173,7 +174,8 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
     return [_entidad_out(db, e, conexiones[e.id]) for e in filas]
 
 
-@router.get("/sugerencias-fusion", summary="Candidatos a fusión detectados, pendientes de revisión")
+@router.get("/sugerencias-fusion", responses={200: {"model": list[rv.SugerenciaFusionOut], "description": "Candidatos a fusión pendientes, de mayor a menor similitud"}},
+             summary="Candidatos a fusión detectados, pendientes de revisión")
 def sugerencias(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     filas = db.scalars(select(SugerenciaFusion).where(SugerenciaFusion.fondo_id == fondo_id,
@@ -207,13 +209,15 @@ def cambiar_parametros(datos: ParametrosFusion, request: Request, actor: Actor =
     return ver_parametros(db)
 
 
-@router.get("/funciones/arbol", summary="Árbol de funciones y subfunciones (SKOS broader/narrower entre tipos de actividad)")
+@router.get("/funciones/arbol", responses={200: {"model": list[rv.NodoFuncion], "description": "Árbol de funciones con sus subfunciones y series"}},
+             summary="Árbol de funciones y subfunciones (SKOS broader/narrower entre tipos de actividad)")
 def arbol_funciones(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     return autoridad.arbol_funciones(db, fondo_id)
 
 
-@router.get("/series", summary="Series y subseries del fondo, para enlazarlas con la función que las produce")
+@router.get("/series", responses={200: {"model": list[rv.SerieEnlazada], "description": "Series y subseries del fondo (máximo 50)"}},
+             summary="Series y subseries del fondo, para enlazarlas con la función que las produce")
 def series(fondo_id: uuid.UUID, q: str | None = None, db: Session = Depends(get_db)):
     from app.models.recurso_documental import RecursoDocumental
 
@@ -226,7 +230,8 @@ def series(fondo_id: uuid.UUID, q: str | None = None, db: Session = Depends(get_
             for r in db.scalars(consulta.order_by(RecursoDocumental.titulo).limit(50))]
 
 
-@router.get("/{entidad_id}", summary="Detalle: documentos conectados e historial de fusiones")
+@router.get("/{entidad_id}", responses={200: {"model": rv.DetalleEntidad, "description": "Detalle de la entidad con su ficha"}},
+             summary="Detalle: documentos conectados e historial de fusiones")
 def detalle(entidad_id: uuid.UUID, db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
     documentos = vocabulario.documentos_conectados(db, e.id)
@@ -264,7 +269,8 @@ def _activa_o_409(e: EntidadVocabulario) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="La entidad está fusionada; edite la definitiva.")
 
 
-@router.patch("/{entidad_id}", summary="Enriquecer la ficha (ISAAR-CPF del agente, lugar ampliado, nota de alcance)")
+@router.patch("/{entidad_id}", responses={200: {"model": rv.DetalleEntidad, "description": "Ficha enriquecida: detalle de la entidad actualizado"}},
+             summary="Enriquecer la ficha (ISAAR-CPF del agente, lugar ampliado, nota de alcance)")
 def enriquecer(entidad_id: uuid.UUID, cambios: dict, request: Request,
                actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
@@ -283,6 +289,7 @@ def enriquecer(entidad_id: uuid.UUID, cambios: dict, request: Request,
 
 
 @router.post("/{entidad_id}/nombres", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": rv.DetalleEntidad, "description": "Forma del nombre agregada: detalle de la entidad actualizado"}},
              summary="Agregar una forma del nombre (paralela, normalizada, otra) o un nombre histórico de un lugar")
 def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
                    actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
@@ -299,6 +306,7 @@ def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
 
 
 @router.post("/{entidad_id}/identificadores", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": rv.DetalleEntidad, "description": "Identificador agregado: detalle de la entidad actualizado"}},
              summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF, ORCID, ROR)")
 def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request: Request,
                           actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
@@ -326,6 +334,7 @@ class ReglaIn(BaseModel):
 
 
 @router.post("/reglas", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": rv.DetalleEntidad, "description": "Regla de retención creada: detalle de la nueva entidad"}},
              summary="Crear una regla de retención de la TRD (rico:Rule) para luego unirla a su serie")
 def crear_regla(datos: ReglaIn, request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
                 db: Session = Depends(get_db)):
@@ -346,6 +355,7 @@ def crear_regla(datos: ReglaIn, request: Request, actor: Actor = Depends(acceso_
 
 
 @router.post("/{entidad_id}/hitos", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": rv.DetalleEntidad, "description": "Hito agregado: detalle de la entidad actualizado"}},
              summary="Agregar un hito a la línea de tiempo institucional del agente (rico:Event)")
 def agregar_hito(entidad_id: uuid.UUID, datos: HitoIn, request: Request,
                  actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
@@ -362,6 +372,7 @@ def agregar_hito(entidad_id: uuid.UUID, datos: HitoIn, request: Request,
 
 
 @router.post("/{entidad_id}/registros/{clase}/{registro_id}/anular",
+             responses={200: {"model": rv.DetalleEntidad, "description": "Registro anulado: detalle de la entidad actualizado"}},
              summary="Anular una forma del nombre, un identificador o un hito (no se borra)")
 def anular_accesorio(entidad_id: uuid.UUID, clase: Literal["nombre", "identificador", "hito"], registro_id: uuid.UUID,
                      request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
@@ -378,6 +389,7 @@ def anular_accesorio(entidad_id: uuid.UUID, clase: Literal["nombre", "identifica
 
 
 @router.post("/{entidad_id}/vinculos", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": rv.DetalleEntidad, "description": "Vínculo declarado: detalle de la entidad actualizado"}},
              summary="Declarar un vínculo: entre agentes, lugar superior, actividad mayor, norma superior, "
                      "mandato que crea, entidad emisora, serie que produce una función")
 def vincular(entidad_id: uuid.UUID, datos: VinculoIn, request: Request,
@@ -395,7 +407,8 @@ def vincular(entidad_id: uuid.UUID, datos: VinculoIn, request: Request,
     return detalle(entidad_id, db)
 
 
-@router.post("/{entidad_id}/vinculos/{relacion_id}/anular", summary="Anular un vínculo declarado (no se borra)")
+@router.post("/{entidad_id}/vinculos/{relacion_id}/anular", responses={200: {"model": rv.DetalleEntidad, "description": "Vínculo anulado: detalle de la entidad actualizado"}},
+             summary="Anular un vínculo declarado (no se borra)")
 def anular_vinculo(entidad_id: uuid.UUID, relacion_id: uuid.UUID, request: Request,
                    actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
@@ -409,6 +422,7 @@ def anular_vinculo(entidad_id: uuid.UUID, relacion_id: uuid.UUID, request: Reque
 
 
 @router.put("/{entidad_id}/concepto-superior",
+            responses={200: {"model": rv.DetalleEntidad, "description": "Ubicación en el árbol de funciones: detalle de la entidad actualizado"}},
             summary="Ubicar un tipo de actividad en el árbol de funciones (skos:broader); sin ciclos")
 def concepto_superior(entidad_id: uuid.UUID, datos: SuperiorIn, request: Request,
                       actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
@@ -425,6 +439,7 @@ def concepto_superior(entidad_id: uuid.UUID, datos: SuperiorIn, request: Request
 
 
 @router.post("/{entidad_id}/relaciones-agente", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": list[rv.RelacionAgente], "description": "Relaciones del agente después del cambio"}},
              summary="Relacionar dos agentes: subordinación, sucesión o asociación (RiC-R045, R016, R044)")
 def relacionar_agentes(entidad_id: uuid.UUID, datos: RelacionAgentesIn, request: Request,
                        actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
@@ -441,7 +456,8 @@ def relacionar_agentes(entidad_id: uuid.UUID, datos: RelacionAgentesIn, request:
     return vocabulario.relaciones_de_agente(db, origen.id)
 
 
-@router.post("/verificar", summary="Servicio de verificación por similitud (el que usa descripción)")
+@router.post("/verificar", responses={200: {"model": list[rv.Coincidencia], "description": "Entidades parecidas al valor, de mayor a menor similitud"}},
+             summary="Servicio de verificación por similitud (el que usa descripción)")
 def verificar(datos: VerificarIn, db: Session = Depends(get_db)):
     fondo_o_404(db, datos.fondo_id)
     return [c.__dict__ for c in vocabulario.verificar(db, datos.fondo_id, datos.tipo, datos.valor)]
@@ -450,7 +466,8 @@ def verificar(datos: VerificarIn, db: Session = Depends(get_db)):
 # --- Fusión -----------------------------------------------------------------------------------
 
 
-@router.post("/detectar", summary="Buscar candidatos a fusión ahora, sin esperar la búsqueda periódica")
+@router.post("/detectar", responses={200: {"model": rv.DeteccionFusion, "description": "Cantidad de candidatos nuevos a fusión"}},
+             summary="Buscar candidatos a fusión ahora, sin esperar la búsqueda periódica")
 def detectar(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     nuevas = vocabulario.detectar_candidatos(db, fondo_id)
@@ -458,7 +475,8 @@ def detectar(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("vocabula
     return {"nuevas": nuevas}
 
 
-@router.post("/sugerencias-fusion/{sugerencia_id}/aprobar", summary="Aprobar una sugerencia: ejecuta la fusión")
+@router.post("/sugerencias-fusion/{sugerencia_id}/aprobar", responses={200: {"model": rv.ResultadoFusion, "description": "Fusión ejecutada"}},
+             summary="Aprobar una sugerencia: ejecuta la fusión")
 def aprobar(sugerencia_id: uuid.UUID, datos: AprobarIn, request: Request,
             actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     s = db.scalar(select(SugerenciaFusion).where(SugerenciaFusion.id == sugerencia_id).with_for_update())
@@ -483,7 +501,8 @@ def aprobar(sugerencia_id: uuid.UUID, datos: AprobarIn, request: Request,
     return {"definitiva": str(definitiva.id), "absorbida": str(absorbida.id), "relaciones_movidas": movidas}
 
 
-@router.post("/sugerencias-fusion/{sugerencia_id}/descartar", summary="Descartar una sugerencia (no cambia nada)")
+@router.post("/sugerencias-fusion/{sugerencia_id}/descartar", responses={200: {"model": rv.SugerenciaDescartada, "description": "Sugerencia descartada"}},
+             summary="Descartar una sugerencia (no cambia nada)")
 def descartar(sugerencia_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
               db: Session = Depends(get_db)):
     s = db.get(SugerenciaFusion, sugerencia_id)
@@ -498,7 +517,8 @@ def descartar(sugerencia_id: uuid.UUID, request: Request, actor: Actor = Depends
     return {"estado": "descartada"}
 
 
-@router.post("/fusionar", summary="Fusión manual iniciada desde el detalle")
+@router.post("/fusionar", responses={200: {"model": rv.ResultadoFusion, "description": "Fusión ejecutada"}},
+             summary="Fusión manual iniciada desde el detalle")
 def fusionar(datos: FusionarIn, request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
              db: Session = Depends(get_db)):
     definitiva, absorbida = _entidad_o_404(db, datos.definitiva_id), _entidad_o_404(db, datos.absorbida_id)

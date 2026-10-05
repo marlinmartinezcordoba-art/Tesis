@@ -26,6 +26,8 @@ from app.routers.fondos import fondo_o_404
 from app.models.lote import LoteIngesta
 from app.schemas.ingesta import (ActaIn, AnulacionIn, CargaOut, ColaOut, ElementoCola, LimiteIn, LimiteOut, LoteIn,
                                  Referencia, ResultadoCarga, UmbralOcrIn, UmbralOcrOut)
+from app.schemas.respuestas_ingesta import (AcuseRecibo, CargaReciente, LoteConfirmado, LoteResumen, ResumenIngesta,
+                                             VistaPreviaDocumento)
 from app.servicios import almacen, lotes, parametros, procesamiento
 from app.servicios.auditoria import ip_de, registrar
 
@@ -269,7 +271,9 @@ def reintentar(instanciacion_id: uuid.UUID, request: Request, actor: Actor = Dep
 # --- Previsualización (visor sin descarga) --------------------------------------------------------
 
 
-@router.get("/{instanciacion_id}/previsualizar", summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
+@router.get("/{instanciacion_id}/previsualizar",
+            responses={200: {"model": VistaPreviaDocumento, "description": "Páginas que se pueden mostrar y texto extraído."}},
+            summary="Datos del visor: páginas que se pueden mostrar y texto extraído")
 def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
     from app.servicios import previsualizacion
 
@@ -279,7 +283,8 @@ def previsualizar(instanciacion_id: uuid.UUID, actor: Actor = Depends(acceso_mod
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
 
 
-@router.get("/{instanciacion_id}/previsualizar/{pagina}", summary="Una página como imagen PNG (nunca el original)")
+@router.get("/{instanciacion_id}/previsualizar/{pagina}", responses={200: {"content": {"image/png": {}}, "description": "Página del documento como imagen PNG."}},
+            summary="Una página como imagen PNG (nunca el original)")
 def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor = Depends(acceso_modulo("ingesta")),
                          db: Session = Depends(get_db)):
     from fastapi.responses import Response
@@ -296,7 +301,9 @@ def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor 
 # --- Contenido de apoyo de las vistas (actividad reciente y resumen) -----------------------------------
 
 
-@router.get("/recientes", summary="Los últimos archivos cargados al fondo, con su destino (tarjeta de actividad reciente)")
+@router.get("/recientes",
+            responses={200: {"model": list[CargaReciente], "description": "Los últimos cinco archivos cargados al fondo."}},
+            summary="Los últimos archivos cargados al fondo, con su destino (tarjeta de actividad reciente)")
 def recientes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     from app.servicios import derechos
 
@@ -314,7 +321,8 @@ def recientes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     return salida
 
 
-@router.get("/resumen", summary="Estado general de la ingesta del fondo (mismos datos que el panel de preservación)")
+@router.get("/resumen", responses={200: {"model": ResumenIngesta, "description": "Conteos de la ingesta del fondo."}},
+            summary="Estado general de la ingesta del fondo (mismos datos que el panel de preservación)")
 def resumen(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     from app.servicios import preservacion
 
@@ -346,7 +354,8 @@ def _422(exc: Exception) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
 
-@router.post("/lotes", status_code=status.HTTP_201_CREATED, summary="Abrir un lote de transferencia")
+@router.post("/lotes", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": LoteResumen, "description": "Lote abierto."}}, summary="Abrir un lote de transferencia")
 def crear_lote(datos: LoteIn, request: Request, actor: Actor = Depends(acceso_modulo("ingesta")),
                db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, datos.fondo_id)
@@ -361,7 +370,8 @@ def crear_lote(datos: LoteIn, request: Request, actor: Actor = Depends(acceso_mo
     return lotes.resumen(db, lote)
 
 
-@router.get("/lotes", summary="Lotes de transferencia del fondo")
+@router.get("/lotes", responses={200: {"model": list[LoteResumen], "description": "Lotes del fondo, del más reciente al más antiguo."}},
+            summary="Lotes de transferencia del fondo")
 def listar_lotes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     filas = db.scalars(select(LoteIngesta).where(LoteIngesta.fondo_id == fondo_id)
@@ -369,12 +379,14 @@ def listar_lotes(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     return [lotes.resumen(db, lote) for lote in filas]
 
 
-@router.get("/lotes/{lote_id}", summary="Un lote, con sus archivos")
+@router.get("/lotes/{lote_id}", responses={200: {"model": LoteResumen, "description": "El lote con sus archivos."}},
+            summary="Un lote, con sus archivos")
 def ver_lote(lote_id: uuid.UUID, db: Session = Depends(get_db)):
     return lotes.resumen(db, _lote_o_404(db, lote_id))
 
 
-@router.put("/lotes/{lote_id}/acta", summary="Indicar cuál archivo del lote es el acta escaneada")
+@router.put("/lotes/{lote_id}/acta", responses={200: {"model": LoteResumen, "description": "El lote con el acta indicada."}},
+            summary="Indicar cuál archivo del lote es el acta escaneada")
 def fijar_acta(lote_id: uuid.UUID, datos: ActaIn, request: Request,
                actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
     lote = _lote_o_404(db, lote_id)
@@ -386,7 +398,9 @@ def fijar_acta(lote_id: uuid.UUID, datos: ActaIn, request: Request,
     return lotes.resumen(db, lote)
 
 
-@router.post("/lotes/{lote_id}/confirmar", summary="Confirmar el lote: paquete de envío BagIt y acuse de recibo")
+@router.post("/lotes/{lote_id}/confirmar",
+             responses={200: {"model": LoteConfirmado, "description": "El lote confirmado y su acuse de recibo."}},
+             summary="Confirmar el lote: paquete de envío BagIt y acuse de recibo")
 def confirmar_lote(lote_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("ingesta")),
                    db: Session = Depends(get_db)):
     lote = db.scalar(select(LoteIngesta).where(LoteIngesta.id == lote_id).with_for_update())
@@ -400,7 +414,8 @@ def confirmar_lote(lote_id: uuid.UUID, request: Request, actor: Actor = Depends(
     return {"lote": lotes.resumen(db, lote), "acuse": recibo}
 
 
-@router.post("/lotes/{lote_id}/anular", summary="Anular un lote abierto (con motivo)")
+@router.post("/lotes/{lote_id}/anular", responses={200: {"model": LoteResumen, "description": "El lote anulado."}},
+             summary="Anular un lote abierto (con motivo)")
 def anular_lote(lote_id: uuid.UUID, datos: AnulacionIn, request: Request,
                 actor: Actor = Depends(acceso_modulo("ingesta")), db: Session = Depends(get_db)):
     lote = _lote_o_404(db, lote_id)
@@ -412,7 +427,8 @@ def anular_lote(lote_id: uuid.UUID, datos: AnulacionIn, request: Request,
     return lotes.resumen(db, lote)
 
 
-@router.get("/lotes/{lote_id}/acuse", summary="Acuse de recibo del lote confirmado")
+@router.get("/lotes/{lote_id}/acuse", responses={200: {"model": AcuseRecibo, "description": "Acuse de recibo del lote."}},
+            summary="Acuse de recibo del lote confirmado")
 def acuse_lote(lote_id: uuid.UUID, db: Session = Depends(get_db)):
     lote = _lote_o_404(db, lote_id)
     if lote.estado != "confirmado":

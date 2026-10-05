@@ -78,10 +78,22 @@ def db(base_de_pruebas):
     conexion.close()
 
 
+class ClienteConContrato(TestClient):
+    """Cliente de pruebas que valida cada respuesta contra el esquema que su
+    ruta declara en OpenAPI (prueba de contrato, RF-INT-003)."""
+
+    def request(self, method, url, *args, **kwargs):
+        from tests import contrato
+
+        respuesta = super().request(method, url, *args, **kwargs)
+        contrato.validar(self.app, method, url, respuesta)
+        return respuesta
+
+
 @pytest.fixture()
 def cliente(db):
     app.dependency_overrides[get_db] = lambda: db
-    with TestClient(app) as c:
+    with ClienteConContrato(app) as c:
         yield c
     app.dependency_overrides.clear()
 

@@ -23,6 +23,7 @@ from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.exportacion import _actor_si_hay
 from app.routers.fondos import fondo_o_404
+from app.schemas.respuestas_instrumentos import IndiceLey1712
 from app.servicios import conformidad_rico, derechos, dip, exportacion_rico, intercambio, ley1712, parametros, sparql
 from app.servicios.auditoria import ip_de, registrar
 
@@ -46,7 +47,9 @@ def _visibles(db: Session, fondo: RecursoDocumental):
     return instrumentos.arbol(db, fondo, ver_restringidos=False)
 
 
-@router.get("/rdf", summary="El subconjunto público del fondo en RiC-O (Turtle o JSON-LD), sin sesión si está encendido")
+@router.get("/rdf", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
+                                     "description": "El subconjunto público del fondo en RiC-O."}},
+            summary="El subconjunto público del fondo en RiC-O (Turtle o JSON-LD), sin sesión si está encendido")
 def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld"] = "turtle",
         actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, fondo_id)
@@ -64,6 +67,8 @@ def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonl
 
 
 @router.api_route("/sparql", methods=["GET", "POST"],
+                  responses={200: {"content": {"application/sparql-results+json": {}, "text/turtle": {}},
+                                   "description": "Resultados SPARQL (JSON) o grafo en Turtle (CONSTRUCT y DESCRIBE)."}},
                   summary="SPARQL de solo lectura sobre el subconjunto público de un fondo")
 async def consulta_sparql(request: Request, fondo_id: uuid.UUID, query: str | None = None,
                           actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
@@ -82,7 +87,8 @@ async def consulta_sparql(request: Request, fondo_id: uuid.UUID, query: str | No
     return Response(cuerpo, media_type=tipo, headers={"Vary": "Authorization"})
 
 
-@router.get("/ead3", summary="El fondo en EAD3 (solo lo público), validado contra el esquema oficial")
+@router.get("/ead3", responses={200: {"content": {"application/xml": {}}, "description": "El fondo en EAD3."}},
+            summary="El fondo en EAD3 (solo lo público), validado contra el esquema oficial")
 def ead3(request: Request, fondo_id: uuid.UUID, actor: Actor | None = Depends(acceso_publico),
          db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, fondo_id)
@@ -97,7 +103,9 @@ def ead3(request: Request, fondo_id: uuid.UUID, actor: Actor | None = Depends(ac
                     headers={"Content-Disposition": f'attachment; filename="ead3-{fondo.id}.xml"'})
 
 
-@router.get("/eac/{entidad_id}", summary="Ficha de autoridad en EAC-CPF 2.0, validada contra el esquema oficial")
+@router.get("/eac/{entidad_id}",
+            responses={200: {"content": {"application/xml": {}}, "description": "Ficha de autoridad en EAC-CPF."}},
+            summary="Ficha de autoridad en EAC-CPF 2.0, validada contra el esquema oficial")
 def eac(entidad_id: uuid.UUID, request: Request, actor: Actor | None = Depends(acceso_publico),
         db: Session = Depends(get_db)):
     e = db.get(EntidadVocabulario, entidad_id)
@@ -115,7 +123,11 @@ def eac(entidad_id: uuid.UUID, request: Request, actor: Actor | None = Depends(a
                     headers={"Content-Disposition": f'attachment; filename="eac-cpf-{e.id}.xml"'})
 
 
-@router.get("/ley1712", summary="Índice de información clasificada y reservada (Ley 1712, art. 20)")
+@router.get("/ley1712",
+            responses={200: {"model": IndiceLey1712,
+                             "content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}},
+                             "description": "Índice en JSON o, con formato=xlsx, en hoja de cálculo."}},
+            summary="Índice de información clasificada y reservada (Ley 1712, art. 20)")
 def indice_reservada(fondo_id: uuid.UUID, formato: Literal["json", "xlsx"] = "json",
                      actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, fondo_id)
@@ -140,7 +152,10 @@ def _recurso_publico(db: Session, recurso_id: uuid.UUID) -> RecursoDocumental:
     return r
 
 
-@router.get("/iiif/{recurso_id}/manifest", summary="Manifiesto IIIF Presentation 3.0 de una descripción pública")
+@router.get("/iiif/{recurso_id}/manifest",
+            responses={200: {"content": {"application/ld+json": {"schema": {"type": "object", "additionalProperties": True}}},
+                             "description": "Manifiesto IIIF Presentation 3.0 (JSON-LD)."}},
+            summary="Manifiesto IIIF Presentation 3.0 de una descripción pública")
 def manifiesto(recurso_id: uuid.UUID, actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     r = _recurso_publico(db, recurso_id)
     base = exportacion_rico.base().removesuffix("/id/")
@@ -149,7 +164,9 @@ def manifiesto(recurso_id: uuid.UUID, actor: Actor | None = Depends(acceso_publi
                         headers={"Access-Control-Allow-Origin": "*"})
 
 
-@router.get("/iiif/imagen/{instanciacion_id}/{pagina}.png", summary="Una página pública (PNG) para el manifiesto IIIF")
+@router.get("/iiif/imagen/{instanciacion_id}/{pagina}.png",
+            responses={200: {"content": {"image/png": {}}, "description": "Página pública como imagen PNG."}},
+            summary="Una página pública (PNG) para el manifiesto IIIF")
 def imagen(instanciacion_id: uuid.UUID, pagina: int, actor: Actor | None = Depends(acceso_publico),
            db: Session = Depends(get_db)):
     from app.servicios import recorte
@@ -176,7 +193,8 @@ def _es_publico(db: Session, r: RecursoDocumental) -> bool:
 # --- DIP (OAIS) ------------------------------------------------------------------------------------
 
 
-@router.get("/dip/{recurso_id}", summary="Paquete de difusión (DIP) de una descripción pública: copia de acceso, "
+@router.get("/dip/{recurso_id}", responses={200: {"content": {"application/zip": {}}, "description": "Paquete de difusión en ZIP."}},
+            summary="Paquete de difusión (DIP) de una descripción pública: copia de acceso, "
                                           "ISAD(G), RiC-O, IIIF y huellas")
 def paquete_difusion(recurso_id: uuid.UUID, request: Request, actor: Actor | None = Depends(acceso_publico),
                      db: Session = Depends(get_db)):
