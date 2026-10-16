@@ -47,13 +47,15 @@ CIEGA_B = {"titulo": "Oficio sobre permisos", "entidades": [
 # --- Métricas (a mano) ---------------------------------------------------------------------------
 
 
-def test_emparejamiento_uno_a_uno_por_tipo_y_rol():
+def test_emparejamiento_uno_a_uno_por_tipo():
     s = [{"tipo": "agente", "rol": "productor", "valor": "Alcaldía"}, {"tipo": "agente", "rol": "productor", "valor": "Alcaldía"}]
     r = [{"tipo": "agente", "rol": "productor", "valor": "alcaldia"}]
     assert ev_s.emparejar(s, r, 1.0) == 1  # una referencia no cuenta dos veces
     assert ev_s.emparejar(r, s, 1.0) == 1  # ni una entidad del sistema
     otro_rol = [{"tipo": "agente", "rol": "destinatario", "valor": "Alcaldía"}]
-    assert ev_s.emparejar(s, otro_rol, 1.0) == 0  # el productor no se empareja con el destinatario
+    # La entidad es la misma aunque su papel cambie: el papel es una relación y se mide aparte
+    # (tests/test_evaluacion_ric.py, confusión de propiedades).
+    assert ev_s.emparejar(s, otro_rol, 1.0) == 1
     assert ev_s.emparejar([{"tipo": "fecha", "valor": "marzo 1948", "edtf": "1948-03"}],
                           [{"tipo": "fecha", "valor": "1948-03", "edtf": "1948-03"}], 1.0) == 1  # la fecha, por su EDTF
 
@@ -123,7 +125,7 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
     # A ciegas: el documento sin la propuesta.
     r = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "ciega"})
-    assert r.status_code == 200 and r.json()["datos"] == {"entidades": []} and "Alcaldía" in r.json()["documento"]["texto"]
+    assert r.status_code == 200 and r.json()["datos"] == {"entidades": [], "relaciones": []} and "Alcaldía" in r.json()["documento"]["texto"]
     # Con la descripción ciega abierta no se puede ver la propuesta.
     assert cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/propuesta", headers=ana).status_code == 409
     assert cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana,
@@ -132,7 +134,8 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert anotar(cliente, luis, ev_id, d.id, "ciega", CIEGA_B).status_code == 200
     # Asistida: empieza con la propuesta puesta.
     asistida = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "asistida"}).json()
-    assert len(asistida["datos"]["entidades"]) == 5
+    assert len(asistida["datos"]["entidades"]) == 5 and len(asistida["datos"]["relaciones"]) == 5
+    assert {"origen": "documento", "propiedad": "has_creator", "destino": "e1"} in asistida["datos"]["relaciones"]
     cliente.put(f"/api/evaluacion/anotaciones/{asistida['id']}", headers=ana, json=asistida["datos"] | {"enviar": True})
     # Rúbrica: verla primero; los dos califican.
     assert cliente.put(f"/api/evaluacion/{ev_id}/documentos/{d.id}/calificacion", headers=luis,
@@ -156,6 +159,16 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert res["flexible"]["por_tipo"]["fecha"]["f1"] == 1.0 and res["flexible"]["por_tipo"]["lugar"]["vp"] == 0
     # Acuerdo entre Ana y Luis: 3 en común de 5 y 3.
     assert res["acuerdo_entre_archivistas"]["vp"] == 3 and res["acuerdo_entre_archivistas"]["f1"] == 0.75
+    # Relaciones RiC: Ana acierta productor, fecha de creación y forma, y con el umbral flexible también
+    # el destinatario (4 VP); el lugar como tema no coincide. Luis: 3 VP y 2 FP.
+    rel = res["relaciones"]
+    assert (rel["estricto"]["micro"]["vp"], rel["estricto"]["micro"]["fp"], rel["estricto"]["micro"]["fn"]) == (6, 4, 2)
+    assert (rel["flexible"]["micro"]["vp"], rel["flexible"]["micro"]["fp"], rel["flexible"]["micro"]["fn"]) == (7, 3, 1)
+    assert rel["flexible"]["por_tipo"]["has_creator"]["f1"] == 1.0 and rel["propiedades"]["has_creator"] == "rico:hasCreator"
+    assert rel["acuerdo_entre_archivistas"]["f1"] == 0.75 and rel["confusiones"] == []
+    assert res["conformidad"]["motor"]["conformes"] == 1 and res["conformidad"]["ciega"]["descripciones"] == 2
+    assert res["conformidad"]["ciega"]["tasa_relaciones_validas"] == 1.0
+    assert res["documentos"][0]["relaciones_motor"] == 5 and res["documentos"][0]["motor_conforme"] is True
     assert res["tiempos"]["ciega"]["n"] == 2 and res["tiempos"]["asistida"]["n"] == 1
     assert res["tiempos"]["ciega"]["media_minutos"] >= 15
     assert res["rubrica"]["exactitud"]["kappa_ponderado"] is None or res["rubrica"]["exactitud"]["pares"] == 1
@@ -163,7 +176,8 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert res["anotaciones"] == {"ciegas": 2, "asistidas": 1, "evaluadores": 2}
     assert res["motores"] == [{"motor": "motor-de-prueba", "version_prompt": motor.VERSION_PROMPT}]
     hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
-    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Acuerdo, tiempos y rúbrica", "Documentos"]
+    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Conformidad RiC-O",
+                                                                  "Acuerdo, tiempos y rúbrica", "Documentos"]
     # Todo queda en la auditoría.
     acciones = {e.accion for e in db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.modulo == "evaluacion"))}
     assert {"evaluacion_creada", "documentos_agregados", "propuestas_generadas", "evaluacion_iniciada",
@@ -214,8 +228,13 @@ def test_una_anotacion_ajena_no_se_toca_y_la_anulada_no_se_borra(cliente, db, fo
     luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
     a = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "ciega"}).json()
     assert cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=luis, json=CIEGA_B).status_code == 403
+    # Un agente sin relación con el documento: el borrador se guarda y dice por qué no es RiC; no se envía.
     sin_rol = CIEGA_B | {"entidades": [{"tipo": "agente", "valor": "Alcaldía"}]}
-    assert cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana, json=sin_rol).status_code == 422
+    r = cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana, json=sin_rol)
+    assert r.status_code == 200 and r.json()["conformidad"]["conforme"] is False
+    assert any("no está relacionada" in x for x in r.json()["conformidad"]["problemas"])
+    r = cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana, json=sin_rol | {"enviar": True})
+    assert r.status_code == 422 and "no es RiC válida" in r.json()["detail"]
     assert cliente.post(f"/api/evaluacion/anotaciones/{a['id']}/anular", headers=ana).status_code == 403
     assert cliente.post(f"/api/evaluacion/anotaciones/{a['id']}/anular", headers=cabeceras_admin).json()["estado"] == "anulada"
     assert db.get(Anotacion, uuid.UUID(a["id"])) is not None

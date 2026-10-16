@@ -9,9 +9,17 @@ Diseño (decisiones en documentacion/modulo-evaluacion.md):
   describirlo a ciegas.
 - Solo entran documentos sin describir: si ya lo estuvieran, su vocabulario
   le daría al motor la respuesta por el contexto.
+- La descripción se hace en RiC (versión 2): entidades con su clase de
+  RiC-O y relaciones con su propiedad de RiC-O (servicios/evaluacion_ric).
+  La propuesta del motor se convierte a lo mismo, con la regla de la
+  publicación.
 - Métricas de entidades: precisión, exhaustividad y F1 por tipo, en dos
   versiones: estricta (mismo valor normalizado) y flexible (similitud de
   texto desde el umbral de la evaluación). Emparejamiento uno a uno.
+- Métricas de relaciones: las mismas, por propiedad de RiC-O; una relación
+  acierta si tiene la misma propiedad y sus dos extremos coinciden. Además,
+  la confusión de propiedades (mismos extremos, otra relación) y la
+  conformidad de cada descripción con RiC-O 1.1.
 - Acuerdo entre archivistas: F1 entre dos anotaciones ciegas del mismo
   documento (en extracción de entidades no hay «negativos», así que el
   kappa no está definido; se usa F1, como proponen Hripcsak y Rothschild,
@@ -39,7 +47,6 @@ from app.servicios.auditoria import registrar
 
 # Los tipos de entidad que se comparan (los seis reutilizables y la fecha).
 TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental")
-ROLES_AGENTE = ("productor", "remitente", "destinatario", "mencionado", "custodio")
 
 
 class ErrorEvaluacion(Exception):
@@ -56,10 +63,11 @@ def normalizar(texto: str | None) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", sin_tildes.lower()).split())
 
 
-def clave_de(e: dict) -> tuple[str, str | None]:
-    """Con qué se agrupa una entidad para compararla: su tipo y, si es un
-    agente, su rol (el productor no se empareja con el destinatario)."""
-    return e.get("tipo"), (e.get("rol") if e.get("tipo") == "agente" else None)
+def clave_de(e: dict) -> str:
+    """Con qué se agrupa una entidad para compararla: su tipo. El papel de
+    un agente (productor, destinatario…) no es de la entidad sino de su
+    relación con el documento, y se mide con las relaciones."""
+    return e.get("tipo")
 
 
 def texto_de(e: dict) -> str:
@@ -71,7 +79,7 @@ def texto_de(e: dict) -> str:
 
 def emparejar(sistema: list[dict], referencia: list[dict], umbral: float) -> int:
     """Pares uno a uno (cada entidad cuenta una sola vez), del más parecido
-    al menos, dentro del mismo tipo y rol. Devuelve cuántos pares superan el
+    al menos, dentro del mismo tipo. Devuelve cuántos pares superan el
     umbral (1.0 = solo iguales tras normalizar)."""
     pares = 0
     for grupo in {clave_de(e) for e in sistema} & {clave_de(e) for e in referencia}:
@@ -130,13 +138,18 @@ def kappa_ponderado(pares: list[tuple[int, int]], categorias=(1, 2, 3, 4, 5)) ->
 
 
 def entidades_de_propuesta(propuesta: dict | None) -> list[dict]:
-    return [{"tipo": e.get("tipo"), "valor": e.get("valor"), "rol": e.get("rol"),
-             "edtf": e.get("edtf") or e.get("fecha_normalizada")}
-            for e in (propuesta or {}).get("entidades", []) if e.get("tipo") in TIPOS]
+    """Los nodos de la propuesta del motor: una entidad con dos roles es un
+    solo nodo (los roles son relaciones)."""
+    from app.servicios import evaluacion_ric
+
+    return evaluacion_ric.desde_roles(propuesta)["entidades"]
 
 
 def entidades_de_anotacion(datos: dict | None) -> list[dict]:
-    return [e for e in (datos or {}).get("entidades", []) if e.get("tipo") in TIPOS and (e.get("valor") or "").strip()]
+    from app.servicios import evaluacion_ric
+
+    return [e for e in evaluacion_ric.a_ric(datos)["entidades"]
+            if e.get("tipo") in TIPOS and (e.get("valor") or "").strip()]
 
 
 # --- Flujo ---------------------------------------------------------------------------------------------
@@ -290,7 +303,8 @@ def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion
             raise ErrorEvaluacion("Primero envíe su descripción a ciegas: ver la propuesta la invalidaría.", 409)
         _exponer(db, ev, inst_id, usuario_id, "asistida")
     if existente is not None:  # anulada: se reabre con una nueva fecha de inicio
-        existente.estado, existente.iniciada_en, existente.enviada_en, existente.datos = "en_curso", ahora(), None, None
+        existente.estado, existente.iniciada_en, existente.enviada_en = "en_curso", ahora(), None
+        existente.datos = _inicial(d) if condicion == "asistida" else None  # la asistida vuelve con la propuesta
         a = existente
     else:
         a = Anotacion(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst_id, evaluador_id=usuario_id,
@@ -303,32 +317,20 @@ def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion
 
 
 def _inicial(d: EvaluacionDocumento) -> dict:
-    """La condición asistida empieza con la propuesta del motor puesta."""
-    p = d.propuesta or {}
-    return {"titulo": p.get("titulo"), "alcance": p.get("alcance"), "entidades": entidades_de_propuesta(p)}
+    """La condición asistida empieza con la propuesta del motor puesta, ya
+    en RiC: entidades y relaciones."""
+    from app.servicios import evaluacion_ric
+
+    return evaluacion_ric.desde_roles(d.propuesta)
 
 
 def _limpiar(datos: dict) -> dict:
-    entidades = []
-    for e in (datos.get("entidades") or [])[:200]:
-        tipo = e.get("tipo")
-        valor = " ".join(str(e.get("valor") or "").split())[:300]
-        if tipo not in TIPOS or not valor:
-            continue
-        rol = e.get("rol") if tipo == "agente" and e.get("rol") in ROLES_AGENTE else None
-        if tipo == "agente" and rol is None:
-            raise ErrorEvaluacion(f"Indique el rol del agente «{valor}» (productor, remitente, destinatario…).")
-        edtf = (e.get("edtf") or "").strip() or None
-        if tipo == "fecha" and edtf:
-            from app.servicios import fechas
+    from app.servicios import evaluacion_ric
 
-            try:
-                edtf = fechas.interpretar(edtf).edtf
-            except fechas.FechaInvalida as exc:
-                raise ErrorEvaluacion(f"La fecha «{valor}»: {exc}") from exc
-        entidades.append({"tipo": tipo, "valor": valor, "rol": rol, "edtf": edtf if tipo == "fecha" else None})
-    return {"titulo": (datos.get("titulo") or "").strip()[:300] or None,
-            "alcance": (datos.get("alcance") or "").strip()[:5000] or None, "entidades": entidades}
+    try:
+        return evaluacion_ric.limpiar(datos)
+    except evaluacion_ric.ErrorRic as exc:
+        raise ErrorEvaluacion(str(exc)) from exc
 
 
 def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, enviar: bool) -> Anotacion:
@@ -339,14 +341,22 @@ def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, envia
     ev = db.get(Evaluacion, a.evaluacion_id)
     if ev.estado != "en_curso":
         raise ErrorEvaluacion("La evaluación no está en curso.", 409)
+    from app.servicios import evaluacion_ric
+
     a.datos = _limpiar(datos)
     if enviar:
         if not a.datos["entidades"] and not a.datos["titulo"]:
             raise ErrorEvaluacion("La descripción está vacía.")
+        # La referencia tiene que ser RiC válida: si no, se compararía el
+        # motor con algo que RiC-O no admite.
+        revision = evaluacion_ric.conformidad(a.datos)
+        if not revision["conforme"]:
+            raise ErrorEvaluacion("La descripción todavía no es RiC válida: " + " · ".join(revision["problemas"][:6]))
         a.estado, a.enviada_en = "enviada", ahora()
         registrar(db, modulo="evaluacion", accion="anotacion_enviada", usuario_id=usuario_id,
                   entidad_tipo="instanciacion", entidad_id=a.instanciacion_id,
                   nuevo={"evaluacion_id": str(ev.id), "condicion": a.condicion, "entidades": len(a.datos["entidades"]),
+                         "relaciones": len(a.datos["relaciones"]),
                          "segundos": round((a.enviada_en - a.iniciada_en).total_seconds())})
     db.flush()
     return a
@@ -408,8 +418,12 @@ def _estado_anotacion(a: Anotacion | None) -> dict | None:
 
 
 def anotacion_out(db: Session, a: Anotacion) -> dict:
+    from app.servicios import evaluacion_ric
+
     inst = db.get(Instanciacion, a.instanciacion_id)
-    return {"id": str(a.id), "condicion": a.condicion, "estado": a.estado, "datos": a.datos or {"entidades": []},
+    datos = evaluacion_ric.a_ric(a.datos) if a.datos else {"entidades": [], "relaciones": []}
+    return {"id": str(a.id), "condicion": a.condicion, "estado": a.estado, "datos": datos,
+            "conformidad": evaluacion_ric.conformidad(a.datos) if a.datos else None,
             "iniciada_en": a.iniciada_en, "enviada_en": a.enviada_en,
             "documento": {"id": str(inst.id), "nombre": inst.nombre_original, "texto": inst.texto_extraido}}
 
@@ -430,14 +444,33 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     for a in anotaciones:
         por_doc.setdefault(a.instanciacion_id, []).append(a)
 
+    from app.servicios import evaluacion_ric as ric
+
     estricto = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
     flexible = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
+    rel_estricto: dict[str, dict] = {}
+    rel_flexible: dict[str, dict] = {}
+    confusiones: dict[tuple[str, str], int] = {}
     acuerdo = {"vp": 0, "fp": 0, "fn": 0}
+    acuerdo_rel = {"vp": 0, "fp": 0, "fn": 0}
+    conformidad = {"motor": [], "ciega": [], "asistida": []}
     por_documento = []
+
+    def acumular(destino: dict, cuentas: dict) -> None:
+        for k, c in cuentas.items():
+            destino[k] = _sumar(destino.get(k, {}), c)
+
     for d in documentos:
         sistema = entidades_de_propuesta(d.propuesta)
-        ciegas = [a for a in por_doc.get(d.instanciacion_id, []) if a.condicion == "ciega"]
-        f1_doc = []
+        motor_ric = ric.desde_roles(d.propuesta)
+        sistema_rel = ric.tripletas(motor_ric)
+        rev_motor = ric.conformidad(motor_ric)
+        conformidad["motor"].append(rev_motor)
+        anotadas = por_doc.get(d.instanciacion_id, [])
+        for a in anotadas:
+            conformidad[a.condicion].append(ric.conformidad(a.datos))
+        ciegas = [a for a in anotadas if a.condicion == "ciega"]
+        f1_doc, f1_rel_doc = [], []
         for a in ciegas:  # cada descripción ciega es una referencia
             referencia = entidades_de_anotacion(a.datos)
             for t in TIPOS:
@@ -446,14 +479,31 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                 estricto[t] = _sumar(estricto[t], conteo(s_t, r_t, 1.0))
                 flexible[t] = _sumar(flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
             f1_doc.append(prf(conteo(sistema, referencia, ev.umbral_similitud))["f1"])
+            referencia_rel = ric.tripletas(a.datos)
+            acumular(rel_estricto, ric.conteo_por_propiedad(sistema_rel, referencia_rel, 1.0)[0])
+            cuentas, confundidas = ric.conteo_por_propiedad(sistema_rel, referencia_rel, ev.umbral_similitud)
+            acumular(rel_flexible, cuentas)
+            for par in confundidas:
+                confusiones[par] = confusiones.get(par, 0) + 1
+            total = {"vp": 0, "fp": 0, "fn": 0}
+            for c in cuentas.values():
+                total = _sumar(total, c)
+            f1_rel_doc.append(prf(total)["f1"])
         for a, b in combinations(ciegas, 2):  # acuerdo entre archivistas
             acuerdo = _sumar(acuerdo, conteo(entidades_de_anotacion(a.datos), entidades_de_anotacion(b.datos),
                                              ev.umbral_similitud))
+            vp, _ = ric.emparejar(ric.tripletas(a.datos), ric.tripletas(b.datos), ev.umbral_similitud)
+            acuerdo_rel = _sumar(acuerdo_rel, {"vp": vp, "fp": len(ric.tripletas(a.datos)) - vp,
+                                               "fn": len(ric.tripletas(b.datos)) - vp})
         inst = db.get(Instanciacion, d.instanciacion_id)
+
+        def media(valores):
+            v = [x for x in valores if x is not None]
+            return _r(statistics.mean(v)) if v else None
         por_documento.append({"instanciacion_id": str(inst.id), "nombre": inst.nombre_original,
-                              "entidades_motor": len(sistema), "referencias_ciegas": len(ciegas),
-                              "f1_flexible": _r(statistics.mean(x for x in f1_doc if x is not None))
-                              if any(x is not None for x in f1_doc) else None,
+                              "entidades_motor": len(sistema), "relaciones_motor": len(sistema_rel),
+                              "referencias_ciegas": len(ciegas), "f1_flexible": media(f1_doc),
+                              "f1_relaciones_flexible": media(f1_rel_doc), "motor_conforme": rev_motor["conforme"],
                               "descrito_durante_la_evaluacion": descrito(db, inst.id)})
 
     def tabla(cuentas: dict) -> dict:
@@ -468,6 +518,19 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                for c in ("ciega", "asistida")}
     tiempos = {c: {"n": len(v), "mediana_minutos": _r(statistics.median(v)) if v else None,
                    "media_minutos": _r(statistics.mean(v)) if v else None} for c, v in minutos.items()}
+
+    def resumen_conformidad(revisiones: list[dict]) -> dict:
+        relaciones = sum(x["relaciones"] for x in revisiones)
+        validas = sum(x["relaciones_validas"] for x in revisiones)
+        frecuencia: dict[str, int] = {}
+        for x in revisiones:
+            for problema in x["problemas"]:
+                frecuencia[problema] = frecuencia.get(problema, 0) + 1
+        return {"descripciones": len(revisiones), "conformes": sum(1 for x in revisiones if x["conforme"]),
+                "relaciones": relaciones, "relaciones_validas": validas,
+                "tasa_relaciones_validas": _r(validas / relaciones) if relaciones else None,
+                "problemas": [{"problema": k, "veces": v}
+                              for k, v in sorted(frecuencia.items(), key=lambda x: (-x[1], x[0]))[:20]]}
 
     calificaciones = db.scalars(select(Calificacion).where(Calificacion.evaluacion_id == ev.id)).all()
     rubrica = {}
@@ -487,6 +550,12 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     return {"evaluacion": evaluacion_out(db, ev), "umbral": ev.umbral_similitud,
             "motores": [{"motor": m, "version_prompt": v} for m, v in motores],
             "estricto": tabla(estricto), "flexible": tabla(flexible),
+            "relaciones": {"estricto": tabla(rel_estricto), "flexible": tabla(rel_flexible),
+                           "acuerdo_entre_archivistas": prf(acuerdo_rel) if sum(acuerdo_rel.values()) else None,
+                           "confusiones": [{"motor": m, "archivista": a, "veces": n} for (m, a), n in
+                                           sorted(confusiones.items(), key=lambda x: (-x[1], x[0]))],
+                           "propiedades": {c: ric.nombre_rico(c) for c in ric.PROPIEDADES}},
+            "conformidad": {k: resumen_conformidad(v) for k, v in conformidad.items()},
             "acuerdo_entre_archivistas": prf(acuerdo) if sum(acuerdo.values()) else None,
             "tiempos": tiempos, "rubrica": rubrica, "documentos": por_documento,
             "anotaciones": {"ciegas": sum(1 for a in anotaciones if a.condicion == "ciega"),
@@ -516,18 +585,46 @@ def hoja_de_calculo(datos: dict) -> bytes:
         m = datos[medida]["micro"]
         hoja.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
         hoja.append([medida, "F1 macro", None, None, None, None, None, datos[medida]["macro_f1"]])
+    rel = libro.create_sheet("Relaciones RiC")
+    rel.append(["Medida", "Propiedad RiC-O", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
+    nombres = datos["relaciones"]["propiedades"]
+    for medida in ("estricto", "flexible"):
+        tabla_r = datos["relaciones"][medida]
+        for codigo, f in tabla_r["por_tipo"].items():
+            rel.append([medida, nombres.get(codigo, codigo), f["vp"], f["fp"], f["fn"], f["precision"],
+                        f["exhaustividad"], f["f1"]])
+        m = tabla_r["micro"]
+        rel.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
+        rel.append([medida, "F1 macro", None, None, None, None, None, tabla_r["macro_f1"]])
+    rel.append([])
+    rel.append(["Confusión de propiedades", "Motor", "Archivista", "Veces"])
+    for c in datos["relaciones"]["confusiones"]:
+        rel.append([None, nombres.get(c["motor"], c["motor"]), nombres.get(c["archivista"], c["archivista"]), c["veces"]])
+    conf = libro.create_sheet("Conformidad RiC-O")
+    conf.append(["Quién describe", "Descripciones", "Conformes", "Relaciones", "Relaciones válidas", "Tasa"])
+    for quien, c in datos["conformidad"].items():
+        conf.append([quien, c["descripciones"], c["conformes"], c["relaciones"], c["relaciones_validas"],
+                     c["tasa_relaciones_validas"]])
+    conf.append([])
+    conf.append(["Quién describe", "Problema", "Veces"])
+    for quien, c in datos["conformidad"].items():
+        for x in c["problemas"]:
+            conf.append([quien, x["problema"], x["veces"]])
     otra = libro.create_sheet("Acuerdo, tiempos y rúbrica")
     a = datos["acuerdo_entre_archivistas"] or {}
     otra.append(["Acuerdo entre archivistas (F1)", a.get("f1")])
+    otra.append(["Acuerdo entre archivistas en relaciones (F1)", (datos["relaciones"]["acuerdo_entre_archivistas"] or {}).get("f1")])
     for c, t in datos["tiempos"].items():
         otra.append([f"Tiempo {c} (mediana, minutos)", t["mediana_minutos"], "n", t["n"]])
     for criterio, r in datos["rubrica"].items():
         otra.append([f"Rúbrica · {criterio} (media)", r["media"], "kappa ponderado", r["kappa_ponderado"],
                      "pares", r["pares"]])
     docs = libro.create_sheet("Documentos")
-    docs.append(["Documento", "Entidades del motor", "Referencias ciegas", "F1 flexible", "Descrito durante la evaluación"])
+    docs.append(["Documento", "Entidades del motor", "Relaciones del motor", "Referencias ciegas", "F1 flexible",
+                 "F1 relaciones (flexible)", "Motor conforme con RiC-O", "Descrito durante la evaluación"])
     for d in datos["documentos"]:
-        docs.append([d["nombre"], d["entidades_motor"], d["referencias_ciegas"], d["f1_flexible"],
+        docs.append([d["nombre"], d["entidades_motor"], d["relaciones_motor"], d["referencias_ciegas"], d["f1_flexible"],
+                     d["f1_relaciones_flexible"], "sí" if d["motor_conforme"] else "no",
                      "sí" if d["descrito_durante_la_evaluacion"] else "no"])
     for h in libro.worksheets:
         for celda in h[1]:

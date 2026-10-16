@@ -714,3 +714,8 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .atributos-fuente summary { cursor: pointer; list-style: none; }
 .atributos-fuente table { margin: 0; }
 .atributos-fuente td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .82rem; }
+
+/* Evaluación en RiC: filas compactas de entidades y relaciones */
+.fila-entidad .selector, .fila-relacion .selector { width: auto; max-width: 100%; padding: 6px 8px; }
+.fila-relacion { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.lista-relaciones { padding-left: 18px; }

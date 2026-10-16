@@ -67,6 +67,8 @@ class DatosIn(BaseModel):
     titulo: str | None = Field(default=None, max_length=300)
     alcance: str | None = Field(default=None, max_length=5000)
     entidades: list[dict] = Field(default_factory=list, max_length=200)
+    # Tripletas RiC: {origen, propiedad, destino}; «documento» es el documento que se describe.
+    relaciones: list[dict] | None = Field(default=None, max_length=400)
     enviar: bool = False
 
 
@@ -93,6 +95,14 @@ def listar(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session =
     if not actor.es_administrador:
         consulta = consulta.where(Evaluacion.estado == "en_curso")
     return [evaluacion.evaluacion_out(db, e) for e in db.scalars(consulta).all()]
+
+
+@router.get("/propiedades", responses={200: {"model": list[re_.PropiedadRic], "description": "Propiedades de RiC-O disponibles"}},
+    summary="Las relaciones de RiC-O con que se describe, y qué extremos admite cada una")
+def propiedades(actor: Actor = Depends(evaluador)):
+    from app.servicios import evaluacion_ric
+
+    return evaluacion_ric.catalogo()
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, responses={201: {"model": re_.EvaluacionOut, "description": "Evaluación creada"}},
@@ -152,7 +162,8 @@ def guardar(anotacion_id: uuid.UUID, datos: DatosIn, actor: Actor = Depends(eval
     a = db.get(Anotacion, anotacion_id)
     if a is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La anotación no existe.")
-    a = _hecho(db, evaluacion.guardar, db, a, datos.model_dump(exclude={"enviar"}), actor.id, datos.enviar)
+    a = _hecho(db, evaluacion.guardar, db, a, datos.model_dump(exclude={"enviar"}, exclude_none=True), actor.id,
+               datos.enviar)
     return evaluacion.anotacion_out(db, a)
 
 
@@ -189,7 +200,7 @@ def anular(anotacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), 
 
 
 @router.get("/{evaluacion_id}/resultados", responses={200: {"model": re_.ResultadosOut, "description": "Resultados de la evaluación"}},
-    summary="Precisión, exhaustividad, F1, acuerdo, tiempos y rúbrica")
+    summary="Precisión, exhaustividad y F1 de entidades y relaciones RiC, conformidad RiC-O, acuerdo, tiempos y rúbrica")
 def resultados(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     return _hecho(db, evaluacion.resultados, db, ev, actor.id)

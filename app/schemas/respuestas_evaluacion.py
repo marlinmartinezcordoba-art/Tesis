@@ -65,12 +65,37 @@ class TareasOut(BaseModel):
 
 
 class DescripcionEvaluada(BaseModel):
-    """Título, alcance y entidades de una descripción o de una propuesta del motor."""
+    """Una descripción en RiC (de una archivista o del motor): título,
+    alcance, entidades con su clase y relaciones con su propiedad de RiC-O."""
     model_config = ConfigDict(extra="allow")
 
     titulo: str | None = None
     alcance: str | None = None
     entidades: list[dict[str, Any]] = []
+    relaciones: list[dict[str, Any]] = []
+
+
+class ConformidadRic(BaseModel):
+    """Si la descripción es RiC válida (mapeo único y OWL oficial de RiC-O 1.1) y por qué no."""
+    model_config = ConfigDict(extra="allow")
+
+    conforme: bool
+    relaciones: int
+    relaciones_validas: int
+    problemas: list[str]
+
+
+class PropiedadRic(BaseModel):
+    """Una relación de RiC-O disponible para describir y los extremos que admite."""
+    model_config = ConfigDict(extra="allow")
+
+    codigo: str
+    rico: str
+    papel: str
+    etiqueta: str
+    codigo_cm: str | None
+    origen: list[str]
+    destino: list[str]
 
 
 class DocumentoAnotado(BaseModel):
@@ -90,6 +115,7 @@ class AnotacionOut(BaseModel):
     condicion: str
     estado: str
     datos: DescripcionEvaluada
+    conformidad: ConformidadRic | None = None
     iniciada_en: str
     enviada_en: str | None
     documento: DocumentoAnotado
@@ -164,9 +190,52 @@ class DocumentoResultado(BaseModel):
     instanciacion_id: str
     nombre: str
     entidades_motor: int
+    relaciones_motor: int
     referencias_ciegas: int
     f1_flexible: float | None
+    f1_relaciones_flexible: float | None
+    motor_conforme: bool
     descrito_durante_la_evaluacion: bool
+
+
+class Confusion(BaseModel):
+    """Mismos extremos, otra propiedad: lo que dijo el motor y lo que dijo la archivista."""
+    model_config = ConfigDict(extra="allow")
+
+    motor: str
+    archivista: str
+    veces: int
+
+
+class ResultadoRelaciones(BaseModel):
+    """Métricas de las relaciones RiC por propiedad, acuerdo y confusiones."""
+    model_config = ConfigDict(extra="allow")
+
+    estricto: TablaMetricas
+    flexible: TablaMetricas
+    acuerdo_entre_archivistas: Metricas | None
+    confusiones: list[Confusion]
+    propiedades: dict[str, str]
+
+
+class ProblemaFrecuente(BaseModel):
+    """Un problema de conformidad y cuántas veces aparece."""
+    model_config = ConfigDict(extra="allow")
+
+    problema: str
+    veces: int
+
+
+class ResumenConformidad(BaseModel):
+    """Conformidad RiC-O de las descripciones de un mismo origen (motor, ciega, asistida)."""
+    model_config = ConfigDict(extra="allow")
+
+    descripciones: int
+    conformes: int
+    relaciones: int
+    relaciones_validas: int
+    tasa_relaciones_validas: float | None
+    problemas: list[ProblemaFrecuente]
 
 
 class ConteoAnotaciones(BaseModel):
@@ -187,6 +256,8 @@ class ResultadosOut(BaseModel):
     motores: list[MotorUsado]
     estricto: TablaMetricas
     flexible: TablaMetricas
+    relaciones: ResultadoRelaciones
+    conformidad: dict[str, ResumenConformidad]
     acuerdo_entre_archivistas: Metricas | None
     tiempos: dict[str, TiempoCondicion]
     rubrica: dict[str, RubricaCriterio]

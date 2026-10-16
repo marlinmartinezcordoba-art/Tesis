@@ -1,6 +1,6 @@
 # Módulo de evaluación ciega (objetivo 3 de la tesis)
 
-**Versión:** 1.
+**Versión:** 2 (descripción y evaluación en RiC: entidades, relaciones RiC-O y conformidad; cambios en §24).
 **Estado:** entregado, pendiente de validación metodológica por la autora.
 
 **Origen:** ningún prompt de la autora define este módulo. Nace de la auditoría de brechas del sistema: el objetivo 3 de la tesis («evaluación frente a archivistas») no tenía cómo medirse dentro del sistema. El panel de decisiones de IA mide la **aceptación** de la archivista, que ve la propuesta antes de decidir. Eso no es una evaluación ciega. Las decisiones metodológicas de §19 son propuestas y la autora debe validarlas.
@@ -45,15 +45,22 @@ Sin una referencia independiente, afirmar que «el motor acierta» es circular. 
 
 ## 6. Entidades RiC involucradas
 
-Ninguna se crea ni se modifica. Lo que se anota y lo que el motor propone usa los tipos de la descripción:
-- agente con rol, que es la base de RiC-R027/R031/R032/R039i;
-- lugar, fecha (EDTF), actividad, tipo de actividad, mandato y forma documental.
+Ninguna se crea ni se modifica en el fondo. Desde la versión 2, lo que se anota y lo que el motor propone son **entidades con su clase de RiC-O**:
+- el documento que se describe (rico:Record);
+- agente con su clase (Person, CorporateBody, Position, Group, Family, Mechanism; o Agent si no se precisa);
+- lugar (Place), fecha (Date, con EDTF), actividad (Activity), tipo de actividad (ActivityType), mandato (Mandate) y forma documental (DocumentaryFormType).
 
 Las anotaciones son datos de investigación, no descripción del fondo: **no entran al vocabulario ni al grafo.**
 
 ## 7. Relaciones RiC involucradas
 
-Solo indirectamente: el rol del agente define con qué se empareja (un productor no se compara con un destinatario), igual que define `hasCreator` y `hasAddressee` al publicar.
+Desde la versión 2, **directamente**. La archivista une el documento y las entidades (o las entidades entre sí) con una de 28 propiedades de RiC-O del mapeo verificado (`evaluacion_ric.PROPIEDADES`). Entre ellas:
+- hasCreator R027, hasAuthor R079, hasSender R031, hasAddressee R032, hasOrHadHolder R039i;
+- hasOrHadSubject R019, isCreationDateOf R080, isOrWasLocationOf R075, documents R033;
+- hasActivityType, performsOrPerformed R060i, regulatesOrRegulated R063, authorizes R067;
+- relaciones entre agentes (R045, R054, R055…) y hasDocumentaryFormType.
+
+Cada una se muestra con su nombre archivístico, su etiqueta oficial en español y su código RiC-CM (por ejemplo: «Destinatario — se dirige a (rico:hasAddressee · RiC-R032)»). La propuesta del motor se convierte a las mismas relaciones que crearía la publicación (`descripcion.RELACION_POR_ROL` y la cadena de la actividad).
 
 ## 8. Funcionalidades
 
@@ -63,12 +70,24 @@ Solo indirectamente: el rol del agente define con qué se empareja (un productor
 - Anotación ciega, con borrador y envío. Al enviarla se mide el tiempo desde que se abrió.
 - Anotación asistida: empieza con la propuesta puesta.
 - Rúbrica de tres criterios, de 1 a 5.
+- **Descripción en RiC (v2):**
+  - entidades y relaciones RiC-O, como se describe arriba;
+  - la pantalla solo ofrece las relaciones que RiC-O admite entre los dos extremos elegidos;
+  - el borrador se guarda y muestra su conformidad;
+  - una descripción que no es RiC válida no se envía.
+- **Conformidad RiC-O 1.1 (v2):** de cada descripción, la del motor, la ciega y la asistida. Se revisa contra:
+  - el mapeo verificado: clase del origen y del destino;
+  - el perfil: un título, a lo sumo una forma documental, a lo sumo un tipo por actividad, ninguna entidad suelta;
+  - el OWL oficial: dominio y rango.
 - **Reglas de ceguera, exigidas por el servidor:**
   - quien vio la propuesta de un documento (asistida, rúbrica o resultados) no puede describirlo a ciegas;
   - tampoco quien lo abrió en Descripción;
   - con una descripción ciega abierta, no se puede ver la propuesta.
 - Resultados:
   - precisión, exhaustividad y F1 por tipo, estricta y flexible, micro y macro;
+  - lo mismo para las **relaciones**, por propiedad de RiC-O, con el acuerdo entre archivistas en relaciones;
+  - **confusión de propiedades**: los mismos extremos con otra relación (el motor dijo destinatario y la archivista, productor);
+  - **conformidad RiC-O** por origen (motor, ciega, asistida) y los problemas más frecuentes;
   - acuerdo entre archivistas (F1);
   - tiempos (mediana y media);
   - rúbrica (media y kappa ponderado);
@@ -114,13 +133,14 @@ cerrada ────── resultados (quien los ve queda expuesto: ya no descri
 | Método y ruta | Permiso | Qué hace |
 |---|---|---|
 | `GET ?fondo_id` | anota o administra | Lista (quien anota ve solo las en curso) |
+| `GET /propiedades` | anota o administra | Las 28 relaciones de RiC-O disponibles, con los extremos que admite cada una (v2) |
 | `POST` | administrador | Crear |
 | `POST /{id}/documentos` | administrador | Agregar documentos sin describir (422 si alguno ya está descrito) |
 | `POST /{id}/propuestas` | administrador | Generar las propuestas; solo devuelve cuántas |
 | `POST /{id}/estado` | administrador | Iniciar (exige todas las propuestas) o cerrar |
 | `GET /{id}/tareas` | anota | Sus documentos y lo que ya hizo |
 | `POST /{id}/documentos/{doc}/anotar` | anota | Empezar o retomar, ciega o asistida (409 si la ceguera ya no es posible) |
-| `PUT /anotaciones/{a}` | la autora de la anotación | Guardar o enviar |
+| `PUT /anotaciones/{a}` | la autora de la anotación | Guardar o enviar. v2: `relaciones` con `{origen, propiedad, destino}`; responde con la conformidad; enviar exige conformidad (422 con los problemas). Sin `relaciones`, acepta el formato anterior con roles y lo convierte |
 | `POST /{id}/documentos/{doc}/propuesta` | anota | Ver la propuesta para calificar (queda la exposición) |
 | `PUT /{id}/documentos/{doc}/calificacion` | anota | Rúbrica (exige haberla visto) |
 | `POST /anotaciones/{a}/anular` | administrador | Anular, sin borrar |
@@ -147,7 +167,12 @@ Todo, en el módulo `evaluacion`, con nombre legible:
 
 ## 17. Interoperabilidad
 
-Hoja de cálculo (.xlsx) con tres hojas: entidades (estricta y flexible), acuerdo, tiempos y rúbrica, y una hoja por documento. Sirve para el análisis estadístico en otra herramienta.
+Hoja de cálculo (.xlsx) con cinco hojas:
+- entidades (estricta y flexible);
+- relaciones RiC, por propiedad, con la confusión de propiedades (v2);
+- conformidad RiC-O, por origen y por problema (v2);
+- acuerdo, tiempos y rúbrica;
+- documentos. Sirve para el análisis estadístico en otra herramienta.
 
 ## 18. Normativa y referencias de método
 
@@ -165,13 +190,15 @@ Hoja de cálculo (.xlsx) con tres hojas: entidades (estricta y flexible), acuerd
 | Patrón de referencia | Lo publicado en Descripción; una descripción experta única adjudicada; **cada descripción ciega como referencia** | **Cada ciega es una referencia** (las métricas suman sobre todas) | Lo publicado está sesgado por la propuesta. Una adjudicación exige una tercera persona y un procedimiento que la autora debe definir. Cada referencia ciega es independiente y el acuerdo entre ellas dice cuánto «techo» hay | Si dos archivistas difieren mucho, el motor se mide contra referencias inconsistentes. Por eso se reporta el acuerdo junto a las métricas. Si la autora prefiere una referencia adjudicada, se agrega sin cambiar lo demás |
 | Cómo se garantiza la ceguera | Confiar en la instrucción a la persona; ocultarlo en la pantalla; **registrar cada exposición y negarlo en el servidor** | **Servidor** (exposiciones + trabajos en Descripción) | Una regla que solo vive en la pantalla no es evidencia. Con el registro, la tesis puede afirmar que ninguna referencia ciega vio la propuesta | No detecta que alguien vea la propuesta en la pantalla de otra persona. Eso queda en el protocolo |
 | Documentos admitidos | Cualquiera; **solo sin describir** | **Solo sin describir** | El motor recibe el vocabulario del fondo como contexto: con un documento ya descrito, sus entidades estarían en el contexto (fuga de la respuesta) | Exige reservar documentos para la evaluación. Si alguien los describe durante la evaluación, el resultado lo marca |
-| Emparejamiento | Por conjunto (sin unicidad); **uno a uno, del más parecido al menos, por tipo y rol** | **Uno a uno** | Evita contar dos veces la misma entidad. Comparar por rol respeta que «productor» y «destinatario» son relaciones RiC distintas | El orden voraz no es el óptimo global (algoritmo húngaro). Con pocas entidades por tipo, la diferencia es despreciable |
+| Emparejamiento | Por conjunto (sin unicidad); **uno a uno, del más parecido al menos** | **Uno a uno**. v1 comparaba por tipo y rol; **v2 compara las entidades solo por tipo**, y el rol se mide como relación (§24) | Evita contar dos veces la misma entidad. En RiC el papel de un agente no es de la entidad sino de su relación con el documento | El orden voraz no es el óptimo global (algoritmo húngaro). Con pocas entidades por tipo, la diferencia es despreciable |
 | Igualdad de valores | Solo exacta; solo por similitud; **las dos** | **Estricta** (normalizada: tildes, mayúsculas, signos; fechas por EDTF) **y flexible** (SequenceMatcher ≥ umbral de la evaluación, 0,85 por defecto) | La estricta es reproducible e indiscutible; la flexible reconoce variantes («Concejo Municipal» y «Concejo Municipal de Tunja»). Se reportan las dos para que el jurado vea la diferencia | El umbral es una elección: se fija por evaluación, antes de empezar, y se informa. Lo ideal es que la autora lo justifique con una muestra |
 | Acuerdo entre archivistas | Kappa de Cohen; **F1 entre pares** | **F1** | En extracción de entidades no hay «negativos» (todo lo no anotado), así que el kappa no está definido; F1 converge al kappa cuando los negativos son muchos (Hripcsak y Rothschild, 2005) | Menos conocido para un jurado de archivística: se explica en la pantalla y en la tesis |
 | Rúbrica | Sin rúbrica; escala 1–3; **1–5 en tres criterios, kappa ponderado cuadrático** | Así | Mide lo que las métricas no ven (pertinencia del contexto). El kappa ponderado respeta que 4 frente a 5 es menos desacuerdo que 1 frente a 5 | Los criterios son una propuesta: la autora debe validarlos o cambiarlos |
 | Tiempos | Cronómetro manual; **servidor, de abrir a enviar** | **Servidor** | Sin intervención y comparable entre condiciones | Incluye pausas. Se reporta la mediana, robusta a una pausa larga |
 
 ## 20. Código
+
+v2 agrega `app/servicios/evaluacion_ric.py` (conversión, conformidad y comparación de relaciones) y `tests/test_evaluacion_ric.py` (10 pruebas). No hay migración: las anotaciones ya se guardaban en JSONB.
 
 ```
 alembic/versions/0015_evaluacion_ciega.py
@@ -222,3 +249,57 @@ En desarrollo, sobre el oficio 301 de 1949, con un motor de prueba:
 - **Resultado:** P = 0,33, E = 1, F1 = 0,5, en estricta y en flexible. Rúbrica 4/4/4. Kappa no calculable, porque hay una sola calificadora (la pantalla lo muestra como «—», sin inventarlo).
 
 La evidencia de la tesis será la misma pantalla con el motor real y las archivistas reales. Los números de este ejemplo **no** son resultados de la investigación.
+
+## 24. Versión 2: la descripción y la evaluación en RiC
+
+**Por qué.** El título y la pregunta de la tesis piden comparar descripciones basadas en RiC-CM. El resumen promete medir F «por tipo de entidad y de relación». La versión 1 no lo cumplía:
+- la archivista anotaba una ficha con entidades sueltas;
+- solo se medían entidades;
+- nadie revisaba si lo descrito era RiC válido.
+
+**Qué cambió:**
+1. La descripción se hace en RiC: entidades con clase y relaciones con propiedad de RiC-O.
+2. Se miden las relaciones y la confusión de propiedades.
+3. Se revisa la conformidad de cada descripción con RiC-O 1.1.
+
+**Qué no cambió:**
+- las reglas de ceguera;
+- la rúbrica (sus criterios siguen siendo exactitud, completitud y pertinencia);
+- los tiempos;
+- la regla de solo documentos sin describir.
+
+Una anotación con el formato anterior se sigue leyendo: se convierte con la regla de la publicación.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo anota la archivista | Ficha con roles (v1); grafo libre con cualquier propiedad de RiC-O; **entidades + relaciones de una lista cerrada del mapeo verificado** | **Lista cerrada** (28 propiedades) | Son las que el sistema sabe exportar y verificar. Quedan fuera las estructurales (jerarquía, instanciación, secuencia), que no se deducen leyendo un documento. Una propiedad libre no se podría comparar con el motor ni validar | Si una archivista necesita una relación que no está, no puede anotarla. Se agrega al mapeo (con su verificación contra el OWL), no en la evaluación |
+| Cómo se convierte la propuesta del motor | Pedirle al motor tripletas; **convertir sus roles con la misma regla de la publicación** | **Misma regla** | Se evalúa el sistema tal como publica, no una salida distinta. Sin cambiar la instrucción del motor, sigue valiendo la versión registrada | El motor no propone relaciones entre agentes (subordinación, cargo). Las que anote la archivista cuentan como no encontradas: es una limitación real del motor y queda medida |
+| Cuándo una relación es acierto | Solo la propiedad; **propiedad y los dos extremos** | **Propiedad y extremos** (cada extremo, con la misma igualdad estricta o flexible que las entidades) | «Productor = Alcaldía» es un hecho. «Hay un productor» no lo es | Un extremo con una variante de nombre baja el acierto estricto. Para eso está la flexible |
+| Mismos extremos con otra propiedad | Contarlo solo como error; **contarlo además como confusión** | **Confusión aparte** | Dice qué se equivoca el motor (destinatario frente a productor), que es lo que la tesis necesita discutir | Ninguno: no altera P, E ni F1 |
+| Conformidad: contra qué | Solo el perfil SHACL de la exportación; **mapeo + perfil + OWL oficial** | **Las tres** | El perfil SHACL exige cosas propias de una exportación (pertenencia a un fondo, identificadores), que una anotación no tiene. El OWL oficial es independiente del mapeo del sistema | Un agente sin clase solo es válido donde cualquier agente lo es (por ejemplo, el autor exige la clase). Se informa con esa razón |
+| ¿Se puede enviar una descripción no conforme? | Sí, y se mide; **no: el borrador sí, el envío no** | **No se envía** | La referencia tiene que ser RiC válida; si no, se compararía el motor con algo que RiC-O no admite. La conformidad de las archivistas queda en 100 % por protocolo, y así se reporta | Una archivista podría «forzar» una relación válida pero no pensada. La pantalla muestra el nombre archivístico y la etiqueta oficial para evitarlo |
+| Agente sin papel en el formato anterior | Tema (como el motor); **sin relación** | **Sin relación**, en una anotación de una persona | No se le inventa un dato a la referencia humana. El motor sí usa «mencionado» porque así publica | Ninguno |
+
+**Pruebas nuevas (tests/test_evaluacion_ric.py):**
+- la conversión del motor;
+- un nodo con dos papeles;
+- la cadena de la actividad;
+- la conformidad: mapeo, OWL, agente sin clase y perfil;
+- el catálogo;
+- relaciones y confusión calculadas a mano;
+- el flujo por la API: 422 por propiedad inexistente, por entidad inexistente y por envío no conforme; formato anterior; resultados y hoja;
+- la asistida anulada que se reabre con la propuesta.
+
+**Falla anterior corregida en el camino.** Una anotación asistida anulada se reabría vacía, sin la propuesta del motor. Ahora vuelve con ella.
+
+**Recorrido en navegador** (motor simulado, base de prueba):
+- se describió un acta en RiC;
+- la entidad suelta «Tunja» impidió el envío, con su razón;
+- al relacionarla, quedó conforme;
+- la asistida trajo las cuatro relaciones del motor;
+- los resultados mostraron entidades, relaciones por propiedad, confusiones y conformidad;
+- a 390 px, sin desplazamiento horizontal ni errores.
+
+**Pendiente de la autora:**
+- validar que la lista de 28 propiedades es la adecuada para el conjunto documental del caso;
+- decidir si la rúbrica agrega un criterio relacional (punto 3, que no se tocó).
