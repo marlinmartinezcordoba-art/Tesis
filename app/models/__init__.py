@@ -5,6 +5,7 @@ from app.models.alerta import Alerta  # noqa: F401
 from app.models.auditoria import RegistroAuditoria  # noqa: F401
 from app.models.evidencia_ia import PaginaTexto, PropuestaIA  # noqa: F401
 from app.models.evaluacion import Anotacion, Calificacion, Evaluacion, EvaluacionDocumento, Exposicion  # noqa: F401
+from app.models.grafo_rdf import GrafoRdf  # noqa: F401
 from app.models.hallazgo import EtiquetaVersionPrompt, HallazgoConformidad  # noqa: F401
 from app.models.descripcion import (  # noqa: F401
     Actividad, EntidadVocabulario, Fecha, Relacion, SugerenciaFusion, TrabajoDescripcion, TrabajoInstanciacion,
@@ -23,3 +24,6 @@ from app.models.tesauro import ConceptoTesauro, EtiquetaConcepto, Tesauro  # noq
 from app.models.token_acceso import TokenUnUso  # noqa: F401
 from app.models.usuario import Usuario  # noqa: F401
 from app.models.version_descripcion import VersionDescripcion  # noqa: F401
+
+# El grafo RiC-O persistente escucha los cambios de estos modelos (marca su fondo).
+from app.servicios import grafo_rdf  # noqa: E402,F401

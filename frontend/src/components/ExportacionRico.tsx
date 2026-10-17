@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir, puede as tienePermiso } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 
@@ -20,6 +20,75 @@ interface Reporte {
   fondo: { id: string; titulo: string };
   uri_fondo: string;
   uris_publicas: boolean;
+}
+
+interface GrafoGuardado { fondo_id: string; alcance: string; nombre: string; al_dia: boolean; tripletas: number | null;
+  sincronizado_en: string | null; conforme: boolean | null; huella: string | null; error: string | null }
+interface EstadoGrafo { almacen: { ok: boolean; motor?: string | null; tripletas?: number | null; motivo?: string | null };
+  grafos: GrafoGuardado[] }
+
+const ALCANCE: Record<string, string> = { publico: "Público (sin lo clasificado ni lo reservado)", completo: "Completo" };
+
+// El grafo RiC-O del fondo vive guardado en un almacén de tripletas
+// (Oxigraph); de ahí salen el SPARQL, las URI y las descargas.
+function GrafoPersistente({ fondoId }: { fondoId: string }) {
+  const { usuario } = useSesion();
+  const [estado, setEstado] = useState<EstadoGrafo | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const cargar = () => pedir<EstadoGrafo>("/api/exportacion/grafo").then(setEstado).catch(() => setEstado(null));
+  useEffect(() => { cargar(); }, [fondoId]);
+
+  async function rearmar() {
+    setOcupado(true);
+    setError("");
+    try {
+      setEstado(await pedir<EstadoGrafo>(`/api/exportacion/grafo/sincronizar?fondo_id=${fondoId}`, { method: "POST" }));
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo rearmar.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  if (!estado) return null;
+  const propios = estado.grafos.filter((g) => g.fondo_id === fondoId);
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Grafo RiC-O guardado</div>
+      <div className="tarjeta-cuerpo">
+        <p className="meta">
+          La descripción publicada vive como grafo RDF en un almacén de tripletas, un grafo con nombre por fondo. Cada
+          cambio lo rearma y lo valida contra RiC-O 1.1 (OWL y SHACL); el SPARQL, las URI y las descargas leen de aquí.
+          {estado.almacen.ok && estado.almacen.motor && <> Motor: {estado.almacen.motor}.</>}
+        </p>
+        {error && <div className="aviso error" role="alert">{error}</div>}
+        {!estado.almacen.ok && <div className="aviso error" role="alert">{estado.almacen.motivo}</div>}
+        <table className="tabla-permisos">
+          <thead><tr><th>Grafo</th><th>Estado</th><th>Tripletas</th><th>RiC-O 1.1</th><th>Actualizado</th></tr></thead>
+          <tbody>
+            {propios.map((g) => (
+              <tr key={g.alcance}>
+                <td>{ALCANCE[g.alcance] || g.alcance}<div className="meta"><code>{g.nombre}</code></div></td>
+                <td>{g.error ? <span className="insignia alerta" title={g.error}>Con error</span>
+                  : g.al_dia ? <span className="insignia bien">Al día</span> : <span className="insignia proceso">Actualizándose</span>}</td>
+                <td>{g.tripletas ?? "—"}</td>
+                <td>{g.conforme == null ? "—" : g.conforme ? "Conforme" : "No conforme"}</td>
+                <td className="meta">{g.sincronizado_en ? new Date(g.sincronizado_en).toLocaleString("es-CO") : "—"}
+                  {g.huella && <div title={`SHA-256 del grafo guardado: ${g.huella}`}>huella {g.huella.slice(0, 12)}…</div>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {usuario?.es_administrador && (
+          <div className="acciones" style={{ marginTop: 10 }}>
+            <button type="button" className="boton chico" disabled={ocupado} onClick={rearmar}>
+              {ocupado ? "Rearmando…" : "Rearmar ahora"}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string } }) {
@@ -93,6 +162,7 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {aviso && <div className="aviso" role="status">{aviso}</div>}
+      <GrafoPersistente fondoId={fondo.id} />
 
       <div className="tarjeta">
         <div className="tarjeta-cab">Exportar</div>

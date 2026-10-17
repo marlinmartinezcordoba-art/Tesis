@@ -17,6 +17,7 @@ import { CuadroClasificacion } from "@/components/CuadroClasificacion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
+import { NivelRiC } from "@/components/NivelRiC";
 
 type Pestana = "catalogo" | "cuadro" | "grafo" | "inventario" | "guia" | "indice" | "rico";
 const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
@@ -82,7 +83,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
           <div className="panel-cuerpo">
             <div className="ficha-titulo">
               <div>
-                <span className="insignia acento">{NIVEL_NOMBRE[ficha.nivel]}</span>
+                <span className="insignia acento">{NIVEL_NOMBRE[ficha.nivel]}</span> <NivelRiC nivel={ficha.nivel} />
                 <h2>{ficha.titulo}</h2>
               </div>
               {preservacion && vePreservacion && (
@@ -237,7 +238,7 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
           const entra = AGRUPACIONES.includes(h.nivel) && h.hijos > 0;
           return (
             <button type="button" key={h.id} className="fila fila-enlace fila-boton" onClick={() => (entra ? ir(h.id) : abrir(h.id))}>
-              <span className="insignia acento">{NIVEL_NOMBRE[h.nivel]}</span>
+              <span className="insignia acento">{NIVEL_NOMBRE[h.nivel]}</span> <NivelRiC nivel={h.nivel} />
               <div className="fila-principal">
                 <div className="nombre">{h.titulo}</div>
                 <div className="meta">

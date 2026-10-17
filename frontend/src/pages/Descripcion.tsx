@@ -9,6 +9,7 @@ import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
+import { NivelRiC } from "@/components/NivelRiC";
 
 // «Descritas» muestra las más recientes; el resto, en la exportación.
 const RECIENTES_DESCRITAS = 15;
@@ -263,7 +264,7 @@ export function Descripcion() {
                 <div className="fila-principal">
                   <div className="nombre">{p.titulo}</div>
                   <div className="meta">
-                    {NIVEL_NOMBRE[p.nivel] || p.nivel} · {p.documentos} documento{p.documentos === 1 ? "" : "s"} · publicada {fecha(p.publicado_en)}
+                    {NIVEL_NOMBRE[p.nivel] || p.nivel} <NivelRiC nivel={p.nivel} /> · {p.documentos} documento{p.documentos === 1 ? "" : "s"} · publicada {fecha(p.publicado_en)}
                     {p.actualizado_en && ` · corregida ${fecha(p.actualizado_en)}`}
                   </div>
                 </div>

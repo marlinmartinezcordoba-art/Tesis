@@ -28,8 +28,9 @@ from app.models.descripcion import EntidadVocabulario, Fecha, Hito, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
+from app.schemas import respuestas_grafo_rdf as RG
 from app.schemas import respuestas_preservacion as R
-from app.servicios import alertas, conformidad_rico, exportacion_rico, parametros
+from app.servicios import alertas, conformidad_rico, exportacion_rico, grafo_rdf, parametros
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/exportacion", tags=["Exportación RiC-O"])
@@ -41,7 +42,14 @@ def _exportacion(db: Session, actor: Actor, fondo_id: uuid.UUID, incluir_restrin
     if incluir_restringidos and not actor.puede("catalogo", "escribir"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Incluir lo clasificado o reservado exige permiso de "
                                                               "escritura en el catálogo.")
-    return fondo, exportacion_rico.exportar(db, fondo, incluir_restringidos)
+    return fondo, _leer(db, fondo, incluir_restringidos)
+
+
+def _leer(db: Session, fondo, incluir_restringidos: bool):
+    try:
+        return grafo_rdf.leer(db, fondo, incluir_restringidos)
+    except grafo_rdf.ErrorGrafo as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.get("/rdf", summary="El fondo en RiC-O 1.1 (Turtle o JSON-LD)",
@@ -90,6 +98,29 @@ def conformidad(request: Request, fondo_id: uuid.UUID, incluir_restringidos: boo
     return reporte | {"fondo": {"id": str(fondo.id), "titulo": fondo.titulo},
                       "uri_fondo": str(exportacion_rico.uri(fondo.id)),
                       "uris_publicas": bool(parametros.leer(db, "rdf_uris_publicas"))}
+
+
+@router.get("/grafo", response_model=RG.EstadoGrafoRdf,
+            summary="El grafo RiC-O persistente: almacén de tripletas y estado de cada grafo (al día, conforme)")
+def estado_grafo(_: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    return grafo_rdf.estado(db)
+
+
+@router.post("/grafo/sincronizar", response_model=RG.EstadoGrafoRdf,
+             summary="Rearmar ya el grafo RiC-O de un fondo en el almacén (solo administrador)")
+def sincronizar_grafo(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                      db: Session = Depends(get_db)):
+    fondo = fondo_o_404(db, fondo_id)
+    try:
+        filas = [grafo_rdf.sincronizar(db, fondo, alcance) for alcance in grafo_rdf.ALCANCES]
+    except grafo_rdf.ErrorGrafo as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    registrar(db, modulo="instrumentos", accion="grafo_rdf_sincronizado", usuario_id=actor.id,
+              entidad_tipo="recurso_documental", entidad_id=fondo.id, ip=ip_de(request), detalle=fondo.titulo,
+              nuevo={f.alcance: {"tripletas": f.tripletas, "conforme": f.conforme, "huella": f.huella} for f in filas})
+    db.commit()
+    return grafo_rdf.estado(db)
 
 
 class UrisPublicasIO(BaseModel):
@@ -210,7 +241,7 @@ def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: 
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe.")
     # Ni con sesión se resuelve aquí lo clasificado o reservado: para eso
     # está la exportación completa, con permiso y con registro.
-    ex = exportacion_rico.exportar(db, fondo, incluir_restringidos=False)
+    ex = _leer(db, fondo, False)
     nodo = URIRef(exportacion_rico.base() + ruta)
     if (nodo, RDF.type, None) not in ex.grafo:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe o no es público.")

@@ -10,6 +10,7 @@ import { useSesion } from "@/lib/sesion";
 import {
   CLASE_INSIGNIA, CLASE_NOMBRE, claseRicDe, conexionesTexto, esMecanismo, type EntidadVocabulario,
 } from "@/lib/vocabulario";
+import { NivelRiC } from "@/components/NivelRiC";
 
 interface Documento {
   id: string;
@@ -150,7 +151,7 @@ function ListaDocumentos({ documentos, enlace }: { documentos: Documento[]; enla
     <>
       {documentos.map((d) => (
         <div className="fila" key={d.id}>
-          <span className="insignia acento">{NIVEL_NOMBRE[d.nivel] || d.nivel}</span>
+          <span className="insignia acento">{NIVEL_NOMBRE[d.nivel] || d.nivel}</span> <NivelRiC nivel={d.nivel} />
           <div className="fila-principal">
             <div className="nombre">{enlace ? <Link to={enlace(d.id)}>{d.titulo}</Link> : d.titulo}</div>
           </div>

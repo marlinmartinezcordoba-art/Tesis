@@ -107,6 +107,16 @@ def _respaldo(db: Session) -> dict:
 LOCALES = {"localhost", "127.0.0.1", "::1"}
 
 
+def _grafo_rdf() -> dict:
+    """El almacén de tripletas (grafo RiC-O persistente) responde."""
+    from app.servicios import grafo_rdf
+
+    try:
+        return {"ok": True} | grafo_rdf.almacen().estado()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "motivo": f"El almacén del grafo RiC-O no responde: {str(exc)[:200]}"}
+
+
 def _conexion() -> dict:
     url = urlsplit(settings.url_publica)
     if url.scheme == "https":
@@ -121,7 +131,8 @@ def estado(db: Session) -> tuple[int, dict]:
     base = _base(db)
     piezas = {"base_de_datos": base, "conexion": _conexion()}
     if base["ok"]:
-        piezas |= {"almacen": _almacen(), "trabajador": _trabajador(), "respaldo": _respaldo(db)}
+        piezas |= {"almacen": _almacen(), "trabajador": _trabajador(), "respaldo": _respaldo(db),
+                   "grafo_rdf": _grafo_rdf()}
     else:
         piezas |= {"almacen": _almacen(), "trabajador": _trabajador()}
     if not base["ok"]:

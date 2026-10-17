@@ -2,6 +2,9 @@
 
 **Versión:** 2. La versión 1 era la pestaña «Grafo» de Instrumentos (commit `9b380ed`).
 **Estado:** entregado, pendiente de validación por la autora.
+
+> **Nota (grafo RiC-O persistente):** desde la migración 0039, la descripción publicada vive además como grafo RiC-O en un almacén de tripletas (Oxigraph); de ahí salen el SPARQL, las URI, las descargas y la exportación del fragmento visible. Esta vista sigue consultando las tablas porque filtra por estado, origen y fechas que no están en RiC-O. Ver `grafo-rico-persistente.md`.
+
 **Estructura:** los catorce puntos del prompt «Visualización interactiva del grafo de contexto», con las tablas de decisión que exige su §8 y las desviaciones declaradas.
 
 ---

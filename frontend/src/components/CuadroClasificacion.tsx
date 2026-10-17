@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
+import { NivelRiC } from "@/components/NivelRiC";
 
 // Cuadro de clasificación (CCD) y tabla de retención (TRD) del fondo.
 // Se cargan desde la plantilla Excel del sistema o desde la TRD en el
@@ -34,6 +35,7 @@ function Rama({ n, profundidad }: { n: NodoCuadro; profundidad: number }) {
       <tr>
         <td style={{ paddingLeft: 8 + profundidad * 18 }}>
           <span className="meta">{NIVEL[n.nivel]}</span> {n.codigo && <strong>{n.codigo}</strong>} {n.titulo}
+          {" "}<NivelRiC nivel={n.nivel} />
         </td>
         <td>{n.regla && !n.regla.heredada_de ? `${n.regla.gestion_anios ?? "—"} / ${n.regla.central_anios ?? "—"}` : ""}</td>
         <td>{n.regla && !n.regla.heredada_de ? n.regla.disposicion_nombre : ""}</td>

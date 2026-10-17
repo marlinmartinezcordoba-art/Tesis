@@ -17,6 +17,7 @@ import {
 } from "@/lib/descripcion";
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
 import { VisorDocumento, Zona } from "@/components/VisorDocumento";
+import { NivelRiC } from "@/components/NivelRiC";
 
 interface EntidadPropuesta {
   clave: string;
@@ -330,7 +331,7 @@ export function EspacioTrabajo() {
     <>
       <h1>Describiendo</h1>
       <p className="sub">
-        {NIVEL_NOMBRE[espacio.nivel]} · {espacio.documentos.length} documento{espacio.documentos.length === 1 ? "" : "s"}
+        {NIVEL_NOMBRE[espacio.nivel]} <NivelRiC nivel={espacio.nivel} /> · {espacio.documentos.length} documento{espacio.documentos.length === 1 ? "" : "s"}
         {propuesta?.motor && propuesta.disponible && ` · propuesta del motor ${propuesta.motor}`}
         {propuesta?.version_modelo && propuesta.disponible && <> (versión {propuesta.version_modelo})</>}
         {propuesta?.version_prompt && propuesta.disponible && <> · instrucción <code>{propuesta.version_prompt}</code></>}

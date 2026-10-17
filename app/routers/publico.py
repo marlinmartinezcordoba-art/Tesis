@@ -24,7 +24,8 @@ from app.models.recurso_documental import RecursoDocumental
 from app.routers.exportacion import _actor_si_hay
 from app.routers.fondos import fondo_o_404
 from app.schemas.respuestas_instrumentos import IndiceLey1712
-from app.servicios import conformidad_rico, derechos, dip, exportacion_rico, intercambio, ley1712, parametros, sparql
+from app.servicios import (conformidad_rico, derechos, dip, exportacion_rico, grafo_rdf, intercambio, ley1712, parametros,
+                           sparql)
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/publico", tags=["Datos abiertos"])
@@ -53,7 +54,10 @@ def _visibles(db: Session, fondo: RecursoDocumental):
 def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld"] = "turtle",
         actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, fondo_id)
-    ex = exportacion_rico.exportar(db, fondo, incluir_restringidos=False)
+    try:
+        ex = grafo_rdf.leer(db, fondo, incluir_restringidos=False)
+    except grafo_rdf.ErrorGrafo as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=503)
     conforme = not conformidad_rico.verificar_owl(ex.grafo) and conformidad_rico.validar_shacl(ex.grafo)["conforme"]
     registrar(db, modulo="instrumentos", accion="rdf_publico_descargado", usuario_id=actor.id if actor else None,
               entidad_tipo="recurso_documental", entidad_id=fondo.id, ip=ip_de(request), detalle=fondo.titulo,
@@ -79,9 +83,8 @@ async def consulta_sparql(request: Request, fondo_id: uuid.UUID, query: str | No
         else:
             query = (await request.form()).get("query") or query
     fondo = fondo_o_404(db, fondo_id)
-    ex = exportacion_rico.exportar(db, fondo, incluir_restringidos=False)
     try:
-        cuerpo, tipo = sparql.consultar(ex.grafo, query or "")
+        cuerpo, tipo = sparql.consultar(db, fondo, query or "")
     except sparql.ErrorSparql as exc:
         return JSONResponse({"detail": str(exc)}, status_code=exc.codigo)
     return Response(cuerpo, media_type=tipo, headers={"Vary": "Authorization"})

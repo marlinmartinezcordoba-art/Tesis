@@ -153,11 +153,19 @@ def _recursos(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool,
 # --- Construcción -----------------------------------------------------------------------------------
 
 
-def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool = False) -> Exportacion:
+def grafo_vacio() -> Graph:
     g = Graph()
     for prefijo, ns in (("rico", RICO), ("rst", RST), ("skos", SKOS), ("owl", OWL), ("rdfs", RDFS),
                         ("ricora", Namespace(base())), ("lexvo", LEXVO)):
         g.bind(prefijo, ns)
+    return g
+
+
+def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool = False) -> Exportacion:
+    """Arma el grafo RiC-O del fondo desde la base. Solo lo usa `grafo_rdf.sincronizar`
+    (y la evaluación de conformidad de lo que se está describiendo): lo que se consulta
+    y se descarga sale del grafo guardado (`grafo_rdf.leer`)."""
+    g = grafo_vacio()
     ex = Exportacion(grafo=g, fondo=fondo)
     recursos = _recursos(db, fondo, incluir_restringidos, ex.omitidas)
     for r in recursos.values():

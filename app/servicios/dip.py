@@ -107,7 +107,9 @@ def armar(db: Session, recurso: RecursoDocumental, base_publica: str) -> Path:
     """Arma el .zip en el directorio temporal y devuelve su ruta (el que
     llama la borra después de enviarla)."""
     fondo = db.get(RecursoDocumental, recurso.fondo_id)
-    ex = exportacion_rico.exportar(db, fondo, incluir_restringidos=False)
+    from app.servicios import grafo_rdf
+
+    ex = grafo_rdf.leer(db, fondo, incluir_restringidos=False)
     nodo = URIRef(exportacion_rico.base() + str(recurso.id))
     rdf = exportacion_rico.serializar(exportacion_rico.descripcion_de(ex, nodo), "turtle")
     ficha = isadg.ficha(db, recurso)

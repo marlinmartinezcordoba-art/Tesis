@@ -37,6 +37,7 @@ services:
       RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
       RICORA_RESPALDO: /data/respaldo
       RICORA_SEGUNDA_COPIA_SOLO_LECTURA: "1"
+      RICORA_GRAFO_URL: http://grafo:7878
     # Con HTTPS (perfil «https») la aplicación solo escucha dentro del
     # servidor y Caddy la publica en los puertos 80 y 443.
     ports:
@@ -49,6 +50,27 @@ services:
     depends_on:
       bd:
         condition: service_healthy
+      grafo:
+        condition: service_healthy
+
+  # Grafo RiC-O persistente: almacén de tripletas Oxigraph (SPARQL 1.1) con
+  # un grafo por fondo. Es el único proceso que escribe en él; la web y el
+  # trabajador lo usan por la red interna. No publica ningún puerto.
+  grafo:
+    build: .
+    restart: unless-stopped
+    command: ["grafo"]
+    env_file:
+      - .env
+    environment:
+      RICORA_GRAFO_DIRECTORIO: /data/grafo
+    volumes:
+      - grafo:/data/grafo
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7878/salud', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   # Trabajador de ingesta: procesa lo cargado (huella, duplicados, formato
   # PRONOM, texto u OCR) en un proceso aparte de la web. Misma imagen y
@@ -64,6 +86,7 @@ services:
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
       RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
       RICORA_RESPALDO: /data/respaldo
+      RICORA_GRAFO_URL: http://grafo:7878
     volumes:
       - almacen:/data/almacen
       - segunda_copia:/data/segunda_copia
@@ -104,5 +127,8 @@ volumes:
   # Mismo disco que la base: por eso el sistema exige además que el
   # administrador descargue el respaldo a otro equipo cada cierto tiempo.
   respaldo:
+  # Grafo RiC-O persistente (almacén de tripletas Oxigraph). Se puede
+  # rearmar entero desde la base: python -m app.cli sincronizar-grafo.
+  grafo:
   caddy_data:
   caddy_config:

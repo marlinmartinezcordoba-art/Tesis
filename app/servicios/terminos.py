@@ -197,7 +197,35 @@ def generar_ts() -> str:
         if tipo == "agente":
             lineas.append(f'  {rol}: "{codigo}",')
     lineas += ["};", ""]
+    lineas += nivel_ric_ts()
     return "\n".join(lineas)
+
+
+def nivel_ric() -> dict[str, dict]:
+    """Cada nivel de descripción (ISAD(G) y cuadro de clasificación) con su clase y su
+    tipo de agrupación en RiC-O, como los exporta el sistema (ric_o es la fuente)."""
+    from app.servicios import ric_o
+
+    salida = {}
+    for nivel, clase in ric_o.CLASE_NIVEL.items():
+        oficial = ric_o.TIPO_AGRUPACION_OFICIAL.get(nivel)
+        cercano = ric_o.TIPO_AGRUPACION_PROPIO.get(nivel)
+        salida[nivel] = {"clase": f"rico:{clase}", "tipo": f"rst:{oficial}" if oficial else None,
+                         "cercano": f"rst:{cercano}" if cercano else None}
+    return salida
+
+
+def nivel_ric_ts() -> list[str]:
+    lineas = [
+        "// Nivel de descripción → clase de RiC-O y tipo de agrupación (recordSetTypes). «cercano»: el",
+        "// tipo oficial más próximo (skos:broadMatch) cuando el nivel no tiene uno propio en RiC-O.",
+        "export const NIVEL_RIC: Record<string, { clase: string; tipo: string | null; cercano: string | null }> = {",
+    ]
+    for nivel, d in nivel_ric().items():
+        lineas.append(f'  {nivel}: {{ clase: {_ts_texto(d["clase"])}, tipo: {_ts_texto(d["tipo"])}, '
+                      f'cercano: {_ts_texto(d["cercano"])} }},')
+    lineas += ["};", ""]
+    return lineas
 
 
 def generar_md() -> str:

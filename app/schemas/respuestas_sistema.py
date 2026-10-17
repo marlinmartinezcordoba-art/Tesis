@@ -134,3 +134,4 @@ class SaludOut(BaseModel):
     almacen: PiezaSalud
     trabajador: PiezaSalud
     respaldo: PiezaSalud | None = None
+    grafo_rdf: PiezaSalud | None = None

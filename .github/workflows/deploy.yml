@@ -223,6 +223,7 @@ jobs:
             docker compose logs --tail 40 web || true
             echo "== Registro del trabajador de ingesta =="
             docker compose logs --tail 20 trabajador || true
+            docker compose logs --tail 20 grafo || true
             echo "== Herramientas de ingesta en la imagen =="
             docker compose exec -T web sh -c 'sf -home /opt/siegfried -version | head -4; tesseract --list-langs 2>&1 | tail -n +2 | tr "\n" " "; echo; echo Ghostscript $(gs --version)' || true
 

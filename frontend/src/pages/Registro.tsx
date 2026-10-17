@@ -20,6 +20,7 @@ import {
 } from "@/lib/descripcion";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { NivelRiC } from "@/components/NivelRiC";
 
 interface EntidadRegistrada {
   relacion_id: string;
@@ -255,7 +256,7 @@ export function RegistroDescripcion() {
       </div>
       <h1 style={{ marginTop: 10 }}>{registro.titulo}</h1>
       <p className="sub">
-        {NIVEL_NOMBRE[registro.nivel]} · publicada {fecha(registro.publicado_en)}
+        {NIVEL_NOMBRE[registro.nivel]} <NivelRiC nivel={registro.nivel} /> · publicada {fecha(registro.publicado_en)}
         {registro.actualizado_en && ` · corregida ${fecha(registro.actualizado_en)}`} · {registro.instanciaciones.map((i) => i.nombre).join(", ")}
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}

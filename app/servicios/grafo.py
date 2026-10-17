@@ -548,7 +548,9 @@ def exportar_fragmento(db: Session, fondo: RecursoDocumental, raiz_tipo: str, ra
     archivista tiene en pantalla, con sus nodos de apoyo (nombres, fechas
     propias, tipos de agrupación, idiomas)."""
     datos = subgrafo(db, fondo, raiz_tipo, raiz_id, saltos, filtros, ver_restringidos)
-    ex = exportacion_rico.exportar(db, fondo, ver_restringidos)
+    from app.servicios import grafo_rdf
+
+    ex = grafo_rdf.leer(db, fondo, ver_restringidos)
     completo = ex.grafo
     visibles = {exportacion_rico.uri(n["id"]) for n in datos["nodos"]}
     # Las entidades del fondo (lo que tiene URI propia): nunca se arrastran

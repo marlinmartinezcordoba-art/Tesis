@@ -41,6 +41,13 @@ class Settings:
     # datos se conservan; RICORA_PRESERVACION=1 lo vuelve a encender.
     preservacion_activa: bool = os.getenv("RICORA_PRESERVACION", "0").strip().lower() in ("1", "true", "si", "sí")
 
+    # Grafo RiC-O persistente (Oxigraph, SPARQL 1.1). En producción vive en
+    # su propio servicio (un solo proceso escribe): RICORA_GRAFO_URL. Sin
+    # URL se abre en este proceso: en RICORA_GRAFO_DIRECTORIO si se da, o en
+    # memoria (pruebas y desarrollo).
+    grafo_url: str = os.getenv("RICORA_GRAFO_URL", "").rstrip("/")
+    grafo_directorio: str = os.getenv("RICORA_GRAFO_DIRECTORIO", "")
+
     # Segunda copia (preservación, OAIS Almacenamiento de Archivo): lugares
     # donde el administrador puede elegir guardarla, separados por «:». Los
     # declara quien opera el servidor (no se escriben rutas desde la web);

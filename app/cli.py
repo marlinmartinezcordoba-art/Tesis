@@ -251,9 +251,32 @@ def importar_tesauro(ruta: str) -> int:
     return 0
 
 
+def sincronizar_grafo() -> int:
+    """Rearma en el almacén de tripletas el grafo RiC-O de todos los fondos (público y completo)."""
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models.recurso_documental import RecursoDocumental
+    from app.servicios import grafo_rdf
+
+    errores = 0
+    with SessionLocal() as db:
+        for fondo in db.scalars(select(RecursoDocumental).where(RecursoDocumental.nivel == "fondo")).all():
+            for alcance in grafo_rdf.ALCANCES:
+                try:
+                    f = grafo_rdf.sincronizar(db, fondo, alcance)
+                    print(f"  · {fondo.titulo} ({alcance}): {f.tripletas} tripletas, "
+                          f"{'conforme' if f.conforme else 'NO conforme'} con RiC-O 1.1")
+                except grafo_rdf.ErrorGrafo as exc:
+                    errores += 1
+                    print(f"  · {fondo.titulo} ({alcance}): {exc}")
+                db.commit()
+    return 1 if errores else 0
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
             "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos,
-            "terminos": generar_terminos}
+            "terminos": generar_terminos, "sincronizar-grafo": sincronizar_grafo}
 CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete, "importar-tesauro": importar_tesauro}
 
 if __name__ == "__main__":

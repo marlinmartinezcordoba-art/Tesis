@@ -3,6 +3,12 @@
 # pendientes y levanta el servidor.
 set -e
 
+# Servicio del grafo RiC-O: no usa la base de datos; abre el almacén de
+# tripletas y lo sirve a la web y al trabajador por la red interna.
+if [ "$1" = "grafo" ]; then
+  exec uvicorn app.grafo_servidor:app --host 0.0.0.0 --port 7878 --workers 1
+fi
+
 echo "Esperando la base de datos..."
 python - <<'EOF'
 import time

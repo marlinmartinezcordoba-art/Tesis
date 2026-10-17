@@ -29,7 +29,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
 from app.core.config import settings
-from app.servicios import mecanismos, preservacion, procesamiento, recuperacion, respaldo, salud, sesiones, vocabulario
+from app.servicios import grafo_rdf, mecanismos, preservacion, procesamiento, recuperacion, respaldo, salud, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
 _detener = False
@@ -92,6 +92,10 @@ def main() -> None:
                     if vinculadas:
                         db.commit()
                         log.info("Mecanismos: %s fila(s) anteriores vinculadas a su agente.", vinculadas)
+                # Grafo RiC-O persistente: reconstruye y valida los grafos con cambios.
+                sincronizados = grafo_rdf.sincronizar_pendientes(db)
+                if sincronizados:
+                    log.info("Grafo RiC-O: %s grafo(s) actualizados en el almacén.", sincronizados)
                 siguiente = procesamiento.tomar_siguiente(db)
                 if siguiente is not None:
                     log.info("Procesando %s", siguiente)

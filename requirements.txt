@@ -49,3 +49,4 @@ tzdata==2025.2
 # exportación RDF (Turtle y JSON-LD) y validación SHACL de lo exportado.
 rdflib==7.6.0
 pyshacl==0.40.1
+pyoxigraph==0.5.11
