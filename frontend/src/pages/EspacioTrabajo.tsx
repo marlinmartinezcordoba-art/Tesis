@@ -1,4 +1,5 @@
 import { confianzaTexto } from "@/lib/formato";
+import { GuiaCampo } from "@/components/GuiaCampo";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -257,6 +258,7 @@ export function EspacioTrabajo() {
             actividad_mayor_id: i.tipo === "actividad" ? i.actividadMayor?.id || null : null,
             fragmento: i.fragmento, documento_id: i.documento_id, inicio: i.inicio, clave: i.clave,
             reutilizar_id: i.verif.reutilizarId || null, crear_nueva: !!i.verif.crearNueva,
+            concepto_id: i.tipo === "materia" ? (i as { concepto_id?: string | null }).concepto_id || null : null,
           })),
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso || null,
@@ -366,11 +368,11 @@ export function EspacioTrabajo() {
         <div className="propuestas">
           <div className="tarjeta-prop fija">
             <div className="campo">
-              <label htmlFor="titulo">Título</label>
+              <label htmlFor="titulo">Título <GuiaCampo clave="titulo" /></label>
               <input id="titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
             </div>
             <div className="campo">
-              <label htmlFor="alcance">Alcance y contenido</label>
+              <label htmlFor="alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
               <textarea id="alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} />
             </div>
             <div className="campo" style={{ marginBottom: 0 }}>

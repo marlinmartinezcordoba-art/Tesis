@@ -477,3 +477,50 @@ class FichaPublicaOut(BaseModel):
     parte_de: ReferenciaBreve | None
     secuencia: list[SecuenciaPublica]
     publicado_en: str | None
+
+
+class FilaAgn(BaseModel):
+    """Elemento del Esquema de Metadatos del AGN (v1.4) que cubre el campo."""
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    elemento: str
+    obligatoriedad: str
+    codigo_agn: str
+
+
+class GuiaAtributo(BaseModel):
+    """Un campo de la descripción: qué es, por qué importa, con qué se relaciona y sus normas."""
+    model_config = ConfigDict(extra="allow")
+
+    clave: str
+    etiqueta: str
+    isad: str | None
+    rico: str | None
+    cardinalidad: str
+    obligatorio: bool
+    que_es: str
+    por_que: str
+    se_relaciona: str
+    ejemplo: str | None
+    agn: list[FilaAgn]
+
+
+class GuiaEntidad(BaseModel):
+    """Un tipo de entidad: qué es, por qué importa y con qué se relaciona."""
+    model_config = ConfigDict(extra="allow")
+
+    tipo: str
+    rico: str
+    que_es: str
+    por_que: str
+    se_relaciona: str
+    ejemplo: str | None
+
+
+class GuiaMetadatos(BaseModel):
+    """La guía de los campos y de los tipos de entidad de la descripción."""
+    model_config = ConfigDict(extra="allow")
+
+    atributos: list[GuiaAtributo]
+    entidades: list[GuiaEntidad]

@@ -253,8 +253,9 @@ CATALOGO: tuple[Fila, ...] = (
       "R005 es subdivisión de grupo y R006 es subevento.", False),
     F("AGN-FUID-14", "Anexo 2", "FUID", "Palabras clave o temas", "RiC-P003: Subject", "—",
       "Vocabularios del AGN o tesauros sectoriales", "RiC-R019 has or had subject", ("hasOrHadSubject",),
-      "agentes, lugares y actividades mencionados (vocabulario controlado)", "agn", "cubierto", "intermedio",
-      "", False),
+      "materias normalizadas con tesauros (UNESCO, sectoriales), además de agentes, lugares y actividades "
+      "mencionados (vocabulario controlado)", "agn", "cubierto", "intermedio",
+      "La materia (rico:Concept) lleva skos:exactMatch al concepto del tesauro de origen.", False),
     F("AGN-FUID-15", "Anexo 2", "FUID", "Observaciones", "RiC-P006: Description", "—", "",
       "RiC-A43 General Description", ("generalDescription",), "nota", "agn", "cubierto", "intermedio", "", False),
     F("AGN-FUID-16", "Anexo 2", "FUID", "Ubicación física o digital", "RiC-P035: Storage Location", "—",

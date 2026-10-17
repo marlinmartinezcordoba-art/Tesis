@@ -44,6 +44,8 @@ MINIMO_CARACTERES_POR_PAGINA = 25
 EXT_TEXTO = {".txt", ".csv", ".tsv", ".md", ".xml", ".html", ".htm", ".json", ".eml"}
 EXT_IMAGEN = {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".jp2", ".j2k"}
 EXT_OFFICE = {".docx": "word/document.xml", ".odt": "content.xml"}
+# Hojas de cálculo (inventarios, FUID, listados): el texto de cada hoja, fila por fila.
+EXT_HOJA = {".xlsx", ".xlsm"}
 
 Progreso = Callable[[int, str], None]  # (porcentaje dentro del paso, detalle)
 
@@ -219,6 +221,8 @@ def _tipo(ruta: Path, mime: str | None) -> str:
         return "pdf"
     if ext in EXT_OFFICE:
         return "office"
+    if ext in EXT_HOJA:
+        return "hoja"
     if mime.startswith("image/") or ext in EXT_IMAGEN:
         return "imagen"
     if mime.startswith("text/") or ext in EXT_TEXTO:
@@ -249,6 +253,34 @@ def _office(ruta: Path) -> Texto:
         if etiqueta in ("p", "h"):  # párrafos de Word y de OpenDocument
             parrafos.append("".join(elemento.itertext()))
     return Texto(_limpiar("\n".join(parrafos)) or None, "capa_de_texto")
+
+
+def _hoja(ruta: Path) -> Texto:
+    """Un Excel: cada hoja con su nombre y sus filas (celdas separadas por « | »),
+    sin fórmulas (el valor calculado que guardó Excel)."""
+    from openpyxl import load_workbook
+
+    try:
+        libro = load_workbook(ruta, read_only=True, data_only=True)
+    except Exception as exc:  # noqa: BLE001 — openpyxl lanza varios tipos según el daño
+        raise ArchivoIlegible("La hoja de cálculo no se pudo abrir; puede estar dañada o protegida.") from exc
+    partes, total = [], 0
+    try:
+        for hoja in libro.worksheets:
+            partes.append(f"Hoja: {hoja.title}")
+            for fila in hoja.iter_rows(values_only=True):
+                celdas = [str(v).strip() for v in fila if v is not None and str(v).strip()]
+                if celdas:
+                    linea = " | ".join(celdas)
+                    partes.append(linea)
+                    total += len(linea)
+                    if total > MAXIMO_CARACTERES:
+                        break
+            if total > MAXIMO_CARACTERES:
+                break
+    finally:
+        libro.close()
+    return Texto(_limpiar("\n".join(partes)) or None, "capa_de_texto")
 
 
 def _tesseract(imagen: Path) -> Lectura:
@@ -382,6 +414,8 @@ def extraer(ruta: Path, mime: str | None, progreso: Progreso) -> Texto:
         return _imagen(ruta, progreso)
     if tipo == "office":
         return _office(ruta)
+    if tipo == "hoja":
+        return _hoja(ruta)
     if tipo == "texto":
         return _texto_plano(ruta)
     return Texto(None, "sin_texto")

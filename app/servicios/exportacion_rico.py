@@ -565,7 +565,8 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
 # Esquemas SKOS por fondo (hallazgo VOC-04): funciones, formas documentales y tipos de parte.
 ESQUEMAS_SKOS = {"tipo_actividad": ("tipos-de-actividad", "Tipos de actividad (funciones)"),
                  "forma_documental": ("formas-documentales", "Formas documentales"),
-                 "tipo_parte": ("tipos-de-parte", "Tipos de parte documental")}
+                 "tipo_parte": ("tipos-de-parte", "Tipos de parte documental"),
+                 "materia": ("materias", "Materias")}
 
 
 def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dict) -> None:
@@ -599,6 +600,13 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
             g.add((uri(e.concepto_superior_id), SKOS.narrower, s))  # explícita: sin razonador también se ve
         elif not e.concepto_superior_id:
             g.add((esquema, SKOS.hasTopConcept, s))
+    if e.clase == "materia" and e.concepto_tesauro_id:
+        # La materia normalizada apunta al concepto del tesauro de origen (UNESCO, Minambiente…).
+        from app.models.tesauro import ConceptoTesauro
+
+        c = db.get(ConceptoTesauro, e.concepto_tesauro_id)
+        if c is not None and (c.uri or "").startswith(("http://", "https://")):
+            g.add((s, SKOS.exactMatch, URIRef(c.uri)))
     if e.subtipo == "mecanismo" and e.version:
         g.add((s, _a("version_mecanismo"), Literal(e.version)))
     if e.historia and e.clase in ("agente", "lugar", "actividad", "mandato"):

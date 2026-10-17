@@ -220,15 +220,46 @@ def generar_terminos() -> int:
     return 0
 
 
+def importar_tesauro(ruta: str) -> int:
+    """Importa un tesauro desde un archivo o una URL (SKOS, Excel o CSV). El nombre,
+    la fuente y la licencia van en RICORA_TESAURO_NOMBRE, _FUENTE y _LICENCIA."""
+    import os
+    import urllib.request
+
+    from app.db.session import SessionLocal
+    from app.servicios import tesauros
+
+    if ruta.startswith(("http://", "https://")):
+        with urllib.request.urlopen(ruta, timeout=300) as r:  # noqa: S310 — URL dada por quien administra
+            contenido = r.read(tesauros.MAX_BYTES + 1)
+        archivo = ruta.rsplit("/", 1)[-1] or "tesauro.ttl"
+    else:
+        with open(ruta, "rb") as f:
+            contenido = f.read()
+        archivo = os.path.basename(ruta)
+    with SessionLocal() as db:
+        try:
+            t = tesauros.importar(db, nombre=os.environ.get("RICORA_TESAURO_NOMBRE") or archivo, contenido=contenido,
+                                  archivo=archivo, fuente=os.environ.get("RICORA_TESAURO_FUENTE") or ruta,
+                                  licencia=os.environ.get("RICORA_TESAURO_LICENCIA"),
+                                  idioma=os.environ.get("RICORA_TESAURO_IDIOMA") or "es", usuario_id=None)
+        except tesauros.ErrorTesauro as exc:
+            print(f"  No se importó: {exc}")
+            return 1
+        db.commit()
+        print(f"  Listo: «{t.nombre}», {t.conceptos} conceptos ({t.formato}).")
+    return 0
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
             "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos,
             "terminos": generar_terminos}
-CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete}
+CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete, "importar-tesauro": importar_tesauro}
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] in CON_ARGUMENTO:
         sys.exit(CON_ARGUMENTO[sys.argv[1]](sys.argv[2]))
     if len(sys.argv) != 2 or sys.argv[1] not in COMANDOS:
-        print("Uso: python -m app.cli " + "|".join(COMANDOS) + " | restaurar-paquete <paquete.tar>")
+        print("Uso: python -m app.cli " + "|".join(COMANDOS) + " | restaurar-paquete <paquete.tar> | importar-tesauro <archivo o URL>")
         sys.exit(2)
     sys.exit(COMANDOS[sys.argv[1]]())

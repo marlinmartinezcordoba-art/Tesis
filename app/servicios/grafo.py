@@ -53,9 +53,11 @@ FAMILIAS = {
     "DocumentaryFormType": "Forma documental (Documentary Form Type)",
     "ActivityType": "Tipo de actividad (Activity Type)",
     "Mandate": "Mandato o norma (Mandate)",
+    "Concept": "Materia (Concept)",
 }
 _FAMILIA_CLASE = {"agente": "Agent", "lugar": "Place", "actividad": "Activity", "tipo_actividad": "ActivityType",
-                  "mandato": "Mandate", "forma_documental": "DocumentaryFormType", "tipo_parte": "DocumentaryFormType"}
+                  "mandato": "Mandate", "forma_documental": "DocumentaryFormType", "tipo_parte": "DocumentaryFormType",
+                  "materia": "Concept"}
 _FAMILIA_NIVEL = {"unidad_documental": "Record", "parte_documental": "RecordPart"}
 # Estado de la descripción de un Record Resource visible en el grafo. Los
 # borradores nunca se dibujan (ver documentación), así que no son opción.

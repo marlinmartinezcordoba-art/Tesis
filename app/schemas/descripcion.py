@@ -4,8 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-TipoEntidad = Literal["agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental"]
-ClaseVocabulario = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte"]
+TipoEntidad = Literal["agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental",
+                      "materia"]
+ClaseVocabulario = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte",
+                           "materia"]
 
 
 class ElementoPorDescribir(BaseModel):
@@ -62,6 +64,7 @@ class EntidadIn(BaseModel):
     clave: str | None = Field(default=None, max_length=40)
     reutilizar_id: uuid.UUID | None = None
     crear_nueva: bool = False
+    concepto_id: uuid.UUID | None = None  # materia: concepto del tesauro elegido
 
 
 class TipoParteIn(BaseModel):

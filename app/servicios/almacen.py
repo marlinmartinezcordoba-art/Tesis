@@ -61,8 +61,9 @@ def guardar(origen: BinaryIO, fondo_id: uuid.UUID, instanciacion_id: uuid.UUID, 
 
 
 def borrar(relativa: str) -> None:
-    """Solo para la cancelación de un duplicado o el descarte de un error:
-    el archivo nunca llegó a integrarse al fondo."""
+    """Solo para un archivo que nunca llegó a integrarse al fondo: un
+    duplicado cancelado, un error descartado o un documento cargado por error
+    y nunca descrito (lo elimina la administración, con constancia)."""
     ruta_absoluta(relativa).unlink(missing_ok=True)
 
 

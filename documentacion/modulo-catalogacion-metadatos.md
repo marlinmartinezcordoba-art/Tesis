@@ -1,0 +1,109 @@
+# Catalogación y metadatos: tesauros, guía de campos y documentos cargados por error
+
+**Versión:** 1.
+**Pedido de la autora:**
+- fortalecer la descripción desde la catalogación y los metadatos;
+- usar tesauros (el de la UNESCO y el ambiental de Minambiente) para normalizar;
+- que cada etiqueta explique por qué es relevante y cómo se relaciona con lo demás;
+- eliminar los documentos cargados por error (solo la administración, si nunca se describieron, con constancia);
+- leer Excel y PDF.
+
+El cuadro de clasificación (CCD) y la tabla de retención (TRD) van en un lote aparte.
+
+## 1. Tesauros y materias
+
+### Qué hace
+
+- **Importar un tesauro** (solo la administración), en uno de dos formatos:
+  - **SKOS** (Turtle, RDF/XML, N-Triples o JSON-LD), como el Tesauro de la UNESCO, que se descarga libre (licencia CC BY-SA 3.0 IGO).
+  - **Tabla Excel o CSV**, para un tesauro que no publica SKOS, como el ambiental de Minambiente. Columnas:
+    - Término preferente;
+    - Usado por (términos no preferentes, separados por «;»);
+    - Término general;
+    - Nota de alcance;
+    - URI;
+    - Código.
+
+  Toma las etiquetas en español, omite los conceptos retirados (`owl:deprecated`) y une cada concepto con su término general. El mismo archivo no se importa dos veces (huella SHA-256).
+- **Normalizar un término.** Se compara sin tildes ni mayúsculas:
+  - Si es el **preferente**, se usa tal cual.
+  - Si es **no preferente** («archivos históricos»), lleva al preferente («Archivo histórico»).
+  - Si no coincide con ninguno, se ofrecen los **parecidos** (trigramas). Si tampoco hay parecidos, queda como **término local** del fondo, marcado como tal.
+- **Materia** es una clase nueva del vocabulario del fondo: `rico:Concept`, y además `skos:Concept`.
+  - Hay una sola materia por concepto y por fondo, así que dos documentos con el mismo tema, escrito distinto, llegan al **mismo nodo del grafo**.
+  - Se une al documento con la relación «Materia»: `rico:hasOrHadSubject`, rol `materia`.
+  - Al exportar, lleva `skos:exactMatch` hacia el concepto de origen; la exportación sigue siendo conforme con el OWL y con el SHACL.
+- **Constancia.** Toda normalización (lo escrito y el término preferente que quedó) se registra en la auditoría como «Normalizó una materia con un tesauro».
+- **Anular un tesauro.** No se borra. Deja de ofrecerse para normalizar, y las materias ya normalizadas conservan su concepto.
+
+### Dónde está
+
+- **Vocabularios › Tesauros:**
+  - los tesauros importados;
+  - un probador de la normalización;
+  - el formulario de importación.
+- **Descripción** (agregar o corregir una entidad): el tipo «Materia (tema)». Mientras se escribe, sugiere el término preferente o los parecidos.
+- **Línea de comandos:** `python -m app.cli importar-tesauro <archivo o URL>`. El servidor de producción tiene internet y puede descargar el SKOS de la UNESCO directamente.
+
+### Lo que no se pudo hacer desde aquí
+
+- La red de este entorno de desarrollo no llega a vocabularies.unesco.org ni a bibliovirtual.minambiente.gov.co, así que no se importó ninguno de los dos tesauros reales; se probó con muestras.
+- El tesauro de Minambiente es una página para navegar, no un archivo descargable. Para cargarlo hay que pasarlo a la tabla Excel de arriba, o pedir el archivo a la entidad.
+- En los dos casos, revise la licencia antes de importar.
+
+## 2. Guía de los campos
+
+- **Cada campo de la descripción** tiene un ⓘ que dice:
+  - **qué es**, **por qué importa** y **con qué se relaciona**;
+  - un **ejemplo**;
+  - sus normas: elemento ISAD(G), propiedad RiC-O, cardinalidad y fila del Esquema de Metadatos del AGN.
+
+  Ejemplo: el título cita la AGN-REC-02 (obligatorio) y la AGN-FUID-02.
+- **Cada tipo de entidad** (agente, lugar, fecha, actividad, función, norma, forma documental, materia) tiene la misma ayuda en el formulario.
+- **Una sola fuente:** el texto está en `app/servicios/guia_metadatos.py`.
+  - ISAD(G) y RiC-O salen del catálogo de atributos.
+  - El AGN sale del perfil (`perfil_agn.py`), por el campo del sistema. Una fila puede cubrir varios campos: el volumen documental cubre folios, caja y carpeta.
+  - Una prueba exige que ningún campo ni tipo de entidad quede sin explicación.
+- **API:** `GET /api/descripcion/guia`.
+
+## 3. Documentos cargados por error
+
+- **Quién y dónde:** solo la administración, con el botón «Eliminar» de «Por describir». Pide el motivo, de 5 caracteres o más.
+- **Cuándo se puede:** solo si el documento **nunca se describió**. Se rechaza (409, con la razón) en estos casos:
+  - ya fue descrito, aunque después se anulara: es parte del fondo y su retiro va por valoración, con TRD y acta;
+  - alguien lo está describiendo;
+  - está en una evaluación ciega;
+  - tiene versiones derivadas o recortes;
+  - tiene migración, segunda copia o restauración;
+  - es el acta de un lote de transferencia.
+- **Qué se borra:** el registro y el archivo, de forma definitiva. Con ellos se van las verificaciones técnicas que el sistema hizo solo sobre ese archivo.
+- **Qué queda en la auditoría encadenada** («Eliminó un documento cargado por error»):
+  - nombre, tamaño, huella SHA-256 y formato;
+  - fondo y fecha de carga;
+  - quién lo eliminó, cuándo y el motivo.
+
+## 4. Excel y PDF en la ingesta
+
+- **PDF:** ya se leía (capa de texto u OCR).
+- **Excel** (`.xlsx`, `.xlsm`): ahora se extrae el texto de cada hoja, fila por fila, con el nombre de la hoja y las celdas separadas por « | ». Así un inventario o un FUID en Excel se puede buscar y describir. Un Excel dañado o protegido queda como error legible.
+
+## 5. Decisiones
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Dónde vive el tesauro | En el vocabulario de cada fondo; **tablas propias compartidas** | **Compartidas** | Un tesauro es un instrumento externo, el mismo para todos los fondos; copiarlo en cada uno multiplicaría miles de conceptos | Ninguno: la materia del fondo sí es del fondo y apunta al concepto |
+| Cómo se carga | Consulta en línea a la UNESCO; **importar archivos (SKOS, Excel, CSV)** | **Importar** | No depende de que un sitio externo esté disponible; sirve para tesauros sin SKOS; la versión importada queda fija y auditada | Hay que reimportar cuando el tesauro publica una versión nueva (se anula la anterior) |
+| Qué se normaliza | Agentes, lugares y todo; **las materias (temas)** | **Materias** | Los agentes y los lugares ya tienen control de autoridades (verificación de parecidos y fusión). El tema era lo que faltaba (AGN-FUID-14 «Palabras clave o temas») | Si el fondo necesita normalizar lugares con un tesauro geográfico, es otro paso |
+| Término que no está en el tesauro | Rechazarlo; **dejarlo como término local** | **Local, marcado** | Ningún tesauro cubre todo un archivo histórico; rechazar obligaría a forzar un término que no corresponde | Términos locales que se dupliquen: los ataja la misma verificación de parecidos del vocabulario |
+| Clase en RiC-O | rico:Thing; **rico:Concept + skos:Concept** | **Concept** | RiC-O 1.1 tiene rico:Concept («una idea… o categoría»), que admite hasOrHadSubject; SKOS permite el exactMatch | Ninguno: la exportación pasa el OWL y el SHACL |
+| Eliminar un documento | Retiro lógico; **borrado real con constancia** | **Borrado real** (decisión de la autora) | Un archivo cargado por error nunca fue documento del fondo; la constancia (nombre, huella, quién, cuándo y por qué) queda en la auditoría, que no se puede alterar | Un borrado equivocado no se deshace. Por eso solo la administración puede borrar, con motivo, y nunca lo ya descrito |
+| La guía de campos | Textos en la pantalla; **una fuente en el servidor** | **Servidor** | El mismo texto sirve a la pantalla, a la documentación y a las pruebas; las normas salen de los catálogos, no se copian | La autora debe revisar los textos: son una propuesta archivística |
+
+## 6. Pruebas
+
+| Archivo | Qué comprueba |
+|---|---|
+| `tests/test_tesauros.py` (5) | Importar SKOS (español, retirados, término general, sin repetir); importar Excel y CSV; normalización (sin tildes, no preferente → preferente, parecidos); la materia normalizada al publicar es un solo nodo para dos documentos; término local; exportación conforme con exactMatch; elegir el concepto; anular sin cambiar lo descrito |
+| `tests/test_guia_metadatos.py` (2) | Ningún campo ni tipo de entidad sin explicación; la guía une cada campo con ISAD(G), RiC-O y el AGN (también varios campos por fila) |
+| `tests/test_eliminar_documento.py` (4) | Solo la administración, con motivo; queda la constancia; no se elimina lo descrito, lo que está en edición ni lo que está en una evaluación; lectura de Excel y de un Excel dañado |
+| `tests/test_terminos.py` | El término «Materia» está en el vocabulario único de relaciones |

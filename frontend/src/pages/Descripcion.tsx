@@ -140,6 +140,21 @@ export function Descripcion() {
     return () => clearInterval(t);
   }, [cargar]);
 
+  // Solo la administración elimina un documento cargado por error, y solo si nunca
+  // se describió: el archivo se borra y queda constancia (quién, cuándo, por qué, huella).
+  async function eliminar(d: PorDescribir) {
+    const motivo = window.prompt(`Eliminar «${d.nombre}» por haberse cargado por error.\n\nEl archivo se borra de forma `
+      + "definitiva; en la auditoría quedan su nombre, su huella SHA-256, quién lo eliminó y por qué.\n\nMotivo:");
+    if (!motivo || motivo.trim().length < 5) return;
+    setError("");
+    try {
+      await pedir(`/api/ingesta/${d.id}/eliminar`, { method: "POST", body: JSON.stringify({ motivo: motivo.trim() }) });
+      await cargar();
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo eliminar.");
+    }
+  }
+
   async function describir(ids: string[], nivelConjunto?: string) {
     setError("");
     setAbriendo({ cantidad: ids.length, nombre: cola?.find((d) => d.id === ids[0])?.nombre || "" });
@@ -203,6 +218,10 @@ export function Descripcion() {
                   <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
                 ) : puede && (
                   <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
+                )}
+                {usuario?.es_administrador && !d.en_edicion_por && (
+                  <button type="button" className="boton chico peligro" title="Solo si se cargó por error y nunca se describió"
+                          onClick={() => eliminar(d)}>Eliminar</button>
                 )}
               </div>
             ))}

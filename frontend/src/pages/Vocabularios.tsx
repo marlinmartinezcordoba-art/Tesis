@@ -7,6 +7,7 @@ import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
+import { Tesauros } from "@/components/Tesauros";
 import { NIVEL_FICHA } from "@/components/FichaAutoridad";
 import {
   CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, accionesTexto, claseRicDe, conexionesTexto, esMecanismo,
@@ -196,7 +197,7 @@ export function Vocabularios() {
   const { fondo } = useFondo();
   const ubicacion = useLocation();
   const puede = tienePermiso(usuario, "vocabularios", "escribir");
-  const pestana = useVista<"vocabulario" | "sugerencias">("/vocabularios");
+  const pestana = useVista<"vocabulario" | "sugerencias" | "tesauros">("/vocabularios");
   const [clase, setClase] = useState<ClaseVocabulario | "">("");
   // Los mecanismos (software, RiC-E13) no son autoridades ISAAR: van en su propio filtro.
   const [mecanismos, setMecanismos] = useState(false);
@@ -268,7 +269,7 @@ export function Vocabularios() {
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
-      {pestana === "vocabulario" ? (
+      {pestana === "tesauros" ? <Tesauros /> : pestana === "vocabulario" ? (
         <>
           <h1>Vocabulario del fondo</h1>
           <p className="sub">

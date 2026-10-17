@@ -106,6 +106,7 @@ TERMINOS: dict[tuple[str, str | None], Termino] = {
     ("has_or_had_subject", "mencionado"): Termino("Mencionado", "menciona a", "es mencionado en"),
     ("has_or_had_subject", "lugar"): Termino("Lugar del que trata", "trata del lugar", "es lugar tratado en"),
     ("has_or_had_subject", "mandato"): Termino("Norma citada", "cita la norma", "es citada en"),
+    ("has_or_had_subject", "materia"): Termino("Materia", "tiene como materia", "es materia de"),
     # --- Fechas ---
     ("is_creation_date_of", None): Termino("Fecha de creación", "es fecha de creación de", "fue creado en"),
     ("is_date_associated_with", None): Termino("Fecha asociada", "es fecha de", "tiene la fecha"),

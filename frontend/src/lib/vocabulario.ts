@@ -1,4 +1,5 @@
-export type ClaseVocabulario = "agente" | "lugar" | "forma_documental" | "actividad" | "tipo_actividad" | "mandato" | "regla";
+export type ClaseVocabulario = "agente" | "lugar" | "forma_documental" | "actividad" | "tipo_actividad" | "mandato" | "regla"
+  | "materia";
 
 export interface EntidadVocabulario {
   id: string;
@@ -38,7 +39,7 @@ export interface ParametrosFusion {
   horas_deteccion: number;
 }
 
-export const CLASES: ClaseVocabulario[] = ["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "regla"];
+export const CLASES: ClaseVocabulario[] = ["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "materia", "regla"];
 
 export const CLASE_NOMBRE: Record<ClaseVocabulario, string> = {
   agente: "Agente",
@@ -48,6 +49,7 @@ export const CLASE_NOMBRE: Record<ClaseVocabulario, string> = {
   tipo_actividad: "Tipo de actividad",
   mandato: "Mandato o norma",
   regla: "Regla de retención (TRD)",
+  materia: "Materia (tema)",
 };
 
 export const CLASE_NOMBRE_PLURAL: Record<ClaseVocabulario, string> = {
@@ -58,6 +60,7 @@ export const CLASE_NOMBRE_PLURAL: Record<ClaseVocabulario, string> = {
   tipo_actividad: "Tipos de actividad",
   mandato: "Mandatos y normas",
   regla: "Reglas de retención (TRD)",
+  materia: "Materias (temas)",
 };
 
 // Referencia RiC-CM de cada clase, para que el archivista sepa qué es.
@@ -69,6 +72,7 @@ export const CLASE_RIC: Record<ClaseVocabulario, string> = {
   tipo_actividad: "rico:ActivityType (vocabulario controlado)",
   mandato: "RiC-E17 Mandate",
   regla: "RiC-E16 Rule",
+  materia: "rico:Concept (tema normalizado con un tesauro)",
 };
 
 // Clase exacta de RiC-O de una entidad: para un agente depende de su subtipo.
@@ -90,6 +94,7 @@ export const CLASE_INSIGNIA: Record<ClaseVocabulario, string> = {
   tipo_actividad: "contexto",
   mandato: "contexto",
   regla: "contexto",
+  materia: "bien",
 };
 
 export function conexionesTexto(n: number): string {

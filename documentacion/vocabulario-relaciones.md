@@ -58,6 +58,7 @@ mapeo verificado contra RiC-O 1.1 (`app/servicios/ric_o.py`).
 | Mencionado | mencionado | menciona a | es mencionado en | rico:hasOrHadSubject | RiC-R019 | tiene o tenía como materia |
 | Lugar del que trata | lugar | trata del lugar | es lugar tratado en | rico:hasOrHadSubject | RiC-R019 | tiene o tenía como materia |
 | Norma citada | mandato | cita la norma | es citada en | rico:hasOrHadSubject | RiC-R019 | tiene o tenía como materia |
+| Materia | materia | tiene como materia | es materia de | rico:hasOrHadSubject | RiC-R019 | tiene o tenía como materia |
 | Fecha de creación | — | es fecha de creación de | fue creado en | rico:isCreationDateOf | RiC-R080 | es fecha de creación de |
 | Fecha asociada | — | es fecha de | tiene la fecha | rico:isDateAssociatedWith | RiC-R068 | es fecha asociada con |
 | Fecha de expedición | expedicion | es fecha de expedición de | fue expedido el | rico:isDateAssociatedWith | RiC-R068 | es fecha asociada con |

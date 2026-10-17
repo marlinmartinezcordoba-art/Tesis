@@ -3,7 +3,7 @@ import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, t
 
 export type Familia =
   | "RecordSet" | "Record" | "RecordPart" | "Agent" | "Place" | "Activity" | "Date" | "Instantiation"
-  | "DocumentaryFormType" | "ActivityType" | "Mandate" | "Event";
+  | "DocumentaryFormType" | "ActivityType" | "Mandate" | "Event" | "Concept";
 
 export interface NodoGrafo {
   clave: string;
@@ -57,6 +57,7 @@ export const ICONO_FAMILIA: Record<Familia, ReactNode> = {
   ActivityType: <g {...trazo}><path d="M5 4h6v6H5zM13 14h6v6h-6z" /><path d="M8 10v7h5" /></g>,
   Event: <g {...trazo}><path d="M12 3l2.6 5.5 6 .8-4.4 4.2 1.1 6L12 16.6 6.7 19.5l1.1-6L3.4 9.3l6-.8z" /></g>,
   Mandate: <g {...trazo}><path d="M12 4v16M8 20h8M5 7h14" /><path d="M5 7l-2.5 6h5zM19 7l-2.5 6h5z" /></g>,
+  Concept: <g {...trazo}><path d="M7 4h7l4 4v12H7z" /><path d="M9.5 12h6M9.5 15.5h6M9.5 8.5h3" /></g>,
 };
 
 // Los siete tipos de la leyenda principal y los demás tipos RiC que el
@@ -74,6 +75,7 @@ export const FAMILIAS: { clave: Familia; nombre: string; ric: string; principal:
   { clave: "ActivityType", nombre: "Tipo de actividad", ric: "Activity Type", principal: false },
   { clave: "Mandate", nombre: "Mandato o norma", ric: "Mandate", principal: false },
   { clave: "Event", nombre: "Hito institucional", ric: "Event", principal: false },
+  { clave: "Concept", nombre: "Materia", ric: "Concept", principal: false },
 ];
 export const NOMBRE_FAMILIA = Object.fromEntries(FAMILIAS.map((f) => [f.clave, f.nombre])) as Record<Familia, string>;
 

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { GuiaCampo } from "@/components/GuiaCampo";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
@@ -202,6 +203,7 @@ export function RegistroDescripcion() {
           agregar_entidades: nuevas.map((n) => ({
             tipo: n.tipo, valor: n.valor, subtipo: n.subtipo, rol: n.rol, edtf: n.edtf, fecha_subtipo: n.fecha_subtipo,
             reutilizar_id: n.verif.reutilizarId || null, crear_nueva: !!n.verif.crearNueva,
+            concepto_id: n.tipo === "materia" ? n.concepto_id || null : null,
           })),
           idiomas: campos.idiomas,
           condiciones_acceso: campos.condicionesAcceso,
@@ -266,9 +268,9 @@ export function RegistroDescripcion() {
         <div className="tarjeta-cuerpo">
           {editando ? (
             <>
-              <div className="campo"><label htmlFor="r-titulo">Título</label>
+              <div className="campo"><label htmlFor="r-titulo">Título <GuiaCampo clave="titulo" /></label>
                 <input id="r-titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
-              <div className="campo"><label htmlFor="r-alcance">Alcance y contenido</label>
+              <div className="campo"><label htmlFor="r-alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
                 <textarea id="r-alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} /></div>
               <div className="campo"><label htmlFor="r-incluido">Queda incluido en</label>
                 <select id="r-incluido" className="selector" value={incluido} onChange={(e) => setIncluido(e.target.value)}>
@@ -364,7 +366,7 @@ export function RegistroDescripcion() {
             <div className="rejilla">
               {CAMPOS_CONTROL.map((c) => (
                 <div className="campo" key={c.clave} style={{ margin: 0 }}>
-                  <label htmlFor={`c-${c.clave}`}>{c.nombre}</label>
+                  <label htmlFor={`c-${c.clave}`}>{c.nombre} <GuiaCampo clave={c.clave} /></label>
                   <input id={`c-${c.clave}`} className="entrada" value={control[c.clave]} placeholder={c.pista}
                          inputMode={c.clave === "folios" ? "numeric" : undefined}
                          onChange={(e) => setControl({ ...control, [c.clave]: c.clave === "folios" ? e.target.value.replace(/\D/g, "") : e.target.value })} />

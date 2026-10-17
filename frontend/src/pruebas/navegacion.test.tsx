@@ -40,7 +40,7 @@ describe("árbol de submódulos", () => {
   it("al entrar por la URL de una vista interna expande su módulo y la resalta", () => {
     montar("/vocabularios?vista=sugerencias");
     expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("true");
-    expect(vistasVisibles("Vocabularios")).toEqual(["Vocabulario", "Sugerencias de fusión"]);
+    expect(vistasVisibles("Vocabularios")).toEqual(["Vocabulario", "Sugerencias de fusión", "Tesauros"]);
     const activa = screen.getByRole("link", { current: "page" });
     expect(activa.textContent).toBe("Sugerencias de fusión");
     // Los demás módulos quedan contraídos.

@@ -60,7 +60,7 @@ from app.servicios import evidencia as servicio_evidencia, fechas, mecanismos, r
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
-CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato")
+CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "materia")
 TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
 from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
 SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
@@ -84,6 +84,8 @@ RELACION_POR_ROL = {
     ("fecha", None): ("is_creation_date_of", "temporal"),
     ("actividad", None): ("documents", "asociacion"),
     ("mandato", None): ("has_or_had_subject", "asociacion"),
+    # Materia (tema) normalizada con un tesauro: rico:hasOrHadSubject con rol «materia».
+    ("materia", None): ("has_or_had_subject", "asociacion"),
 }
 
 
@@ -258,6 +260,7 @@ class EntidadConfirmada:
     clave: str | None = None  # clave de la entidad (la de la propuesta del motor, si viene de ahí)
     reutilizar_id: uuid.UUID | None = None
     crear_nueva: bool = False
+    concepto_id: uuid.UUID | None = None  # materia: el concepto del tesauro elegido
 
 
 def _propuesta(trabajo: TrabajoDescripcion) -> dict:
@@ -295,6 +298,34 @@ def _nodo_vocabulario(db: Session, fondo_id: uuid.UUID, e: EntidadConfirmada, in
             409, {"indice": indice, "coincidencias": [c.__dict__ | {"id": str(c.id)} for c in parecidas]})
     return vocabulario.crear(db, fondo_id=fondo_id, clase=e.tipo, nombre=e.valor, subtipo=e.subtipo,
                              origen=origen, confianza=confianza, motor=motor, usuario_id=usuario_id)
+
+
+def _nodo_materia(db: Session, fondo_id: uuid.UUID, e: EntidadConfirmada, indice: int, origen: str,
+                  confianza: float | None, motor: str | None, usuario_id: uuid.UUID) -> EntidadVocabulario:
+    """La materia se normaliza con los tesauros: el concepto elegido; si no
+    se eligió, el que coincide exactamente con lo escrito (también un término
+    no preferente, que lleva al preferente); si ninguno coincide, un término
+    local del fondo, con la verificación de parecidos de siempre."""
+    from app.servicios import tesauros
+
+    if e.reutilizar_id:
+        return _nodo_vocabulario(db, fondo_id, e, indice, origen, confianza, motor, usuario_id)
+    try:
+        if e.concepto_id:
+            nodo = tesauros.materia_de_concepto(db, fondo_id=fondo_id, concepto_id=e.concepto_id, usuario_id=usuario_id)
+            n = {"via": "elegido"}
+        else:
+            nodo, n = tesauros.resolver(db, fondo_id, e.valor, usuario_id)
+    except tesauros.ErrorTesauro as exc:
+        raise ErrorDescripcion(str(exc), exc.codigo) from exc
+    if nodo is None:
+        return _nodo_vocabulario(db, fondo_id, e, indice, origen, confianza, motor, usuario_id)
+    if vocabulario.normalizar(e.valor) != nodo.nombre_normalizado:
+        registrar(db, modulo="vocabularios", accion="materia_normalizada", usuario_id=usuario_id,
+                  entidad_tipo="entidad_vocabulario", entidad_id=nodo.id, detalle=f"«{e.valor}» → «{nodo.nombre}»",
+                  anterior={"termino": e.valor}, nuevo={"preferente": nodo.nombre, "via": n.get("via")})
+    e.valor = nodo.nombre
+    return nodo
 
 
 def _interpretar_fecha(e: EntidadConfirmada, que: str) -> fechas.Interpretacion | None:
@@ -407,14 +438,22 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
             if e.subtipo not in ("persona", "grupo", "cargo"):
                 raise ErrorDescripcion(f"«{e.valor}» no puede ser autor: en RiC el autor es una persona, un grupo o un "
                                        "cargo. Una entidad corporativa o una familia van como productor.")
-        nodo = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
+        if e.tipo == "materia":
+            nodo = _nodo_materia(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
+        else:
+            nodo = _nodo_vocabulario(db, recurso.fondo_id, e, i, origen, confianza, motor_e, usuario_id)
         db.flush()
         if e.clave:
             nodos[e.clave] = nodo
             finales[e.clave] = {"valor": nodo.nombre, "rol": e.rol, "subtipo": e.subtipo}
         nodo_ref = ("entidad_vocabulario", nodo.id)
 
-        if e.tipo == "forma_documental":
+        if e.tipo == "materia":
+            _relacionar(db, documento, nodo_ref, "has_or_had_subject", "asociacion", usuario_id, procedencia,
+                        rol="materia", **evidencia)
+            if e.clave in finales:
+                finales[e.clave]["codigo_ric"] = "has_or_had_subject"
+        elif e.tipo == "forma_documental":
             recurso.forma_documental_id = nodo.id
         elif e.tipo == "lugar" and e.rol == "expedicion":
             codigo, categoria = RELACION_POR_ROL[("lugar", "expedicion")]

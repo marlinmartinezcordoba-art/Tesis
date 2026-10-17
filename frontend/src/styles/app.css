@@ -719,3 +719,22 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .fila-entidad .selector, .fila-relacion .selector { width: auto; max-width: 100%; padding: 6px 8px; }
 .fila-relacion { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .lista-relaciones { padding-left: 18px; }
+
+/* Tesauros: sugerencias al escribir una materia */
+.sugerencia-tesauro { margin-top: 8px; display: grid; gap: 6px; }
+.opcion-concepto { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.opcion-concepto input { margin-top: 4px; }
+.ficha-concepto .meta { display: block; }
+.ficha-concepto strong + .meta { display: inline; }
+
+/* Guía de cada campo: qué es, por qué importa, con qué se relaciona */
+.guia-campo { display: inline-block; vertical-align: middle; font-weight: normal; }
+.guia-campo > summary { list-style: none; cursor: pointer; display: inline-flex; width: 18px; height: 18px; align-items: center;
+  justify-content: center; border-radius: 50%; font-size: .8rem; color: var(--brand, #2a5bd7); }
+.guia-campo > summary::-webkit-details-marker { display: none; }
+.guia-campo[open] { display: block; }
+.guia-cuerpo { margin: 6px 0 8px; padding: 10px 12px; border-left: 3px solid var(--line); background: var(--surface);
+  border-radius: 6px; font-size: .85rem; line-height: 1.45; }
+.guia-cuerpo p { margin: 0 0 6px; }
+.guia-cuerpo, .guia-cuerpo * { text-transform: none; letter-spacing: normal; font-weight: normal; }
+.guia-cuerpo strong { font-weight: 600; }

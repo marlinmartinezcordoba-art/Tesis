@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as EventoPuntero } from "react";
+import { GuiaCampo } from "@/components/GuiaCampo";
 import { PreguntaVocabulario } from "@/components/Vocabulario";
 import { pedir, pedirArchivo } from "@/lib/api";
 import { NIVEL_NOMBRE, verificarVocabulario, type Coincidencia, type Verificacion } from "@/lib/descripcion";
@@ -165,7 +166,7 @@ function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambia
     <details className="campo">
       <summary>Otros elementos de ISAD(G) <span className="meta">({llenos} con dato · opcionales)</span></summary>
       <div className="campo" style={{ marginTop: 8 }}>
-        <label>Escritura <span className="meta">(ISAD-G 3.4.3 · ISO 15924)</span></label>
+        <label>Escritura <span className="meta">(ISAD-G 3.4.3 · ISO 15924)</span> <GuiaCampo clave="escrituras" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.escrituras.map((c) => (
             <span key={c} className="pastilla">{ESCRITURAS[c] || c} <code className="rico">{c}</code>{" "}
@@ -183,7 +184,7 @@ function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambia
       </div>
       {ISADG_TEXTOS.map(([clave, elemento, nombre]) => (
         <div className="campo" key={clave}>
-          <label htmlFor={`isadg-${clave}`}>{nombre} <span className="meta">(ISAD-G {elemento})</span></label>
+          <label htmlFor={`isadg-${clave}`}>{nombre} <span className="meta">(ISAD-G {elemento})</span> <GuiaCampo clave={clave} /></label>
           <textarea id={`isadg-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
                     onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
         </div>
@@ -231,7 +232,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
   return (
     <div className="tarjeta-prop fija">
       <div className="campo">
-        <label>Idioma del contenido <span className="meta">(ISO 639-3)</span></label>
+        <label>Idioma del contenido <span className="meta">(ISO 639-3)</span> <GuiaCampo clave="idiomas" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.idiomas.map((c) => (
             <span key={c} className="pastilla">
@@ -260,7 +261,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
       <div className="campo">
-        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · lo revisa una persona)</span></label>
+        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · lo revisa una persona)</span> <GuiaCampo clave="datos_personales" /></label>
         <select id="datos-personales" className="selector" value={valor.datosPersonales}
                 onChange={(e) => alCambiar({ ...valor, datosPersonales: e.target.value })}>
           <option value="">Sin revisar</option>
@@ -277,7 +278,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
       </div>
       <div className="campo">
-        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(ISAD-G 3.4.1 · opcional · las decide la institución, no el motor)</span></label>
+        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(ISAD-G 3.4.1 · opcional · las decide la institución, no el motor)</span> <GuiaCampo clave="condiciones_acceso" /></label>
         <textarea id="acceso" className="entrada" rows={2} value={valor.condicionesAcceso} maxLength={5000}
                   placeholder="Ej.: «Consulta en sala con cita previa» o «Contiene datos de salud de terceros»"
                   onChange={(e) => alCambiar({ ...valor, condicionesAcceso: e.target.value })} />
@@ -285,19 +286,19 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           oculta es la clasificación de arriba.</div>
       </div>
       <div className="campo">
-        <label htmlFor="uso">Condiciones de uso o de reproducción</label>
+        <label htmlFor="uso">Condiciones de uso o de reproducción <GuiaCampo clave="condiciones_uso" /></label>
         <textarea id="uso" className="entrada" rows={2} value={valor.condicionesUso} maxLength={5000}
                   placeholder="Condición para copiarlo o reproducirlo"
                   onChange={(e) => alCambiar({ ...valor, condicionesUso: e.target.value })} />
       </div>
       <div className="campo">
-        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · opcional · se muestra en la ficha pública)</span></label>
+        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · opcional · se muestra en la ficha pública)</span> <GuiaCampo clave="nota_accesibilidad" /></label>
         <textarea id="accesible" className="entrada" rows={2} value={valor.notaAccesibilidad} maxLength={2000}
                   placeholder="Ej.: «Transcripción en texto plano para lector de pantalla»"
                   onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
       <div className="campo">
-        <label htmlFor="historia">Historia archivística <span className="meta">(ISAD-G 3.2.3 · cómo llegó a su custodio actual)</span></label>
+        <label htmlFor="historia">Historia archivística <span className="meta">(ISAD-G 3.2.3 · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
         <textarea id="historia" className="entrada" rows={2} value={valor.historiaArchivistica} maxLength={20000}
                   placeholder="Transferencias, depósitos y custodios anteriores"
                   onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />

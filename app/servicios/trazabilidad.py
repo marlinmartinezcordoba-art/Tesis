@@ -68,6 +68,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "duplicado_confirmado": ("Confirmó que no era duplicado", "Documentos cargados"),
     "carga_cancelada": ("Canceló un duplicado", "Documentos cargados"),
     "carga_descartada": ("Descartó un documento con error", "Documentos cargados"),
+    "documento_eliminado": ("Eliminó un documento cargado por error", "Documentos cargados"),
     "reintento": ("Reintentó el procesamiento", "Documentos cargados"),
     # Descripción
     "descripcion_iniciada": ("Abrió una descripción", None),
@@ -84,6 +85,9 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "agentes_relacionados": ("Relacionó dos agentes", "Entidades del vocabulario"),
     "entidad_enriquecida": ("Enriqueció una ficha de autoridad", "Entidades del vocabulario"),
     "nombre_agregado": ("Agregó una forma del nombre", "Entidades del vocabulario"),
+    "tesauro_importado": ("Importó un tesauro", "Tesauros"),
+    "tesauro_anulado": ("Anuló un tesauro", "Tesauros"),
+    "materia_normalizada": ("Normalizó una materia con un tesauro", "Entidades del vocabulario"),
     "nombre_anulado": ("Anuló una forma del nombre", "Entidades del vocabulario"),
     "identificador_agregado": ("Agregó un identificador", "Entidades del vocabulario"),
     "identificador_anulado": ("Anuló un identificador", "Entidades del vocabulario"),

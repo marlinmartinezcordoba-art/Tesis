@@ -1,3 +1,6 @@
+import { type Concepto } from "@/lib/tesauros";
+import { GuiaTipoEntidad } from "@/components/GuiaCampo";
+import { SugerenciaTesauro } from "@/components/Tesauros";
 import { useState, type FormEvent } from "react";
 import { SelectorFecha } from "@/components/SelectorFecha";
 import {
@@ -62,6 +65,7 @@ export interface EntidadManual {
   fecha_normalizada: string | null;
   edtf: string | null;
   fecha_subtipo: string | null;
+  concepto_id?: string | null; // materia: el concepto del tesauro elegido
 }
 
 // Formulario para agregar una entidad a mano (o corregir una propuesta).
@@ -79,6 +83,7 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
   const [nota, setNota] = useState("");
   const [fecha, setFecha] = useState<ControlFecha>(desarmar(inicial?.edtf, inicial?.fecha_subtipo as never));
   const [edtf, setEdtf] = useState<string | null>(inicial?.edtf || null);
+  const [concepto, setConcepto] = useState<Concepto | null>(null);
 
   function guardar(e: FormEvent) {
     e.preventDefault();
@@ -91,6 +96,8 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
       edtf: tipo === "fecha" || tipo === "mandato" ? edtf : tipo === "agente" && rol === "custodio" && periodo.trim() ? periodo.trim() : null,
       fecha_subtipo: tipo === "fecha" ? fecha.subtipo : null,
       ...(tipo === "agente" && rol === "custodio" && nota.trim() ? { nota: nota.trim() } : {}),
+      // Materia: el concepto elegido; si no se eligió, el servidor normaliza con lo escrito.
+      ...(tipo === "materia" ? { valor: concepto ? concepto.preferente : valor.trim(), concepto_id: concepto?.id || null } : {}),
     });
   }
 
@@ -108,7 +115,12 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
           </select>
         )}
         <input className="entrada" aria-label="Valor" required autoFocus value={valor} onChange={(e) => setValor(e.target.value)}
-               placeholder={tipo === "fecha" ? "Como aparece: «hacia 1948»" : tipo === "mandato" ? "Acuerdo 7 de 1946" : "Nombre"} />
+               placeholder={tipo === "fecha" ? "Como aparece: «hacia 1948»" : tipo === "mandato" ? "Acuerdo 7 de 1946"
+                 : tipo === "materia" ? "Tema: «archivos históricos»" : "Nombre"} />
+        <GuiaTipoEntidad tipo={tipo} />
+        {tipo === "materia" && (
+          <SugerenciaTesauro texto={valor} elegido={concepto?.id || null} alElegir={setConcepto} />
+        )}
         {tipo === "agente" && (
           <>
             <select className="selector" aria-label="Clase de agente" value={subtipo} onChange={(e) => setSubtipo(e.target.value)}>

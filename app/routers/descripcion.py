@@ -32,7 +32,8 @@ from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
 from app.schemas.respuestas_descripcion import (
-    AtributoCatalogo, CustodiosOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut, FichaPublicaOut, PaginasOut,
+    AtributoCatalogo, CustodiosOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut, FichaPublicaOut, GuiaMetadatos,
+    PaginasOut,
     PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut, ReferenciaBreve, VersionCompleta, VersionResumen,
 )
 from app.servicios import consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
@@ -789,3 +790,11 @@ def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: S
     if recurso.id not in nodos:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La descripción no existe o no se puede consultar.")
     return consulta.ficha_publica(db, recurso, set(nodos), ver)
+
+
+@router.get("/guia", responses={200: {"model": GuiaMetadatos, "description": "Guía de los campos y de las entidades"}},
+            summary="Qué es cada campo y cada tipo de entidad, por qué importa y con qué se relaciona (ISAD(G), RiC-O, AGN)")
+def guia_metadatos(actor: Actor = Depends(acceso_modulo("descripcion"))):
+    from app.servicios import guia_metadatos as guia
+
+    return {"atributos": guia.atributos(), "entidades": guia.entidades()}

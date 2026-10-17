@@ -50,7 +50,8 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion", vistas: [
     { vista: "cola", nombre: "Por describir" }, { vista: "publicadas", nombre: "Descritas" }] },
   { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
-    { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" }] },
+    { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" },
+    { vista: "tesauros", nombre: "Tesauros" }] },
   { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
     { vista: "catalogo", nombre: "Catálogo" }, { vista: "grafo", nombre: "Grafo" },
     // Inventario y guía se generan: solo quien puede generar instrumentos los ve.

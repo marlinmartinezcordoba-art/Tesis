@@ -27,8 +27,10 @@ ESTADO_REVISION = ("validado",)  # solo se publica lo que una persona validó
 # (RiC-E15 Activity), el tipo de actividad es el valor controlado de esa
 # competencia (rico:ActivityType, no una entidad «Función», que no existe
 # en RiC-O) y el mandato es la norma que la regula (RiC-E17 Mandate).
+# «materia» (rico:Concept): el tema de un documento, normalizado con un
+# tesauro (models/tesauro.py, migración 0038).
 CLASE_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte",
-                     "regla")
+                     "regla", "materia")
 # Disposición final de la tabla de retención documental (Acuerdo AGN 004 de 2019).
 DISPOSICION_FINAL = ("conservacion_total", "eliminacion", "seleccion", "medio_tecnico")
 # «grupo» (RiC-E09 Group usado directamente): un colectivo que no es ni
@@ -142,6 +144,8 @@ class EntidadVocabulario(_Procedencia, Base):
     # --- Tipo de actividad como concepto SKOS: skos:broader (función →
     # subfunción → trámite). No es una relación de RiC-O.
     concepto_superior_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True, index=True)
+    # Materia: el concepto del tesauro con que se normalizó (None = término local, sin tesauro).
+    concepto_tesauro_id = Column(UUID(as_uuid=True), ForeignKey("conceptos_tesauro.id"), nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_vocabulario_trigramas", "nombre_normalizado", postgresql_using="gin",

@@ -1,7 +1,8 @@
 import { pedir } from "./api";
 import { RELACION_DEL_ROL, termino } from "./terminos";
 
-export type TipoEntidad = "agente" | "lugar" | "fecha" | "actividad" | "tipo_actividad" | "mandato" | "forma_documental";
+export type TipoEntidad = "agente" | "lugar" | "fecha" | "actividad" | "tipo_actividad" | "mandato" | "forma_documental"
+  | "materia";
 
 export const TIPO_NOMBRE: Record<TipoEntidad, string> = {
   agente: "Agente",
@@ -11,6 +12,7 @@ export const TIPO_NOMBRE: Record<TipoEntidad, string> = {
   tipo_actividad: "Tipo de actividad",
   mandato: "Mandato o norma",
   forma_documental: "Forma documental",
+  materia: "Materia (tema)",
 };
 
 // Actividad, tipo de actividad y mandato comparten color: son una sola
@@ -23,6 +25,7 @@ export const TIPO_CLASE: Record<TipoEntidad, string> = {
   tipo_actividad: "contexto",
   mandato: "contexto",
   forma_documental: "bien",
+  materia: "bien",
 };
 
 export const SUBTIPO_AGENTE: Record<string, string> = {
@@ -81,7 +84,8 @@ export const ORIGEN_NOMBRE: Record<string, string> = {
   persona: "Escrito por una persona",
 };
 
-export const EN_VOCABULARIO: TipoEntidad[] = ["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato"];
+export const EN_VOCABULARIO: TipoEntidad[] = ["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato",
+  "materia"];
 
 export interface Coincidencia {
   id: string;

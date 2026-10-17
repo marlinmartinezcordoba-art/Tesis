@@ -11,6 +11,7 @@ import uuid
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlalchemy import func, select
@@ -253,6 +254,73 @@ def descartar(instanciacion_id: uuid.UUID, request: Request, actor: Actor = Depe
     # El archivo se borra después de confirmar el registro: si algo falla
     # antes, el documento sigue existiendo con su archivo.
     almacen.borrar(ruta)
+
+
+class EliminarIn(BaseModel):
+    motivo: str = Field(min_length=5, max_length=1000)
+
+
+def impedimento_eliminar(db: Session, inst: Instanciacion) -> str | None:
+    """Por qué un documento ya no se puede eliminar como «cargado por error», o None.
+
+    Solo se borra lo que nunca entró al fondo como documento de archivo: lo
+    que se describió (aunque después se anulara), lo que está en edición, en
+    una evaluación, tiene versiones derivadas, acciones de preservación o es
+    el acta de un lote, ya es parte de la historia del fondo y su retiro va
+    por valoración (TRD y acta de eliminación)."""
+    from app.models.descripcion import Relacion, TrabajoInstanciacion
+    from app.models.evaluacion import EvaluacionDocumento
+    from app.models.preservacion import Migracion, Restauracion, SegundaCopia
+    from sqlalchemy import or_
+
+    if inst.estado == "procesando":
+        return "todavía se está procesando; espere a que termine"
+    if db.scalar(select(Relacion.id).where(or_(Relacion.origen_id == inst.id, Relacion.destino_id == inst.id)).limit(1)):
+        return "ya fue descrito: es parte del fondo y su retiro va por valoración (TRD y acta de eliminación)"
+    if db.scalar(select(TrabajoInstanciacion.trabajo_id).where(TrabajoInstanciacion.instanciacion_id == inst.id,
+                                                               TrabajoInstanciacion.abierto.is_(True)).limit(1)):
+        return "alguien lo está describiendo en este momento"
+    if db.scalar(select(EvaluacionDocumento.id).where(EvaluacionDocumento.instanciacion_id == inst.id).limit(1)):
+        return "está en una evaluación ciega (datos de investigación)"
+    if db.scalar(select(Instanciacion.id).where(or_(Instanciacion.derivada_de_id == inst.id,
+                                                    Instanciacion.recorte_de_id == inst.id)).limit(1)):
+        return "tiene versiones derivadas o recortes"
+    for modelo, columna in ((Migracion, Migracion.instanciacion_origen_id), (SegundaCopia, SegundaCopia.instanciacion_id),
+                            (Restauracion, Restauracion.instanciacion_id)):
+        if db.scalar(select(modelo.id).where(columna == inst.id).limit(1)):
+            return "ya tiene acciones de preservación (migración, segunda copia o restauración)"
+    if db.scalar(select(LoteIngesta.id).where(LoteIngesta.acta_instanciacion_id == inst.id).limit(1)):
+        return "es el acta de un lote de transferencia"
+    return None
+
+
+@router.post("/{instanciacion_id}/eliminar", status_code=status.HTTP_204_NO_CONTENT,
+             summary="Eliminar un documento cargado por error (solo administración; nunca descrito; queda constancia)")
+def eliminar(instanciacion_id: uuid.UUID, datos: EliminarIn, request: Request, actor: Actor = Depends(solo_administrador),
+             db: Session = Depends(get_db)):
+    from app.models.preservacion import ComprobacionTecnica, VerificacionIntegridad
+
+    inst = db.scalar(select(Instanciacion).where(Instanciacion.id == instanciacion_id).with_for_update())
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El documento no existe o ya fue eliminado.")
+    motivo = impedimento_eliminar(db, inst)
+    if motivo:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"No se puede eliminar: {motivo}.")
+    # Constancia antes de borrar: qué era, su huella, de qué fondo, quién y por qué.
+    registrar(db, modulo="ingesta", accion="documento_eliminado", usuario_id=actor.id, entidad_tipo="instanciacion",
+              entidad_id=inst.id, request=request, detalle=datos.motivo.strip(),
+              anterior=_datos(inst) | {"fondo_id": str(inst.fondo_id), "formato": inst.formato_nombre,
+                                       "puid": inst.formato_puid, "cargado_en": inst.cargado_en.isoformat()},
+              nuevo={"estado": "eliminado", "motivo": datos.motivo.strip()})
+    # Lo técnico que el sistema registró solo sobre este archivo (verificaciones de
+    # fijeza y de formato) se va con él: describía un objeto que nunca fue del fondo.
+    for modelo in (VerificacionIntegridad, ComprobacionTecnica):
+        for fila in db.scalars(select(modelo).where(modelo.instanciacion_id == inst.id)).all():
+            db.delete(fila)
+    ruta = inst.ruta
+    db.delete(inst)
+    db.commit()
+    almacen.borrar(ruta)  # después de confirmar: si algo falla antes, el documento sigue con su archivo
 
 
 @router.post("/{instanciacion_id}/reintentar", response_model=ElementoCola,

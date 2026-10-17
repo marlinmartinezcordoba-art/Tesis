@@ -85,6 +85,7 @@ CLASE_VOCABULARIO = {
     "mandato": "Mandate",
     "tipo_parte": "DocumentaryFormType",  # tipo de una parte documental (anexo, sello…)
     "regla": "Rule",  # regla no normativa: la de retención de la TRD (RiC-E16, hallazgo CM-18)
+    "materia": "Concept",  # tema del documento, normalizado con un tesauro (además skos:Concept)
 }
 
 CLASE_NODO = {
@@ -128,6 +129,7 @@ SUPERCLASES = {
     "Date": ("Thing",),
     "ActivityType": ("Type", "Concept", "Thing"),
     "DocumentaryFormType": ("Type", "Concept", "Thing"),
+    "Concept": ("Thing",),
 }
 
 AGENTES = ("Person", "Family", "CorporateBody", "Group", "Position", "Mechanism")
