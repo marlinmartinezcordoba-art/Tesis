@@ -6,6 +6,13 @@ set -e
 # Servicio del grafo RiC-O: no usa la base de datos; abre el almacén de
 # tripletas y lo sirve a la web y al trabajador por la red interna.
 if [ "$1" = "grafo" ]; then
+  if [ -n "$RICORA_GRAFO_DIRECTORIO" ]; then
+    mkdir -p "$RICORA_GRAFO_DIRECTORIO" 2>/dev/null || true
+    if [ ! -w "$RICORA_GRAFO_DIRECTORIO" ]; then
+      echo "El directorio del grafo ($RICORA_GRAFO_DIRECTORIO) no se puede escribir con el usuario $(id -un)." >&2
+      exit 1
+    fi
+  fi
   exec uvicorn app.grafo_servidor:app --host 0.0.0.0 --port 7878 --workers 1
 fi
 

@@ -64,7 +64,7 @@ COPY alembic ./alembic
 COPY app ./app
 COPY --from=interfaz /interfaz/dist ./interfaz
 RUN useradd --create-home --uid 1000 ricora \
-    && mkdir -p /data/almacen /data/segunda_copia /data/respaldo \
+    && mkdir -p /data/almacen /data/segunda_copia /data/respaldo /data/grafo \
     && chown -R ricora:ricora /data \
     && chmod +x docker-entrypoint.sh
 USER ricora

@@ -211,7 +211,16 @@ jobs:
 
             # Se retiran los contenedores de la versión anterior (Django,
             # trabajador, Redis, Ollama). Sus volúmenes de datos se conservan.
-            docker compose up --build -d --remove-orphans
+            # El volumen del grafo debe ser del usuario de la aplicación (uid 1000),
+            # aunque Docker lo haya creado antes con dueño root. Es idempotente.
+            docker compose build
+            docker volume create ricora_grafo >/dev/null
+            docker run --rm --user 0 --entrypoint sh -v ricora_grafo:/v ricora-grafo -c 'chown 1000:1000 /v'
+            if ! docker compose up --build -d --remove-orphans; then
+              echo "== Falló el arranque. Registro del servicio del grafo =="
+              docker compose logs --tail 60 grafo || true
+              exit 1
+            fi
             docker image prune -f >/dev/null || true
 
             echo "== Estado de los contenedores =="
