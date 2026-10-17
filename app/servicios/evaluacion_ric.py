@@ -23,7 +23,7 @@ Decisiones en documentacion/modulo-evaluacion.md (versión 2).
 
 from difflib import SequenceMatcher
 
-from app.servicios import ric_o
+from app.servicios import ric_o, terminos
 from app.servicios.evaluacion import TIPOS, normalizar, texto_de
 
 DOCUMENTO = "documento"  # el Record que se describe (cada documento de la evaluación es una unidad documental)
@@ -46,23 +46,10 @@ PROPIEDADES = (
     "has_or_had_subdivision", "exists_or_existed_in", "is_or_was_leader_of", FORMA,
 )
 MAX_RELACIONES = 400
-# Nombre archivístico de uso común, junto a la etiqueta oficial en español de
-# RiC-O (que a veces no se entiende sola: hasAddressee es «se dirige a»).
-PAPEL = {
-    "has_creator": "Productor", "has_author": "Autor", "has_sender": "Remitente", "has_addressee": "Destinatario",
-    "has_accumulator": "Acumulador", "has_or_had_holder": "Custodio", "has_or_had_subject": "Tema o mencionado",
-    "is_creation_date_of": "Fecha de creación", "is_date_associated_with": "Fecha asociada",
-    "is_or_was_location_of": "Lugar de expedición o localización", "contains_or_contained": "Lugar que contiene a otro",
-    "documents": "Actividad que documenta", "has_activity_type": "Función (tipo de actividad)",
-    "performs_or_performed": "Agente que ejerce la actividad", "has_direct_subevent": "Subactividad",
-    "regulates_or_regulated": "Norma que regula", "issued_by": "Quién expide la norma",
-    "authorizes": "Norma que faculta al agente", "has_or_had_subordinate": "Subordinación",
-    "has_successor": "Sucesión", "is_agent_associated_with_agent": "Agentes asociados",
-    "occupies_or_occupied": "Persona que ocupa un cargo", "has_family_association_with": "Parentesco",
-    "has_or_had_member": "Miembro de un grupo", "has_or_had_subdivision": "Dependencia de una entidad",
-    "exists_or_existed_in": "Cargo dentro de una entidad", "is_or_was_leader_of": "Quien dirige un grupo",
-    FORMA: "Tipo documental",
-}
+# Nombre archivístico de cada relación, junto a la etiqueta oficial en español
+# de RiC-O (que a veces no se entiende sola: hasAddressee es «se dirige a»).
+# Sale del vocabulario único de relaciones.
+PAPEL = {codigo: terminos.nombre(codigo) for codigo in PROPIEDADES}
 
 
 class ErrorRic(ValueError):

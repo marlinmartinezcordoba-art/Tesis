@@ -1,4 +1,5 @@
 import { pedir } from "./api";
+import { RELACION_DEL_ROL, termino } from "./terminos";
 
 export type TipoEntidad = "agente" | "lugar" | "fecha" | "actividad" | "tipo_actividad" | "mandato" | "forma_documental";
 
@@ -44,14 +45,23 @@ export const SUBTIPO_MANDATO: Record<string, string> = {
 
 export const SUBTIPO_NOMBRE: Record<string, string> = { ...SUBTIPO_AGENTE, ...SUBTIPO_MANDATO };
 
+// El papel del agente se nombra con el vocabulario único de relaciones (lib/terminos.ts, generado).
+const nombreDelRol = (rol: string) => termino(RELACION_DEL_ROL[rol], rol)?.nombre ?? rol;
+
 export const ROL_NOMBRE: Record<string, string> = {
-  productor: "Productor",
-  autor: "Autor (persona, grupo o cargo)",
-  remitente: "Remitente",
-  destinatario: "Destinatario",
-  acumulador: "Acumulador",
-  mencionado: "Mencionado",
-  custodio: "Custodio (distinto del productor)",
+  productor: nombreDelRol("productor"),
+  autor: `${nombreDelRol("autor")} (persona, grupo o cargo)`,
+  remitente: nombreDelRol("remitente"),
+  destinatario: nombreDelRol("destinatario"),
+  acumulador: nombreDelRol("acumulador"),
+  mencionado: nombreDelRol("mencionado"),
+  custodio: `${nombreDelRol("custodio")} (distinto del productor)`,
+};
+
+// El papel de un lugar en la descripción, con los mismos términos.
+export const ROL_LUGAR_NOMBRE: Record<string, string> = {
+  "": termino("has_or_had_subject", "lugar")?.nombre ?? "",
+  expedicion: termino("is_or_was_location_of", "expedicion")?.nombre ?? "",
 };
 
 export const NIVEL_NOMBRE: Record<string, string> = {

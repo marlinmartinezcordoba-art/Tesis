@@ -211,8 +211,18 @@ def paginar_textos() -> int:
     return 0 if not fallidos else 1
 
 
+def generar_terminos() -> int:
+    """Regenera la copia del vocabulario de relaciones para la interfaz y la tabla de la documentación."""
+    from app.servicios import terminos
+
+    for ruta in terminos.escribir():
+        print(f"  · {ruta}")
+    return 0
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
-            "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos}
+            "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos,
+            "terminos": generar_terminos}
 CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete}
 
 if __name__ == "__main__":

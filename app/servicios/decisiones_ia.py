@@ -50,8 +50,13 @@ def eventos(db: Session, *, tipo: str | None = None, decision: str | None = None
     return list(db.scalars(q.order_by(RegistroAuditoria.fecha.desc(), RegistroAuditoria.id.desc())).all())
 
 
-ROL_NOMBRE = {"productor": "productor", "remitente": "remitente", "destinatario": "destinatario",
-              "mencionado": "mencionado"}
+def _rol_nombre(rol: str) -> str:
+    """El papel del agente con el término del vocabulario único de relaciones."""
+    from app.servicios import terminos
+    from app.servicios.descripcion import RELACION_POR_ROL
+
+    par = RELACION_POR_ROL.get(("agente", rol))
+    return terminos.nombre(par[0], rol).lower() if par else rol
 SUBTIPO_NOMBRE = {"persona": "persona", "entidad_corporativa": "entidad corporativa", "cargo": "cargo",
                   "familia": "familia", "mecanismo": "mecanismo", "ley": "ley", "decreto": "decreto",
                   "ordenanza": "ordenanza", "acuerdo": "acuerdo", "resolucion": "resolución", "otro": "otro instrumento"}
@@ -66,7 +71,7 @@ def _texto(valores: dict | None) -> str | None:
         return None
     partes = [str(valores["valor"])] if valores.get("valor") else []
     if valores.get("rol"):
-        partes.append(ROL_NOMBRE.get(valores["rol"], valores["rol"]))
+        partes.append(_rol_nombre(valores["rol"]))
     if valores.get("subtipo"):
         partes.append(SUBTIPO_NOMBRE.get(valores["subtipo"], valores["subtipo"]))
     if valores.get("edtf"):

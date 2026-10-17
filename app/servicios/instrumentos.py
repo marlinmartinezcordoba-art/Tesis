@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.models.descripcion import EntidadVocabulario, Fecha, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
-from app.servicios import retencion, alertas, consulta, motor, vocabulario
+from app.servicios import retencion, alertas, consulta, motor, terminos, vocabulario
 
 NIVEL_PLURAL = {"seccion": "secciones", "subseccion": "subsecciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
                 "unidad_documental": "unidades documentales", "parte_documental": "partes documentales"}
@@ -605,17 +605,6 @@ def indice(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False
 
 # --- Grafo (vista visual de solo lectura) ---------------------------------------------------------
 
-ETIQUETA_RELACION = {
-    "has_creator": "producido por", "has_sender": "remitido por", "has_addressee": "dirigido a",
-    "has_or_had_subject": "trata de", "is_creation_date_of": "fecha de creación de", "documents": "documenta",
-    "includes_or_included": "incluye", "has_or_had_instantiation": "tiene instanciación",
-    "migrated_into": "migrada a", "forma_documental": "forma documental",
-    "has_activity_type": "es del tipo", "performs_or_performed": "ejerce", "regulates_or_regulated": "regula",
-    "authorizes": "autoriza a", "is_date_associated_with": "fecha de", "has_or_had_subordinate": "tiene como subordinado",
-    "has_successor": "tiene como sucesor", "is_agent_associated_with_agent": "asociado con",
-    # Versiones 3 de descripción y 2 de vocabularios
-    "has_or_had_holder": "custodiado por", "precedes_or_preceded": "precede a", "has_or_had_constituent": "tiene la parte",
-    "has_direct_subevent": "tiene la sub-actividad", "contains_or_contained": "contiene",
-    "is_or_was_location_of": "lugar de", "issued_by": "expedido por", "is_related_to": "produce la serie",
-    "affects_or_affected": "afecta a", "occupies_or_occupied": "ocupa",
-}
+# Lectura directa de cada relación (etiqueta del grafo y de los instrumentos):
+# del vocabulario único de relaciones, no escrita aquí.
+ETIQUETA_RELACION = {codigo: terminos.directa(codigo) for codigo, rol in terminos.TERMINOS if rol is None}

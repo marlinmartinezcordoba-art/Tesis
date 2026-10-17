@@ -1,3 +1,5 @@
+import { RELACION_DEL_ROL, termino } from "./terminos";
+
 export interface NodoArbol {
   id: string;
   nivel: string;
@@ -95,19 +97,19 @@ export interface Indice {
   }[];
 }
 
-// Cómo se lee cada relación en la ficha, en lenguaje archivístico.
+// Cómo se llama cada relación en la ficha: el término del vocabulario único de
+// relaciones (lib/terminos.ts), el mismo de la descripción y del grafo.
 export function etiquetaRelacion(e: EntidadFicha): string {
-  if (e.tipo === "fecha") return "Fecha";
-  if (e.tipo === "lugar") return e.rol === "expedicion" ? "Expedido en" : "Lugar del que trata";
-  if (e.tipo === "actividad") return "Actividad documentada";
-  if (e.codigo_ric === "has_or_had_subject") return "Trata de";
-  if (e.rol === "productor" || e.codigo_ric === "has_creator") return "Producido por";
-  if (e.rol === "autor" || e.codigo_ric === "has_author") return "Autor";
-  if (e.rol === "acumulador" || e.codigo_ric === "has_accumulator") return "Acumulado por";
-  if (e.rol === "remitente") return "Remitido por";
-  if (e.rol === "destinatario") return "Dirigido a";
-  if (e.rol === "mencionado") return "Menciona a";
-  return "Agente";
+  let codigo: string | null = e.codigo_ric || null;
+  let rol = e.rol;
+  if (e.tipo === "lugar") {
+    rol = e.rol === "expedicion" ? "expedicion" : "lugar";
+    codigo = codigo || (rol === "expedicion" ? "is_or_was_location_of" : "has_or_had_subject");
+  } else if (!codigo) {
+    codigo = e.tipo === "fecha" ? "is_creation_date_of" : e.tipo === "actividad" ? "documents"
+      : e.tipo === "agente" && e.rol ? RELACION_DEL_ROL[e.rol] : null;
+  }
+  return termino(codigo, rol)?.nombre ?? (e.tipo === "agente" ? "Agente" : e.tipo);
 }
 
 export const ESTADO_PRESERVACION: Record<Preservacion["estado"], { texto: string; clase: string; orden: number }> = {

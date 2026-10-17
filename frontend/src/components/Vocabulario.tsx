@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { SelectorFecha } from "@/components/SelectorFecha";
 import {
-  EN_VOCABULARIO, ROL_NOMBRE, SUBTIPO_AGENTE, SUBTIPO_MANDATO, SUBTIPO_NOMBRE, TIPO_NOMBRE, type TipoEntidad,
+  EN_VOCABULARIO, ROL_LUGAR_NOMBRE, ROL_NOMBRE, SUBTIPO_AGENTE, SUBTIPO_MANDATO, SUBTIPO_NOMBRE, TIPO_NOMBRE, type TipoEntidad,
   type Verificacion,
 } from "@/lib/descripcion";
 import { desarmar, type ControlFecha } from "@/lib/fechas";
@@ -130,8 +130,7 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
         {tipo === "lugar" && (
           <select className="selector" aria-label="Papel del lugar" value={rol === "expedicion" ? "expedicion" : ""}
                   onChange={(e) => setRol(e.target.value)}>
-            <option value="">Lugar del que trata</option>
-            <option value="expedicion">Lugar donde se expidió</option>
+            {Object.entries(ROL_LUGAR_NOMBRE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         )}
         {tipo === "mandato" && (

@@ -32,7 +32,7 @@ from app.models.descripcion import (
     EntidadVocabulario, Hito, IdentificadorEntidad, NombreEntidad, Relacion,
 )
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import fechas, ric_o
+from app.servicios import fechas, ric_o, terminos
 from app.servicios.auditoria import registrar
 
 REGLAS_POR_DEFECTO = "ISAAR (CPF), 2.ª edición (Consejo Internacional de Archivos, 2004)"
@@ -479,8 +479,6 @@ class Vinculo:
     destino: tuple[str, ...]  # clases del vocabulario, o «recurso:<niveles>»
     jerarquico: bool  # ¿forma una jerarquía? (sin ciclos)
     unico_superior: bool  # ¿a lo sumo un superior directo?
-    directa: str  # lectura desde el origen
-    inversa: str  # lectura desde el destino
     # Desde qué lado se declara en la interfaz: «origen» si la entidad que
     # se edita es el origen de la fila, «destino» si es el destino.
     se_declara_desde: str = "origen"
@@ -488,75 +486,73 @@ class Vinculo:
     # municipio que fue de una provincia hasta 1886 y luego de un departamento).
     superiores_por_vigencia: bool = False
 
+    # Las lecturas salen del vocabulario único de relaciones (servicios/terminos.py).
+    @property
+    def directa(self) -> str:  # lectura desde el origen
+        return terminos.directa(self.codigo, self.rol)
+
+    @property
+    def inversa(self) -> str:  # lectura desde el destino
+        return terminos.inversa(self.codigo, self.rol)
+
 
 GRUPOS_VOCABULARIO = ("agente:grupo", "agente:entidad_corporativa", "agente:familia")
 
 VINCULOS: dict[str, Vinculo] = {
     # Agente a agente (ISAAR 5.3): jerárquica, temporal, asociativa.
-    "subordinado": Vinculo("has_or_had_subordinate", None, "asociacion", ("agente",), ("agente",), True, False,
-                           "tiene o tuvo como subordinado a", "está o estuvo subordinado a"),
-    "sucesor": Vinculo("has_successor", None, "temporal", ("agente",), ("agente",), True, False,
-                       "tiene como sucesor a", "es sucesor de"),
-    "asociado": Vinculo("is_agent_associated_with_agent", None, "asociacion", ("agente",), ("agente",), False, False,
-                        "está asociado con", "está asociado con"),
+    "subordinado": Vinculo("has_or_had_subordinate", None, "asociacion", ("agente",), ("agente",), True, False),
+    "sucesor": Vinculo("has_successor", None, "temporal", ("agente",), ("agente",), True, False),
+    "asociado": Vinculo("is_agent_associated_with_agent", None, "asociacion", ("agente",), ("agente",), False, False),
     # Persona, cargo y grupo (ISAAR 5.3; RiC-R054, R055, R056, R005, R042),
     # validados por subtipo: «agente:persona» admite solo personas.
     "ocupa_cargo": Vinculo("occupies_or_occupied", None, "asociacion", ("agente:persona",), ("agente:cargo",), False,
-                           False, "ocupa u ocupó el cargo", "es o fue ocupado por"),
+                           False),
     # Parentesco (ISAAR 5.3.2; rico:hasFamilyAssociationWith, hallazgo VOC-02), tipado por el rol.
     "progenitor_de": Vinculo("has_family_association_with", "progenitor", "asociacion", ("agente:persona",),
-                             ("agente:persona",), False, False, "es padre o madre de", "es hijo o hija de"),
+                             ("agente:persona",), False, False),
     "hermano_de": Vinculo("has_family_association_with", "hermano", "asociacion", ("agente:persona",),
-                          ("agente:persona",), False, False, "es hermano o hermana de", "es hermano o hermana de"),
+                          ("agente:persona",), False, False),
     "conyuge_de": Vinculo("has_family_association_with", "conyuge", "asociacion", ("agente:persona",),
-                          ("agente:persona",), False, False, "es o fue cónyuge de", "es o fue cónyuge de"),
+                          ("agente:persona",), False, False),
     "familiar_de": Vinculo("has_family_association_with", None, "asociacion", ("agente:persona",),
-                           ("agente:persona",), False, False, "tiene parentesco con", "tiene parentesco con"),
+                           ("agente:persona",), False, False),
     "miembro": Vinculo("has_or_had_member", None, "asociacion", GRUPOS_VOCABULARIO, ("agente:persona",), False,
-                       False, "tiene o tuvo como miembro a", "es o fue miembro de"),
+                       False),
     "dirige": Vinculo("is_or_was_leader_of", None, "asociacion", ("agente:persona",), GRUPOS_VOCABULARIO, False,
-                      False, "dirige o dirigió", "es o fue dirigido por"),
+                      False),
     "subdivision": Vinculo("has_or_had_subdivision", None, "inclusion", GRUPOS_VOCABULARIO, GRUPOS_VOCABULARIO, True,
-                           False, "tiene o tuvo como subdivisión a", "es o fue subdivisión de"),
+                           False),
     "cargo_en": Vinculo("exists_or_existed_in", None, "inclusion", ("agente:cargo",), GRUPOS_VOCABULARIO, False,
-                        False, "existe o existió en", "tiene o tuvo el cargo"),
+                        False),
     # Lugar de actuación de un agente (RiC-R075): se declara desde el agente.
-    "lugar_agente": Vinculo("is_or_was_location_of", "actuacion", "espacial", ("lugar",), ("agente",), False, False,
-                            "es o fue lugar de actuación de", "actúa o actuó en", se_declara_desde="destino"),
+    "lugar_agente": Vinculo("is_or_was_location_of", "actuacion", "espacial", ("lugar",), ("agente",), False, False, se_declara_desde="destino"),
     # Lugar contenido en otro (RiC-R007): se declara desde el lugar contenido.
-    "lugar_superior": Vinculo("contains_or_contained", None, "espacial", ("lugar",), ("lugar",), True, False,
-                              "contiene a", "está dentro de", se_declara_desde="destino",
+    "lugar_superior": Vinculo("contains_or_contained", None, "espacial", ("lugar",), ("lugar",), True, False, se_declara_desde="destino",
                               superiores_por_vigencia=True),
     # Actividad mayor y sub-actividad (rico:hasDirectSubevent): desde la sub-actividad.
-    "actividad_mayor": Vinculo("has_direct_subevent", None, "inclusion", ("actividad",), ("actividad",), True, True,
-                               "tiene como sub-actividad a", "es sub-actividad de", se_declara_desde="destino"),
+    "actividad_mayor": Vinculo("has_direct_subevent", None, "inclusion", ("actividad",), ("actividad",), True, True, se_declara_desde="destino"),
     # Agente que ejerce la actividad (RiC-R060i): desde la actividad.
-    "ejercida_por": Vinculo("performs_or_performed", None, "procedencia", ("agente",), ("actividad",), False, False,
-                            "ejerce o ejerció", "es o fue ejercida por", se_declara_desde="destino"),
+    "ejercida_por": Vinculo("performs_or_performed", None, "procedencia", ("agente",), ("actividad",), False, False, se_declara_desde="destino"),
     # Mandato que regula una actividad (RiC-R063): desde la actividad.
     "mandato_actividad": Vinculo("regulates_or_regulated", None, "asociacion", ("mandato",), ("actividad",), False,
-                                 False, "regula", "está regulada por", se_declara_desde="destino"),
+                                 False, se_declara_desde="destino"),
     # Norma superior de la que deriva un mandato (R063, rol jerarquía normativa): desde el derivado.
     "mandato_superior": Vinculo("regulates_or_regulated", "jerarquia_normativa", "asociacion", ("mandato",),
-                                ("mandato",), True, False, "es norma superior de", "desarrolla o deriva de",
+                                ("mandato",), True, False,
                                 se_declara_desde="destino"),
     # Mandato que crea al agente (R067, rol creación): desde el agente.
-    "creado_por": Vinculo("authorizes", "creacion", "asociacion", ("mandato",), ("agente",), False, False,
-                          "crea o establece a", "fue creado o establecido por", se_declara_desde="destino"),
+    "creado_por": Vinculo("authorizes", "creacion", "asociacion", ("mandato",), ("agente",), False, False, se_declara_desde="destino"),
     # Mandato que crea un tipo de actividad como competencia nueva (R063, rol creación).
     "competencia_creada_por": Vinculo("regulates_or_regulated", "creacion", "asociacion", ("mandato",),
-                                      ("tipo_actividad",), False, False, "crea la competencia",
-                                      "es una competencia creada por", se_declara_desde="destino"),
+                                      ("tipo_actividad",), False, False, se_declara_desde="destino"),
     # Entidad que expidió el mandato (RiC-R065): desde el mandato.
-    "expedido_por": Vinculo("issued_by", None, "procedencia", ("mandato",), ("agente",), False, False,
-                            "fue expedido por", "expidió"),
+    "expedido_por": Vinculo("issued_by", None, "procedencia", ("mandato",), ("agente",), False, False),
     # Regla de retención (TRD) que regula la serie o subserie (R063, rol «retencion»): desde la regla.
     "regla_serie": Vinculo("regulates_or_regulated", "retencion", "asociacion", ("regla",),
-                           ("recurso:serie,subserie",), False, True, "regula la retención de",
-                           "tiene su retención regulada por"),
+                           ("recurso:serie,subserie",), False, True),
     # Función ↔ serie que produce (TRD): R001, desde el tipo de actividad.
     "serie_producida": Vinculo("is_related_to", "serie_producida", "asociacion", ("tipo_actividad",),
-                               ("recurso:serie,subserie",), False, False, "produce la serie", "es producida por la función"),
+                               ("recurso:serie,subserie",), False, False),
 }
 
 
