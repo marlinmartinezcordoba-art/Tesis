@@ -83,6 +83,12 @@ def _trabajador() -> dict:
 
 def _respaldo(db: Session) -> dict:
     from app.servicios import parametros, respaldo
+    from app.core.config import settings
+
+    if not settings.preservacion_activa:
+        # Respaldos programados apagados junto con la preservación (decisión de
+        # la autora): no es una falla del servidor, pero se dice.
+        return {"ok": True, "motivo": "Respaldos programados desactivados (RICORA_PRESERVACION=0)."}
 
     try:
         probado = respaldo.ultimo_probado(db)

@@ -64,7 +64,7 @@ export default function App() {
       <Route path="/instrumentos" element={<Protegida modulo="catalogo"><Instrumentos /></Protegida>} />
       <Route path="/preservacion" element={<Protegida modulo="preservacion"><PanelPreservacion /></Protegida>} />
       <Route path="/preservacion/instanciacion/:id" element={<Protegida modulo="preservacion"><InstanciacionPreservacion /></Protegida>} />
-      <Route path="/preservacion/configuracion" element={<Protegida permitir={(u) => u.es_administrador}><ConfiguracionPreservacion /></Protegida>} />
+      <Route path="/preservacion/configuracion" element={<Protegida permitir={(u) => u.es_administrador && !!u.preservacion_activa}><ConfiguracionPreservacion /></Protegida>} />
       <Route path="/auditoria" element={<Protegida modulo="auditoria"><Auditoria /></Protegida>} />
       <Route path="/evaluacion" element={<Protegida modulo="descripcion" tipo="escribir"><EvaluacionCiega /></Protegida>} />
       <Route path="/auditoria/entidad/:tipo/:id" element={<Protegida modulo="auditoria"><TrazabilidadEntidad /></Protegida>} />

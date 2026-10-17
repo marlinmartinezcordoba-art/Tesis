@@ -142,7 +142,7 @@ function ClasificacionAcceso({ valor, alCambiar, heredada }: {
             </>
           )}
           <div className="pista">No se mostrará en el catálogo público, la guía, los datos abiertos ni el paquete de
-            consulta. Se puede cambiar después en Preservación → Derechos.</div>
+            consulta. Se puede cambiar después desde la descripción del documento.</div>
         </div>
       )}
       {valor.acceso !== "hereda" && (

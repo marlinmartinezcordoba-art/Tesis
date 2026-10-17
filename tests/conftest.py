@@ -12,6 +12,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://ricora:ricora@local
 os.environ["RICORA_SECRET_KEY"] = "clave-de-pruebas-de-ricora-con-mas-de-32-caracteres"
 os.environ["RICORA_URL_PUBLICA"] = "http://ricora.prueba"
 os.environ["RICORA_DIRECTORIO_INTERFAZ"] = "/ruta/que/no/existe"
+os.environ["RICORA_PRESERVACION"] = "1"  # las pruebas cubren el módulo encendido; test_preservacion_apagada, apagado
 import glob  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from app.core.permisos import Actor, acceso_modulo, solo_administrador
+from app.core.permisos import Actor, acceso_modulo, preservacion_encendida, solo_administrador
 from app.db.session import get_db
 from app.models.preservacion import Migracion
 from app.models.recurso_documental import RecursoDocumental
@@ -30,7 +30,8 @@ from app.servicios import (comprobaciones, derechos, ndsa, paquete, parametros, 
                            segunda_copia)
 from app.servicios.auditoria import ip_de
 
-router = APIRouter(prefix="/api/preservacion", tags=["Módulo 5 · Preservación"])
+router = APIRouter(prefix="/api/preservacion", tags=["Módulo 5 · Preservación"],
+                   dependencies=[Depends(preservacion_encendida)])
 modulo = acceso_modulo("preservacion")
 
 

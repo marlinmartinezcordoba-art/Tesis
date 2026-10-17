@@ -1,7 +1,39 @@
 # Módulo 5 · Preservación digital
 
 **Versión:** 2.2 (actualizada según el prompt «Módulo 5, versión actualizada 2», el prompt de vocabularios v2 y el Plan de Preservación Digital del sistema, versión 3).
-**Estado:** entregado, pendiente de validación.
+**Estado:** **apagado por defecto** desde la versión 2.3 (decisión de la autora). El código y los datos se conservan.
+
+## Versión 2.3 · Módulo apagado
+
+La autora decidió quitar la preservación digital del sistema: la tesis trata la descripción archivística asistida, no la preservación. Se apagó con un interruptor (`RICORA_PRESERVACION`, apagado si no se define). No se borró nada.
+
+**Qué deja de funcionar con el módulo apagado:**
+- la entrada «Preservación» del menú, sus pantallas y su configuración;
+- toda la API `/api/preservacion/…`, que responde 404 «desactivado», también para la administración. Esto incluye:
+  - migración de formatos;
+  - segunda copia;
+  - paquetes AIP;
+  - derechos desde preservación;
+  - riesgo y nivel NDSA;
+  - respaldos y paquete de recuperación;
+- en el trabajador: la verificación periódica de integridad, la creación de segundas copias, los **respaldos programados de la base** y el **paquete de recuperación**;
+- el permiso «Preservación» de los roles: no se muestra ni se entrega a la interfaz. Lo guardado en cada rol no cambia, así que al encender el módulo vuelve igual;
+- en la ficha de Instrumentos, el estado de preservación (los archivos siguen listados como «Archivos», con su formato); en Ingesta, la cifra «en riesgo».
+
+**Qué sigue funcionando, porque no es preservación sino parte de la ingesta o de la descripción:**
+- la **huella SHA-256** de cada archivo al cargarlo. Sin ella no se detectan duplicados ni queda la constancia de un documento eliminado por error;
+- la **identificación de formato** (Siegfried/PRONOM), que se muestra en la ingesta y se exporta en RiC-O como la instanciación del documento;
+- las condiciones de acceso y de uso (Ley 1712), que se declaran en la descripción;
+- los datos de preservación ya registrados se siguen exportando en RiC-O tal como están.
+
+**Para encenderlo de nuevo:** `RICORA_PRESERVACION=1` en el entorno del servidor y del trabajador, y reiniciar.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo quitar la preservación | Borrar el código; **apagarla con un interruptor** | **Interruptor** (decisión de la autora) | Nada se borra de forma irreversible; los datos ya registrados se conservan; las pruebas siguen cubriendo el módulo encendido | Código que no se usa en producción y que hay que mantener al actualizar dependencias |
+| Respaldos programados de la base | Mantenerlos; **apagarlos con el módulo** | **Apagados** (decisión de la autora, contra la recomendación técnica) | Son parte del mismo módulo (OAIS, NFR-04 y NFR-07) | **Alto:** si el servidor falla, se pierde todo lo descrito desde la última copia que la autora haga por fuera. Mitigación: copias del proveedor del servidor (*snapshots*) o volver a encender el módulo antes de cargar el caso real. La salud del servidor dice «respaldos desactivados» en vez de marcar falla |
+| Huella SHA-256 e identificación de formato | Quitarlas; **conservarlas como parte de la ingesta** | **Conservarlas** | Sin la huella no hay detección de duplicados ni constancia del borrado; el formato es un atributo de la instanciación en RiC-CM, no una acción de preservación | Ninguno: no hay verificación periódica, solo la de la carga |
+
 
 **Qué cambió en la versión 2.2:**
 - **Cada acción técnica apunta al agente mecanismo del vocabulario** (RiC-E13), con su versión exacta: la migración (Ghostscript o Pillow), la identificación de formato (Siegfried con sus firmas PRONOM), la verificación de integridad, la segunda copia y la restauración (el propio sistema, RICORA 2.0.0). Antes se guardaba el nombre del programa como texto libre. Es la brecha que el prompt de vocabularios v2 llamaba «resuelta de forma improvisada dentro de los metadatos de preservación».

@@ -22,6 +22,7 @@ from app.core.permisos import (
     Actor,
     acceso_modulo,
     doble_factor_requerido,
+    permisos_efectivos,
     usuario_actual,
 )
 from app.core.seguridad import (
@@ -99,12 +100,13 @@ def _breve(usuario: Usuario) -> UsuarioBreve:
         permisos=_permisos(usuario),
         doble_factor=usuario.mfa_activo,
         doble_factor_requerido=doble_factor_requerido(object_session(usuario), usuario),
+        preservacion_activa=settings.preservacion_activa,
     )
 
 
 def _permisos(usuario: Usuario) -> dict[str, str]:
     rol = usuario.rol_info
-    return dict(rol.permisos or {}) if rol is not None and rol.activo else {}
+    return permisos_efectivos(rol.permisos) if rol is not None and rol.activo else {}
 
 
 def _rol_valido(db: Session, clave: str) -> Rol:

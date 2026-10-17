@@ -34,6 +34,13 @@ class Settings:
     # volumen de Docker.
     directorio_almacenamiento: Path = Path(os.getenv("DIRECTORIO_ALMACENAMIENTO", "/data/almacen"))
 
+    # Módulo de preservación digital (verificación periódica de integridad,
+    # migración de formatos, segunda copia, paquetes AIP, derechos, riesgo,
+    # NDSA) y respaldos programados. Apagado por defecto: la tesis trata la
+    # descripción, no la preservación (decisión de la autora). El código y los
+    # datos se conservan; RICORA_PRESERVACION=1 lo vuelve a encender.
+    preservacion_activa: bool = os.getenv("RICORA_PRESERVACION", "0").strip().lower() in ("1", "true", "si", "sí")
+
     # Segunda copia (preservación, OAIS Almacenamiento de Archivo): lugares
     # donde el administrador puede elegir guardarla, separados por «:». Los
     # declara quien opera el servidor (no se escriben rutas desde la web);

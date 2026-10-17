@@ -85,7 +85,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
                 <span className="insignia acento">{NIVEL_NOMBRE[ficha.nivel]}</span>
                 <h2>{ficha.titulo}</h2>
               </div>
-              {preservacion && (
+              {preservacion && vePreservacion && (
                 <span className={`insignia ${ESTADO_PRESERVACION[preservacion.estado].clase}`} title="Estado de preservación (módulo 5)">
                   ● {ESTADO_PRESERVACION[preservacion.estado].texto}
                 </span>
@@ -137,7 +137,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
               )}
               {ficha.instanciaciones.length > 0 && (
                 <>
-                  <dt>Preservación</dt>
+                  <dt>{vePreservacion ? "Preservación" : "Archivos"}</dt>
                   <dd>
                     {ficha.instanciaciones.map((i) => (
                       <div key={i.id} className="meta">
@@ -145,7 +145,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
                         {vePreservacion ? <Link to={`/preservacion/instanciacion/${i.id}`}>{i.nombre}</Link> : i.nombre}
                         {i.preservacion.derivada_de && " (versión de conservación)"}
                         {" · "}{i.preservacion.formato || "formato sin identificar"}{i.preservacion.puid && ` (${i.preservacion.puid})`}
-                        {" · "}{ESTADO_PRESERVACION[i.preservacion.estado].texto.toLowerCase()}
+                        {vePreservacion && <>{" · "}{ESTADO_PRESERVACION[i.preservacion.estado].texto.toLowerCase()}</>}
                       </div>
                     ))}
                   </dd>

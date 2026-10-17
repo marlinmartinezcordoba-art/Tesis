@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
+import { useSesion } from "@/lib/sesion";
 
 export interface RolInfo {
   clave: string;
@@ -25,8 +26,15 @@ const MODULOS: { clave: string; nombre: string; niveles: [string, string][] }[] 
 
 const NOMBRE_NIVEL: Record<string, string> = Object.fromEntries(MODULOS.flatMap((m) => m.niveles));
 
+// Con el módulo de preservación apagado, su fila no se muestra (lo guardado en el rol no cambia).
+function useModulosVisibles() {
+  const { usuario } = useSesion();
+  return MODULOS.filter((m) => m.clave !== "preservacion" || !!usuario?.preservacion_activa);
+}
+
 function Resumen({ permisos }: { permisos: Record<string, string> }) {
-  const partes = MODULOS.filter((m) => permisos[m.clave] && permisos[m.clave] !== "ninguno")
+  const modulos = useModulosVisibles();
+  const partes = modulos.filter((m) => permisos[m.clave] && permisos[m.clave] !== "ninguno")
     .map((m) => `${m.nombre}: ${NOMBRE_NIVEL[permisos[m.clave]].toLowerCase()}`);
   return <>{partes.length ? partes.join(" · ") : "Sin acceso a ningún módulo"}</>;
 }
@@ -36,6 +44,7 @@ function Editor({ inicial, alGuardar, alCancelar }: {
   alGuardar: (datos: { nombre: string; descripcion: string; permisos: Record<string, string> }) => Promise<void>;
   alCancelar: () => void;
 }) {
+  const modulos = useModulosVisibles();
   const [nombre, setNombre] = useState(inicial?.nombre || "");
   const [descripcion, setDescripcion] = useState(inicial?.descripcion || "");
   const [permisos, setPermisos] = useState<Record<string, string>>(
@@ -67,7 +76,7 @@ function Editor({ inicial, alGuardar, alCancelar }: {
       <table className="tabla-permisos">
         <thead><tr><th>Módulo</th><th>Acceso</th></tr></thead>
         <tbody>
-          {MODULOS.map((m) => (
+          {modulos.map((m) => (
             <tr key={m.clave}>
               <td>{m.nombre}</td>
               <td>

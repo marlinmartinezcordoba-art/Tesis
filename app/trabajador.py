@@ -28,6 +28,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.db.session import SessionLocal
 from app.models.instanciacion import Instanciacion
+from app.core.config import settings
 from app.servicios import mecanismos, preservacion, procesamiento, recuperacion, respaldo, salud, sesiones, vocabulario
 
 log = logging.getLogger("ricora.trabajador")
@@ -69,20 +70,21 @@ def main() -> None:
                 nuevas = vocabulario.deteccion_periodica(db)
                 if nuevas:
                     log.info("Vocabulario: %s sugerencia(s) de fusión nuevas.", nuevas)
-                # Preservación: verificación periódica de integridad.
-                verificadas = preservacion.verificacion_periodica(db)
+                # Preservación y respaldos: solo con el módulo encendido
+                # (RICORA_PRESERVACION=1); apagado, el ciclo sigue sin ellos.
+                verificadas = preservacion.verificacion_periodica(db) if settings.preservacion_activa else None
                 if verificadas is not None:
                     log.info("Preservación: %s instanciación(es) verificadas.", verificadas)
                 # Respaldo de la base con su simulacro de restauración.
-                hecho = respaldo.periodico(db)
+                hecho = respaldo.periodico(db) if settings.preservacion_activa else None
                 if hecho is not None:
                     log.info("Respaldo de la base: %s, simulacro %s.", hecho.estado, hecho.simulacro_estado)
                 # Recuperación ante desastres: paquete completo y su simulacro (NFR-07).
-                paquete = recuperacion.periodico(db)
+                paquete = recuperacion.periodico(db) if settings.preservacion_activa else None
                 if paquete is not None:
                     log.info("Paquete de recuperación: %s, simulacro %s.", paquete.estado, paquete.simulacro_estado)
                 if time.monotonic() - ultima_replica >= 60:
-                    replicadas = preservacion.replicar_pendientes(db)
+                    replicadas = preservacion.replicar_pendientes(db) if settings.preservacion_activa else 0
                     if replicadas:
                         log.info("Preservación: %s segunda(s) copia(s) creadas.", replicadas)
                     ultima_replica = time.monotonic()

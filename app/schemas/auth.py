@@ -33,6 +33,8 @@ class UsuarioBreve(BaseModel):
     # lleva a configurarlo antes de dejar trabajar).
     doble_factor: bool = False
     doble_factor_requerido: bool = False
+    # Si el módulo de preservación está encendido en este sistema.
+    preservacion_activa: bool = False
 
 
 class SesionOut(BaseModel):

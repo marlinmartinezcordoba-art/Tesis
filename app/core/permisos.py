@@ -36,6 +36,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.seguridad import TokenInvalido, leer_token_acceso
 from app.db.session import get_db
 from app.models.sesion import Sesion
@@ -56,6 +57,21 @@ MODULOS_TRABAJO = ("ingesta", "descripcion", "vocabularios", "instrumentos", "pr
 MODULOS = (*MODULOS_TRABAJO, "catalogo", "auditoria", "usuarios")
 
 _METODOS_LECTURA = {"GET", "HEAD", "OPTIONS"}
+
+
+def permisos_efectivos(permisos: dict | None) -> dict[str, str]:
+    """Los permisos del rol, sin los del módulo de preservación si está apagado."""
+    efectivos = dict(permisos or {})
+    if not settings.preservacion_activa:
+        efectivos.pop("preservacion", None)
+    return efectivos
+
+
+def preservacion_encendida() -> None:
+    """Dependencia del router de preservación: 404 si el módulo está apagado."""
+    if not settings.preservacion_activa:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="El módulo de preservación digital está desactivado en este sistema.")
 
 
 @dataclass
@@ -137,7 +153,7 @@ def usuario_actual(
 
     sesiones.registrar_actividad(db, sesion)
     rol = db.get(Rol, usuario.rol)
-    actor = Actor(usuario=usuario, sesion=sesion, permisos=dict(rol.permisos or {}) if rol and rol.activo else {})
+    actor = Actor(usuario=usuario, sesion=sesion, permisos=permisos_efectivos(rol.permisos) if rol and rol.activo else {})
     request.state.actor = actor
     # Brecha RF-SEC-003: si el rol exige segundo factor y la cuenta no lo
     # tiene, solo puede usar Mi perfil (para configurarlo) hasta tenerlo.

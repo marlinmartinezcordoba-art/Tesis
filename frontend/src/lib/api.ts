@@ -46,6 +46,7 @@ export interface UsuarioBreve {
   permisos: Record<string, string>;
   doble_factor?: boolean; // la cuenta usa segundo factor
   doble_factor_requerido?: boolean; // su rol lo exige
+  preservacion_activa?: boolean; // el módulo de preservación está encendido en este sistema
 }
 
 interface RespuestaSesion {

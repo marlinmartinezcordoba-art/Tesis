@@ -557,6 +557,7 @@ const ESTADO_CORTO: Record<string, string> = { procesando: "En proceso", duplica
 // Debajo de una cola corta: el estado general del fondo, con los mismos
 // datos del panel de preservación (no un cálculo propio de esta pantalla).
 function ResumenIngesta({ fondo }: { fondo: Fondo }) {
+  const { usuario } = useSesion();
   const [r, setR] = useState<{ documentos: number; con_texto: number; en_riesgo: number; riesgo_integridad: number; riesgo_obsolescencia: number } | null>(null);
   useEffect(() => {
     pedir<typeof r>(`/api/ingesta/resumen?fondo_id=${fondo.id}`).then(setR).catch(() => setR(null));
@@ -568,8 +569,10 @@ function ResumenIngesta({ fondo }: { fondo: Fondo }) {
       <div className="resumen-preservacion compacto">
         <div className="cifra"><strong>{r.documentos}</strong><span>Documentos ingresados</span></div>
         <div className="cifra bien"><strong>{r.con_texto}</strong><span>Con texto reconocido</span></div>
-        <div className={`cifra${r.en_riesgo ? " alerta" : ""}`}><strong>{r.en_riesgo}</strong>
-          <span>En riesgo · {r.riesgo_integridad} de integridad, {r.riesgo_obsolescencia} de obsolescencia (<Link to="/preservacion">ver en Preservación</Link>)</span></div>
+        {puede(usuario, "preservacion") && (
+          <div className={`cifra${r.en_riesgo ? " alerta" : ""}`}><strong>{r.en_riesgo}</strong>
+            <span>En riesgo · {r.riesgo_integridad} de integridad, {r.riesgo_obsolescencia} de obsolescencia (<Link to="/preservacion">ver en Preservación</Link>)</span></div>
+        )}
       </div>
     </div>
   );
