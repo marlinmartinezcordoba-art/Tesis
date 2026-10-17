@@ -53,7 +53,8 @@ const ENTRADAS: Entrada[] = [
     { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" },
     { vista: "tesauros", nombre: "Tesauros" }] },
   { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "catalogo", nombre: "Catálogo" }, { vista: "grafo", nombre: "Grafo" },
+    { vista: "catalogo", nombre: "Catálogo" }, { vista: "cuadro", nombre: "Cuadro de clasificación y TRD" },
+    { vista: "grafo", nombre: "Grafo" },
     // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
     { vista: "inventario", nombre: "Inventario", permitir: (u) => puede(u, "instrumentos", "escribir") },
     { vista: "guia", nombre: "Guía", permitir: (u) => puede(u, "instrumentos", "escribir") },

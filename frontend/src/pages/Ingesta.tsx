@@ -59,12 +59,31 @@ function IconoArchivo({ nombre, clase = "" }: { nombre: string; clase?: string }
 
 // --- Cargar documentos -------------------------------------------------------------
 
+interface Expediente { id: string; titulo: string; fechas_extremas: string | null; incluido_en_id: string | null }
+interface NodoCuadro { id: string; nivel: string; codigo: string | null; titulo: string; hijos: NodoCuadro[] }
+interface SerieCuadro { id: string; ruta: string }
+
+// Las series y subseries del cuadro, con su ruta (sección › serie › subserie) para elegirlas.
+function seriesDe(nodos: NodoCuadro[], camino: string[] = []): SerieCuadro[] {
+  return nodos.flatMap((n) => {
+    const nombre = `${n.codigo ? `${n.codigo} ` : ""}${n.titulo}`;
+    const ruta = [...camino, nombre];
+    const propia = n.nivel === "serie" || n.nivel === "subserie" ? [{ id: n.id, ruta: ruta.join(" › ") }] : [];
+    return [...propia, ...seriesDe(n.hijos, ruta)];
+  });
+}
+
 function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void }) {
   const { usuario } = useSesion();
   const esAdmin = !!usuario?.es_administrador;
   const [limite, setLimite] = useState<number | null>(null);
-  const [expedientes, setExpedientes] = useState<{ id: string; titulo: string }[]>([]);
+  const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [expediente, setExpediente] = useState("");
+  // Cuadro de clasificación: primero la serie o subserie, luego su expediente.
+  const [series, setSeries] = useState<SerieCuadro[]>([]);
+  const [serie, setSerie] = useState("");
+  const [nuevoExp, setNuevoExp] = useState<{ titulo: string; fechas: string } | null>(null);
+  const puedeCrearExp = puede(usuario, "descripcion", "escribir");
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [lote, setLote] = useState("");
   const [abriendoLote, setAbriendoLote] = useState(false);
@@ -82,7 +101,9 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
   }, []);
   useEffect(() => {
     setExpediente("");
-    pedir<{ id: string; titulo: string }[]>(`/api/fondos/${fondo.id}/expedientes`).then(setExpedientes).catch(() => setExpedientes([]));
+    setSerie("");
+    pedir<Expediente[]>(`/api/fondos/${fondo.id}/expedientes`).then(setExpedientes).catch(() => setExpedientes([]));
+    pedir<NodoCuadro[]>(`/api/cuadro?fondo_id=${fondo.id}`).then((a) => setSeries(seriesDe(a))).catch(() => setSeries([]));
     setLote("");
     pedir<Lote[]>(`/api/ingesta/lotes?fondo_id=${fondo.id}`).then((l) => setLotes(l.filter((x) => x.estado === "abierto")))
       .catch(() => setLotes([]));
@@ -94,6 +115,21 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
     setArchivos((lista) => lista.map((a) =>
       a.estado === "listo" || a.estado === "excede" ? { ...a, estado: a.archivo.size > limite ? "excede" : "listo" } : a));
   }, [limite]);
+
+  async function crearExpediente() {
+    if (!nuevoExp) return;
+    setError("");
+    try {
+      const r = await pedir<{ id: string }>("/api/descripcion/agrupaciones", { method: "POST", body: JSON.stringify({
+        fondo_id: fondo.id, nivel: "expediente", titulo: nuevoExp.titulo.trim(), incluido_en_id: serie,
+        fechas_extremas: nuevoExp.fechas.trim() || null }) });
+      setExpedientes(await pedir<Expediente[]>(`/api/fondos/${fondo.id}/expedientes`));
+      setExpediente(r.id);
+      setNuevoExp(null);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo crear el expediente.");
+    }
+  }
 
   function agregar(lista: FileList | null) {
     if (!lista) return;
@@ -180,14 +216,42 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
 
-      <div className="linea-campo">
+      <div className="linea-campo" style={{ alignItems: "flex-start" }}>
+        {series.length > 0 && (
+          <div className="campo">
+            <label htmlFor="serie">Serie o subserie <span className="meta">(cuadro de clasificación)</span></label>
+            <select id="serie" className="selector" value={serie} disabled={subiendo}
+                    onChange={(e) => { setSerie(e.target.value); setExpediente(""); }}>
+              <option value="">Todas</option>
+              {series.map((s) => <option key={s.id} value={s.id}>{s.ruta}</option>)}
+            </select>
+          </div>
+        )}
         <div className="campo">
           <label htmlFor="expediente">Expediente de destino (opcional)</label>
           <select id="expediente" className="selector" value={expediente} disabled={subiendo}
                   onChange={(e) => setExpediente(e.target.value)}>
             <option value="">Sin asignar, decidir en descripción</option>
-            {expedientes.map((x) => <option key={x.id} value={x.id}>{x.titulo}</option>)}
+            {expedientes.filter((x) => !serie || x.incluido_en_id === serie)
+              .map((x) => <option key={x.id} value={x.id}>{x.titulo}{x.fechas_extremas ? ` (${x.fechas_extremas})` : ""}</option>)}
           </select>
+          {serie && puedeCrearExp && !nuevoExp && (
+            <button type="button" className="boton chico" style={{ marginTop: 6 }} onClick={() => setNuevoExp({ titulo: "", fechas: "" })}>
+              + Nuevo expediente en esta serie</button>
+          )}
+          {nuevoExp && (
+            <div className="nuevo-expediente">
+              <input className="entrada" aria-label="Título del expediente" placeholder="Título del expediente"
+                     value={nuevoExp.titulo} onChange={(e) => setNuevoExp({ ...nuevoExp, titulo: e.target.value })} />
+              <input className="entrada" aria-label="Fechas extremas" placeholder="Fechas extremas: 1948-1952"
+                     value={nuevoExp.fechas} onChange={(e) => setNuevoExp({ ...nuevoExp, fechas: e.target.value })} />
+              <div className="acciones">
+                <button type="button" className="boton chico primario" disabled={nuevoExp.titulo.trim().length < 3}
+                        onClick={crearExpediente}>Crear</button>
+                <button type="button" className="boton chico" onClick={() => setNuevoExp(null)}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="campo">
           <label htmlFor="lote">Lote de transferencia <span className="meta">(procedencia · ISAD-G 3.2.4)</span></label>

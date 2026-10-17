@@ -126,3 +126,110 @@ def pdf_con_paginas(textos: list[str]) -> bytes:
         salida.write(f"{p:010d} 00000 n \n".encode())
     salida.write(f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
     return salida.getvalue()
+
+
+def trd_agn_xlsx() -> bytes:
+    """Una TRD en el formato habitual del AGN: encabezado con la dependencia,
+    códigos D/S/Sb, la columna «Series, subseries y tipos documentales» con
+    los tipos debajo de cada serie, AG/AC, CT/E/M/S y procedimiento. Con
+    bordes, para que su versión en PDF (tests/fixtures/trd_agn.pdf, generada
+    con LibreOffice) tenga una tabla con líneas."""
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Side
+
+    libro = Workbook()
+    h = libro.active
+    h.title = "TRD"
+    h.append(["TABLA DE RETENCIÓN DOCUMENTAL"])
+    h.append(["ENTIDAD PRODUCTORA: Alcaldía Municipal de Tunja"])
+    h.append(["DEPENDENCIA PRODUCTORA: Secretaría General   CÓDIGO: 110"])
+    h.append(["CÓDIGO", None, None, "SERIES, SUBSERIES Y TIPOS DOCUMENTALES", "RETENCIÓN", None,
+              "DISPOSICIÓN FINAL", None, None, None, "PROCEDIMIENTO"])
+    h.append(["D", "S", "Sb", None, "AG", "AC", "CT", "E", "M", "S", None])
+    h.append(["110", "2", None, "ACTAS", None, None, None, None, None, None, None])
+    h.append(["110", "2", "1", "Actas de Consejo de Gobierno\nCitación\nActa\nLista de asistencia", 2, 8, "X", None,
+              "X", None, "Conservación total por su valor histórico; se digitaliza."])
+    h.append(["110", "2", "2", "Actas de Comité de Archivo\nActa", 2, 3, None, None, None, "X",
+              "Se selecciona una muestra del 10 %."])
+    h.append(["110", "15", None, "CORRESPONDENCIA\nOficio\nMemorando", 2, 3, None, "X", None, None,
+              "Se elimina al cumplir su tiempo, con acta aprobada por el comité."])
+    h.append([None, None, None, "Circular", None, None, None, None, None, None, None])
+    borde = Border(*(Side(style="thin"),) * 4)
+    for fila in h.iter_rows(min_row=4, max_row=h.max_row, max_col=11):
+        for c in fila:
+            c.border = borde
+            c.alignment = Alignment(wrap_text=True, vertical="top")
+    for letra, ancho in zip("ABCDEFGHIJK", (6, 6, 6, 42, 6, 6, 5, 5, 5, 5, 40)):
+        h.column_dimensions[letra].width = ancho
+    h.page_setup.orientation = "landscape"
+    salida = io.BytesIO()
+    libro.save(salida)
+    return salida.getvalue()
+
+
+def _pdf_tabla(encabezado: list[str], columnas: list[float], filas: list[list[tuple[str, int]]]) -> bytes:
+    """Un PDF de una página (horizontal) con líneas de encabezado y una tabla
+    dibujada con bordes, como la de una TRD impresa. Cada celda es (texto,
+    columnas que ocupa); el texto puede tener varias líneas. Sin programas
+    externos: Helvetica con WinAnsiEncoding (admite tildes y eñes)."""
+    def cadena(t: str) -> bytes:
+        return b"(" + t.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").encode("cp1252") + b")"
+
+    ops: list[bytes] = [b"0.5 w"]
+    y = 560.0
+    for linea in encabezado:
+        ops.append(b"BT /F1 10 Tf 30 %.1f Td " % y + cadena(linea) + b" Tj ET")
+        y -= 14
+    y -= 6
+    for fila in filas:
+        alto = max(12 * max(len(t.split("\n")) for t, _ in fila), 14) + 6
+        x, col = 30.0, 0
+        for texto, ocupa in fila:
+            ancho = sum(columnas[col:col + ocupa])
+            ops.append(b"%.1f %.1f %.1f %.1f re S" % (x, y - alto, ancho, alto))
+            for k, linea in enumerate(texto.split("\n")):
+                if linea:
+                    ops.append(b"BT /F1 8 Tf %.1f %.1f Td " % (x + 2, y - 11 - 12 * k) + cadena(linea) + b" Tj ET")
+            x += ancho
+            col += ocupa
+        y -= alto
+    contenido = b"\n".join(ops)
+    objetos = [b"<< /Type /Catalog /Pages 2 0 R >>",
+               b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+               b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R >> >> "
+               b"/Contents 5 0 R >>",
+               b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+               b"<< /Length %d >>\nstream\n" % len(contenido) + contenido + b"\nendstream"]
+    salida = bytearray(b"%PDF-1.4\n")
+    posiciones = []
+    for i, o in enumerate(objetos, start=1):
+        posiciones.append(len(salida))
+        salida += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    xref = len(salida)
+    salida += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objetos) + 1)
+    for p in posiciones:
+        salida += b"%010d 00000 n \n" % p
+    salida += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objetos) + 1, xref)
+    return bytes(salida)
+
+
+def trd_agn_pdf() -> bytes:
+    """La misma TRD de trd_agn_xlsx, impresa en PDF con su tabla."""
+    columnas = [28, 28, 28, 250, 30, 30, 26, 26, 26, 26, 260]
+    vacias = lambda n: [("", 1)] * n  # noqa: E731
+    filas = [
+        [("CÓDIGO", 3), ("SERIES, SUBSERIES Y TIPOS DOCUMENTALES", 1), ("RETENCIÓN", 2), ("DISPOSICIÓN FINAL", 4),
+         ("PROCEDIMIENTO", 1)],
+        [("D", 1), ("S", 1), ("Sb", 1), ("", 1), ("AG", 1), ("AC", 1), ("CT", 1), ("E", 1), ("M", 1), ("S", 1), ("", 1)],
+        [("110", 1), ("2", 1), ("", 1), ("ACTAS", 1)] + vacias(7),
+        [("110", 1), ("2", 1), ("1", 1), ("Actas de Consejo de Gobierno\nCitación\nActa\nLista de asistencia", 1),
+         ("2", 1), ("8", 1), ("X", 1), ("", 1), ("X", 1), ("", 1), ("Conservación total por su valor histórico.", 1)],
+        [("110", 1), ("2", 1), ("2", 1), ("Actas de Comité de Archivo\nActa", 1), ("2", 1), ("3", 1), ("", 1), ("", 1),
+         ("", 1), ("X", 1), ("Se selecciona una muestra del 10 %.", 1)],
+        [("110", 1), ("15", 1), ("", 1), ("CORRESPONDENCIA\nOficio\nMemorando\nCircular", 1), ("2", 1), ("3", 1),
+         ("", 1), ("X", 1), ("", 1), ("", 1), ("Se elimina con acta aprobada por el comité.", 1)],
+    ]
+    return _pdf_tabla(["TABLA DE RETENCIÓN DOCUMENTAL", "ENTIDAD PRODUCTORA: Alcaldía Municipal de Tunja",
+                       "DEPENDENCIA PRODUCTORA: Secretaría General", "CÓDIGO: 110"], columnas, filas)

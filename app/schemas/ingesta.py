@@ -29,6 +29,7 @@ class ExpedienteOut(BaseModel):
     id: uuid.UUID
     titulo: str
     fechas_extremas: str | None
+    incluido_en_id: uuid.UUID | None = None  # la serie o subserie del cuadro en que está
 
 
 class LimiteOut(BaseModel):

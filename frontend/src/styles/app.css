@@ -738,3 +738,7 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .guia-cuerpo p { margin: 0 0 6px; }
 .guia-cuerpo, .guia-cuerpo * { text-transform: none; letter-spacing: normal; font-weight: normal; }
 .guia-cuerpo strong { font-weight: 600; }
+
+/* Cuadro de clasificación: filas leídas con problemas y expediente nuevo en la ingesta */
+.fila-problema td { background: var(--warn-bg); }
+.nuevo-expediente { display: grid; gap: 6px; margin-top: 6px; }

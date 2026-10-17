@@ -86,6 +86,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "entidad_enriquecida": ("Enriqueció una ficha de autoridad", "Entidades del vocabulario"),
     "nombre_agregado": ("Agregó una forma del nombre", "Entidades del vocabulario"),
     "tesauro_importado": ("Importó un tesauro", "Tesauros"),
+    "cuadro_importado": ("Cargó el cuadro de clasificación y la TRD", "Cuadro de clasificación"),
     "tesauro_anulado": ("Anuló un tesauro", "Tesauros"),
     "materia_normalizada": ("Normalizó una materia con un tesauro", "Entidades del vocabulario"),
     "nombre_anulado": ("Anuló una forma del nombre", "Entidades del vocabulario"),

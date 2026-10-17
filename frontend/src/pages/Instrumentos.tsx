@@ -13,11 +13,12 @@ import { CadenaActividad } from "@/components/ContextoActividad";
 import { IDIOMAS } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 import { ExportacionRico } from "@/components/ExportacionRico";
+import { CuadroClasificacion } from "@/components/CuadroClasificacion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 
-type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
+type Pestana = "catalogo" | "cuadro" | "grafo" | "inventario" | "guia" | "indice" | "rico";
 const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
 
 function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; actual?: Miga; ir: (id: string | null) => void }) {
@@ -694,6 +695,7 @@ export function Instrumentos() {
               )}
             </>
           )}
+          {pestana === "cuadro" && <CuadroClasificacion fondoId={nivel.fondo.id} />}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
           {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} />}
