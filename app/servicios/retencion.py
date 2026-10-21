@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models.descripcion import DISPOSICION_FINAL, EntidadVocabulario, Relacion
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import vocabulario
+from app.servicios import fechas, vocabulario
 from app.servicios.auditoria import registrar
 
 DISPOSICION_NOMBRE = {"conservacion_total": "Conservación total", "eliminacion": "Eliminación",
@@ -63,21 +63,70 @@ def resumen(e: EntidadVocabulario) -> str:
     return "; ".join(partes).capitalize() + "." if partes else ""
 
 
+def abierta(edtf: str | None) -> bool:
+    """¿La relación de la regla sigue rigiendo? Sin vigencia, o con vigencia sin fin."""
+    return not edtf or edtf.rstrip().endswith("/")
+
+
+def _fecha_de(recurso: RecursoDocumental):
+    """La fecha con que se decide qué versión de la TRD rige un expediente o un
+    documento: la final de sus fechas extremas (cuando se cerró)."""
+    if not recurso.fechas_extremas_edtf:
+        return None
+    try:
+        i = fechas.interpretar(recurso.fechas_extremas_edtf)
+    except fechas.FechaInvalida:
+        return None
+    return i.fin or i.inicio
+
+
+def _elegir(relaciones: list[Relacion], fecha) -> Relacion | None:
+    """Entre las reglas de una serie (una por versión de la TRD), la que regía
+    en la fecha; sin fecha, o si ninguna la cubre, la que rige hoy."""
+    if fecha is not None:
+        for r in relaciones:
+            if not r.fecha_edtf:
+                continue
+            try:
+                i = fechas.interpretar(r.fecha_edtf)
+            except fechas.FechaInvalida:
+                continue
+            if (i.inicio is None or i.inicio <= fecha) and (i.fin is None or fecha <= i.fin):
+                return r
+    return next((r for r in relaciones if abierta(r.fecha_edtf)), relaciones[0] if relaciones else None)
+
+
+def _vigencia_legible(edtf: str | None) -> str | None:
+    if not edtf:
+        return None
+    if abierta(edtf):
+        inicio = edtf.rstrip().rstrip("/")
+        return f"rige desde {fechas.legible(inicio)}" if inicio else None
+    return fechas.legible(edtf)
+
+
 def retencion_de(db: Session, recurso: RecursoDocumental) -> dict | None:
     """La regla que rige la descripción: la propia o la del nivel más
-    cercano hacia arriba (un expediente hereda la de su subserie o serie)."""
+    cercano hacia arriba (un expediente hereda la de su subserie o serie).
+    Si la serie tuvo varias versiones de la TRD, rige la que estaba vigente en
+    la fecha final del expediente (los documentos se valoran con la TRD con
+    que se produjeron)."""
+    fecha = _fecha_de(recurso)
     actual = recurso
     while actual is not None:
-        regla_id = db.scalar(select(Relacion.origen_id).where(
+        relaciones = db.scalars(select(Relacion).where(
             Relacion.destino_id == actual.id, Relacion.codigo_ric == "regulates_or_regulated",
-            Relacion.rol == "retencion", Relacion.estado == "vigente"))
-        regla = db.get(EntidadVocabulario, regla_id) if regla_id else None
+            Relacion.rol == "retencion", Relacion.estado == "vigente").order_by(Relacion.creado_en)).all()
+        rel = _elegir(list(relaciones), fecha)
+        regla = db.get(EntidadVocabulario, rel.origen_id) if rel is not None else None
         if regla is not None and regla.estado == "activa":
             return {"regla": {"id": str(regla.id), "nombre": regla.nombre},
                     "gestion_anios": regla.retencion_gestion_anios, "central_anios": regla.retencion_central_anios,
                     "disposicion_final": regla.disposicion_final,
                     "disposicion_nombre": DISPOSICION_NOMBRE.get(regla.disposicion_final or ""),
                     "procedimiento": regla.historia, "resumen": resumen(regla),
+                    "vigencia": rel.fecha_edtf, "vigencia_legible": _vigencia_legible(rel.fecha_edtf),
+                    "versiones": len(relaciones),
                     "heredada_de": None if actual.id == recurso.id else {"id": str(actual.id), "nivel": actual.nivel,
                                                                          "titulo": actual.titulo}}
         actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id and actual.id != actual.fondo_id else None

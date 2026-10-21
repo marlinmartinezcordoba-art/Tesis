@@ -1,0 +1,106 @@
+# Parametrización de la TRD y el CCD
+
+## Qué se pidió
+
+Que la tabla de retención documental (TRD) y el cuadro de clasificación (CCD)
+se parametricen como en los sistemas de gestión documental electrónica de
+archivo (SGDEA) que se usan en el país, y que el menú diga con claridad dónde
+está cada cosa.
+
+## De dónde sale el orden
+
+Los manuales de ControlDoc y Mercurio no son públicos. Se tomó el orden que
+piden los requisitos del Archivo General de la Nación para un SGDEA. Es el
+mismo que sigue el manual público de la TRD de Orfeo:
+
+1. Dependencias productoras (secciones y subsecciones) con su código.
+2. Banco terminológico de series, subseries y tipos documentales.
+3. Matriz de la TRD por dependencia: serie o subserie, tipos documentales,
+   retención en archivo de gestión (AG) y central (AC), disposición final
+   (CT, E, S, M), soporte y procedimiento.
+4. Versión de la TRD: acto administrativo que la aprueba, convalidación y
+   fecha desde la que rige. Las versiones anteriores se conservan.
+5. Carga desde una plantilla o un archivo plano.
+
+Fuentes:
+
+- Modelo de requisitos para un SGDEA, AGN:
+  https://www.archivogeneral.gov.co/caja_de_herramientas/docs/11.%20instrumentos/MODELO%20DE%20REQUISITOS%20PARA%20UN%20SGDEA.pdf
+- Anexo técnico del modelo de requisitos, ANI:
+  https://www.ani.gov.co/sites/default/files/230924-modelo-de-requisitos-sddea_anexo-tecnico.pdf
+- Manual de la TRD en Orfeo:
+  https://avante.gov.co/wp-content/uploads/2025/05/7.17.8-Manual-trd.pdf
+
+## Dónde está en el menú
+
+**Fondos**
+
+| Entrada                   | Qué se hace ahí                                                                  |
+|---------------------------|----------------------------------------------------------------------------------|
+| Fondos del archivo        | Registrar un fondo y elegir con cuál se trabaja.                                 |
+| Versiones de la TRD       | Abrir, cargar desde archivo, validar en RiC-O y aplicar cada versión.             |
+| Dependencias              | Secciones y subsecciones con su código.                                          |
+| Series, subseries y tipos | Banco terminológico.                                                             |
+| Matriz de la TRD          | La tabla de retención por dependencia. Se edita en el borrador y se consulta en las demás. |
+| Cuadro de clasificación   | El cuadro que resultó de aplicar la TRD. Solo consulta.                          |
+
+## Cómo queda en RiC
+
+Las tablas de parametrización (`trd_versiones`, `trd_dependencias`,
+`trd_banco`, `trd_filas`) son la mesa de trabajo. Lo que vale en RiC-O se crea
+al aplicar una versión:
+
+| Parametrización        | RiC-O                                                              |
+|------------------------|--------------------------------------------------------------------|
+| Dependencia            | `rico:RecordSet` de nivel sección o subsección; la dependencia como `rico:CorporateBody` productor |
+| Serie y subserie       | `rico:RecordSet` (`rst:Series`), con su código compuesto           |
+| Tipo documental        | `rico:DocumentaryFormType`                                         |
+| Retención de una fila  | `rico:Rule` unida a su serie o subserie por `rico:regulatesOrRegulated`. La relación (`rico:RuleRelation`) lleva la vigencia de la versión. |
+
+Aplicar una versión arma todo dentro de un punto de guardado. Después lo valida
+contra la ontología oficial (OWL) y el perfil SHACL. Si no es conforme, se
+deshace y no queda nada a medias.
+
+## La retención cuando cambia la TRD
+
+Supongamos que la versión 2 cambia la retención de una serie que en la
+versión 1 era de 2 + 8 años y conservación total. Lo que pasa:
+
+- La regla de la versión 1 no se borra ni se modifica. Su relación con la
+  serie se cierra el día anterior a la vigencia de la versión 2, por ejemplo
+  `2019-03-01/2024-06-30`.
+- Se crea la regla de la versión 2, vigente desde su fecha, por ejemplo
+  `2024-07-01/`.
+- Cada expediente se rige por la regla vigente en su fecha final: la fecha
+  en que se cerró, según sus fechas extremas.
+  - Un expediente cerrado en 2021 conserva los 2 + 8 años.
+  - Uno de 2025 toma la retención nueva.
+  - Sin fechas, toma la vigente.
+
+## Decisiones
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Orden de los pasos | Copiar una pantalla de un producto comercial; seguir el modelo de requisitos del AGN | Requisitos del AGN, con el orden del manual público de Orfeo | Los manuales de ControlDoc y Mercurio no son públicos. El AGN es la norma que esos productos cumplen. | Diferencias de nombres frente a lo que la autora usa en su trabajo. Se pueden ajustar sin cambiar el modelo. |
+| Dónde viven los pasos | Pestañas dentro de una pantalla; entradas del menú lateral | Entradas del menú Fondos | Las pestañas se habían quitado del sistema (R1). Cada paso queda con nombre propio y su dirección. | Menú más largo en Fondos (seis entradas). |
+| Versiones de la TRD | Editar la TRD vigente; versiones con borrador, vigente e histórica | Versiones; un borrador a la vez | El AGN pide conservar las TRD anteriores con su acto de aprobación. Editar en sitio borraría la historia. | Hay que abrir una versión nueva para cualquier cambio, aunque sea pequeño. La versión nueva copia la vigente para aliviarlo. |
+| Retención que cambia | Sobrescribir la regla; regla nueva con vigencia y la anterior cerrada | Regla nueva fechada; la anterior se cierra, no se borra | Cada expediente se valora con la TRD con que se produjo. En RiC-O la vigencia de la relación es nativa (`rico:RuleRelation` con fecha). | Un expediente sin fechas extremas toma la regla vigente. |
+| Qué fecha decide la versión | Fecha inicial; fecha final del expediente | Fecha final (cierre) | La retención se cuenta desde el cierre del expediente en el archivo de gestión. | Expedientes abiertos que cruzan dos versiones toman la de su fecha final conocida. |
+| Requisitos para aplicar | Aplicar sin acto; exigir acto, fecha de aprobación y vigencia | Exigir los tres | Sin acto administrativo la TRD no es válida. Sin vigencia no se pueden fechar las reglas. | Validar sí funciona sin ellos, y la pantalla dice qué falta. |
+| Banco terminológico | Nombres libres en cada fila; banco único del fondo | Banco del fondo con código propio | Una serie (Actas, 2) se usa en varias dependencias con el mismo nombre normalizado. El código compuesto (110.2) sale solo. | Una entidad que use códigos de serie distintos por dependencia registra términos distintos. |
+| Tablas de parametrización en el grafo | Llevarlas a RiC-O; dejarlas como mesa de trabajo | Mesa de trabajo; lo aplicado es RiC-O | Las filas en borrador no son descripción archivística. Lo aplicado (agrupaciones, reglas, tipos, productor) sí está en el grafo. | La versión como acto administrativo se lee en la descripción de cada regla, no como entidad propia del grafo. |
+| Registro del fondo con su TRD | Pedir el acto en el asistente; dejar la versión 1 en borrador | Versión 1 en borrador | El asistente ya es largo. El acto se completa después y, al aplicarla, fecha las reglas que se crearon. | Un fondo puede quedar con la versión 1 sin aplicar. La pantalla y el aviso del asistente lo dicen. |
+| Nada se borra | Borrar dependencias o términos sin uso; anularlos | Anular | Regla del proyecto. Lo usado en el borrador no se anula hasta quitarlo de la matriz. Los códigos usados en una TRD aplicada no cambian. | Quedan registros anulados en las tablas. |
+| Quién parametriza | Archivista; administración | Administración (consulta: quien lee la descripción) | La TRD es un instrumento aprobado por la entidad, no una descripción. | La autora puede querer abrirlo a un rol de archivo. Se cambia en los permisos. |
+
+## Pruebas
+
+`tests/test_parametrizacion_trd.py`:
+
+- Parametrizar, validar sin crear, exigir el acto y la vigencia, y aplicar
+  conforme con RiC-O.
+- Una versión nueva cierra la regla anterior. Cada expediente toma la regla
+  de su fecha.
+- El archivo de la TRD llena el borrador sin duplicar.
+- Solo la administración parametriza, y lo que está en uso no se anula.
+- La versión 1 fecha las reglas que se cargaron antes de la parametrización.

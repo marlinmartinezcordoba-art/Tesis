@@ -15,8 +15,57 @@ const GUIAS: Record<string, Guia> = {
         texto: "«+ Registrar un fondo» abre el asistente: datos del fondo, el cuadro (Excel o PDF), la validación en RiC-O y la creación." },
       { titulo: "Elija con cuál trabajar.",
         texto: "«Trabajar con este» lo deja activo. También se cambia arriba, en el selector del fondo." },
-      { titulo: "Parametrice el cuadro.",
-        texto: "En «Cuadro de clasificación y TRD» están las dependencias, las series y subseries, los tipos documentales y la retención de cada una." },
+      { titulo: "Parametrice la TRD en orden.",
+        texto: "Versiones de la TRD → Dependencias → Series, subseries y tipos → Matriz de la TRD → aplicar (en Versiones). El resultado se consulta en «Cuadro de clasificación»." },
+    ],
+  },
+  "fondos:versiones": {
+    titulo: "Fondos · Versiones de la TRD",
+    pasos: [
+      { titulo: "Cada TRD aprobada es una versión.",
+        texto: "Con el acto administrativo que la aprueba, su convalidación y la fecha desde la que rige. Se trabaja en borrador; solo hay un borrador a la vez." },
+      { titulo: "Abra una versión.",
+        texto: "«+ Abrir una versión nueva». Si ya hay una vigente, la nueva parte de su matriz y usted cambia solo lo que cambia." },
+      { titulo: "Llénela a mano o desde un archivo.",
+        texto: "A mano: Dependencias, Series y Matriz. Desde un archivo: «Cargar desde archivo» lee la plantilla del sistema o la TRD del AGN (Excel o PDF) y llena la matriz y el banco." },
+      { titulo: "Valide y aplique.",
+        texto: "«Validar en RiC-O» arma el cuadro y lo prueba contra la ontología sin crear nada. «Aplicar la versión» lo crea y la deja vigente; la anterior pasa a histórica con su fecha de fin." },
+      { titulo: "La retención anterior no se pierde.",
+        texto: "Si una serie cambia de retención, la regla anterior se conserva con su vigencia y cada expediente se rige por la de la fecha en que se cerró." },
+    ],
+  },
+  "fondos:dependencias": {
+    titulo: "Fondos · Dependencias",
+    pasos: [
+      { titulo: "Las oficinas que producen los documentos.",
+        texto: "Secciones (dependencias) y subsecciones (oficinas), con el código del organigrama. Su código encabeza el de sus series." },
+      { titulo: "Nada se borra.",
+        texto: "Una dependencia que ya no existe se anula. Si su código ya se usó en una TRD aplicada, no se cambia: registre la nueva y anule la anterior." },
+    ],
+  },
+  "fondos:series": {
+    titulo: "Fondos · Series, subseries y tipos",
+    pasos: [
+      { titulo: "El banco terminológico del fondo.",
+        texto: "Los nombres normalizados de series, subseries y tipos documentales, con su código y su definición. Se registran una vez y se usan en todas las dependencias." },
+      { titulo: "El código es solo el propio.",
+        texto: "La serie Actas es la 2; en la dependencia 110 queda 110.2 sola. Una subserie va dentro de su serie." },
+    ],
+  },
+  "fondos:matriz": {
+    titulo: "Fondos · Matriz de la TRD",
+    pasos: [
+      { titulo: "La tabla de retención por dependencia.",
+        texto: "Cada fila: dependencia, serie o subserie, tipos documentales, años en archivo de gestión y central, disposición final, soporte y procedimiento." },
+      { titulo: "Solo se edita el borrador.",
+        texto: "La vigente y las históricas se consultan eligiéndolas arriba. Para cambiar la vigente, abra una versión nueva." },
+    ],
+  },
+  "fondos:cuadro": {
+    titulo: "Fondos · Cuadro de clasificación",
+    pasos: [
+      { titulo: "El cuadro que resultó de aplicar la TRD.",
+        texto: "Secciones, subsecciones, series y subseries con su código, su retención y la vigencia de su regla. Es solo consulta." },
     ],
   },
   ingesta: {

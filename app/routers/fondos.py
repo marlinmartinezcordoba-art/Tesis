@@ -106,12 +106,34 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
     creado = datos.crear and validacion["conforme"]
     salida = _fondo_out(db, fondo).model_dump(mode="json") if creado else None
     if creado:
+        _primera_version_trd(db, fondo, datos.filas, actor.id, informe)
         punto.commit()
         db.commit()
     else:
         punto.rollback()
         db.rollback()
     return {"creado": creado, "fondo": salida, "informe": informe, "validacion": validacion}
+
+
+def _primera_version_trd(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id, informe: dict) -> None:
+    """La TRD cargada al registrar el fondo queda como versión 1 en borrador de la
+    parametrización: falta el acto que la aprueba y su vigencia para aplicarla.
+    Si el archivo trae dependencias o series sin código, el cuadro se crea igual
+    y la matriz se completa a mano."""
+    from app.servicios import parametrizacion_trd
+
+    punto = db.begin_nested()
+    try:
+        v = parametrizacion_trd.crear_version(db, fondo, {"nombre": "TRD versión 1"}, usuario_id, copiar_vigente=False)
+        parametrizacion_trd.importar(db, v, filas, usuario_id)
+    except parametrizacion_trd.ErrorTrd as exc:
+        punto.rollback()
+        informe["avisos"].append(f"La matriz de la TRD no se llenó sola ({exc}); complétela en Fondos › Cuadro de "
+                                 "clasificación y TRD.")
+        return
+    punto.commit()
+    informe["avisos"].append("La TRD quedó como versión 1 en borrador: registre el acto que la aprueba y su vigencia "
+                             "y aplíquela en Fondos › Cuadro de clasificación y TRD.")
 
 
 @router.get("/{fondo_id}/expedientes", response_model=list[ExpedienteOut],

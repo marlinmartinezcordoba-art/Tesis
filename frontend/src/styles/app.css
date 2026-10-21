@@ -80,6 +80,10 @@ button { font-family: inherit; }
 /* ---- formularios ---- */
 .campo { margin-bottom: 14px; }
 .campo label { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.campo label.opcion { display: inline-block; font-size: .9rem; font-weight: 400; color: var(--ink); text-transform: none; letter-spacing: 0; margin: 0 14px 4px 0; }
+.campo label.opcion.bloque { display: block; }
+fieldset.campo { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 10px; }
+fieldset.campo legend { font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 4px; }
 .entrada, .selector {
   width: 100%; font: inherit; font-size: .9rem; padding: 10px 12px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--bg); color: var(--ink);

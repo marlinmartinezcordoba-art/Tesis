@@ -48,7 +48,11 @@ const ENTRADAS: Entrada[] = [
   // En el orden del proceso archivístico (decisión de la autora): primero el fondo y su cuadro.
   { ruta: "/fondos", nombre: "Fondos", icono: "fondos", grupo: "trabajo", modulo: "catalogo", vistas: [
     { vista: "fondos", nombre: "Fondos del archivo" },
-    { vista: "cuadro", nombre: "Cuadro de clasificación y TRD" }] },
+    { vista: "versiones", nombre: "Versiones de la TRD" },
+    { vista: "dependencias", nombre: "Dependencias" },
+    { vista: "series", nombre: "Series, subseries y tipos" },
+    { vista: "matriz", nombre: "Matriz de la TRD" },
+    { vista: "cuadro", nombre: "Cuadro de clasificación" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },

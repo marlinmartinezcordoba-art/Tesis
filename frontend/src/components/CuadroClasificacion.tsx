@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
-import { useSesion } from "@/lib/sesion";
+import { ErrorAPI, pedir } from "@/lib/api";
 import { NivelRiC } from "@/components/NivelRiC";
-import { Ventana } from "@/components/Ventana";
 
-// Cuadro de clasificación (CCD) y tabla de retención (TRD) del fondo.
-// Se cargan desde la plantilla Excel del sistema o desde la TRD en el
-// formato del AGN (Excel o PDF), siempre con vista previa antes de crear.
+// Cuadro de clasificación (CCD) del fondo y piezas compartidas con la carga de
+// la TRD desde un archivo (plantilla del sistema o formato del AGN, en Excel o
+// PDF): la vista previa y el resultado de la validación RiC-O.
 
 interface Regla { gestion_anios: number | null; central_anios: number | null; disposicion_nombre: string | null;
-  resumen: string; heredada_de: { titulo: string } | null }
+  resumen: string; heredada_de: { titulo: string } | null; vigencia_legible: string | null; versiones: number }
 interface NodoCuadro { id: string; nivel: string; codigo: string | null; titulo: string; regla: Regla | null;
   expedientes: number; hijos: NodoCuadro[] }
 export interface NodoLeido { codigo: string | null; nombre: string }
@@ -87,6 +85,8 @@ function Rama({ n, profundidad }: { n: NodoCuadro; profundidad: number }) {
         </td>
         <td>{n.regla && !n.regla.heredada_de ? `${n.regla.gestion_anios ?? "—"} / ${n.regla.central_anios ?? "—"}` : ""}</td>
         <td>{n.regla && !n.regla.heredada_de ? n.regla.disposicion_nombre : ""}</td>
+        <td className="meta">{n.regla && !n.regla.heredada_de ? (n.regla.vigencia_legible || "—")
+          + (n.regla.versiones > 1 ? ` (${n.regla.versiones} versiones)` : "") : ""}</td>
         <td>{n.nivel === "serie" || n.nivel === "subserie" ? n.expedientes : ""}</td>
       </tr>
       {n.hijos.map((h) => <Rama key={h.id} n={h} profundidad={profundidad + 1} />)}
@@ -94,15 +94,10 @@ function Rama({ n, profundidad }: { n: NodoCuadro; profundidad: number }) {
   );
 }
 
+// El cuadro de clasificación que resulta de aplicar la TRD: solo consulta. Se
+// parametriza en Versiones de la TRD, Dependencias, Series y Matriz.
 export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
-  const { usuario } = useSesion();
-  const esAdmin = !!usuario?.es_administrador;
   const [arbol, setArbol] = useState<NodoCuadro[] | null>(null);
-  const [vista, setVista] = useState<Vista | null>(null);
-  const [incluir, setIncluir] = useState<Set<number>>(new Set());
-  const [informe, setInforme] = useState<Informe | null>(null);
-  const [validacion, setValidacion] = useState<Validacion | null>(null);
-  const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
@@ -110,122 +105,24 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
   }, [fondoId]);
   useEffect(cargar, [cargar]);
 
-  async function leer(archivo: File) {
-    setError("");
-    setInforme(null);
-    const datos = new FormData();
-    datos.append("archivo", archivo, archivo.name);
-    setOcupado(true);
-    try {
-      const v = await subir<Vista>("/api/cuadro/vista-previa", datos, () => undefined);
-      setVista(v);
-      setValidacion(null);
-      setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
-    } catch (err) {
-      setError(mensaje(err, "No se pudo leer el archivo."));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  const cuerpo = () => JSON.stringify({ fondo_id: fondoId, filas: vista?.filas.filter((f) => incluir.has(f.fila)) });
-
-  // Antes de crear: el cuadro armado en RiC-O y validado (OWL y SHACL), sin crear nada.
-  async function validar() {
-    setError("");
-    setOcupado(true);
-    try {
-      const r = await pedir<{ validacion: Validacion }>("/api/cuadro/validar", { method: "POST", body: cuerpo() });
-      setValidacion(r.validacion);
-    } catch (err) {
-      setError(mensaje(err, "No se pudo validar."));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function aplicar() {
-    if (!vista) return;
-    setError("");
-    setOcupado(true);
-    try {
-      const r = await pedir<Informe & { validacion?: Validacion }>("/api/cuadro/aplicar", { method: "POST", body: cuerpo() });
-      setInforme(r);
-      setValidacion(r.validacion || null);
-      setVista(null);
-      cargar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo crear."));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
   return (
     <>
-      <h1>Cuadro de clasificación y tabla de retención</h1>
+      <h1>Cuadro de clasificación</h1>
       <p className="sub">
-        El cuadro (CCD) organiza el fondo en secciones, subsecciones, series y subseries con su código; la tabla de
-        retención (TRD) dice cuánto tiempo se guarda cada serie y qué pasa después. Con ellos el sistema sabe a qué serie,
-        sección y fondo pertenece cada documento, y la retención la heredan sus expedientes.
+        El cuadro (CCD) del fondo tal como quedó al aplicar la TRD vigente: secciones, subsecciones, series y subseries con
+        su código y su retención. Con él el sistema sabe a qué serie, sección y fondo pertenece cada documento, y sus
+        expedientes heredan la retención. Para cambiarlo, abra una versión nueva de la TRD.
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
-      {informe && (
-        <div className="aviso bien" role="status">
-          Listo: {Object.entries(informe.creados).map(([k, v]) => `${v} ${NIVEL[k]?.toLowerCase() || k}(s)`).join(", ") || "nada nuevo"};
-          {" "}{informe.reglas} regla(s) de retención; {informe.tipos_documentales} tipo(s) documental(es) nuevos;
-          {" "}{informe.reutilizados} nivel(es) que ya existían.
-          {informe.avisos.length > 0 && <ul>{informe.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
-        </div>
-      )}
-      {informe && validacion && !vista && <ResultadoValidacion v={validacion} />}
-      {esAdmin && (
-        <div className="tarjeta">
-          <div className="tarjeta-cab">Cargar el cuadro y la TRD</div>
-          <div className="tarjeta-cuerpo">
-            <p className="meta">
-              Use la plantilla Excel del sistema, o la TRD en el formato del AGN (columnas D, S, Sb; series, subseries y tipos
-              documentales; AG, AC; CT, E, M, S; procedimiento), en Excel o en PDF. Primero verá lo que el sistema entendió;
-              nada se crea hasta que lo confirme. Si un código ya existe, se reutiliza.
-            </p>
-            <div className="acciones">
-              <button type="button" className="boton chico"
-                      onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>Descargar la plantilla Excel</button>
-              <label className="boton chico primario">
-                {ocupado ? "Leyendo…" : "Leer un archivo (Excel o PDF)"}
-                <input type="file" accept=".xlsx,.xlsm,.pdf" hidden disabled={ocupado}
-                       onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
-      {vista && (
-        <Ventana titulo="Vista previa del cuadro" alCerrar={() => setVista(null)} ancha>
-          <p className="meta" style={{ marginTop: 0 }}>{vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas.
-            Marque las filas que se crean, valide en RiC-O y después cree.</p>
-          {error && <div className="aviso error" role="alert">{error}</div>}
-          <div className="tabla-desplazable">
-          <TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={(f) => { setIncluir(f); setValidacion(null); }} />
-          </div>
-          {validacion && <ResultadoValidacion v={validacion} />}
-          <div className="acciones">
-            <button type="button" className="boton chico" disabled={ocupado || !incluir.size} onClick={validar}>
-              Validar en RiC-O</button>
-            <button type="button" className="boton chico primario" disabled={ocupado || !validacion?.conforme} onClick={aplicar}
-                    title={validacion?.conforme ? undefined : "Primero valide en RiC-O"}>
-              Crear {incluir.size} fila(s)</button>
-            <button type="button" className="boton chico" onClick={() => setVista(null)}>Descartar la lectura</button>
-          </div>
-        </Ventana>
-      )}
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Cuadro del fondo</div>
         {!arbol ? <div className="cargando">Cargando…</div> : arbol.length === 0 ? (
-          <p className="meta" style={{ padding: "0 18px" }}>Todavía no hay cuadro de clasificación en este fondo.</p>
+          <p className="meta" style={{ padding: "0 18px" }}>Todavía no hay cuadro de clasificación en este fondo: parametrice
+            y aplique una versión de la TRD.</p>
         ) : (
           <table className="tabla-permisos">
-            <thead><tr><th>Nivel</th><th>Retención AG / AC (años)</th><th>Disposición final</th><th>Expedientes</th></tr></thead>
+            <thead><tr><th>Nivel</th><th>Retención AG / AC (años)</th><th>Disposición final</th><th>Vigencia de la regla</th>
+              <th>Expedientes</th></tr></thead>
             <tbody>{arbol.map((n) => <Rama key={n.id} n={n} profundidad={0} />)}</tbody>
           </table>
         )}

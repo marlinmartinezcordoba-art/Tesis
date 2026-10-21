@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useVista } from "@/components/Marco";
 import { CuadroClasificacion } from "@/components/CuadroClasificacion";
+import { BancoTrd, DependenciasTrd, MatrizTrd, VersionesTrd } from "@/components/ParametrizacionTrd";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { Ventana } from "@/components/Ventana";
 import { useFondo } from "@/lib/fondo";
@@ -8,8 +9,8 @@ import { useSesion } from "@/lib/sesion";
 
 // Fondos: el punto de partida del archivo. Cada fondo se registra desde su
 // cuadro de clasificación (CCD) y su tabla de retención (TRD); aquí se elige con
-// cuál se trabaja y se parametriza su cuadro.
-type VistaFondos = "fondos" | "cuadro";
+// cuál se trabaja y se parametriza su TRD, paso a paso, en el orden de los SGDEA.
+type VistaFondos = "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro";
 
 function ListaFondos() {
   const { usuario } = useSesion();
@@ -61,9 +62,10 @@ function ListaFondos() {
 export function Fondos() {
   const vista = useVista<VistaFondos>("/fondos");
   const { fondo } = useFondo();
-  if (vista === "cuadro") {
-    return fondo ? <CuadroClasificacion fondoId={fondo.id} />
-      : <div className="vacio">Registre un fondo primero (Fondos).</div>;
-  }
-  return <ListaFondos />;
+  if (vista === "fondos") return <ListaFondos />;
+  if (!fondo) return <div className="vacio">Registre un fondo primero (Fondos del archivo).</div>;
+  const pantallas = { versiones: VersionesTrd, dependencias: DependenciasTrd, series: BancoTrd, matriz: MatrizTrd,
+    cuadro: CuadroClasificacion };
+  const Pantalla = pantallas[vista] || ListaFondos;
+  return <Pantalla key={fondo.id} fondoId={fondo.id} />;
 }

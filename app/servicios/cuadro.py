@@ -36,6 +36,7 @@ from app.servicios.auditoria import registrar
 
 MAX_BYTES = 30 * 1024 * 1024
 DISPOSICION = {"ct": "conservacion_total", "s": "seleccion", "m": "medio_tecnico", "e": "eliminacion"}
+SOPORTE = {"fisico": "físico", "electronico": "electrónico", "hibrido": "híbrido"}
 NOMBRE_DISPOSICION = {"ct": "conservación total", "s": "selección", "m": "medio técnico", "e": "eliminación"}
 
 PLANTILLA = (
@@ -84,6 +85,7 @@ class FilaCuadro:
     otras_disposiciones: list[str] = field(default_factory=list)
     procedimiento: str | None = None
     funcion: str | None = None
+    soporte: str | None = None  # fisico | electronico | hibrido
     problemas: list[str] = field(default_factory=list)
 
     def a_dict(self) -> dict:
@@ -99,7 +101,8 @@ class FilaCuadro:
                        tipos=[_limpio(t) for t in d.get("tipos") or [] if _limpio(t)][:200],
                        gestion=d.get("gestion"), central=d.get("central"), disposicion=d.get("disposicion"),
                        otras_disposiciones=[x for x in d.get("otras_disposiciones") or [] if x in DISPOSICION],
-                       procedimiento=_limpio(d.get("procedimiento")) or None, funcion=_limpio(d.get("funcion")) or None)
+                       procedimiento=_limpio(d.get("procedimiento")) or None, funcion=_limpio(d.get("funcion")) or None,
+                       soporte=d.get("soporte") if d.get("soporte") in SOPORTE else None)
         validar(f)
         return f
 
@@ -492,10 +495,77 @@ def _de_vocabulario(db: Session, fondo_id: uuid.UUID, clase: str, nombre: str, u
     return e, True
 
 
-def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id: uuid.UUID) -> dict:
-    """Crea el cuadro y las reglas de lo que la persona confirmó en la vista
-    previa. Si una fila tiene problemas, no se crea nada (todo o nada)."""
+def _texto_regla(f: FilaCuadro, version: dict | None) -> str | None:
+    otras = ", ".join(NOMBRE_DISPOSICION[x] for x in f.otras_disposiciones)
+    return " ".join(x for x in (
+        f.procedimiento, f"También: {otras}." if otras else None,
+        f"Soporte: {SOPORTE[f.soporte]}." if f.soporte else None,
+        f"{version['nombre']}, aprobada por {version['acto']}." if version and version.get("acto") else None) if x) or None
+
+
+def _regla(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f: FilaCuadro, usuario_id: uuid.UUID,
+           informe: dict, version: dict | None) -> None:
+    """La regla de retención (rico:Rule) de la serie o subserie.
+
+    Sin versión (carga directa de un archivo), una serie que ya tiene regla no
+    se toca. Con una versión de la TRD que se aplica, la regla vigente se
+    compara: si la retención o la disposición cambian, la anterior no se borra
+    ni se modifica: su relación con la serie se cierra el día antes de la nueva
+    vigencia y se crea la regla nueva desde esa fecha. Así cada expediente
+    conserva la retención de la TRD con que se produjo (la que regía en su
+    fecha) y la serie queda con la historia de sus reglas en RiC-O."""
     from app.servicios import autoridad, retencion
+
+    vigentes = db.scalars(select(Relacion).where(Relacion.destino_id == hoja.id, Relacion.estado == "vigente",
+                                                 Relacion.codigo_ric == "regulates_or_regulated",
+                                                 Relacion.rol == "retencion")).all()
+    abierta = next((r for r in vigentes if retencion.abierta(r.fecha_edtf)), None)
+    texto = _texto_regla(f, version)
+    if abierta is not None:
+        actual = db.get(EntidadVocabulario, abierta.origen_id)
+        igual = actual is not None and (actual.retencion_gestion_anios, actual.retencion_central_anios,
+                                        actual.disposicion_final) == (f.gestion, f.central, DISPOSICION[f.disposicion])
+        if version is None:
+            informe["avisos"].append(f"«{hoja.titulo}» ya tenía su regla de retención: no se cambió.")
+            return
+        if igual:
+            if not abierta.fecha_edtf:
+                # Regla cargada antes de parametrizar la TRD: la versión que la confirma le da su vigencia.
+                abierta.fecha_edtf, abierta.nota = f"{version['desde'].isoformat()}/", version["nombre"]
+            informe["reglas_sin_cambio"] = informe.get("reglas_sin_cambio", 0) + 1
+            return
+        desde = version["desde"]
+        inicio = (abierta.fecha_edtf or "").split("/")[0] if abierta.fecha_edtf else ""
+        if inicio and inicio >= desde.isoformat():
+            raise ErrorCuadro(f"«{hoja.titulo}»: su regla actual rige desde {inicio}; la nueva versión tiene que "
+                              "empezar después.", 409)
+        from datetime import timedelta
+        abierta.fecha_edtf = f"{inicio}/{(desde - timedelta(days=1)).isoformat()}"
+        abierta.nota = f"Cerrada al aplicar la {version['nombre']}."
+        registrar(db, modulo="vocabularios", accion="regla_cerrada", usuario_id=usuario_id, entidad_tipo="relacion",
+                  entidad_id=abierta.id, detalle=f"Retención de «{hoja.titulo}» reemplazada por la {version['nombre']}",
+                  nuevo={"vigencia": abierta.fecha_edtf})
+        informe["reglas_reemplazadas"] = informe.get("reglas_reemplazadas", 0) + 1
+    prefijo = f"TRD v{version['numero']}" if version else "TRD"
+    regla = retencion.crear_regla(db, fondo_id=fondo.id, nombre=f"{prefijo} {hoja.codigo_referencia or ''} "
+                                  f"{hoja.titulo}".replace("  ", " ").strip(), gestion=f.gestion,
+                                  central=f.central, disposicion=DISPOSICION[f.disposicion],
+                                  procedimiento=texto, usuario_id=usuario_id)
+    autoridad.vincular(db, tipo="regla_serie", desde=regla, con_tipo="recurso_documental", con_id=hoja.id,
+                       usuario_id=usuario_id, fecha_edtf=f"{version['desde'].isoformat()}/" if version else None,
+                       nota=f"{version['nombre']}" if version else None)
+    informe["reglas"] += 1
+
+
+def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id: uuid.UUID,
+            version: dict | None = None) -> dict:
+    """Crea el cuadro y las reglas de lo que la persona confirmó en la vista
+    previa. Si una fila tiene problemas, no se crea nada (todo o nada).
+
+    `version` ({numero, nombre, acto, desde}) es la versión de la TRD que se
+    aplica desde la parametrización: fecha la vigencia de las reglas y
+    reemplaza las que cambian."""
+    from app.servicios import autoridad
 
     leidas = [FilaCuadro.de_dict(d) for d in filas]
     con_problemas = [f for f in leidas if f.problemas]
@@ -523,21 +593,7 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
             _, creado = _de_vocabulario(db, fondo.id, "forma_documental", t, usuario_id)
             informe["tipos_documentales"] += int(creado)
         if f.disposicion:
-            ya = db.scalar(select(Relacion.id).where(Relacion.destino_id == hoja.id, Relacion.estado == "vigente",
-                                                     Relacion.codigo_ric == "regulates_or_regulated",
-                                                     Relacion.rol == "retencion"))
-            if ya:
-                informe["avisos"].append(f"«{hoja.titulo}» ya tenía su regla de retención: no se cambió.")
-            else:
-                otras = ", ".join(NOMBRE_DISPOSICION[x] for x in f.otras_disposiciones)
-                procedimiento = " ".join(x for x in (f.procedimiento, f"También: {otras}." if otras else None) if x) or None
-                regla = retencion.crear_regla(db, fondo_id=fondo.id, nombre=f"TRD {hoja.codigo_referencia or ''} "
-                                              f"{hoja.titulo}".replace("  ", " ").strip(), gestion=f.gestion,
-                                              central=f.central, disposicion=DISPOSICION[f.disposicion],
-                                              procedimiento=procedimiento, usuario_id=usuario_id)
-                autoridad.vincular(db, tipo="regla_serie", desde=regla, con_tipo="recurso_documental", con_id=hoja.id,
-                                   usuario_id=usuario_id)
-                informe["reglas"] += 1
+            _regla(db, fondo, hoja, f, usuario_id, informe, version)
         if f.funcion:
             funcion, creada = _de_vocabulario(db, fondo.id, "tipo_actividad", f.funcion, usuario_id)
             informe["funciones"] += int(creada)
@@ -597,13 +653,13 @@ def validar_rico(db: Session, fondo: RecursoDocumental) -> dict:
 
 
 def probar_y_aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id: uuid.UUID,
-                     crear: bool) -> tuple[dict, dict]:
+                     crear: bool, version: dict | None = None) -> tuple[dict, dict]:
     """Aplica el cuadro dentro de un punto de guardado y valida el resultado en
     RiC-O. Si solo se valida, o si no es conforme, se deshace todo: nada queda
     creado a medias ni fuera de RiC-O."""
     punto = db.begin_nested()
     try:
-        informe = aplicar(db, fondo, filas, usuario_id)
+        informe = aplicar(db, fondo, filas, usuario_id, version)
         validacion = validar_rico(db, fondo)
     except Exception:
         punto.rollback()

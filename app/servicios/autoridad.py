@@ -548,8 +548,10 @@ VINCULOS: dict[str, Vinculo] = {
     # Entidad que expidió el mandato (RiC-R065): desde el mandato.
     "expedido_por": Vinculo("issued_by", None, "procedencia", ("mandato",), ("agente",), False, False),
     # Regla de retención (TRD) que regula la serie o subserie (R063, rol «retencion»): desde la regla.
+    # Una serie tiene una regla a la vez; las de versiones anteriores de la TRD
+    # quedan con su vigencia (cada expediente se rige por la de su fecha).
     "regla_serie": Vinculo("regulates_or_regulated", "retencion", "asociacion", ("regla",),
-                           ("recurso:serie,subserie",), False, True),
+                           ("recurso:serie,subserie",), False, False, superiores_por_vigencia=True),
     # Función ↔ serie que produce (TRD): R001, desde el tipo de actividad.
     "serie_producida": Vinculo("is_related_to", "serie_producida", "asociacion", ("tipo_actividad",),
                                ("recurso:serie,subserie",), False, False),
@@ -617,17 +619,23 @@ def _sin_solape(db: Session, v: Vinculo, nodo_id: uuid.UUID, vigencia: str | Non
     """Un segundo superior solo con vigencias que no se crucen (hallazgo CM-12)."""
     consulta = select(Relacion.fecha_edtf).where(Relacion.codigo_ric == v.codigo, Relacion.estado == "vigente",
                                                  Relacion.destino_id == nodo_id)
+    consulta = consulta.where(Relacion.rol == v.rol) if v.rol else consulta.where(Relacion.rol.is_(None))
     existentes = list(db.scalars(consulta))
     if not existentes:
         return
     nuevo = _intervalo(vigencia)
+    regla = v.rol == "retencion"
     if nuevo is None or any(e is None for e in existentes):
-        raise ErrorAutoridad("Ya tiene un lugar superior. Para declarar otro, indique la vigencia de cada uno "
-                             "(por ejemplo «1857/1885» y «1886/»): un lugar no está en dos a la vez.")
+        raise ErrorAutoridad(
+            "Ya tiene una regla de retención. Para declarar otra, indique la vigencia de cada una (la de la versión "
+            "anterior de la TRD y la de la nueva, por ejemplo «2019-03-01/2024-06-30» y «2024-07-01/»)." if regla else
+            "Ya tiene un lugar superior. Para declarar otro, indique la vigencia de cada uno "
+            "(por ejemplo «1857/1885» y «1886/»): un lugar no está en dos a la vez.")
     for e in existentes:
         a = _intervalo(e)
         if nuevo[0] < a[1] and a[0] < nuevo[1]:
-            raise ErrorAutoridad(f"La vigencia se cruza con la de otro lugar superior ({fechas.legible(e)}).")
+            raise ErrorAutoridad(f"La vigencia se cruza con la de {'otra regla de retención' if regla else 'otro lugar superior'}"
+                                 f" ({fechas.legible(e)}).")
 
 
 def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str, con_id: uuid.UUID,
