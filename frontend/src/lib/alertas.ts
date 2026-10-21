@@ -31,6 +31,7 @@ export const TIPO_ALERTA: Record<string, string> = {
   verificacion_atrasada: "Verificación de integridad atrasada",
   huella_referencia_alterada: "Huella de referencia alterada",
   exportacion_no_conforme: "Exportación RiC-O no conforme",
+  grafo_tablas_distintas: "Las tablas no coinciden con el grafo RiC-O",
   mecanismo_sin_version: "Mecanismo sin versión",
   archivo_infectado: "Archivo infectado (en cuarentena)",
   validacion_formato_fallida: "Formato no conforme (validación)",

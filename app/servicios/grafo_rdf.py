@@ -46,6 +46,14 @@ class ErrorGrafo(RuntimeError):
     pass
 
 
+class NoConforme(ErrorGrafo):
+    """El grafo que resultaría no cumple RiC-O 1.1 (OWL o SHACL): no se escribe."""
+
+    def __init__(self, mensaje: str, problemas: list[str]):
+        super().__init__(mensaje)
+        self.problemas = problemas
+
+
 def nombre(fondo_id, alcance: str) -> str:
     return f"urn:ricora:grafo:{fondo_id}:{alcance}"
 
@@ -76,12 +84,18 @@ class Embebido:
         self._escritura = threading.Lock()
 
     def reemplazar(self, grafo: str, ntriples: bytes) -> None:
-        # DROP + INSERT DATA en una sola actualización: quien consulta ve el
-        # grafo anterior o el nuevo, nunca uno a medias.
-        validar_nombre(grafo)
-        cuerpo = ntriples.decode("utf-8")
+        self.reemplazar_varios({grafo: ntriples})
+
+    def reemplazar_varios(self, grafos: dict[str, bytes]) -> None:
+        # DROP + INSERT DATA de todos en una sola actualización: quien consulta
+        # ve la versión anterior o la nueva de todos, nunca una mezcla.
+        partes = []
+        for grafo, ntriples in grafos.items():
+            validar_nombre(grafo)
+            partes.append(f"DROP SILENT GRAPH <{grafo}> ; INSERT DATA {{ GRAPH <{grafo}> {{\n"
+                          f"{ntriples.decode('utf-8')}\n}} }}")
         with self._escritura:
-            self.store.update(f"DROP SILENT GRAPH <{grafo}> ; INSERT DATA {{ GRAPH <{grafo}> {{\n{cuerpo}\n}} }}")
+            self.store.update(" ;\n".join(partes))
 
     def leer(self, grafo: str) -> bytes:
         g = self._ox.NamedNode(grafo)
@@ -150,6 +164,9 @@ class Remoto:
         self._pedir("PUT", "/grafos", params={"grafo": grafo}, content=ntriples,
                     headers={"Content-Type": "application/n-triples"})
 
+    def reemplazar_varios(self, grafos: dict[str, bytes]) -> None:
+        self._pedir("PUT", "/grafos/lote", json={g: nt.decode("utf-8") for g, nt in grafos.items()})
+
     def leer(self, grafo: str) -> bytes:
         return self._pedir("GET", "/grafos", params={"grafo": grafo}).content
 
@@ -215,6 +232,8 @@ def _fondos_de(sesion: Session) -> set | None:
 
 
 def marcar_cambios(sesion: Session, _contexto) -> None:
+    if sesion.info.get("desde_grafo"):
+        return  # se están escribiendo las tablas desde el grafo: no hay nada nuevo que llevarle
     fondos = _fondos_de(sesion)
     if fondos is not None and not fondos:
         return
@@ -230,7 +249,29 @@ def marcar_cambios(sesion: Session, _contexto) -> None:
     """), {"fondos": [str(f) for f in fondos]} if fondos is not None else {})
 
 
+def _marcar_todos(conexion) -> None:
+    conexion.execute(text("""
+        INSERT INTO grafos_rdf (id, fondo_id, alcance)
+        SELECT gen_random_uuid(), f.id, a.alcance
+        FROM (SELECT id FROM recursos_documentales WHERE nivel = 'fondo') AS f(id)
+        CROSS JOIN (VALUES ('publico'), ('completo')) AS a(alcance)
+        ON CONFLICT (fondo_id, alcance)
+        DO UPDATE SET version_datos = grafos_rdf.version_datos + 1, cambiado_en = now()
+    """))
+
+
+def marcar_masivos(estado) -> None:
+    """Un UPDATE o DELETE masivo del ORM (fusión de entidades, ajustes del trabajador) no
+    pasa por el flush: marca todos los fondos (son operaciones raras)."""
+    if not (estado.is_update or estado.is_delete) or estado.session.info.get("desde_grafo"):
+        return
+    tabla = getattr(estado.statement, "table", None)
+    if tabla is not None and tabla.name in _CON_FONDO | _SIN_FONDO | {"relaciones"}:
+        _marcar_todos(estado.session.connection())
+
+
 event.listen(Session, "after_flush", marcar_cambios)
+event.listen(Session, "do_orm_execute", marcar_masivos)
 
 
 # --- Sincronizar y leer ----------------------------------------------------------------------------
@@ -251,8 +292,9 @@ def ntriples(g: Graph) -> bytes:
     return ("\n".join(lineas) + "\n").encode("utf-8") if lineas else b""
 
 
-def sincronizar(db: Session, fondo: RecursoDocumental, alcance: str) -> GrafoRdf:
-    """Arma el grafo RiC-O del fondo, lo valida y lo reemplaza en el almacén."""
+def sincronizar(db: Session, fondo: RecursoDocumental, alcance: str, exigir_conforme: bool = False) -> GrafoRdf:
+    """Arma el grafo RiC-O del fondo, lo valida y lo reemplaza en el almacén. Con
+    `exigir_conforme`, si no cumple RiC-O 1.1 no se escribe nada (NoConforme)."""
     from app.servicios import conformidad_rico, exportacion_rico
 
     fila = _fila(db, fondo.id, alcance)
@@ -262,7 +304,22 @@ def sincronizar(db: Session, fondo: RecursoDocumental, alcance: str) -> GrafoRdf
         cuerpo = ntriples(ex.grafo)
         owl = conformidad_rico.verificar_owl(ex.grafo)
         shacl = conformidad_rico.validar_shacl(ex.grafo)
-        almacen().reemplazar(nombre(fondo.id, alcance), cuerpo)
+        if exigir_conforme and (owl or not shacl["conforme"]):
+            problemas = list(owl) + [r.get("mensaje") or r.get("forma") or "" for r in shacl["resultados"]]
+            raise NoConforme("La descripción no cumple RiC-O 1.1 y no se publicó: " + "; ".join(problemas[:3]),
+                             problemas[:20])
+        grafos = {nombre(fondo.id, alcance): cuerpo}
+        if alcance == "completo":
+            # Con el completo va el de control: lo que RiC-O no dice exacto. Juntos
+            # son la fuente de verdad de lo publicado del fondo.
+            from app.servicios import grafo_control
+
+            control = grafo_control.grafo_control(grafo_control.foto(db, fondo.id), _como_guardado(ex.grafo),
+                                                  exportacion_rico.base())
+            grafos[nombre(fondo.id, "control")] = ntriples(control)
+        almacen().reemplazar_varios(grafos)
+    except NoConforme:
+        raise
     except Exception as exc:  # noqa: BLE001 — se registra y se reintenta con el próximo cambio
         log.exception("No se pudo sincronizar el grafo %s/%s", fondo.id, alcance)
         db.execute(update(GrafoRdf).where(GrafoRdf.id == fila.id).values(error=str(exc)[:1000]))
@@ -281,6 +338,15 @@ def sincronizar(db: Session, fondo: RecursoDocumental, alcance: str) -> GrafoRdf
 def al_dia(db: Session, fondo: RecursoDocumental, alcance: str) -> GrafoRdf:
     fila = _fila(db, fondo.id, alcance)
     return fila if fila.al_dia else sincronizar(db, fondo, alcance)
+
+
+def _como_guardado(g: Graph) -> Graph:
+    """El grafo tal como volverá del almacén (decimales en la forma que lee el sistema)."""
+    from app.servicios import exportacion_rico
+
+    copia = exportacion_rico.grafo_vacio()
+    copia.parse(data=ntriples(g).decode("utf-8"), format="nt")
+    return copia
 
 
 def _decimales_con_punto(g: Graph) -> None:
@@ -364,3 +430,84 @@ def estado(db: Session) -> dict:
         "sincronizado_en": f.sincronizado_en.isoformat() if f.sincronizado_en else None, "tripletas": f.tripletas,
         "huella": f.huella, "conforme": f.conforme, "problemas_owl": f.problemas_owl,
         "resultados_shacl": f.resultados_shacl, "error": f.error} for f, titulo in filas]}
+
+
+# --- El grafo gana -----------------------------------------------------------------------------------
+
+
+def _desde_almacen(fondo_id) -> tuple[Graph, Graph]:
+    from app.servicios import exportacion_rico
+
+    completo, control = exportacion_rico.grafo_vacio(), Graph()
+    for g, alcance in ((completo, "completo"), (control, "control")):
+        cuerpo = almacen().leer(nombre(fondo_id, alcance))
+        if cuerpo:
+            g.parse(data=cuerpo.decode("utf-8"), format="nt")
+    _decimales_con_punto(completo)
+    if not len(control):
+        raise ErrorGrafo("El almacén no tiene el grafo de control de este fondo: no se puede reconstruir desde él.")
+    return completo, control
+
+
+def comparar(db: Session, fondo_id) -> list[dict]:
+    """En qué no coinciden las tablas con el grafo guardado (vacío: coinciden)."""
+    from app.servicios import exportacion_rico, grafo_control
+
+    completo, control = _desde_almacen(fondo_id)
+    esperado = grafo_control.filas_desde_grafo(completo, control, exportacion_rico.base())
+    return grafo_control.diferencias(grafo_control.foto(db, fondo_id), esperado)
+
+
+def reconstruir(db: Session, fondo_id) -> dict:
+    """Vuelve a armar las tablas de lo publicado del fondo desde el almacén: el grafo gana."""
+    from app.servicios import exportacion_rico, grafo_control
+
+    completo, control = _desde_almacen(fondo_id)
+    filas = grafo_control.filas_desde_grafo(completo, control, exportacion_rico.base())
+    antes = grafo_control.diferencias(grafo_control.foto(db, fondo_id), filas, limite=10_000)
+    db.info["desde_grafo"] = True
+    try:
+        conteo = grafo_control.cargar(db, filas)
+        db.flush()
+    finally:
+        db.info.pop("desde_grafo", None)
+    sobrantes = [d for d in antes if d["problema"].startswith("está en las tablas")]
+    return {"filas": conteo, "corregidas": len(antes) - len(sobrantes), "sobrantes": sobrantes[:50],
+            "diferencias_despues": grafo_control.diferencias(grafo_control.foto(db, fondo_id), filas)}
+
+
+def asentar(db: Session, fondo_id) -> None:
+    """Publicar es escribir en el grafo: el completo (con su control) y el público se
+    validan y se escriben en el almacén antes de confirmar la transacción. Si no cumple
+    RiC-O 1.1, NoConforme y no se escribe nada (quien llama deshace la transacción)."""
+    fondo = db.get(RecursoDocumental, fondo_id)
+    if fondo is None:
+        return
+    db.flush()
+    sincronizar(db, fondo, "completo", exigir_conforme=True)
+    sincronizar(db, fondo, "publico")
+
+
+def verificar_coherencia(db: Session) -> int:
+    """Para el trabajador: compara cada fondo al día con su grafo guardado. Si las tablas
+    no coinciden (alguien las cambió por fuera del sistema), alerta: el grafo es la fuente
+    y la administración reconstruye desde él. Devuelve cuántos fondos difieren."""
+    from app.servicios import alertas
+
+    distintos = 0
+    for fila in db.scalars(select(GrafoRdf).where(GrafoRdf.alcance == "completo")).all():
+        if not fila.al_dia:
+            continue  # todavía no se ha escrito el último cambio: no hay nada que comparar
+        try:
+            dif = comparar(db, fila.fondo_id)
+        except ErrorGrafo:
+            continue
+        if dif:
+            distintos += 1
+            alertas.crear(db, tipo="grafo_tablas_distintas", severidad="alta", modulo="instrumentos",
+                          entidad_tipo="recurso_documental", entidad_id=fila.fondo_id, fondo_id=fila.fondo_id,
+                          mensaje=f"{len(dif)} dato(s) de las tablas no coinciden con el grafo RiC-O guardado, que es "
+                                  "la fuente de verdad. Reconstruya el fondo desde el grafo (Instrumentos › RiC-O).",
+                          detalle={"diferencias": dif[:20]})
+    db.commit()
+    return distintos

@@ -42,6 +42,15 @@ async def reemplazar(grafo: str, request: Request):
     return {"ok": True}
 
 
+@app.put("/grafos/lote", dependencies=[Depends(autorizado)])
+def reemplazar_varios(grafos: dict[str, str]):
+    try:
+        _almacen.reemplazar_varios({_grafo(g): nt.encode("utf-8") for g, nt in grafos.items()})
+    except ErrorGrafo as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
 @app.get("/grafos", dependencies=[Depends(autorizado)])
 def leer(grafo: str):
     return Response(_almacen.leer(_grafo(grafo)), media_type="application/n-triples")

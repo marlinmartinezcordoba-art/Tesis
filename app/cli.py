@@ -274,9 +274,34 @@ def sincronizar_grafo() -> int:
     return 1 if errores else 0
 
 
+def reconstruir_desde_grafo() -> int:
+    """Rehace las tablas de lo publicado de cada fondo desde el grafo RiC-O guardado (el grafo
+    es la fuente de verdad). Úselo después de restaurar el almacén del grafo."""
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models.recurso_documental import RecursoDocumental
+    from app.servicios import grafo_rdf
+
+    errores = 0
+    with SessionLocal() as db:
+        for fondo in db.scalars(select(RecursoDocumental).where(RecursoDocumental.nivel == "fondo")).all():
+            try:
+                r = grafo_rdf.reconstruir(db, fondo.id)
+                db.commit()
+                print(f"  · {fondo.titulo}: {sum(r['filas'].values())} filas, {r['corregidas']} corregidas, "
+                      f"{len(r['diferencias_despues'])} diferencias después")
+            except grafo_rdf.ErrorGrafo as exc:
+                db.rollback()
+                errores += 1
+                print(f"  · {fondo.titulo}: {exc}")
+    return 1 if errores else 0
+
+
 COMANDOS = {"cuenta-administradora": cuenta_administradora, "probar-motor": probar_motor,
             "probar-preservacion": probar_preservacion, "paginar-textos": paginar_textos,
-            "terminos": generar_terminos, "sincronizar-grafo": sincronizar_grafo}
+            "terminos": generar_terminos, "sincronizar-grafo": sincronizar_grafo,
+            "reconstruir-desde-grafo": reconstruir_desde_grafo}
 CON_ARGUMENTO = {"restaurar-paquete": restaurar_paquete, "importar-tesauro": importar_tesauro}
 
 if __name__ == "__main__":

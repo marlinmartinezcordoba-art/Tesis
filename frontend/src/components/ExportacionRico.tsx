@@ -27,6 +27,8 @@ interface GrafoGuardado { fondo_id: string; alcance: string; nombre: string; al_
 interface EstadoGrafo { almacen: { ok: boolean; motor?: string | null; tripletas?: number | null; motivo?: string | null };
   grafos: GrafoGuardado[] }
 
+interface Diferencia { tabla: string; id: string; columna: string | null; problema: string }
+
 const ALCANCE: Record<string, string> = { publico: "Público (sin lo clasificado ni lo reservado)", completo: "Completo" };
 
 // El grafo RiC-O del fondo vive guardado en un almacén de tripletas
@@ -36,7 +38,38 @@ function GrafoPersistente({ fondoId }: { fondoId: string }) {
   const [estado, setEstado] = useState<EstadoGrafo | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
+  const [coherencia, setCoherencia] = useState<{ coinciden: boolean; diferencias: Diferencia[] } | null>(null);
+  const [rehecho, setRehecho] = useState("");
   const cargar = () => pedir<EstadoGrafo>("/api/exportacion/grafo").then(setEstado).catch(() => setEstado(null));
+
+  async function comparar() {
+    setOcupado(true);
+    setError("");
+    setRehecho("");
+    try {
+      setCoherencia(await pedir(`/api/exportacion/grafo/coherencia?fondo_id=${fondoId}`));
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo comparar.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function reconstruir() {
+    if (!window.confirm("Las tablas del fondo se rehacen con lo que dice el grafo RiC-O guardado (la fuente de verdad). ¿Continuar?")) return;
+    setOcupado(true);
+    setError("");
+    try {
+      const r = await pedir<{ corregidas: number; diferencias_despues: Diferencia[] }>(
+        `/api/exportacion/grafo/reconstruir?fondo_id=${fondoId}`, { method: "POST" });
+      setRehecho(`Listo: ${r.corregidas} dato(s) corregidos desde el grafo; ${r.diferencias_despues.length} diferencia(s) después.`);
+      setCoherencia(null);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo reconstruir.");
+    } finally {
+      setOcupado(false);
+    }
+  }
   useEffect(() => { cargar(); }, [fondoId]);
 
   async function rearmar() {
@@ -58,8 +91,10 @@ function GrafoPersistente({ fondoId }: { fondoId: string }) {
       <div className="tarjeta-cab">Grafo RiC-O guardado</div>
       <div className="tarjeta-cuerpo">
         <p className="meta">
-          La descripción publicada vive como grafo RDF en un almacén de tripletas, un grafo con nombre por fondo. Cada
-          cambio lo rearma y lo valida contra RiC-O 1.1 (OWL y SHACL); el SPARQL, las URI y las descargas leen de aquí.
+          La descripción publicada vive como grafo RDF en un almacén de tripletas y es la fuente de verdad: publicar es
+          escribir en él, validado antes contra RiC-O 1.1 (OWL y SHACL); el SPARQL, las URI y las descargas leen de aquí,
+          y las tablas del sistema se pueden rehacer desde él. Lo que RiC-O no puede expresar (procedencia del dato,
+          años de retención, archivo de cada instanciación) va en un grafo de control interno, que nunca se publica.
           {estado.almacen.ok && estado.almacen.motor && <> Motor: {estado.almacen.motor}.</>}
         </p>
         {error && <div className="aviso error" role="alert">{error}</div>}
@@ -80,12 +115,29 @@ function GrafoPersistente({ fondoId }: { fondoId: string }) {
             ))}
           </tbody>
         </table>
-        {usuario?.es_administrador && (
-          <div className="acciones" style={{ marginTop: 10 }}>
-            <button type="button" className="boton chico" disabled={ocupado} onClick={rearmar}>
-              {ocupado ? "Rearmando…" : "Rearmar ahora"}</button>
+        {coherencia && (
+          <div className={`aviso ${coherencia.coinciden ? "bien" : "error"}`} role="status">
+            {coherencia.coinciden ? "Las tablas coinciden con el grafo guardado." : (
+              <>Las tablas no coinciden con el grafo en {coherencia.diferencias.length} dato(s); el grafo es la fuente de verdad.
+                <ul>{coherencia.diferencias.slice(0, 8).map((d) => (
+                  <li key={`${d.id}-${d.columna}`}>{d.tabla}{d.columna ? ` · ${d.columna}` : ""}: {d.problema}</li>))}</ul></>
+            )}
           </div>
         )}
+        {rehecho && <div className="aviso bien" role="status">{rehecho}</div>}
+        <div className="acciones" style={{ marginTop: 10 }}>
+          <button type="button" className="boton chico" disabled={ocupado} onClick={comparar}>Comparar tablas con el grafo</button>
+          {usuario?.es_administrador && (
+            <>
+              <button type="button" className="boton chico" disabled={ocupado} onClick={rearmar}>
+                {ocupado ? "Trabajando…" : "Rearmar el grafo"}</button>
+              {coherencia && !coherencia.coinciden && (
+                <button type="button" className="boton chico peligro" disabled={ocupado} onClick={reconstruir}>
+                  Rehacer las tablas desde el grafo</button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

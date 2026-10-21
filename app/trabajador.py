@@ -46,7 +46,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _al_detener)
     signal.signal(signal.SIGINT, _al_detener)
     liberado = False
-    ultima_revision_sesiones = ultima_replica = float("-inf")
+    ultima_revision_sesiones = ultima_replica = ultima_coherencia = float("-inf")
     log.info("Trabajador de ingesta en marcha.")
     while not _detener:
         salud.latir()  # señal de vida para /api/salud (brecha RF-OPS-001)
@@ -94,6 +94,12 @@ def main() -> None:
                         log.info("Mecanismos: %s fila(s) anteriores vinculadas a su agente.", vinculadas)
                 # Grafo RiC-O persistente: reconstruye y valida los grafos con cambios.
                 sincronizados = grafo_rdf.sincronizar_pendientes(db)
+                # El grafo gana: cada media hora se comparan las tablas con lo guardado.
+                if time.monotonic() - ultima_coherencia >= 1800:
+                    distintos = grafo_rdf.verificar_coherencia(db)
+                    if distintos:
+                        log.warning("Grafo RiC-O: %s fondo(s) con tablas distintas del grafo guardado.", distintos)
+                    ultima_coherencia = time.monotonic()
                 if sincronizados:
                     log.info("Grafo RiC-O: %s grafo(s) actualizados en el almacén.", sincronizados)
                 siguiente = procesamiento.tomar_siguiente(db)

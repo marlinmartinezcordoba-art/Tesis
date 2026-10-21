@@ -33,3 +33,24 @@ class GrafoFondo(BaseModel):
 class EstadoGrafoRdf(BaseModel):
     almacen: AlmacenGrafo
     grafos: list[GrafoFondo]
+
+
+class DiferenciaGrafo(BaseModel):
+    tabla: str
+    id: str
+    columna: str | None
+    problema: str
+
+
+class CoherenciaGrafo(BaseModel):
+    """Si las tablas coinciden con el grafo RiC-O guardado (la fuente de verdad)."""
+    coinciden: bool
+    diferencias: list[DiferenciaGrafo]
+
+
+class ReconstruccionGrafo(BaseModel):
+    """Lo que se rehízo en las tablas desde el grafo."""
+    filas: dict[str, int]
+    corregidas: int
+    sobrantes: list[DiferenciaGrafo]
+    diferencias_despues: list[DiferenciaGrafo]

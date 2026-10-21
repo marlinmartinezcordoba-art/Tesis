@@ -102,6 +102,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
     "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
+    "tablas_reconstruidas_desde_grafo": ("Rehízo las tablas del fondo desde el grafo RiC-O (la fuente de verdad)",
+                                         "Instrumentos generados"),
     "grafo_rdf_sincronizado": ("Rearmó el grafo RiC-O del fondo en el almacén de tripletas", "Instrumentos generados"),
     "grafo_exportado": ("Exportó un fragmento del grafo del fondo en RiC-O (RDF)", "Instrumentos generados"),
     "hallazgo_creado": ("Registró un hallazgo de conformidad", "Hallazgos de conformidad"),

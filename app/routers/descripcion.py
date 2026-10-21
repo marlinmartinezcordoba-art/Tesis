@@ -297,6 +297,19 @@ def _proteger(db: Session, recurso, p, usuario_id) -> None:
                   nuevo={k: v for k, v in nuevo.items() if anterior[k] != v})
 
 
+def _asentar(db: Session, recurso) -> None:
+    """Publicar o corregir es escribir en el grafo RiC-O (la fuente de verdad), validado
+    antes: si el fondo no quedaría conforme con RiC-O 1.1, no se publica (422)."""
+    from app.servicios import grafo_rdf
+
+    try:
+        grafo_rdf.asentar(db, recurso.fondo_id)
+    except grafo_rdf.NoConforme as exc:
+        raise descripcion.ErrorDescripcion(str(exc), 422) from exc
+    except grafo_rdf.ErrorGrafo as exc:
+        raise descripcion.ErrorDescripcion(f"No se pudo escribir en el grafo RiC-O: {exc}", 503) from exc
+
+
 @router.post("/publicar", status_code=status.HTTP_201_CREATED, responses={201: {"model": DetalleDescripcionOut, "description": "La descripción publicada, vista interna"}},
              summary="Publicar la descripción (una sola transacción)")
 def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
@@ -315,6 +328,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
         descripcion.versionar(db, recurso, "publicacion", actor.id)
+        _asentar(db, recurso)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()
@@ -687,6 +701,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             _volver_a_heredar(db, recurso, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
         descripcion.versionar(db, recurso, "edicion", actor.id, hubo_cambio=cambio)
+        _asentar(db, recurso)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

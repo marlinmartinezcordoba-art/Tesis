@@ -123,6 +123,34 @@ def sincronizar_grafo(fondo_id: uuid.UUID, request: Request, actor: Actor = Depe
     return grafo_rdf.estado(db)
 
 
+@router.get("/grafo/coherencia", response_model=RG.CoherenciaGrafo,
+            summary="¿Coinciden las tablas con el grafo RiC-O guardado (la fuente de verdad)?")
+def coherencia_grafo(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    try:
+        dif = grafo_rdf.comparar(db, fondo_id)
+    except grafo_rdf.ErrorGrafo as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    return {"coinciden": not dif, "diferencias": dif}
+
+
+@router.post("/grafo/reconstruir", response_model=RG.ReconstruccionGrafo,
+             summary="Rehacer las tablas de lo publicado del fondo desde el grafo RiC-O (solo administrador)")
+def reconstruir_grafo(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                      db: Session = Depends(get_db)):
+    fondo = fondo_o_404(db, fondo_id)
+    try:
+        r = grafo_rdf.reconstruir(db, fondo_id)
+    except grafo_rdf.ErrorGrafo as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    registrar(db, modulo="instrumentos", accion="tablas_reconstruidas_desde_grafo", usuario_id=actor.id,
+              entidad_tipo="recurso_documental", entidad_id=fondo.id, ip=ip_de(request), detalle=fondo.titulo,
+              nuevo={"filas": r["filas"], "corregidas": r["corregidas"], "sobrantes": len(r["sobrantes"])})
+    db.commit()
+    return r
+
+
 class UrisPublicasIO(BaseModel):
     publicas: bool
     # Solo para cambiar a propósito la base ya publicada (otro dominio): las
