@@ -107,7 +107,9 @@ describe("árbol de submódulos", () => {
     expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Cuadro de clasificación y TRD", "Grafo", "Inventario", "Guía", "RiC-O"]);
     montar("/instrumentos?vista=indice", CONSULTA);
     expect(screen.queryByRole("link", { name: "Vocabulario" })).toBeNull();
-    expect(screen.getByText("Consulta del archivo")).toBeTruthy();
+    // El menú no lleva títulos de grupo (decisión de la autora).
+    expect(screen.queryByText("Consulta del archivo")).toBeNull();
+    expect(screen.queryByText("Trabajo archivístico")).toBeNull();
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Índice");
   });
 });

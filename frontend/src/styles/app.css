@@ -117,6 +117,7 @@ button { font-family: inherit; }
 .navegacion a svg { width: 16px; height: 16px; flex: 0 0 16px; }
 .navegacion a.active { background: var(--side-active); color: var(--side-fg); font-weight: 600; }
 .navegacion .grupo { font-size: .66rem; text-transform: uppercase; letter-spacing: .09em; color: var(--side-muted); padding: 10px 10px 2px; }
+.navegacion .grupo-separador { height: 14px; }
 /* Árbol de submódulos: un solo mapa de navegación (módulo › vista). */
 .lateral { overflow-y: auto; }
 .lateral-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

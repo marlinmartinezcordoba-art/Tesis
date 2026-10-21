@@ -109,21 +109,21 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
     setAbiertos(new Set(actual ? [actual.ruta] : []));
   }, [actual?.ruta]);
 
+  // Dos bloques sin título (decisión de la autora): el trabajo archivístico
+  // y, separado por un espacio, el sistema.
   const grupos: [string, Entrada[]][] = [
-    // Para quien solo consulta (sin acceso a ningún módulo de trabajo) el grupo se llama «Consulta».
-    [MODULOS_TRABAJO.some((m) => m !== "instrumentos" && puede(usuario, m)) ? "Trabajo archivístico" : "Consulta del archivo",
-      visibles.filter((e) => e.grupo === "trabajo")],
-    ["Sistema", visibles.filter((e) => e.grupo === "sistema")],
+    ["trabajo", visibles.filter((e) => e.grupo === "trabajo")],
+    ["sistema", visibles.filter((e) => e.grupo === "sistema")],
   ];
   // Abrir un módulo cierra el que estaba abierto; tocar el abierto lo cierra.
   const alternar = (ruta: string) => setAbiertos((a) => (a.has(ruta) ? new Set() : new Set([ruta])));
 
   return (
     <nav className="navegacion" aria-label="Módulos">
-      {grupos.map(([titulo, entradas]) =>
+      {grupos.map(([clave, entradas], n) =>
         entradas.length ? (
-          <div key={titulo} style={{ display: "contents" }}>
-            <div className="grupo">{titulo}</div>
+          <div key={clave} style={{ display: "contents" }}>
+            {n > 0 && <div className="grupo-separador" aria-hidden="true" />}
             {entradas.map((e) => {
               const vistas = vistasDe(e.ruta, usuario);
               const enModulo = actual?.ruta === e.ruta;
