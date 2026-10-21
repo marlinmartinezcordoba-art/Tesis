@@ -7,6 +7,7 @@ inferiores los crea el módulo de descripción.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.core.permisos import Actor, lectura_catalogo, solo_administrador
 from app.db.session import get_db
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
+from app.schemas import respuestas_cuadro as rc
 from app.schemas.ingesta import ExpedienteOut, FondoIn, FondoOut
 from app.servicios import fechas
 from app.servicios.auditoria import registrar
@@ -40,9 +42,7 @@ def listar(_: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     return [_fondo_out(db, f) for f in filas]
 
 
-@router.post("", response_model=FondoOut, status_code=status.HTTP_201_CREATED, summary="Registrar un fondo")
-def registrar_fondo(datos: FondoIn, request: Request, actor: Actor = Depends(solo_administrador),
-                    db: Session = Depends(get_db)):
+def _crear_fondo(db: Session, datos: FondoIn, actor: Actor, request: Request) -> RecursoDocumental:
     if db.scalar(select(RecursoDocumental.id).where(RecursoDocumental.nivel == "fondo",
                                                      func.lower(RecursoDocumental.titulo) == datos.titulo.lower())):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Ya existe un fondo con ese nombre.")
@@ -61,8 +61,57 @@ def registrar_fondo(datos: FondoIn, request: Request, actor: Actor = Depends(sol
     registrar(db, modulo="sistema", accion="fondo_registrado", usuario_id=actor.id, entidad_tipo="recurso_documental",
               entidad_id=fondo.id, nuevo={"titulo": fondo.titulo, "fechas_extremas": fondo.fechas_extremas},
               request=request)
+    return fondo
+
+
+@router.post("", response_model=FondoOut, status_code=status.HTTP_201_CREATED,
+             summary="Registrar un fondo sin cuadro (se configura después en Instrumentos › Cuadro)")
+def registrar_fondo(datos: FondoIn, request: Request, actor: Actor = Depends(solo_administrador),
+                    db: Session = Depends(get_db)):
+    fondo = _crear_fondo(db, datos, actor, request)
     db.commit()
     return _fondo_out(db, fondo)
+
+
+class ConfigurarFondoIn(BaseModel):
+    fondo: FondoIn
+    # Las filas del cuadro (CCD) confirmadas en la vista previa de /api/cuadro/vista-previa;
+    # la retención (TRD) de cada fila es opcional: un fondo histórico puede no tenerla.
+    filas: list[dict] = Field(min_length=1, max_length=3000)
+    crear: bool = False
+
+
+@router.post("/configurar", response_model=rc.FondoConfigurado,
+             summary="Configurar un fondo desde su cuadro de clasificación y su TRD, validado en RiC-O 1.1 antes de crear")
+def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = Depends(solo_administrador),
+                     db: Session = Depends(get_db)):
+    """Arma el fondo con su cuadro (secciones, series, subseries, productor, función, tipos
+    documentales y reglas de retención) y lo valida contra RiC-O 1.1 (OWL y SHACL). Con
+    `crear=false` solo valida; con `crear=true` lo crea, todo o nada, si es conforme."""
+    from app.servicios import cuadro
+
+    punto = db.begin_nested()
+    try:
+        fondo = _crear_fondo(db, datos.fondo, actor, request)
+        informe = cuadro.aplicar(db, fondo, datos.filas, actor.id)
+        validacion = cuadro.validar_rico(db, fondo)
+    except cuadro.ErrorCuadro as exc:
+        punto.rollback()
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    except HTTPException:
+        punto.rollback()
+        db.rollback()
+        raise
+    creado = datos.crear and validacion["conforme"]
+    salida = _fondo_out(db, fondo).model_dump(mode="json") if creado else None
+    if creado:
+        punto.commit()
+        db.commit()
+    else:
+        punto.rollback()
+        db.rollback()
+    return {"creado": creado, "fondo": salida, "informe": informe, "validacion": validacion}
 
 
 @router.get("/{fondo_id}/expedientes", response_model=list[ExpedienteOut],

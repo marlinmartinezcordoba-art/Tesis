@@ -68,3 +68,28 @@ class NodoCuadro(BaseModel):
     regla: dict[str, Any] | None
     expedientes: int
     hijos: list["NodoCuadro"]
+
+
+class ValidacionRico(BaseModel):
+    """El cuadro armado como grafo RiC-O 1.1 y validado (OWL y SHACL)."""
+    conforme: bool
+    ontologia: str
+    tripletas: int
+    por_clase: dict[str, int]
+    problemas_owl: list[str]
+    resultados_shacl: list[dict[str, Any]]
+
+
+class PruebaCuadro(BaseModel):
+    """Lo que se crearía (o se creó) y su validación RiC-O."""
+    creado: bool
+    informe: InformeCuadro
+    validacion: ValidacionRico
+
+
+class FondoConfigurado(BaseModel):
+    """El fondo configurado desde su cuadro de clasificación (o lo que se crearía)."""
+    creado: bool
+    fondo: dict[str, Any] | None
+    informe: InformeCuadro
+    validacion: ValidacionRico

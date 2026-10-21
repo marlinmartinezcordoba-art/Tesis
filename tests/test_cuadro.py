@@ -90,3 +90,45 @@ def test_todo_o_nada_y_solo_la_administracion(cliente, db, fondo, cabeceras_admi
     assert cliente.get("/api/cuadro", headers=ana, params={"fondo_id": str(fondo.id)}).status_code == 200
     r = _vista(cliente, cabeceras_admin, b"Nombre;Otra\n", "cosa.csv")
     assert r.status_code == 422 and "plantilla" in r.json()["detail"]
+
+
+def test_el_fondo_se_configura_desde_su_ccd_validado_en_ric_antes_de_crear(cliente, db, cabeceras_admin):
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    pedido = {"fondo": {"titulo": "Archivo de la Secretaría General", "fechas_extremas": "1950-1990"}, "filas": filas}
+    # Validar no crea nada: ni el fondo ni su cuadro.
+    r = cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=pedido)
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert v["creado"] is False and v["fondo"] is None and v["validacion"]["conforme"] is True
+    assert v["validacion"]["por_clase"]["RecordSet"] >= 6  # fondo, sección, 2 series, 2 subseries
+    assert v["informe"]["creados"] == {"seccion": 1, "serie": 2, "subserie": 2}
+    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.titulo == pedido["fondo"]["titulo"])) is None
+    # Crear: el fondo nace con su cuadro y sus reglas, conforme con RiC-O.
+    r = cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=pedido | {"crear": True})
+    assert r.status_code == 200, r.text
+    c = r.json()
+    assert c["creado"] is True and c["validacion"]["conforme"] and c["informe"]["reglas"] == 3
+    fondo_id = c["fondo"]["id"]
+    arbol = cliente.get("/api/cuadro", headers=cabeceras_admin, params={"fondo_id": fondo_id}).json()
+    assert arbol[0]["codigo"] == "110" and len(arbol[0]["hijos"]) == 2
+    # El mismo nombre no se registra dos veces; un cuadro con problemas no crea el fondo.
+    assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin,
+                        json=pedido | {"crear": True}).status_code == 409
+    filas[0]["disposicion"] = None
+    otro = {"fondo": {"titulo": "Otro fondo"}, "filas": filas, "crear": True}
+    assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=otro).status_code == 422
+    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.titulo == "Otro fondo")) is None
+
+
+def test_si_no_es_conforme_con_ric_no_se_crea(cliente, db, fondo, cabeceras_admin, monkeypatch):  # noqa: F811
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    real = cuadro.validar_rico
+    monkeypatch.setattr(cuadro, "validar_rico", lambda d, f: real(d, f) | {"conforme": False,
+                                                                           "problemas_owl": ["clase inventada"]})
+    r = cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "filas": filas})
+    assert r.status_code == 422 and "RiC-O" in r.json()["detail"]
+    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110")) is None
+    r = cliente.post("/api/fondos/configurar", headers=cabeceras_admin,
+                     json={"fondo": {"titulo": "Fondo no conforme"}, "filas": filas, "crear": True})
+    assert r.status_code == 200 and r.json()["creado"] is False
+    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.titulo == "Fondo no conforme")) is None

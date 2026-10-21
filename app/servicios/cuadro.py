@@ -574,3 +574,42 @@ def arbol(db: Session, fondo: RecursoDocumental) -> list[dict]:
                           if h.nivel in niveles]}
     return [nodo(r) for r in sorted(hijos.get(fondo.id, []), key=lambda x: (x.codigo_referencia or "", x.titulo))
             if r.nivel in niveles]
+
+
+# --- Validación RiC-O ---------------------------------------------------------------------------------
+
+
+def validar_rico(db: Session, fondo: RecursoDocumental) -> dict:
+    """El fondo, con su cuadro, armado como grafo RiC-O 1.1 y validado contra la
+    ontología oficial (OWL) y el perfil SHACL del sistema. Es el mismo mapeo
+    con que se guarda en el almacén de tripletas."""
+    from app.servicios import conformidad_rico, exportacion_rico
+
+    db.flush()
+    ex = exportacion_rico.exportar(db, fondo, incluir_restringidos=True)
+    owl = conformidad_rico.verificar_owl(ex.grafo)
+    shacl = conformidad_rico.validar_shacl(ex.grafo)
+    resumen = ex.resumen()
+    return {"conforme": not owl and shacl["conforme"], "ontologia": "RiC-O 1.1",
+            "tripletas": resumen["tripletas"], "por_clase": resumen["por_clase"],
+            "problemas_owl": [str(p) for p in owl[:20]],
+            "resultados_shacl": [r if isinstance(r, dict) else {"mensaje": str(r)} for r in shacl["resultados"][:20]]}
+
+
+def probar_y_aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id: uuid.UUID,
+                     crear: bool) -> tuple[dict, dict]:
+    """Aplica el cuadro dentro de un punto de guardado y valida el resultado en
+    RiC-O. Si solo se valida, o si no es conforme, se deshace todo: nada queda
+    creado a medias ni fuera de RiC-O."""
+    punto = db.begin_nested()
+    try:
+        informe = aplicar(db, fondo, filas, usuario_id)
+        validacion = validar_rico(db, fondo)
+    except Exception:
+        punto.rollback()
+        raise
+    if not crear or not validacion["conforme"]:
+        punto.rollback()
+    else:
+        punto.commit()
+    return informe, validacion

@@ -11,22 +11,69 @@ interface Regla { gestion_anios: number | null; central_anios: number | null; di
   resumen: string; heredada_de: { titulo: string } | null }
 interface NodoCuadro { id: string; nivel: string; codigo: string | null; titulo: string; regla: Regla | null;
   expedientes: number; hijos: NodoCuadro[] }
-interface NodoLeido { codigo: string | null; nombre: string }
-interface FilaLeida {
+export interface NodoLeido { codigo: string | null; nombre: string }
+export interface FilaLeida {
   fila: number; seccion: NodoLeido | null; subseccion: NodoLeido | null; serie: NodoLeido | null; subserie: NodoLeido | null;
   tipos: string[]; gestion: number | null; central: number | null; disposicion: string | null; otras_disposiciones: string[];
   procedimiento: string | null; funcion: string | null; problemas: string[];
   codigos: { seccion: string | null; subseccion: string | null; serie: string | null; subserie: string | null };
 }
-interface Vista { origen: string; filas: FilaLeida[]; resumen: Record<string, number> }
-interface Informe { creados: Record<string, number>; reutilizados: number; reglas: number; tipos_documentales: number;
+export interface Vista { origen: string; filas: FilaLeida[]; resumen: Record<string, number> }
+export interface Informe { creados: Record<string, number>; reutilizados: number; reglas: number; tipos_documentales: number;
   funciones: number; avisos: string[] }
+
+export interface Validacion { conforme: boolean; ontologia: string; tripletas: number; por_clase: Record<string, number>;
+  problemas_owl: string[]; resultados_shacl: { mensaje?: string | null; foco?: string | null; forma?: string | null }[] }
 
 const NIVEL: Record<string, string> = { seccion: "Sección", subseccion: "Subsección", serie: "Serie", subserie: "Subserie" };
 const DISP: Record<string, string> = { ct: "CT", e: "E", s: "S", m: "M" };
 
 function mensaje(err: unknown, porDefecto: string) {
   return err instanceof ErrorAPI ? err.message : porDefecto;
+}
+
+// Lo que el sistema entendió del archivo, fila por fila: se marcan las que se crean.
+export function TablaVistaPrevia({ vista, incluir, setIncluir }: { vista: Vista; incluir: Set<number>;
+  setIncluir: (f: (s: Set<number>) => Set<number>) => void }) {
+  return (
+    <table className="tabla-permisos">
+      <thead><tr><th>Crear</th><th>Sección</th><th>Serie / subserie</th><th>Tipos documentales</th><th>AG / AC</th>
+        <th>Disposición</th><th>Problemas</th></tr></thead>
+      <tbody>
+        {vista.filas.map((f) => (
+          <tr key={f.fila} className={f.problemas.length ? "fila-problema" : undefined}>
+            <td><input type="checkbox" aria-label={`Crear la fila ${f.fila}`} disabled={!!f.problemas.length}
+                       checked={incluir.has(f.fila)}
+                       onChange={(e) => setIncluir((s) => { const n = new Set(s); if (e.target.checked) n.add(f.fila); else n.delete(f.fila); return n; })} /></td>
+            <td>{f.codigos.seccion} {f.seccion?.nombre}{f.subseccion ? ` › ${f.codigos.subseccion || ""} ${f.subseccion.nombre}` : ""}</td>
+            <td><strong>{f.codigos.serie}</strong> {f.serie?.nombre}
+              {f.subserie && <div>› <strong>{f.codigos.subserie}</strong> {f.subserie.nombre}</div>}</td>
+            <td>{f.tipos.join("; ")}</td>
+            <td>{f.gestion ?? "—"} / {f.central ?? "—"}</td>
+            <td>{f.disposicion ? [f.disposicion, ...f.otras_disposiciones].map((d) => DISP[d]).join(" + ") : "—"}</td>
+            <td>{f.problemas.join(" ")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// El resultado de validar en RiC-O 1.1 (OWL y SHACL) lo que se va a crear.
+export function ResultadoValidacion({ v }: { v: Validacion }) {
+  const clases = Object.entries(v.por_clase).map(([c, n]) => `${n} rico:${c}`).join(", ");
+  return (
+    <div className={`aviso ${v.conforme ? "bien" : "error"}`} role="status">
+      <strong>{v.conforme ? "Conforme con " : "No conforme con "}{v.ontologia}</strong> (ontología oficial y perfil SHACL):
+      {" "}{v.tripletas} tripletas · {clases}.
+      {!v.conforme && (
+        <ul>
+          {v.problemas_owl.map((p) => <li key={p}>{p}</li>)}
+          {v.resultados_shacl.map((r, i) => <li key={i}>{r.mensaje || r.forma}{r.foco && <span className="meta"> · {r.foco}</span>}</li>)}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function Rama({ n, profundidad }: { n: NodoCuadro; profundidad: number }) {
@@ -53,6 +100,7 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
   const [vista, setVista] = useState<Vista | null>(null);
   const [incluir, setIncluir] = useState<Set<number>>(new Set());
   const [informe, setInforme] = useState<Informe | null>(null);
+  const [validacion, setValidacion] = useState<Validacion | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,9 +118,26 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
     try {
       const v = await subir<Vista>("/api/cuadro/vista-previa", datos, () => undefined);
       setVista(v);
+      setValidacion(null);
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
     } catch (err) {
       setError(mensaje(err, "No se pudo leer el archivo."));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  const cuerpo = () => JSON.stringify({ fondo_id: fondoId, filas: vista?.filas.filter((f) => incluir.has(f.fila)) });
+
+  // Antes de crear: el cuadro armado en RiC-O y validado (OWL y SHACL), sin crear nada.
+  async function validar() {
+    setError("");
+    setOcupado(true);
+    try {
+      const r = await pedir<{ validacion: Validacion }>("/api/cuadro/validar", { method: "POST", body: cuerpo() });
+      setValidacion(r.validacion);
+    } catch (err) {
+      setError(mensaje(err, "No se pudo validar."));
     } finally {
       setOcupado(false);
     }
@@ -83,9 +148,9 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
     setError("");
     setOcupado(true);
     try {
-      const r = await pedir<Informe>("/api/cuadro/aplicar", { method: "POST", body: JSON.stringify({
-        fondo_id: fondoId, filas: vista.filas.filter((f) => incluir.has(f.fila)) }) });
+      const r = await pedir<Informe & { validacion?: Validacion }>("/api/cuadro/aplicar", { method: "POST", body: cuerpo() });
       setInforme(r);
+      setValidacion(r.validacion || null);
       setVista(null);
       cargar();
     } catch (err) {
@@ -112,6 +177,7 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
           {informe.avisos.length > 0 && <ul>{informe.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
         </div>
       )}
+      {informe && validacion && !vista && <ResultadoValidacion v={validacion} />}
       {esAdmin && (
         <div className="tarjeta">
           <div className="tarjeta-cab">Cargar el cuadro y la TRD</div>
@@ -136,28 +202,13 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
       {vista && (
         <div className="tarjeta tabla-desplazable">
           <div className="tarjeta-cab">Vista previa · {vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas</div>
-          <table className="tabla-permisos">
-            <thead><tr><th>Crear</th><th>Sección</th><th>Serie / subserie</th><th>Tipos documentales</th><th>AG / AC</th>
-              <th>Disposición</th><th>Problemas</th></tr></thead>
-            <tbody>
-              {vista.filas.map((f) => (
-                <tr key={f.fila} className={f.problemas.length ? "fila-problema" : undefined}>
-                  <td><input type="checkbox" aria-label={`Crear la fila ${f.fila}`} disabled={!!f.problemas.length}
-                             checked={incluir.has(f.fila)}
-                             onChange={(e) => setIncluir((s) => { const n = new Set(s); if (e.target.checked) n.add(f.fila); else n.delete(f.fila); return n; })} /></td>
-                  <td>{f.codigos.seccion} {f.seccion?.nombre}{f.subseccion ? ` › ${f.codigos.subseccion || ""} ${f.subseccion.nombre}` : ""}</td>
-                  <td><strong>{f.codigos.serie}</strong> {f.serie?.nombre}
-                    {f.subserie && <div>› <strong>{f.codigos.subserie}</strong> {f.subserie.nombre}</div>}</td>
-                  <td>{f.tipos.join("; ")}</td>
-                  <td>{f.gestion ?? "—"} / {f.central ?? "—"}</td>
-                  <td>{f.disposicion ? [f.disposicion, ...f.otras_disposiciones].map((d) => DISP[d]).join(" + ") : "—"}</td>
-                  <td>{f.problemas.join(" ")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={(f) => { setIncluir(f); setValidacion(null); }} />
+          {validacion && <div style={{ padding: "0 18px" }}><ResultadoValidacion v={validacion} /></div>}
           <div className="acciones" style={{ padding: "0 18px 14px" }}>
-            <button type="button" className="boton chico primario" disabled={ocupado || !incluir.size} onClick={aplicar}>
+            <button type="button" className="boton chico" disabled={ocupado || !incluir.size} onClick={validar}>
+              Validar en RiC-O</button>
+            <button type="button" className="boton chico primario" disabled={ocupado || !validacion?.conforme} onClick={aplicar}
+                    title={validacion?.conforme ? undefined : "Primero valide en RiC-O"}>
               Crear {incluir.size} fila(s)</button>
             <button type="button" className="boton chico" onClick={() => setVista(null)}>Descartar la lectura</button>
           </div>

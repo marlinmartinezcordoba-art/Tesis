@@ -122,6 +122,20 @@
 - **Repetir la carga no duplica.** Lo que ya existe con el mismo código se reutiliza y el informe lo dice: «N nivel(es) que ya existían». Si un código ya pertenece a otro nivel (por ejemplo, una serie que en el archivo es sección), se rechaza todo.
 - **Constancia:** «Cargó el cuadro de clasificación y la TRD» en la auditoría, con el conteo de lo creado.
 
+### El fondo nace de su cuadro (asistente al registrar)
+
+- **«Registrar otro fondo» (Ingesta) es un asistente de cuatro pasos:**
+  1. **Datos del fondo:** nombre y fechas extremas.
+  2. **Cuadro de clasificación y TRD:** la plantilla Excel o la TRD del AGN (Excel o PDF), con la vista previa fila por fila. El CCD es obligatorio. La retención (TRD) es opcional: un fondo histórico puede no tenerla, y entonces esas columnas se dejan vacías.
+  3. **Validación RiC-O:** el sistema arma el fondo con su cuadro en una transacción de prueba y lo valida contra RiC-O 1.1 (ontología oficial y perfil SHACL). Muestra las tripletas, las clases (`rico:RecordSet`, `rico:CorporateBody`, `rico:Rule`…) y, si no es conforme, cada problema. **No se crea nada.**
+  4. **Crear:** el botón solo se activa si el cuadro es conforme. Se crea todo o nada.
+- **En Instrumentos › Cuadro** (para agregar series a un fondo que ya existe) también hay que pulsar «Validar en RiC-O» antes de «Crear». Si al crear no es conforme, nada queda creado.
+- **API:**
+  - `POST /api/fondos/configurar` (`crear=false` valida, `crear=true` crea);
+  - `POST /api/cuadro/validar`;
+  - `POST /api/cuadro/aplicar`, que ahora devuelve también la validación.
+- **Registrar un fondo sin cuadro:** sigue existiendo en la API (`POST /api/fondos`) para quien lo necesite, pero la pantalla ya no lo ofrece.
+
 ### Cómo se usa después
 
 - **Ingesta:** primero se elige la **serie o subserie** del cuadro (con su ruta: sección › serie › subserie). El expediente de destino se filtra por esa serie, y allí mismo se puede crear un expediente nuevo («+ Nuevo expediente en esta serie»). Así, cada documento sabe desde la carga a qué fondo, sección y serie pertenece.
@@ -150,6 +164,9 @@
 | Fallas en una carga | Crear lo que se pueda; **todo o nada** | **Todo o nada** | Un cuadro a medias deja series sin su sección o sin su regla, y es difícil de detectar | Un solo error detiene la carga: el mensaje dice qué fila y por qué |
 | Identidad de cada nivel | El nombre; **el código** | **Código** (y, si no hay código, el nombre bajo el mismo nivel superior) | El código es lo que la TRD fija; los nombres cambian de una versión a otra | Si una nueva versión de la TRD **cambia** códigos, crea niveles nuevos; los anteriores no se anulan solos |
 | Dónde va la retención | En el expediente; **en la serie o subserie** | **Serie o subserie, heredada** | Así funciona la TRD: regula la serie, no cada expediente | Ninguno: el expediente puede tener una regla propia si hace falta |
+| Cómo nace un fondo | Formulario de nombre y después el cuadro; **asistente que parte del CCD** | **Asistente** (decisión de la autora) | El fondo queda organizado desde el principio: cada documento que se cargue ya tiene sección, serie y retención | Un fondo histórico sin CCD tiene que reconstruirlo (plantilla) antes de registrarse |
+| CCD y TRD obligatorios | Ninguno; solo CCD; ambos | **CCD obligatorio, TRD opcional** (decisión de la autora) | Muchos fondos históricos no tienen TRD (o tienen TVD); exigirla bloquearía el caso de la tesis | Una serie sin regla no hereda retención: se ve en el árbol del cuadro |
+| Cuándo se valida en RiC-O | Después de crear; **antes de crear** | **Antes** (decisión de la autora) | La validación usa el mismo mapeo con que se guarda el grafo, en una transacción que se deshace: lo que no cumple RiC-O nunca entra al sistema | Validar tarda unos segundos (OWL y SHACL) |
 | La guía de campos | Textos en la pantalla; **una fuente en el servidor** | **Servidor** | El mismo texto sirve a la pantalla, a la documentación y a las pruebas; las normas salen de los catálogos, no se copian | La autora debe revisar los textos: son una propuesta archivística |
 
 ## 7. Pruebas
@@ -159,5 +176,5 @@
 | `tests/test_tesauros.py` (5) | Importar SKOS (español, retirados, término general, sin repetir); importar Excel y CSV; normalización (sin tildes, no preferente → preferente, parecidos); la materia normalizada al publicar es un solo nodo para dos documentos; término local; exportación conforme con exactMatch; elegir el concepto; anular sin cambiar lo descrito |
 | `tests/test_guia_metadatos.py` (2) | Ningún campo ni tipo de entidad sin explicación; la guía une cada campo con ISAD(G), RiC-O y el AGN (también varios campos por fila) |
 | `tests/test_eliminar_documento.py` (4) | Solo la administración, con motivo; queda la constancia; no se elimina lo descrito, lo que está en edición ni lo que está en una evaluación; lectura de Excel y de un Excel dañado |
-| `tests/test_cuadro.py` (4) | La TRD del AGN en Excel y en PDF se entiende igual (códigos compuestos, tipos, AG/AC, CT + M); la plantilla se descarga y se lee; aplicar crea secciones, series, subseries, reglas, tipos y productor, y al repetir reutiliza sin duplicar; el árbol; exportación conforme; todo o nada; solo la administración carga |
+| `tests/test_cuadro.py` (6) | La TRD del AGN en Excel y en PDF se entiende igual (códigos compuestos, tipos, AG/AC, CT + M); la plantilla se descarga y se lee; aplicar crea secciones, series, subseries, reglas, tipos y productor, y al repetir reutiliza sin duplicar; el árbol; exportación conforme; todo o nada; solo la administración carga; el fondo nace de su CCD validado en RiC-O (validar no crea nada; crear solo si es conforme; un nombre repetido o un cuadro con problemas no crea el fondo); lo no conforme con RiC-O no se crea |
 | `tests/test_terminos.py` | El término «Materia» está en el vocabulario único de relaciones |
