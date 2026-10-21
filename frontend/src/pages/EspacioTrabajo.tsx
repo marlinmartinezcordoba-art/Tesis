@@ -18,6 +18,7 @@ import {
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
 import { VisorDocumento, Zona } from "@/components/VisorDocumento";
 import { NivelRiC } from "@/components/NivelRiC";
+import { Ventana } from "@/components/Ventana";
 
 interface EntidadPropuesta {
   clave: string;
@@ -517,10 +518,11 @@ export function EspacioTrabajo() {
           })}
 
           <div className="tarjeta-prop">
-            {agregando ? (
-              <FormEntidad alGuardar={agregarManual} alCancelar={() => setAgregando(false)} />
-            ) : (
-              <button type="button" className="enlace" onClick={() => setAgregando(true)}>+ Agregar una entidad que el motor no propuso</button>
+            <button type="button" className="enlace" onClick={() => setAgregando(true)}>+ Agregar una entidad que el motor no propuso</button>
+            {agregando && (
+              <Ventana titulo="Agregar una entidad que el motor no propuso" alCerrar={() => setAgregando(false)}>
+                <FormEntidad alGuardar={agregarManual} alCancelar={() => setAgregando(false)} />
+              </Ventana>
             )}
           </div>
         </div>

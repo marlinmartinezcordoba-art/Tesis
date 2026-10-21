@@ -5,6 +5,7 @@ import { PanelRoles, type RolInfo } from "@/pages/Roles";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
+import { Ventana } from "@/components/Ventana";
 
 interface Usuario {
   id: string;
@@ -358,11 +359,15 @@ export function Usuarios() {
       <div className="tarjeta">
         <div className="tarjeta-cab">
           <span>{usuarios ? `${usuarios.length} usuario${usuarios.length === 1 ? "" : "s"}` : "Usuarios"}</span>
-          <button type="button" className="boton chico primario" onClick={() => setNuevo(!nuevo)} aria-expanded={nuevo}>
-            {nuevo ? "Cerrar" : "+ Nuevo usuario"}
+          <button type="button" className="boton chico primario" onClick={() => setNuevo(true)}>
+            + Nuevo usuario
           </button>
         </div>
-        {nuevo && <NuevoUsuario roles={roles || []} alCrear={(e) => { setNuevo(false); alEntregar(e); }} />}
+        {nuevo && (
+          <Ventana titulo="Nuevo usuario" alCerrar={() => setNuevo(false)}>
+            <NuevoUsuario roles={roles || []} alCrear={(e) => { setNuevo(false); alEntregar(e); }} />
+          </Ventana>
+        )}
         {usuarios === null ? (
           <div className="vacio">Cargando…</div>
         ) : usuarios.length === 0 ? (

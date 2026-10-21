@@ -21,6 +21,7 @@ import {
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { NivelRiC } from "@/components/NivelRiC";
+import { Ventana } from "@/components/Ventana";
 
 interface EntidadRegistrada {
   relacion_id: string;
@@ -450,8 +451,12 @@ export function RegistroDescripcion() {
         ))}
         {editando && (
           <div className="tarjeta-cuerpo">
-            {agregando ? <FormEntidad alGuardar={agregar} alCancelar={() => setAgregando(false)} />
-              : <button type="button" className="enlace" onClick={() => setAgregando(true)}>+ Agregar entidad</button>}
+            <button type="button" className="enlace" onClick={() => setAgregando(true)}>+ Agregar entidad</button>
+            {agregando && (
+              <Ventana titulo="Agregar una entidad" alCerrar={() => setAgregando(false)}>
+                <FormEntidad alGuardar={agregar} alCancelar={() => setAgregando(false)} />
+              </Ventana>
+            )}
           </div>
         )}
       </div>

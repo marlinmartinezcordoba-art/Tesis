@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
+import { Ventana } from "@/components/Ventana";
 
 // Hallazgos de conformidad con RiC (prompt de auditoría v7, §5bis): un
 // registro que lleva una persona, no un analizador automático. Del
@@ -74,7 +75,11 @@ export function Hallazgos() {
           <div className="cifra"><strong>{datos.hallazgos.length}</strong><span>Con estos filtros</span></div>
         </div>
       )}
-      {nuevo && <NuevoHallazgo cerrar={() => setNuevo(false)} creado={() => { setNuevo(false); cargar(); }} />}
+      {nuevo && (
+        <Ventana titulo="Registrar un hallazgo" alCerrar={() => setNuevo(false)}>
+          <NuevoHallazgo cerrar={() => setNuevo(false)} creado={() => { setNuevo(false); cargar(); }} />
+        </Ventana>
+      )}
       {!datos ? <div className="cargando">Cargando…</div> : datos.hallazgos.length === 0
         ? <div className="vacio">Ningún hallazgo con estos filtros.</div>
         : (

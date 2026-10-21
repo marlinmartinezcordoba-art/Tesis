@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorAPI, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { type Concepto, type Normalizacion, type Tesauro, normalizar } from "@/lib/tesauros";
+import { Ventana } from "@/components/Ventana";
 
 // Tesauros (UNESCO, ambiental de Minambiente u otro): se importan una vez,
 // los comparten todos los fondos y normalizan las materias al describir.
@@ -97,9 +98,8 @@ function Importar({ alImportar }: { alImportar: () => void }) {
     }
   }
   return (
-    <form className="tarjeta" onSubmit={enviar}>
-      <div className="tarjeta-cab">Importar un tesauro</div>
-      <div className="tarjeta-cuerpo">
+    <form onSubmit={enviar}>
+      <div>
         <p className="meta">
           SKOS (Turtle, RDF/XML, N-Triples o JSON-LD), como el Tesauro de la UNESCO, que se descarga libre desde su
           sitio. O una tabla Excel o CSV con las columnas <strong>Término preferente</strong>, <strong>Usado por</strong>{" "}
@@ -148,6 +148,7 @@ export function Tesauros() {
   const { usuario } = useSesion();
   const esAdmin = !!usuario?.es_administrador;
   const [lista, setLista] = useState<Tesauro[] | null>(null);
+  const [importando, setImportando] = useState(false);
   const [error, setError] = useState("");
   const cargar = useCallback(() => {
     pedir<Tesauro[]>("/api/tesauros").then(setLista).catch((err) => setError(mensaje(err, "No se pudieron cargar.")));
@@ -178,7 +179,7 @@ export function Tesauros() {
         <div className="tarjeta-cab">Importados</div>
         <div className="tarjeta-cuerpo">
           {!lista ? <div className="cargando">Cargando…</div> : lista.length === 0 ? (
-            <p className="meta">Todavía no hay tesauros. {esAdmin ? "Importe uno con el formulario." : "Los importa la administración."}</p>
+            <p className="meta">Todavía no hay tesauros. {esAdmin ? "Importe uno con «+ Importar un tesauro»." : "Los importa la administración."}</p>
           ) : lista.map((t) => (
             <div key={t.id} className="fila">
               <div className="fila-principal">
@@ -195,7 +196,16 @@ export function Tesauros() {
         </div>
       </div>
       <Probar />
-      {esAdmin && <Importar alImportar={cargar} />}
+      {esAdmin && (
+        <div className="acciones">
+          <button type="button" className="boton chico primario" onClick={() => setImportando(true)}>+ Importar un tesauro</button>
+        </div>
+      )}
+      {importando && (
+        <Ventana titulo="Importar un tesauro" alCerrar={() => setImportando(false)}>
+          <Importar alImportar={() => { setImportando(false); cargar(); }} />
+        </Ventana>
+      )}
     </>
   );
 }

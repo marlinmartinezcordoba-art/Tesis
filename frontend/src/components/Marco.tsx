@@ -109,8 +109,8 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
     setAbiertos(new Set(actual ? [actual.ruta] : []));
   }, [actual?.ruta]);
 
-  // Dos bloques sin título (decisión de la autora): el trabajo archivístico
-  // y, separado por un espacio, el sistema.
+  // Una sola lista, sin títulos ni separación (decisión de la autora): primero
+  // el trabajo archivístico y después el sistema.
   const grupos: [string, Entrada[]][] = [
     ["trabajo", visibles.filter((e) => e.grupo === "trabajo")],
     ["sistema", visibles.filter((e) => e.grupo === "sistema")],
@@ -120,10 +120,9 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
 
   return (
     <nav className="navegacion" aria-label="Módulos">
-      {grupos.map(([clave, entradas], n) =>
+      {grupos.map(([clave, entradas]) =>
         entradas.length ? (
           <div key={clave} style={{ display: "contents" }}>
-            {n > 0 && <div className="grupo-separador" aria-hidden="true" />}
             {entradas.map((e) => {
               const vistas = vistasDe(e.ruta, usuario);
               const enModulo = actual?.ruta === e.ruta;
@@ -293,13 +292,6 @@ export function Marco({ children }: { children: ReactNode }) {
         <div id="menu-lateral" className={`menu-lateral${menu ? " abierto" : ""}`}>
           <ArbolNavegacion alNavegar={() => setMenu(false)} />
         </div>
-        {fondo && (
-          <div className="pie-lateral">
-            Fondo histórico activo<br />
-            <b>{fondo.titulo}</b>
-            {fondo.fechas_extremas && <><br />{fondo.fechas_extremas}</>}
-          </div>
-        )}
       </aside>
       <main className="contenido">
         <div className="superior">

@@ -117,7 +117,6 @@ button { font-family: inherit; }
 .navegacion a svg { width: 16px; height: 16px; flex: 0 0 16px; }
 .navegacion a.active { background: var(--side-active); color: var(--side-fg); font-weight: 600; }
 .navegacion .grupo { font-size: .66rem; text-transform: uppercase; letter-spacing: .09em; color: var(--side-muted); padding: 10px 10px 2px; }
-.navegacion .grupo-separador { height: 14px; }
 /* Árbol de submódulos: un solo mapa de navegación (módulo › vista). */
 .lateral { overflow-y: auto; }
 .lateral-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -135,8 +134,6 @@ button { font-family: inherit; }
 .subvistas a::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--side-line); }
 .subvistas a.active { background: var(--side-active); color: var(--side-fg); font-weight: 600; }
 .subvistas a.active::before { background: var(--side-fg); width: 3px; }
-.pie-lateral b { color: var(--side-fg); }
-.pie-lateral { margin-top: auto; padding: 10px 8px 0; border-top: 1px solid var(--side-line); font-size: .76rem; color: var(--side-muted); line-height: 1.5; }
 /* El contenido usa todo el ancho disponible: sin franja vacía a la derecha. */
 .contenido { flex: 1; min-width: 0; padding: 22px 26px 60px; }
 .superior { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
@@ -192,7 +189,6 @@ h1 { font-size: 1.35rem; margin: 0 0 4px; }
   .boton-menu { display: inline-flex; }
   .menu-lateral { display: none; }
   .menu-lateral.abierto { display: block; max-height: calc(100vh - 70px); overflow-y: auto; padding-top: 10px; }
-  .pie-lateral { display: none; }
   .contenido { padding: 18px 16px 40px; }
   .pares { grid-template-columns: 1fr; gap: 2px 0; }
   .pares dd { margin-bottom: 10px; }
@@ -753,3 +749,21 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
   font-size: .85rem; color: var(--muted); }
 .pasos-asistente .activo { color: var(--accent); font-weight: 700; }
 .pasos-asistente .hecho { color: var(--ok); }
+
+/* Ventanas flotantes (formularios) */
+.ventana-fondo { position: fixed; inset: 0; z-index: 200; background: rgba(15, 23, 42, .55);
+  display: flex; align-items: center; justify-content: center; padding: 24px; animation: ventana-aparece .12s ease-out; }
+.ventana { background: var(--surface); color: var(--ink); border-radius: 14px; width: min(560px, 100%);
+  max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .35), 0 2px 8px rgba(15, 23, 42, .15); outline: none; }
+.ventana.ancha { width: min(1080px, 100%); }
+.ventana-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.ventana-cab h2 { margin: 0; font-size: 1.1rem; }
+.ventana-cerrar { border: 0; background: transparent; font-size: 1.6rem; line-height: 1; color: var(--muted);
+  cursor: pointer; padding: 2px 8px; border-radius: 8px; }
+.ventana-cerrar:hover { background: var(--bg); color: var(--ink); }
+.ventana-cuerpo { padding: 18px 20px 20px; overflow: auto; }
+.ventana-cuerpo .formulario-nuevo { margin: 0; padding: 0; border: 0; background: transparent; }
+@keyframes ventana-aparece { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 640px) { .ventana-fondo { padding: 8px; } .ventana { max-height: calc(100vh - 16px); } }

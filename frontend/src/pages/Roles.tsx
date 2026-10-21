@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
+import { Ventana } from "@/components/Ventana";
 
 export interface RolInfo {
   clave: string;
@@ -155,9 +156,13 @@ export function PanelRoles({ roles, alCambiar }: { roles: RolInfo[] | null; alCa
       <div className="tarjeta">
         <div className="tarjeta-cab">
           <span>{roles ? `${roles.length} roles` : "Roles"}</span>
-          <button type="button" className="boton chico primario" onClick={() => setCreando(!creando)}>{creando ? "Cerrar" : "+ Nuevo rol"}</button>
+          <button type="button" className="boton chico primario" onClick={() => setCreando(true)}>+ Nuevo rol</button>
         </div>
-        {creando && <Editor alGuardar={crear} alCancelar={() => setCreando(false)} />}
+        {creando && (
+          <Ventana titulo="Nuevo rol" alCerrar={() => setCreando(false)} ancha>
+            <Editor alGuardar={crear} alCancelar={() => setCreando(false)} />
+          </Ventana>
+        )}
         {roles?.map((r) => (
           editando === r.clave ? (
             <Editor key={r.clave} inicial={r} alCancelar={() => setEditando(null)}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { NivelRiC } from "@/components/NivelRiC";
+import { Ventana } from "@/components/Ventana";
 
 // Cuadro de clasificación (CCD) y tabla de retención (TRD) del fondo.
 // Se cargan desde la plantilla Excel del sistema o desde la TRD en el
@@ -200,11 +201,15 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
         </div>
       )}
       {vista && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Vista previa · {vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas</div>
+        <Ventana titulo="Vista previa del cuadro" alCerrar={() => setVista(null)} ancha>
+          <p className="meta" style={{ marginTop: 0 }}>{vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas.
+            Marque las filas que se crean, valide en RiC-O y después cree.</p>
+          {error && <div className="aviso error" role="alert">{error}</div>}
+          <div className="tabla-desplazable">
           <TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={(f) => { setIncluir(f); setValidacion(null); }} />
-          {validacion && <div style={{ padding: "0 18px" }}><ResultadoValidacion v={validacion} /></div>}
-          <div className="acciones" style={{ padding: "0 18px 14px" }}>
+          </div>
+          {validacion && <ResultadoValidacion v={validacion} />}
+          <div className="acciones">
             <button type="button" className="boton chico" disabled={ocupado || !incluir.size} onClick={validar}>
               Validar en RiC-O</button>
             <button type="button" className="boton chico primario" disabled={ocupado || !validacion?.conforme} onClick={aplicar}
@@ -212,7 +217,7 @@ export function CuadroClasificacion({ fondoId }: { fondoId: string }) {
               Crear {incluir.size} fila(s)</button>
             <button type="button" className="boton chico" onClick={() => setVista(null)}>Descartar la lectura</button>
           </div>
-        </div>
+        </Ventana>
       )}
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Cuadro del fondo</div>

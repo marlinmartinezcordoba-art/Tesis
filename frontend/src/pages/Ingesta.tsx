@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ICONOS, useVista } from "@/components/Marco";
 import { LotesDelFondo, NuevoLote, type Lote } from "@/components/Lotes";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
+import { Ventana } from "@/components/Ventana";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { ErrorAPI, pedir, puede, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
@@ -240,17 +241,27 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
               + Nuevo expediente en esta serie</button>
           )}
           {nuevoExp && (
-            <div className="nuevo-expediente">
-              <input className="entrada" aria-label="Título del expediente" placeholder="Título del expediente"
-                     value={nuevoExp.titulo} onChange={(e) => setNuevoExp({ ...nuevoExp, titulo: e.target.value })} />
-              <input className="entrada" aria-label="Fechas extremas" placeholder="Fechas extremas: 1948-1952"
-                     value={nuevoExp.fechas} onChange={(e) => setNuevoExp({ ...nuevoExp, fechas: e.target.value })} />
-              <div className="acciones">
-                <button type="button" className="boton chico primario" disabled={nuevoExp.titulo.trim().length < 3}
-                        onClick={crearExpediente}>Crear</button>
-                <button type="button" className="boton chico" onClick={() => setNuevoExp(null)}>Cancelar</button>
-              </div>
-            </div>
+            <Ventana titulo="Nuevo expediente" alCerrar={() => setNuevoExp(null)}>
+              <form className="nuevo-expediente" onSubmit={(e) => { e.preventDefault(); if (nuevoExp.titulo.trim().length >= 3) crearExpediente(); }}>
+                <p className="meta" style={{ marginTop: 0 }}>
+                  En la serie {series.find((s) => s.id === serie)?.ruta || "elegida"}.
+                </p>
+                <div className="campo">
+                  <label htmlFor="exp-titulo">Título del expediente</label>
+                  <input id="exp-titulo" className="entrada" value={nuevoExp.titulo}
+                         onChange={(e) => setNuevoExp({ ...nuevoExp, titulo: e.target.value })} />
+                </div>
+                <div className="campo">
+                  <label htmlFor="exp-fechas">Fechas extremas (opcional)</label>
+                  <input id="exp-fechas" className="entrada" placeholder="1948-1952" value={nuevoExp.fechas}
+                         onChange={(e) => setNuevoExp({ ...nuevoExp, fechas: e.target.value })} />
+                </div>
+                <div className="acciones">
+                  <button type="submit" className="boton primario" disabled={nuevoExp.titulo.trim().length < 3}>Crear</button>
+                  <button type="button" className="boton" onClick={() => setNuevoExp(null)}>Cancelar</button>
+                </div>
+              </form>
+            </Ventana>
           )}
         </div>
         <div className="campo">
@@ -285,11 +296,10 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
       </div>
 
       {abriendoLote && (
-        <div className="tarjeta">
-          <div className="tarjeta-cab">Nuevo lote de transferencia</div>
+        <Ventana titulo="Nuevo lote de transferencia" alCerrar={() => setAbriendoLote(false)}>
           <NuevoLote fondoId={fondo.id} alCancelar={() => setAbriendoLote(false)}
                      alCrear={(l) => { setLotes((x) => [l, ...x]); setLote(l.id); setAbriendoLote(false); alTerminar(); }} />
-        </div>
+        </Ventana>
       )}
 
       <div
@@ -649,7 +659,9 @@ export function Ingesta() {
         </div>
       )}
       {registrando && (
-        <div className="tarjeta"><RegistrarFondo alTerminar={() => setRegistrando(false)} /></div>
+        <Ventana titulo="Registrar un fondo" alCerrar={() => setRegistrando(false)} ancha>
+          <RegistrarFondo alTerminar={() => setRegistrando(false)} />
+        </Ventana>
       )}
       {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
       {pestana === "cargar" && puedeCargar ? (
