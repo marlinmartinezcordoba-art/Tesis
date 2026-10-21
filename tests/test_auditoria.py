@@ -19,6 +19,7 @@ from app.db.base import ahora
 from app.main import app
 from app.models.auditoria import RegistroAuditoria
 from app.models.descripcion import EntidadVocabulario
+from app.models.recurso_documental import RecursoDocumental
 from app.models.sesion import Sesion
 from app.servicios import formato, motor, procesamiento, sesiones, trazabilidad, vocabulario
 from app.servicios.auditoria import registrar
@@ -68,7 +69,13 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
 
     # Autenticación y sistema: la administradora registra el fondo y el equipo.
     adm = ingresar(cliente, admin.correo)
-    fondo_id = cliente.post("/api/fondos", headers=adm, json={"titulo": "Correspondencia municipal"}).json()["id"]
+    # El fondo nace con su cuadro de clasificación y su TRD.
+    from app.servicios import cuadro
+    filas = cuadro.vista_previa(archivos.trd_agn_xlsx(), "trd.xlsx")["filas"]
+    fondo_id = cliente.post("/api/fondos/configurar", headers=adm, json={
+        "fondo": {"titulo": "Correspondencia municipal"}, "filas": filas, "crear": True}).json()["fondo"]["id"]
+    serie_id = str(db.scalar(select(RecursoDocumental.id).where(
+        RecursoDocumental.fondo_id == uuid.UUID(fondo_id), RecursoDocumental.codigo_referencia == "110.15")))
     nueva = cliente.post("/api/auth/usuarios", headers=adm,
                          json={"nombre": "Julián Rojas", "correo": "julian@correo.com", "rol": "revisor"}).json()
     cliente.patch(f"/api/auth/usuarios/{nueva['usuario']['id']}", headers=adm, json={"rol": "consulta"})
@@ -90,6 +97,7 @@ def test_ciclo_completo_de_los_siete_modulos_queda_en_auditoria(cliente, db, adm
     por_valor["Gobernador del Departamento"]["valor"] = "Gobernación de Boyacá"  # corregida
     por_valor["Gobernador del Departamento"]["subtipo"] = "entidad_corporativa"
     datos["entidades"].remove(por_valor["Boyacá"])  # rechazada; las demás, aceptadas
+    datos["incluido_en_id"] = serie_id  # en su serie del cuadro (110.15 Correspondencia)
     publicada = cliente.post("/api/descripcion/publicar", headers=arch, json=datos)
     assert publicada.status_code == 201, publicada.text
     recurso_id = publicada.json()["id"]

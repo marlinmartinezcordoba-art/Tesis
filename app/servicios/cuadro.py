@@ -470,7 +470,7 @@ def _agrupacion(db: Session, fondo: RecursoDocumental, nivel: str, nodo: Nodo, c
     try:
         r = descripcion.crear_agrupacion(db, fondo_id=fondo.id, nivel=nivel, titulo=nodo.nombre,
                                          incluido_en_id=superior.id, usuario_id=usuario_id, codigo_referencia=codigo,
-                                         alcance=alcance, productor_id=productor_id)
+                                         alcance=alcance, productor_id=productor_id, desde_trd=True)
     except descripcion.ErrorDescripcion as exc:
         raise ErrorCuadro(f"{nivel} «{nodo.nombre}»: {exc}", exc.codigo) from exc
     informe["creados"][nivel] = informe["creados"].get(nivel, 0) + 1
@@ -553,7 +553,7 @@ def _regla(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f: Fi
                                   procedimiento=texto, usuario_id=usuario_id)
     autoridad.vincular(db, tipo="regla_serie", desde=regla, con_tipo="recurso_documental", con_id=hoja.id,
                        usuario_id=usuario_id, fecha_edtf=f"{version['desde'].isoformat()}/" if version else None,
-                       nota=f"{version['nombre']}" if version else None)
+                       nota=f"{version['nombre']}" if version else None, desde_trd=True)
     informe["reglas"] += 1
 
 

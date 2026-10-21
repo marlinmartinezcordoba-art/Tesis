@@ -971,23 +971,27 @@ function FichaMandato(p: Props) {
 function FichaRegla(p: Props) {
   const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
   const comun = { puede, entidadId: e.id, alCambiar };
+  // La retención y la serie que regula los fija la TRD: aquí solo se consultan.
+  const trd = { puede: false, entidadId: e.id, alCambiar };
   return (
     <>
       <Area titulo="Regla de retención (TRD)" insignia={<code className="rico">{f.clase_rico}</code>}>
+        <p className="meta" style={{ marginTop: 0 }}>Los años y la disposición final vienen de la TRD aplicada; se cambian
+          con una versión nueva en Fondos › Versiones de la TRD.</p>
         <dl className="par-dato">
           <TextoEditable etiqueta="Años en el archivo de gestión" campo="retencion_gestion_anios"
-                         valor={f.campos.retencion_gestion_anios != null ? String(f.campos.retencion_gestion_anios) : null} {...comun} />
+                         valor={f.campos.retencion_gestion_anios != null ? String(f.campos.retencion_gestion_anios) : null} {...trd} />
           <TextoEditable etiqueta="Años en el archivo central" campo="retencion_central_anios"
-                         valor={f.campos.retencion_central_anios != null ? String(f.campos.retencion_central_anios) : null} {...comun} />
+                         valor={f.campos.retencion_central_anios != null ? String(f.campos.retencion_central_anios) : null} {...trd} />
           <ListaEditable etiqueta="Disposición final" campo="disposicion_final" valor={(f.campos.disposicion_final as string) || null}
-                         opciones={DISPOSICION} {...comun} />
+                         opciones={DISPOSICION} {...trd} />
           <TextoEditable etiqueta="Procedimiento" campo="historia" valor={f.campos.historia} multilinea {...comun} />
         </dl>
       </Area>
       <Area titulo="Series o subseries que regula">
         <Vinculos vinculos={f.vinculos} tipos={["regla_serie"]}
                   opciones={[{ tipo: "regla_serie", etiqueta: "Regula la retención de", busca: "serie" }]} entidad={e} fondoId={fondoId}
-                  puede={puede} alCambiar={alCambiar} vacio="Todavía no regula ninguna serie." />
+                  puede={false} alCambiar={alCambiar} vacio="No regula ninguna serie: las une la TRD al aplicarse." />
       </Area>
     </>
   );

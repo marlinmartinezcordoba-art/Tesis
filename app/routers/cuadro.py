@@ -2,8 +2,8 @@
 Cuadro de clasificación (CCD) y tabla de retención documental (TRD).
 
 - Consultar el cuadro del fondo y descargar la plantilla: quien lee la descripción.
-- Vista previa y aplicar (crear secciones, series, subseries y reglas): solo
-  la administración. La vista previa no crea nada.
+- Vista previa y validación: solo la administración; no crean nada. El cuadro
+  se crea al aplicar una versión de la TRD (/api/trd) o al registrar el fondo.
 """
 
 import uuid
@@ -72,22 +72,3 @@ def validar(datos: AplicarIn, actor: Actor = Depends(solo_administrador), db: Se
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
     db.rollback()
     return {"creado": False, "informe": informe, "validacion": validacion}
-
-
-@router.post("/aplicar", responses={200: {"model": rc.InformeCuadro, "description": "Lo que se creó"}},
-             summary="Crear el cuadro y las reglas confirmados en la vista previa (todo o nada; solo si es conforme con RiC-O)")
-def aplicar(datos: AplicarIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
-    fondo = fondo_o_404(db, datos.fondo_id)
-    try:
-        informe, validacion = cuadro.probar_y_aplicar(db, fondo, datos.filas, actor.id, crear=True)
-    except cuadro.ErrorCuadro as exc:
-        db.rollback()
-        raise HTTPException(exc.codigo, detail=str(exc)) from exc
-    if not validacion["conforme"]:
-        db.rollback()
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="El cuadro no es conforme con RiC-O 1.1 y no se creó: "
-                                   + "; ".join((validacion["problemas_owl"] + [r.get("mensaje") or "" for r in
-                                                                               validacion["resultados_shacl"]])[:3]))
-    db.commit()
-    return informe | {"validacion": validacion}

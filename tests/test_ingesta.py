@@ -356,14 +356,23 @@ def test_expediente_de_otro_fondo_se_rechaza(cliente, db, fondo, archivista):
     assert r.status_code == 422
 
 
-def test_solo_el_administrador_registra_fondos(cliente, db, archivista, cabeceras_admin):
-    datos = {"titulo": "Archivo del Concejo", "fechas_extremas": "1910–1960"}
-    assert cliente.post("/api/fondos", headers=archivista, json=datos).status_code == 403
-    r = cliente.post("/api/fondos", headers=cabeceras_admin, json=datos)
-    assert r.status_code == 201 and r.json()["documentos"] == 0
-    assert cliente.post("/api/fondos", headers=cabeceras_admin, json={"titulo": "archivo del concejo"}).status_code == 409
+def test_solo_el_administrador_registra_fondos_y_siempre_con_su_cuadro(cliente, db, archivista, cabeceras_admin):
+    from app.servicios import cuadro
+    from tests.archivos import trd_agn_xlsx
+
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    datos = {"fondo": {"titulo": "Archivo del Concejo", "fechas_extremas": "1910–1960"}, "filas": filas, "crear": True}
+    assert cliente.post("/api/fondos/configurar", headers=archivista, json=datos).status_code == 403
+    # Sin cuadro de clasificación no hay fondo.
+    assert cliente.post("/api/fondos", headers=cabeceras_admin, json=datos["fondo"]).status_code == 405
+    assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin,
+                        json=datos | {"filas": []}).status_code == 422
+    r = cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=datos)
+    assert r.status_code == 200 and r.json()["creado"] and r.json()["fondo"]["documentos"] == 0
+    otro = datos | {"fondo": {"titulo": "archivo del concejo"}}
+    assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=otro).status_code == 409
     assert "Archivo del Concejo" in [f["titulo"] for f in cliente.get("/api/fondos", headers=archivista).json()]
-    assert len(eventos(db, "fondo_registrado", r.json()["id"])) == 1
+    assert len(eventos(db, "fondo_registrado", r.json()["fondo"]["id"])) == 1
 
 
 # --- Permisos -------------------------------------------------------------------------------

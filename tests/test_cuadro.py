@@ -3,9 +3,10 @@ Cuadro de clasificación (CCD) y tabla de retención (TRD).
 
 - Plantilla Excel del sistema y TRD en el formato del AGN, en Excel y en PDF:
   la misma interpretación, con vista previa que no crea nada.
-- Aplicar crea sección, serie y subserie con código compuesto, la regla de
-  retención unida a la serie o subserie, los tipos documentales y la
-  dependencia productora; todo o nada; al repetir, reutiliza y no duplica.
+- Aplicar una versión de la TRD crea sección, serie y subserie con código
+  compuesto, la regla de retención unida a la serie o subserie, los tipos
+  documentales y la dependencia productora; todo o nada; una versión igual
+  reutiliza y no duplica. No hay otro camino para crear el cuadro.
 - Solo la administración carga el cuadro; la exportación RiC-O sigue conforme.
 """
 
@@ -18,6 +19,7 @@ from tests.archivos import trd_agn_pdf, trd_agn_xlsx
 from tests.conftest import crear_usuario, ingresar
 from tests.test_descripcion import eventos, fondo  # noqa: F401
 from tests.test_especializacion_ric import exportar_conforme
+from tests.test_parametrizacion_trd import aplicar_trd
 
 
 def _vista(cliente, cab, contenido, nombre):
@@ -49,11 +51,11 @@ def test_la_plantilla_del_sistema_se_descarga_y_se_lee(cliente, cabeceras_admin)
     assert v["filas"][0]["codigos"]["subserie"] == "100.2.1" and v["filas"][1]["disposicion"] == "e"
 
 
-def test_aplicar_crea_el_cuadro_las_reglas_y_no_duplica(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+def test_aplicar_la_trd_crea_el_cuadro_las_reglas_y_no_duplica(cliente, db, fondo, cabeceras_admin):  # noqa: F811
     filas = _vista(cliente, cabeceras_admin, trd_agn_pdf(), "trd.pdf").json()["filas"]
-    r = cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "filas": filas})
+    r = aplicar_trd(cliente, cabeceras_admin, fondo, filas, "2019-03-01")
     assert r.status_code == 200, r.text
-    inf = r.json()
+    inf = r.json()["informe"]
     assert inf["creados"] == {"seccion": 1, "serie": 2, "subserie": 2} and inf["reglas"] == 3
     assert inf["reutilizados"] == 0  # lo creado en la misma carga no «ya existía»
     assert inf["tipos_documentales"] == 6  # Citación, Acta, Lista de asistencia, Oficio, Memorando, Circular
@@ -66,10 +68,12 @@ def test_aplicar_crea_el_cuadro_las_reglas_y_no_duplica(cliente, db, fondo, cabe
     assert regla["disposicion_final"] == "conservacion_total" and "medio técnico" in regla["procedimiento"]
     assert db.scalar(select(EntidadVocabulario).where(EntidadVocabulario.nombre == "Secretaría General")).clase == "agente"
     assert len(eventos(db, "cuadro_importado")) == 1
-    # Al repetir: reutiliza, no crea otra regla.
-    inf2 = cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin,
-                        json={"fondo_id": str(fondo.id), "filas": filas}).json()
-    assert inf2["creados"] == {} and inf2["reutilizados"] == 8 and inf2["reglas"] == 0 and len(inf2["avisos"]) == 3
+    # Una versión nueva igual: reutiliza todo y no crea otra regla.
+    r2 = aplicar_trd(cliente, cabeceras_admin, fondo, filas, "2021-01-01", "Resolución 77")
+    assert r2.status_code == 200, r2.text
+    inf2 = r2.json()["informe"]
+    assert inf2["creados"] == {} and inf2["reutilizados"] == 8 and inf2["reglas"] == 0
+    assert inf2["reglas_sin_cambio"] == 3
     # El árbol del cuadro y la exportación RiC-O conforme.
     arbol = cliente.get("/api/cuadro", headers=cabeceras_admin, params={"fondo_id": str(fondo.id)}).json()
     assert arbol[0]["codigo"] == "110" and [h["codigo"] for h in arbol[0]["hijos"]] == ["110.15", "110.2"]
@@ -80,14 +84,17 @@ def test_aplicar_crea_el_cuadro_las_reglas_y_no_duplica(cliente, db, fondo, cabe
 def test_todo_o_nada_y_solo_la_administracion(cliente, db, fondo, cabeceras_admin):  # noqa: F811
     filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
     filas[1]["disposicion"] = None  # retención sin disposición final
-    r = cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "filas": filas})
-    assert r.status_code == 422 and "no disposición final" in r.json()["detail"]
+    r = aplicar_trd(cliente, cabeceras_admin, fondo, filas)
+    assert r.status_code == 400 and "no disposición final" in r.json()["detail"]
     assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110")) is None
     crear_usuario(db, "ana@correo.com", "archivista")
     ana = ingresar(cliente, "ana@correo.com")
     assert _vista(cliente, ana, trd_agn_xlsx(), "trd.xlsx").status_code == 403
-    assert cliente.post("/api/cuadro/aplicar", headers=ana, json={"fondo_id": str(fondo.id), "filas": filas}).status_code == 403
+    assert cliente.post("/api/trd/versiones", headers=ana, json={"fondo_id": str(fondo.id)}).status_code == 403
     assert cliente.get("/api/cuadro", headers=ana, params={"fondo_id": str(fondo.id)}).status_code == 200
+    # El cuadro ya no se crea suelto, fuera de una versión de la TRD.
+    assert cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin,
+                        json={"fondo_id": str(fondo.id), "filas": filas}).status_code in (404, 405)
     r = _vista(cliente, cabeceras_admin, b"Nombre;Otra\n", "cosa.csv")
     assert r.status_code == 422 and "plantilla" in r.json()["detail"]
 
@@ -125,7 +132,7 @@ def test_si_no_es_conforme_con_ric_no_se_crea(cliente, db, fondo, cabeceras_admi
     real = cuadro.validar_rico
     monkeypatch.setattr(cuadro, "validar_rico", lambda d, f: real(d, f) | {"conforme": False,
                                                                            "problemas_owl": ["clase inventada"]})
-    r = cliente.post("/api/cuadro/aplicar", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "filas": filas})
+    r = aplicar_trd(cliente, cabeceras_admin, fondo, filas)
     assert r.status_code == 422 and "RiC-O" in r.json()["detail"]
     assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110")) is None
     r = cliente.post("/api/fondos/configurar", headers=cabeceras_admin,

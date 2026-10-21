@@ -113,7 +113,6 @@ export function Descripcion() {
   const [cola, setCola] = useState<PorDescribir[] | null>(null);
   const [publicadas, setPublicadas] = useState<Publicada[] | null>(null);
   const [seleccion, setSeleccion] = useState<string[]>([]);
-  const [nivel, setNivel] = useState("expediente");
   const [abriendo, setAbriendo] = useState<{ cantidad: number; nombre: string } | null>(null);
   const [error, setError] = useState("");
   const aviso = (ubicacion.state as { aviso?: string } | null)?.aviso;
@@ -187,7 +186,7 @@ export function Descripcion() {
           <h1>Por describir</h1>
           <p className="sub">
             Documentos que ya salieron de ingesta y están listos. Abra uno para describirlo solo, o seleccione varios para
-            describirlos como conjunto a nivel de expediente, subserie o serie.
+            describirlos juntos como un expediente.
           </p>
           <div className="tarjeta">
             <div className="tarjeta-cab">
@@ -230,14 +229,10 @@ export function Descripcion() {
               <div className="confirmar">
                 <span>{seleccion.length} documentos seleccionados</span>
                 <div className="acciones" style={{ alignItems: "center" }}>
-                  <label className="pista" style={{ margin: 0 }} htmlFor="nivel-conjunto">Son un</label>
-                  <select id="nivel-conjunto" className="selector" style={{ width: "auto" }} value={nivel} onChange={(e) => setNivel(e.target.value)}>
-                    <option value="expediente">Expediente</option>
-                    <option value="subserie">Subserie</option>
-                    <option value="serie">Serie</option>
-                  </select>
-                  <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, nivel)}>
-                    {abriendo ? "Abriendo…" : "Describir como conjunto"}
+                  <span className="pista" style={{ margin: 0 }}>Se describen como un expediente de su serie (las series
+                    salen de la TRD)</span>
+                  <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, "expediente")}>
+                    {abriendo ? "Abriendo…" : "Describir como expediente"}
                   </button>
                 </div>
               </div>

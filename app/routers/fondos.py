@@ -1,10 +1,12 @@
 """
-Fondos del archivo. El administrador registra cada fondo histórico como
-punto de partida (RiC-CM: Record Set de nivel fondo); los niveles
-inferiores los crea el módulo de descripción.
+Fondos del archivo. El administrador registra cada fondo con su cuadro de
+clasificación (y, si la tiene, su TRD), validado en RiC-O antes de crear: no
+hay fondos sin cuadro. Las secciones, series y subseries solo salen de la
+TRD; la descripción crea expedientes y documentos dentro de ellas.
 """
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -64,13 +66,13 @@ def _crear_fondo(db: Session, datos: FondoIn, actor: Actor, request: Request) ->
     return fondo
 
 
-@router.post("", response_model=FondoOut, status_code=status.HTTP_201_CREATED,
-             summary="Registrar un fondo sin cuadro (se configura después en Instrumentos › Cuadro)")
-def registrar_fondo(datos: FondoIn, request: Request, actor: Actor = Depends(solo_administrador),
-                    db: Session = Depends(get_db)):
-    fondo = _crear_fondo(db, datos, actor, request)
-    db.commit()
-    return _fondo_out(db, fondo)
+class VersionInicialIn(BaseModel):
+    """Datos de la TRD aprobada. Si vienen completos, el fondo nace con la versión 1 vigente."""
+    acto_aprobacion: str | None = Field(default=None, max_length=300)
+    fecha_aprobacion: date | None = None
+    convalidacion: str | None = Field(default=None, max_length=300)
+    fecha_convalidacion: date | None = None
+    vigente_desde: date | None = None
 
 
 class ConfigurarFondoIn(BaseModel):
@@ -79,6 +81,7 @@ class ConfigurarFondoIn(BaseModel):
     # la retención (TRD) de cada fila es opcional: un fondo histórico puede no tenerla.
     filas: list[dict] = Field(min_length=1, max_length=3000)
     crear: bool = False
+    version: VersionInicialIn | None = None
 
 
 @router.post("/configurar", response_model=rc.FondoConfigurado,
@@ -88,13 +91,26 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
     """Arma el fondo con su cuadro (secciones, series, subseries, productor, función, tipos
     documentales y reglas de retención) y lo valida contra RiC-O 1.1 (OWL y SHACL). Con
     `crear=false` solo valida; con `crear=true` lo crea, todo o nada, si es conforme."""
-    from app.servicios import cuadro
+    from app.servicios import cuadro, parametrizacion_trd
 
+    version = datos.version.model_dump() if datos.version else {}
+    completa = bool(version.get("acto_aprobacion") and version.get("fecha_aprobacion") and version.get("vigente_desde"))
     punto = db.begin_nested()
     try:
         fondo = _crear_fondo(db, datos.fondo, actor, request)
-        informe = cuadro.aplicar(db, fondo, datos.filas, actor.id)
-        validacion = cuadro.validar_rico(db, fondo)
+        if completa:
+            # Con el acto y la vigencia, el cuadro sale de la versión 1 de la TRD, aplicada.
+            v = parametrizacion_trd.crear_version(db, fondo, version | {"nombre": "TRD versión 1"}, actor.id,
+                                                  copiar_vigente=False)
+            parametrizacion_trd.importar(db, v, datos.filas, actor.id)
+            informe, validacion = parametrizacion_trd.aplicar(db, v, actor.id, crear=True)
+        else:
+            informe = cuadro.aplicar(db, fondo, datos.filas, actor.id)
+            validacion = cuadro.validar_rico(db, fondo)
+    except parametrizacion_trd.ErrorTrd as exc:
+        punto.rollback()
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
     except cuadro.ErrorCuadro as exc:
         punto.rollback()
         db.rollback()
@@ -106,7 +122,8 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
     creado = datos.crear and validacion["conforme"]
     salida = _fondo_out(db, fondo).model_dump(mode="json") if creado else None
     if creado:
-        _primera_version_trd(db, fondo, datos.filas, actor.id, informe)
+        if not completa:
+            _primera_version_trd(db, fondo, datos.filas, actor.id, informe)
         punto.commit()
         db.commit()
     else:
@@ -128,12 +145,12 @@ def _primera_version_trd(db: Session, fondo: RecursoDocumental, filas: list[dict
         parametrizacion_trd.importar(db, v, filas, usuario_id)
     except parametrizacion_trd.ErrorTrd as exc:
         punto.rollback()
-        informe["avisos"].append(f"La matriz de la TRD no se llenó sola ({exc}); complétela en Fondos › Cuadro de "
-                                 "clasificación y TRD.")
+        informe["avisos"].append(f"La matriz de la TRD no se llenó sola ({exc}); complétela en Fondos › "
+                                 "Matriz de la TRD.")
         return
     punto.commit()
     informe["avisos"].append("La TRD quedó como versión 1 en borrador: registre el acto que la aprueba y su vigencia "
-                             "y aplíquela en Fondos › Cuadro de clasificación y TRD.")
+                             "y aplíquela en Fondos › Versiones de la TRD.")
 
 
 @router.get("/{fondo_id}/expedientes", response_model=list[ExpedienteOut],

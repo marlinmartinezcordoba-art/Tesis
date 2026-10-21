@@ -20,7 +20,7 @@ from app.models.recurso_documental import RecursoDocumental
 from app.servicios import retencion
 from tests.archivos import trd_agn_pdf
 from tests.conftest import crear_usuario, ingresar
-from tests.test_descripcion import eventos, fondo  # noqa: F401
+from tests.test_descripcion import archivista, eventos, fondo, motor_prueba  # noqa: F401
 from tests.test_especializacion_ric import exportar_conforme
 
 
@@ -28,6 +28,19 @@ def _post(cliente, cab, ruta, datos, codigo=201):
     r = cliente.post(ruta, headers=cab, json=datos)
     assert r.status_code == codigo, r.text
     return r.json() if r.content else None
+
+
+def aplicar_trd(cliente, cab, fondo, filas, desde="2019-03-01", acto="Resolución 045"):  # noqa: F811
+    """El cuadro de un fondo, por el único camino: una versión de la TRD cargada desde las filas
+    leídas del archivo y aplicada. Devuelve la respuesta de aplicar (o la del paso que falló)."""
+    v = cliente.post("/api/trd/versiones", headers=cab, json={
+        "fondo_id": str(fondo.id), "acto_aprobacion": acto, "fecha_aprobacion": desde, "vigente_desde": desde})
+    if v.status_code != 201:
+        return v
+    r = cliente.post(f"/api/trd/versiones/{v.json()['id']}/importar", headers=cab, json={"filas": filas})
+    if r.status_code != 200:
+        return r
+    return cliente.post(f"/api/trd/versiones/{v.json()['id']}/aplicar", headers=cab)
 
 
 def _armar(cliente, cab, fondo):  # noqa: F811
@@ -166,7 +179,11 @@ def test_la_version_1_fecha_las_reglas_cargadas_antes_de_parametrizar(cliente, d
     cab = cabeceras_admin
     filas = cliente.post("/api/cuadro/vista-previa", headers=cab,
                          files={"archivo": ("trd.pdf", trd_agn_pdf())}).json()["filas"]
-    assert cliente.post("/api/cuadro/aplicar", headers=cab, json={"fondo_id": str(fondo.id), "filas": filas}).status_code == 200
+    # Un cuadro cargado antes de existir la parametrización (datos anteriores a esta versión del sistema).
+    from app.models.usuario import Usuario
+    from app.servicios import cuadro
+    cuadro.aplicar(db, fondo, filas, db.scalar(select(Usuario.id).limit(1)))
+    db.commit()
     v = _post(cliente, cab, "/api/trd/versiones", {"fondo_id": str(fondo.id), "acto_aprobacion": "Acuerdo 3",
                                                   "fecha_aprobacion": "2015-05-02", "vigente_desde": "2015-06-01"})
     _post(cliente, cab, f"/api/trd/versiones/{v['id']}/importar", {"filas": filas}, 200)
@@ -175,3 +192,35 @@ def test_la_version_1_fecha_las_reglas_cargadas_antes_de_parametrizar(cliente, d
     serie = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110.15"))
     regla = retencion.retencion_de(db, serie)
     assert regla["vigencia"] == "2015-06-01/" and regla["vigencia_legible"].startswith("rige desde 1 de junio de 2015")
+
+
+def test_el_fondo_nace_con_su_trd_vigente_y_el_cuadro_no_se_toca_suelto(cliente, db, cabeceras_admin, archivista,  # noqa: F811
+                                                                         motor_prueba):
+    from app.servicios import cuadro
+    from tests.archivos import trd_agn_xlsx
+    from tests.test_descripcion import OFICIO_114, aceptar_todo, documento, iniciar
+
+    cab = cabeceras_admin
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    r = cliente.post("/api/fondos/configurar", headers=cab, json={
+        "fondo": {"titulo": "Archivo de Tunja"}, "filas": filas, "crear": True,
+        "version": {"acto_aprobacion": "Resolución 045", "fecha_aprobacion": "2019-02-15", "vigente_desde": "2019-03-01"}})
+    assert r.status_code == 200 and r.json()["creado"], r.text
+    fnd = db.get(RecursoDocumental, uuid.UUID(r.json()["fondo"]["id"]))
+    [v] = cliente.get("/api/trd/versiones", headers=cab, params={"fondo_id": str(fnd.id)}).json()
+    assert v["estado"] == "vigente" and v["filas"] == 3
+    serie = db.scalar(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fnd.id,
+                                                      RecursoDocumental.codigo_referencia == "110.15"))
+    assert retencion.retencion_de(db, serie)["vigencia"] == "2019-03-01/"
+    # Un documento de un fondo con cuadro va dentro de una serie, no suelto en el fondo.
+    d = documento(db, fnd, "Oficio_114_1948.pdf", OFICIO_114)
+    datos = aceptar_todo(iniciar(cliente, archivista, [d.id]))
+    r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos)
+    assert r.status_code == 422 and "serie" in r.json()["detail"], r.text
+    r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos | {"incluido_en_id": str(serie.id)})
+    assert r.status_code == 201, r.text
+    # La serie no se renombra, recodifica ni mueve desde la descripción: eso lo hace la TRD.
+    trabajo = cliente.post(f"/api/descripcion/registros/{serie.id}/reabrir", headers=archivista).json()["trabajo_id"]
+    r = cliente.patch(f"/api/descripcion/{serie.id}", headers=archivista,
+                      json={"trabajo_id": trabajo, "titulo": "Correspondencia enviada"})
+    assert r.status_code == 409 and "TRD" in r.json()["detail"], r.text

@@ -60,6 +60,9 @@ from app.servicios import evidencia as servicio_evidencia, fechas, mecanismos, r
 from app.servicios.auditoria import registrar
 
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
+# Los niveles del cuadro de clasificación solo nacen de aplicar una versión de la
+# TRD (Fondos › Versiones de la TRD): nadie los crea, mueve ni renombra sueltos.
+NIVELES_CUADRO = ("seccion", "subseccion", "serie", "subserie")
 CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "materia")
 TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
 from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
@@ -203,8 +206,11 @@ def abrir(db: Session, *, usuario_id: uuid.UUID, instanciacion_ids: list[uuid.UU
         raise ErrorDescripcion("Seleccione al menos un documento.")
     if len(ids) == 1:
         nivel = "unidad_documental"
-    elif nivel not in NIVELES_CONJUNTO:
-        raise ErrorDescripcion("Para describir varios documentos juntos, elija si son un expediente, una subserie o una serie.")
+    elif nivel in NIVELES_CUADRO:
+        raise ErrorDescripcion("Las series y subseries salen de la TRD (Fondos › Versiones de la TRD), no de describir "
+                               "documentos. Describa los documentos juntos como un expediente de su serie.")
+    elif nivel != "expediente":
+        raise ErrorDescripcion("Para describir varios documentos juntos, descríbalos como un expediente.")
     documentos = db.scalars(select(Instanciacion).where(Instanciacion.id.in_(ids), _sin_descripcion())).all()
     if len(documentos) != len(ids) or any(d.estado != "listo_para_descripcion" or d.derivada_de_id for d in documentos):
         raise ErrorDescripcion("Alguno de los documentos ya no está disponible para describir (quizá ya se describió).", 409)
@@ -833,7 +839,19 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
                                "conjunto»), sin dejar su lugar en el cuadro de clasificación.")
     if rango(superior.nivel) >= rango(nivel):
         raise ErrorDescripcion(f"Un {nivel.replace('_', ' ')} no puede quedar dentro de un {superior.nivel.replace('_', ' ')}.")
+    # Con cuadro de clasificación, todo expediente o documento va en una serie o
+    # subserie del cuadro (o en un expediente de ellas), no suelto en el fondo o la sección.
+    if nivel in ("expediente", "unidad_documental") and superior.nivel not in ("serie", "subserie", "expediente") \
+            and tiene_cuadro(db, fondo_id):
+        raise ErrorDescripcion(f"Este fondo tiene cuadro de clasificación: el {nivel.replace('_', ' ')} va dentro de una "
+                               "serie o subserie (o de un expediente de ellas).")
     return superior
+
+
+def tiene_cuadro(db: Session, fondo_id: uuid.UUID) -> bool:
+    return bool(db.scalar(select(RecursoDocumental.id).where(RecursoDocumental.fondo_id == fondo_id,
+                                                             RecursoDocumental.nivel.in_(("serie", "subserie")))
+                          .limit(1)))
 
 
 def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, titulo: str, alcance: str,
@@ -1156,6 +1174,14 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
     anterior = resumen(db, recurso)
+    if recurso.nivel in NIVELES_CUADRO:
+        cambia_titulo = titulo is not None and " ".join(titulo.split()) != recurso.titulo
+        cambia_lugar = incluido_en_id is not None and incluido_en_id != recurso.incluido_en_id
+        cambia_codigo = "codigo_referencia" in (control or {}) and \
+            (" ".join((control["codigo_referencia"] or "").split()) or None) != recurso.codigo_referencia
+        if cambia_titulo or cambia_lugar or cambia_codigo:
+            raise ErrorDescripcion(f"El nombre, el código y el lugar de una {recurso.nivel} los fija la TRD. Para "
+                                   "cambiarlos, abra una versión nueva en Fondos › Versiones de la TRD.", 409)
     if titulo is not None:
         titulo = " ".join(titulo.split())
         if len(titulo) < 3:
@@ -1223,12 +1249,17 @@ NIVELES_AGRUPACION = ("coleccion", "seccion", "subseccion", "serie", "subserie",
 
 def crear_agrupacion(db: Session, *, fondo_id: uuid.UUID, nivel: str, titulo: str, incluido_en_id: uuid.UUID | None,
                      usuario_id: uuid.UUID, codigo_referencia: str | None = None, fechas_extremas: str | None = None,
-                     alcance: str | None = None, productor_id: uuid.UUID | None = None) -> RecursoDocumental:
+                     alcance: str | None = None, productor_id: uuid.UUID | None = None,
+                     desde_trd: bool = False) -> RecursoDocumental:
     """Un Record Set es una agregación intelectual: una serie existe porque
     agrupa expedientes, no porque tenga archivos propios (hallazgo CM-02).
-    Se crea aquí sin ninguna instanciación, con su productor y sus fechas."""
+    Se crea aquí sin ninguna instanciación, con su productor y sus fechas.
+    Secciones, subsecciones, series y subseries solo desde la TRD (`desde_trd`)."""
     if nivel not in NIVELES_AGRUPACION:
         raise ErrorDescripcion("Solo se crean así colecciones, secciones, subsecciones, series, subseries o expedientes.")
+    if nivel in NIVELES_CUADRO and not desde_trd:
+        raise ErrorDescripcion(f"Una {nivel} se crea al aplicar la TRD (Fondos › Versiones de la TRD), no suelta: así "
+                               "todo el cuadro sale de la tabla aprobada.", 409)
     titulo = " ".join((titulo or "").split())[:500]
     if not titulo:
         raise ErrorDescripcion("La agrupación necesita un título.")

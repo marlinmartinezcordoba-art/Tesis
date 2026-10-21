@@ -77,6 +77,25 @@ versión 1 era de 2 + 8 años y conservación total. Lo que pasa:
   - Uno de 2025 toma la retención nueva.
   - Sin fechas, toma la vigente.
 
+## Un solo camino para el cuadro
+
+El cuadro de clasificación sale de la TRD aprobada. Por ningún otro camino se
+crean secciones, subsecciones, series o subseries sueltas.
+
+| Lo que se intenta | Qué pasa ahora |
+|---|---|
+| Registrar un fondo sin cuadro | No se puede. El fondo se registra en el asistente con su cuadro (Excel o PDF) y se valida en RiC-O antes de crearse. Si se da el acto que aprueba la TRD, su fecha y la vigencia, nace con la versión 1 vigente. Si no, la versión 1 queda en borrador. |
+| Crear una sección, subsección, serie o subserie desde Descripción | Se rechaza. Solo la crea aplicar una versión de la TRD. Desde Descripción se crean expedientes y colecciones. |
+| Describir varios documentos juntos como «serie» o «subserie» | Se rechaza. Varios documentos se describen como un expediente de su serie. |
+| Publicar un documento o expediente suelto en el fondo o en una sección | En un fondo con cuadro se rechaza. Va dentro de una serie, una subserie o un expediente de ellas. |
+| Renombrar, recodificar o mover una serie desde su descripción | Se rechaza. Se hace con una versión nueva de la TRD. El alcance, la historia y las entidades sí se describen. |
+| Crear una regla de retención suelta, unirla a otra serie, desunirla o cambiarle los años y la disposición en Autoridades y términos | Se rechaza. La retención la fija la TRD. En la ficha de la regla solo se completa el texto del procedimiento. |
+| Aplicar un cuadro directo desde un archivo, sin versión | Se retiró. El archivo se carga en una versión de la TRD (Versiones de la TRD › Cargar desde archivo). |
+
+Las colecciones (rst:Collection) sí se crean a mano. No son parte del cuadro
+orgánico: reúnen documentos por pertenencia adicional sin sacarlos de su
+serie.
+
 ## Decisiones
 
 | Decisión | Alternativas | Selección | Justificación | Riesgo |
@@ -91,6 +110,10 @@ versión 1 era de 2 + 8 años y conservación total. Lo que pasa:
 | Tablas de parametrización en el grafo | Llevarlas a RiC-O; dejarlas como mesa de trabajo | Mesa de trabajo; lo aplicado es RiC-O | Las filas en borrador no son descripción archivística. Lo aplicado (agrupaciones, reglas, tipos, productor) sí está en el grafo. | La versión como acto administrativo se lee en la descripción de cada regla, no como entidad propia del grafo. |
 | Registro del fondo con su TRD | Pedir el acto en el asistente; dejar la versión 1 en borrador | Versión 1 en borrador | El asistente ya es largo. El acto se completa después y, al aplicarla, fecha las reglas que se crearon. | Un fondo puede quedar con la versión 1 sin aplicar. La pantalla y el aviso del asistente lo dicen. |
 | Nada se borra | Borrar dependencias o términos sin uso; anularlos | Anular | Regla del proyecto. Lo usado en el borrador no se anula hasta quitarlo de la matriz. Los códigos usados en una TRD aplicada no cambian. | Quedan registros anulados en las tablas. |
+| Cuadro solo desde la TRD | Dejar crear series en Descripción; crearlas solo al aplicar la TRD | Solo desde la TRD | Evita series sueltas, con nombres o códigos que no están en la tabla aprobada. Es el control que piden los requisitos del AGN para un SGDEA. | Una serie que falta en la TRD obliga a abrir una versión nueva. Es lo correcto en la norma, aunque sea más lento. |
+| Fondo sin cuadro | Permitirlo; exigir el cuadro al registrar | Exigirlo | Sin cuadro, los documentos quedarían sueltos en el fondo. Un fondo histórico sin TRD registra igual su cuadro, sin las columnas de retención. | Un fondo acumulado sin cuadro reconstruido no se puede registrar todavía. Hay que levantar primero el cuadro. |
+| Documentos sueltos en un fondo con cuadro | Permitirlos; exigir serie o subserie | Exigirla | Todo documento tiene un lugar en el cuadro: es lo que hace posible heredar la retención. | Los fondos anteriores a este cambio sin series no se ven afectados. |
+| Reglas de retención en Autoridades y términos | Editables; solo consulta | Solo consulta (salvo el texto del procedimiento) | Una retención cambiada fuera de la TRD no tendría acto que la respalde. | Corregir un error de digitación exige una versión nueva de la TRD. |
 | Quién parametriza | Archivista; administración | Administración (consulta: quien lee la descripción) | La TRD es un instrumento aprobado por la entidad, no una descripción. | La autora puede querer abrirlo a un rol de archivo. Se cambia en los permisos. |
 
 ## Pruebas

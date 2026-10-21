@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.models.auditoria import RegistroAuditoria
 from app.models.descripcion import Relacion
 from app.servicios import exportacion_rico, grafo_rdf
-from tests.test_cierre_cm02 import crear
+from tests.test_cierre_cm02 import crear, del_cuadro
 from tests.test_descripcion import archivista, fondo  # noqa: F401
 
 RICO = Namespace("https://www.ica.org/standards/RiC/ontology#")
@@ -23,7 +23,7 @@ RST = Namespace("https://www.ica.org/standards/RiC/vocabularies/recordSetTypes#"
 
 
 def test_coleccion_y_pertenencia_adicional(cliente, db, fondo, archivista):  # noqa: F811
-    serie = crear(cliente, archivista, fondo, "serie", "Correspondencia").json()
+    serie = del_cuadro(db, fondo, "serie", "Correspondencia")
     exp = crear(cliente, archivista, fondo, "expediente", "Oficios de 1948", serie["id"]).json()
     col = crear(cliente, archivista, fondo, "coleccion", "Documentos sobre el ferrocarril")
     assert col.status_code in (200, 201), col.text

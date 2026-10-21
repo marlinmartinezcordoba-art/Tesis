@@ -324,36 +324,6 @@ def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request
     return detalle(entidad_id, db)
 
 
-class ReglaIn(BaseModel):
-    fondo_id: uuid.UUID
-    nombre: str = Field(min_length=1, max_length=300)
-    retencion_gestion_anios: int | None = None
-    retencion_central_anios: int | None = None
-    disposicion_final: str | None = None
-    procedimiento: str | None = Field(default=None, max_length=20000)
-
-
-@router.post("/reglas", status_code=status.HTTP_201_CREATED,
-             responses={201: {"model": rv.DetalleEntidad, "description": "Regla de retención creada: detalle de la nueva entidad"}},
-             summary="Crear una regla de retención de la TRD (rico:Rule) para luego unirla a su serie")
-def crear_regla(datos: ReglaIn, request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
-                db: Session = Depends(get_db)):
-    from app.routers.fondos import fondo_o_404
-    from app.servicios import retencion
-
-    fondo_o_404(db, datos.fondo_id)
-    try:
-        e = retencion.crear_regla(db, fondo_id=datos.fondo_id, nombre=datos.nombre,
-                                  gestion=datos.retencion_gestion_anios, central=datos.retencion_central_anios,
-                                  disposicion=datos.disposicion_final, procedimiento=datos.procedimiento,
-                                  usuario_id=actor.id)
-    except retencion.ErrorRetencion as exc:
-        db.rollback()
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    db.commit()
-    return detalle(e.id, db)
-
-
 @router.post("/{entidad_id}/hitos", status_code=status.HTTP_201_CREATED,
              responses={201: {"model": rv.DetalleEntidad, "description": "Hito agregado: detalle de la entidad actualizado"}},
              summary="Agregar un hito a la línea de tiempo institucional del agente (rico:Event)")

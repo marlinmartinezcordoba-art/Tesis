@@ -195,7 +195,7 @@ CIERRES: dict[str, Cierre] = {
         "Clase «regla» del vocabulario (rico:Rule, RiC-E16): la regla de retención de la TRD, unida a su serie con "
         "regulatesOrRegulated (rol «retencion»), heredada por expedientes y documentos y exportada con su tipo.",
         ("tests/test_cierre_cm18_des09.py::test_regla_de_retencion_regula_la_serie_y_se_hereda",
-         "tests/test_cierre_cm18_des09.py::test_la_ficha_de_la_regla_se_edita_y_valida")),
+         "tests/test_cierre_cm18_des09.py::test_la_retencion_solo_la_fija_la_trd")),
     "CM-19": Cierre(
         date(2026, 10, 3),
         "Guardián before_flush (servicios/integridad_ric.py): ninguna fila de relaciones se escribe si su código no "

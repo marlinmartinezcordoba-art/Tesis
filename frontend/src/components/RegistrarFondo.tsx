@@ -20,6 +20,10 @@ export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
   const [paso, setPaso] = useState(0);
   const [titulo, setTitulo] = useState("");
   const [fechas, setFechas] = useState("");
+  // La TRD aprobada: con el acto, su fecha y la vigencia, el fondo nace con la versión 1 vigente.
+  const [acto, setActo] = useState("");
+  const [fechaActo, setFechaActo] = useState("");
+  const [desde, setDesde] = useState("");
   const [vista, setVista] = useState<Vista | null>(null);
   const [incluir, setIncluir] = useState<Set<number>>(new Set());
   const [prueba, setPrueba] = useState<Respuesta | null>(null);
@@ -28,7 +32,8 @@ export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
 
   const mensaje = (err: unknown, por: string) => (err instanceof ErrorAPI ? err.message : por);
   const cuerpo = (crear: boolean) => JSON.stringify({
-    fondo: { titulo, fechas_extremas: fechas || null }, filas: vista?.filas.filter((f) => incluir.has(f.fila)) || [], crear });
+    fondo: { titulo, fechas_extremas: fechas || null }, filas: vista?.filas.filter((f) => incluir.has(f.fila)) || [], crear,
+    version: acto.trim() ? { acto_aprobacion: acto.trim(), fecha_aprobacion: fechaActo || null, vigente_desde: desde || null } : null });
 
   async function leer(archivo: File) {
     setError("");
@@ -99,6 +104,25 @@ export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
               <label htmlFor="f-fechas">Fechas extremas (opcional)</label>
               <input id="f-fechas" className="entrada" value={fechas} placeholder="1930–1955"
                      onChange={(e) => setFechas(e.target.value)} />
+            </div>
+          </div>
+          <p className="meta">Si la TRD ya está aprobada, registre su acto: el fondo nace con la versión 1 vigente. Si no,
+            queda en borrador y se completa en Fondos › Versiones de la TRD.</p>
+          <div className="rejilla">
+            <div className="campo">
+              <label htmlFor="f-acto">Acto que aprueba la TRD (opcional)</label>
+              <input id="f-acto" className="entrada" value={acto} placeholder="Resolución 045"
+                     onChange={(e) => setActo(e.target.value)} />
+            </div>
+            <div className="campo">
+              <label htmlFor="f-fecha-acto">Fecha de aprobación</label>
+              <input id="f-fecha-acto" className="entrada" type="date" value={fechaActo} required={!!acto.trim()}
+                     onChange={(e) => setFechaActo(e.target.value)} />
+            </div>
+            <div className="campo">
+              <label htmlFor="f-desde">Rige desde</label>
+              <input id="f-desde" className="entrada" type="date" value={desde} required={!!acto.trim()}
+                     onChange={(e) => setDesde(e.target.value)} />
             </div>
           </div>
           <div className="acciones">

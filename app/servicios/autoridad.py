@@ -60,6 +60,10 @@ CAMPOS_LUGAR = ("latitud", "longitud", "tipo_lugar", "historia")
 CAMPOS_GENERALES = ("historia",)  # actividad, tipo de actividad, mandato: una nota de alcance
 # Regla de retención (TRD): años en gestión y en central, disposición final y
 # el procedimiento (en «historia»).
+# La retención y su unión a la serie solo salen de aplicar una versión de la TRD:
+# así no hay reglas sueltas ni retenciones distintas de la tabla aprobada.
+RETENCION_SOLO_TRD = ("La retención (años y disposición final) y la serie que regula los fija la TRD: se cambian "
+                      "con una versión nueva en Fondos › Versiones de la TRD.")
 CAMPOS_REGLA = ("retencion_gestion_anios", "retencion_central_anios", "disposicion_final", "historia")
 
 # Área de descripción de ISAAR: con uno solo de estos campos, la ficha deja
@@ -153,6 +157,8 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
         # edición es completar la versión que llegó vacía (VOC-07).
         raise ErrorAutoridad("Un mecanismo (software) es de solo consulta: su nombre y su versión los registra el "
                              "sistema. Solo se completa la versión cuando llegó vacía.")
+    if e.clase == "regla" and set(cambios) & {"retencion_gestion_anios", "retencion_central_anios", "disposicion_final"}:
+        raise ErrorAutoridad(RETENCION_SOLO_TRD)
     permitidos = campos_de(e)
     extra = [c for c in cambios if c not in permitidos]
     if extra:
@@ -640,13 +646,15 @@ def _sin_solape(db: Session, v: Vinculo, nodo_id: uuid.UUID, vigencia: str | Non
 
 def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str, con_id: uuid.UUID,
              usuario_id: uuid.UUID, fecha_edtf: str | None = None, nota: str | None = None,
-             ip: str | None = None) -> Relacion:
+             ip: str | None = None, desde_trd: bool = False) -> Relacion:
     """Declara un vínculo desde la entidad que se edita (`desde`) hacia otra
     entidad o recurso (`con`). La fila se orienta según el vínculo: el origen
     y el destino de la fila son los de la propiedad de RiC-O."""
     v = VINCULOS.get(tipo)
     if v is None:
         raise ErrorAutoridad("Tipo de vínculo desconocido.")
+    if v.rol == "retencion" and not desde_trd:
+        raise ErrorAutoridad(RETENCION_SOLO_TRD)
     otro = _clase_nodo(db, con_tipo, con_id)
     if otro is None:
         raise ErrorAutoridad("La otra entidad no existe.")
@@ -702,6 +710,8 @@ def anular_vinculo(db: Session, relacion_id: uuid.UUID, desde: EntidadVocabulari
         raise ErrorAutoridad("Ese vínculo no existe o ya se anuló.")
     if not any(v.codigo == r.codigo_ric and v.rol == r.rol for v in VINCULOS.values()):
         raise ErrorAutoridad("Ese vínculo se corrige desde la descripción del documento.")
+    if r.rol == "retencion":
+        raise ErrorAutoridad(RETENCION_SOLO_TRD)
     r.estado, r.anulada_en, r.anulada_por_id = "anulada", ahora(), usuario_id
     registrar(db, modulo="vocabularios", accion="vinculo_anulado", usuario_id=usuario_id,
               entidad_tipo="entidad_vocabulario", entidad_id=desde.id, ip=ip,
