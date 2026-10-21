@@ -10,6 +10,7 @@ import { Ayuda } from "@/components/Ayuda";
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 export const ICONOS: Record<string, ReactNode> = {
+  fondos: <svg viewBox="0 0 24 24" {...trazo}><path d="M3 7h18v12H3z" /><path d="M3 7l2-3h14l2 3" /><path d="M10 11h4" /></svg>,
   ingesta: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5M5 16v2a2 2 0 002 2h10a2 2 0 002-2v-2" /></svg>,
   descripcion: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="6" r="2.2" /><circle cx="6" cy="17" r="2.2" /><circle cx="18" cy="17" r="2.2" /><path d="M10.5 7.5L7.5 15M13.5 7.5l3 7.5M8.2 17h7.6" /></svg>,
   vocabularios: <svg viewBox="0 0 24 24" {...trazo}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 9h8M8 13h5" /></svg>,
@@ -44,24 +45,28 @@ interface Entrada {
 // Ingesta, Descripción, Vocabularios, Instrumentos, Preservación ·
 // Auditoría, Usuarios.
 const ENTRADAS: Entrada[] = [
-  { ruta: "/ingesta", nombre: "Ingesta", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
-    { vista: "cargar", nombre: "Cargar documentos", permitir: (u) => puede(u, "ingesta", "escribir") },
-    { vista: "cola", nombre: "Cola de ingesta" }] },
+  // En el orden del proceso archivístico (decisión de la autora): primero el fondo y su cuadro.
+  { ruta: "/fondos", nombre: "Fondos", icono: "fondos", grupo: "trabajo", modulo: "catalogo", vistas: [
+    { vista: "fondos", nombre: "Fondos del archivo" },
+    { vista: "cuadro", nombre: "Cuadro de clasificación y TRD" }] },
+  { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
+    { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
+    { vista: "cola", nombre: "Revisar lo cargado" }] },
   { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion", vistas: [
     { vista: "cola", nombre: "Por describir" }, { vista: "publicadas", nombre: "Descritas" }] },
-  { ruta: "/vocabularios", nombre: "Vocabularios", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
-    { vista: "vocabulario", nombre: "Vocabulario" }, { vista: "sugerencias", nombre: "Sugerencias de fusión" },
+  { ruta: "/vocabularios", nombre: "Autoridades y términos", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
+    { vista: "vocabulario", nombre: "Agentes, lugares y más" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
     { vista: "tesauros", nombre: "Tesauros" }] },
-  { ruta: "/instrumentos", nombre: "Instrumentos", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "catalogo", nombre: "Catálogo" }, { vista: "cuadro", nombre: "Cuadro de clasificación y TRD" },
-    { vista: "grafo", nombre: "Grafo" },
+  { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
+    { vista: "catalogo", nombre: "Catálogo" },
+    { vista: "grafo", nombre: "Grafo de contexto" },
     // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
-    { vista: "inventario", nombre: "Inventario", permitir: (u) => puede(u, "instrumentos", "escribir") },
-    { vista: "guia", nombre: "Guía", permitir: (u) => puede(u, "instrumentos", "escribir") },
+    { vista: "inventario", nombre: "Inventario (FUID)", permitir: (u) => puede(u, "instrumentos", "escribir") },
+    { vista: "guia", nombre: "Guía del fondo", permitir: (u) => puede(u, "instrumentos", "escribir") },
     // El índice es la puerta de consulta por nombres; el equipo interno trabaja
     // los mismos términos en Vocabularios, así que no lo ve dos veces.
     { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") },
-    { vista: "rico", nombre: "RiC-O" }] },
+    { vista: "rico", nombre: "Datos enlazados (RiC-O)" }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
@@ -72,7 +77,7 @@ const ENTRADAS: Entrada[] = [
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
   // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
-  { ruta: "/usuarios", nombre: "Usuarios", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
+  { ruta: "/usuarios", nombre: "Usuarios y permisos", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
     { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" }] },
 ];
 

@@ -16,8 +16,8 @@ export interface RolInfo {
 
 const MODULOS: { clave: string; nombre: string; niveles: [string, string][] }[] = [
   ...[
-    ["ingesta", "Ingesta"], ["descripcion", "Descripción"], ["vocabularios", "Vocabularios"],
-    ["instrumentos", "Instrumentos"], ["preservacion", "Preservación"],
+    ["ingesta", "Carga de documentos"], ["descripcion", "Descripción"], ["vocabularios", "Autoridades y términos"],
+    ["instrumentos", "Consulta y difusión"], ["preservacion", "Preservación"],
   ].map(([clave, nombre]) => ({
     clave, nombre, niveles: [["ninguno", "Sin acceso"], ["leer", "Consultar"], ["escribir", "Trabajar"]] as [string, string][],
   })),

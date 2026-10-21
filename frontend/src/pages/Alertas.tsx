@@ -23,8 +23,8 @@ interface Alerta {
 
 const CLASE: Record<Alerta["severidad"], string> = { alta: "error", media: "alerta", baja: "proceso" };
 const MODULO: Record<string, string> = {
-  ingesta: "Ingesta", descripcion: "Descripción", vocabularios: "Vocabularios",
-  instrumentos: "Instrumentos", preservacion: "Preservación",
+  ingesta: "Carga de documentos", descripcion: "Descripción", vocabularios: "Autoridades y términos",
+  instrumentos: "Consulta y difusión", preservacion: "Preservación",
 };
 const TIPO = TIPO_ALERTA;
 

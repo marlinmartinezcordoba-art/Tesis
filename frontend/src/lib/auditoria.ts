@@ -63,8 +63,8 @@ export interface Desglose {
 }
 
 export const MODULO_NOMBRE: Record<string, string> = {
-  autenticacion: "Autenticación", ingesta: "Ingesta", descripcion: "Descripción", vocabularios: "Vocabularios",
-  instrumentos: "Instrumentos", preservacion: "Preservación", auditoria: "Auditoría", sistema: "Sistema",
+  autenticacion: "Autenticación", ingesta: "Carga de documentos", descripcion: "Descripción", vocabularios: "Autoridades y términos",
+  instrumentos: "Consulta y difusión", preservacion: "Preservación", auditoria: "Auditoría", sistema: "Sistema",
   evaluacion: "Evaluación",
 };
 

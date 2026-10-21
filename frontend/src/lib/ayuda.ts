@@ -6,15 +6,28 @@ export interface Paso { titulo: string; texto: string }
 export interface Guia { titulo: string; pasos: Paso[] }
 
 const GUIAS: Record<string, Guia> = {
+  fondos: {
+    titulo: "Fondos",
+    pasos: [
+      { titulo: "Aquí empieza el archivo.",
+        texto: "Cada fondo se registra desde su cuadro de clasificación (CCD) y, si la tiene, su tabla de retención (TRD). La carga, la descripción y la consulta se hacen sobre el fondo activo." },
+      { titulo: "Registre un fondo.",
+        texto: "«+ Registrar un fondo» abre el asistente: datos del fondo, el cuadro (Excel o PDF), la validación en RiC-O y la creación." },
+      { titulo: "Elija con cuál trabajar.",
+        texto: "«Trabajar con este» lo deja activo. También se cambia arriba, en el selector del fondo." },
+      { titulo: "Parametrice el cuadro.",
+        texto: "En «Cuadro de clasificación y TRD» están las dependencias, las series y subseries, los tipos documentales y la retención de cada una." },
+    ],
+  },
   ingesta: {
-    titulo: "Ingesta",
+    titulo: "Carga de documentos",
     pasos: [
       { titulo: "Aquí entran los documentos al archivo digital.",
         texto: "Cada archivo que se carga recibe su huella digital (SHA-256), se identifica su formato contra PRONOM y se extrae su texto, o se reconoce con OCR si es una imagen." },
       { titulo: "Cargue los documentos.",
-        texto: "En «Cargar documentos», elija o arrastre los archivos. Antes, verifique arriba que el fondo seleccionado es el correcto: todo queda en ese fondo." },
+        texto: "En «Cargar», elija o arrastre los archivos. Antes, verifique arriba que el fondo seleccionado es el correcto: todo queda en ese fondo." },
       { titulo: "Revise la cola.",
-        texto: "En «Cola de ingesta» se ve cada archivo mientras se procesa. Si aparece «duplicado», decida si es el mismo documento; si hay un error, puede reintentar." },
+        texto: "En «Revisar lo cargado» se ve cada archivo mientras se procesa. Si aparece «duplicado», decida si es el mismo documento; si hay un error, puede reintentar." },
       { titulo: "Atienda el OCR de baja confianza.",
         texto: "Si una imagen se leyó con poca confianza (por debajo del umbral, 70 por defecto), queda marcada y con alerta. No se detiene: en Descripción tendrá que leer el texto con más cuidado." },
       { titulo: "Cuando dice «listo para descripción», ya terminó aquí.",
@@ -68,7 +81,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "vocabularios:vocabulario": {
-    titulo: "Vocabularios",
+    titulo: "Autoridades y términos",
     pasos: [
       { titulo: "El control de autoridad del fondo.",
         texto: "Cada agente, lugar, actividad, función, mandato y forma documental existe una sola vez, y todas las descripciones lo reutilizan." },
@@ -101,7 +114,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:catalogo": {
-    titulo: "Instrumentos · Catálogo",
+    titulo: "Consulta y difusión · Catálogo",
     pasos: [
       { titulo: "El fondo como un árbol para consultar.",
         texto: "Baje por niveles: fondo, sección, serie, expediente y documento. Solo aparece lo publicado." },
@@ -112,7 +125,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:grafo": {
-    titulo: "Instrumentos · Grafo",
+    titulo: "Consulta y difusión · Grafo",
     pasos: [
       { titulo: "El fondo como la red que realmente es.",
         texto: "Documentos, agentes, lugares, fechas y actividades unidos por sus relaciones RiC." },
@@ -121,7 +134,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:inventario": {
-    titulo: "Instrumentos · Inventario",
+    titulo: "Consulta y difusión · Inventario",
     pasos: [
       { titulo: "El Formato Único de Inventario Documental, armado solo.",
         texto: "Elija el nivel desde el cual generarlo y revise la vista previa. Un renglón por unidad documental o expediente." },
@@ -132,7 +145,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:guia": {
-    titulo: "Instrumentos · Guía",
+    titulo: "Consulta y difusión · Guía",
     pasos: [
       { titulo: "La guía del fondo, con un borrador del motor.",
         texto: "El motor redacta el texto a partir de lo publicado en los niveles superiores." },
@@ -141,7 +154,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:indice": {
-    titulo: "Instrumentos · Índice",
+    titulo: "Consulta y difusión · Índice",
     pasos: [
       { titulo: "Busque por nombre.",
         texto: "Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Escriba en el buscador para filtrar." },
@@ -152,7 +165,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:rico": {
-    titulo: "Instrumentos · RiC-O",
+    titulo: "Consulta y difusión · RiC-O",
     pasos: [
       { titulo: "El fondo como datos enlazados en RiC-O 1.1.",
         texto: "La ontología oficial del Consejo Internacional de Archivos, con una dirección (URI) propia para cada descripción, agente o lugar." },
@@ -303,6 +316,7 @@ const GUIAS: Record<string, Guia> = {
 
 /** La guía de la pantalla actual, o null si no hay una. */
 export function guiaPara(ruta: string, vista: string | null): Guia | null {
+  if (ruta.startsWith("/fondos")) return GUIAS.fondos;
   if (ruta.startsWith("/ingesta")) return GUIAS.ingesta;
   if (ruta.startsWith("/descripcion/trabajo")) return GUIAS.trabajo;
   if (ruta.startsWith("/descripcion/registro")) return GUIAS.registro;

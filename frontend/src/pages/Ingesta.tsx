@@ -472,7 +472,7 @@ function VistaCola({ cola, puedeDecidir, alCambiar }: { cola: Cola | null; puede
   const vacia = !cola.procesando.length && !cola.duplicados.length && !cola.errores.length;
   return (
     <>
-      <h1>Cola de ingesta</h1>
+      <h1>Revisar lo cargado</h1>
       <p className="sub">
         Solo se muestra aquí lo que todavía necesita algo de usted. Lo que ya quedó listo pasó de forma automática al
         módulo de descripción.
@@ -533,7 +533,7 @@ function ActividadReciente({ fondo, version }: { fondo: Fondo; version: number }
         <ol className="pasos-inicio">
           <li><strong>Arrastre o seleccione los archivos.</strong> Cualquier formato: el sistema calcula su huella digital y reconoce el formato.</li>
           <li><strong>Si ya lo sabe, elija el expediente de destino.</strong> Es opcional: también se decide al describir.</li>
-          <li><strong>Revise el resultado en la cola de ingesta.</strong> Allí aparece lo que necesita su decisión (duplicados, errores).</li>
+          <li><strong>Revise el resultado en «Revisar lo cargado».</strong> Allí aparece lo que necesita su decisión (duplicados, errores).</li>
         </ol>
       </div>
     );
@@ -542,7 +542,7 @@ function ActividadReciente({ fondo, version }: { fondo: Fondo; version: number }
     <div className="tarjeta">
       <div className="tarjeta-cab" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
         <span>Actividad reciente de ingesta</span>
-        <Link to="/ingesta?vista=cola" className="enlace">Ver la cola de ingesta</Link>
+        <Link to="/ingesta?vista=cola" className="enlace">Revisar lo cargado</Link>
       </div>
       {filas.map((f) => (
         <div className="fila" key={f.id}>

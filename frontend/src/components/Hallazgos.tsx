@@ -20,8 +20,8 @@ const ESTADO: Record<Estado, { texto: string; clase: string }> = {
   en_correccion: { texto: "En corrección", clase: "alerta" },
   cerrado: { texto: "Cerrado", clase: "bien" },
 };
-const COMPONENTES: [string, string][] = [["autenticacion", "Autenticación"], ["ingesta", "Ingesta"],
-  ["descripcion", "Descripción"], ["vocabularios", "Vocabularios"], ["instrumentos", "Instrumentos"],
+const COMPONENTES: [string, string][] = [["autenticacion", "Autenticación"], ["ingesta", "Carga de documentos"],
+  ["descripcion", "Descripción"], ["vocabularios", "Autoridades y términos"], ["instrumentos", "Consulta y difusión"],
   ["preservacion", "Preservación"], ["auditoria", "Auditoría"]];
 const NOMBRE_COMPONENTE = Object.fromEntries(COMPONENTES);
 const dia = (iso: string) => fecha(`${iso}T12:00:00`).split(",")[0];

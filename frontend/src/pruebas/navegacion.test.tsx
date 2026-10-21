@@ -39,12 +39,12 @@ afterEach(cleanup);
 describe("árbol de submódulos", () => {
   it("al entrar por la URL de una vista interna expande su módulo y la resalta", () => {
     montar("/vocabularios?vista=sugerencias");
-    expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("true");
-    expect(vistasVisibles("Vocabularios")).toEqual(["Vocabulario", "Sugerencias de fusión", "Tesauros"]);
+    expect(rama("Autoridades y términos").getAttribute("aria-expanded")).toBe("true");
+    expect(vistasVisibles("Autoridades y términos")).toEqual(["Agentes, lugares y más", "Posibles duplicados", "Tesauros"]);
     const activa = screen.getByRole("link", { current: "page" });
-    expect(activa.textContent).toBe("Sugerencias de fusión");
+    expect(activa.textContent).toBe("Posibles duplicados");
     // Los demás módulos quedan contraídos.
-    for (const m of ["Ingesta", "Descripción", "Instrumentos", "Preservación", "Auditoría", "Usuarios"]) {
+    for (const m of ["Carga de documentos", "Descripción", "Consulta y difusión", "Preservación", "Auditoría", "Usuarios y permisos"]) {
       expect(rama(m).getAttribute("aria-expanded")).toBe("false");
     }
   });
@@ -52,13 +52,13 @@ describe("árbol de submódulos", () => {
   it("acordeón: abrir un módulo revela exactamente sus vistas y esconde las del que estaba abierto", () => {
     montar("/vocabularios");
     // Sin ?vista, la primera vista del módulo es la activa.
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Vocabulario");
-    fireEvent.click(rama("Instrumentos"));
-    expect(vistasVisibles("Instrumentos")).toEqual(["Catálogo", "Cuadro de clasificación y TRD", "Grafo", "Inventario", "Guía", "RiC-O"]);
-    expect(rama("Vocabularios").getAttribute("aria-expanded")).toBe("false");
-    expect(vistasVisibles("Vocabularios")).toEqual([]);
+    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Agentes, lugares y más");
+    fireEvent.click(rama("Consulta y difusión"));
+    expect(vistasVisibles("Consulta y difusión")).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Datos enlazados (RiC-O)"]);
+    expect(rama("Autoridades y términos").getAttribute("aria-expanded")).toBe("false");
+    expect(vistasVisibles("Autoridades y términos")).toEqual([]);
     // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
-    fireEvent.click(rama("Instrumentos"));
+    fireEvent.click(rama("Consulta y difusión"));
     expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
   });
 
@@ -66,18 +66,18 @@ describe("árbol de submódulos", () => {
     montar("/ingesta");
     fireEvent.click(rama("Descripción"));
     fireEvent.click(screen.getByRole("link", { name: "Descritas" }));
-    fireEvent.click(rama("Instrumentos"));
-    fireEvent.click(screen.getByRole("link", { name: "Grafo" }));
+    fireEvent.click(rama("Consulta y difusión"));
+    fireEvent.click(screen.getByRole("link", { name: "Grafo de contexto" }));
     expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=grafo");
     const abiertos = screen.getAllByRole("button", { expanded: true }).map((b) => b.textContent);
-    expect(abiertos).toEqual(["Instrumentos"]);
+    expect(abiertos).toEqual(["Consulta y difusión"]);
   });
 
   it("elegir una vista navega a ella y pasa a ser la resaltada", () => {
     montar("/instrumentos");
-    fireEvent.click(screen.getByRole("link", { name: "Grafo" }));
+    fireEvent.click(screen.getByRole("link", { name: "Grafo de contexto" }));
     expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=grafo");
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Grafo");
+    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Grafo de contexto");
   });
 
   it("la configuración de preservación es una vista del árbol con ruta propia", () => {
@@ -91,7 +91,7 @@ describe("árbol de submódulos", () => {
     montar("/auditoria", CONSULTA);
     expect(screen.queryByRole("button", { name: "Auditoría" })).toBeNull();
     expect(screen.getByRole("link", { name: "Auditoría" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Usuarios" })).toBeNull(); // solo la administración
+    expect(screen.queryByRole("button", { name: "Usuarios y permisos" })).toBeNull(); // solo la administración
     expect(vistasDe("/preservacion", CONSULTA).map((v) => v.vista)).toEqual(["panel"]);
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
     // Evaluación no tiene vistas internas: enlace simple también para la administración.
@@ -103,10 +103,10 @@ describe("árbol de submódulos", () => {
 
   it("el perfil de consulta ve el índice y no lo que no puede usar; el equipo interno usa Vocabularios", () => {
     // Consulta: catálogo, grafo, índice y RiC-O; sin inventario ni guía (se generan) y sin Vocabularios.
-    expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Cuadro de clasificación y TRD", "Grafo", "Índice", "RiC-O"]);
-    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Cuadro de clasificación y TRD", "Grafo", "Inventario", "Guía", "RiC-O"]);
+    expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Índice", "Datos enlazados (RiC-O)"]);
+    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Datos enlazados (RiC-O)"]);
     montar("/instrumentos?vista=indice", CONSULTA);
-    expect(screen.queryByRole("link", { name: "Vocabulario" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Agentes, lugares y más" })).toBeNull();
     // El menú no lleva títulos de grupo (decisión de la autora).
     expect(screen.queryByText("Consulta del archivo")).toBeNull();
     expect(screen.queryByText("Trabajo archivístico")).toBeNull();
