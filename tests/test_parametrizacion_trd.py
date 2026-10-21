@@ -224,3 +224,24 @@ def test_el_fondo_nace_con_su_trd_vigente_y_el_cuadro_no_se_toca_suelto(cliente,
     r = cliente.patch(f"/api/descripcion/{serie.id}", headers=archivista,
                       json={"trabajo_id": trabajo, "titulo": "Correspondencia enviada"})
     assert r.status_code == 409 and "TRD" in r.json()["detail"], r.text
+
+
+def test_todo_parte_de_cargar_el_ccd_y_la_trd(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+    from app.servicios import cuadro
+    from tests.archivos import trd_agn_xlsx
+
+    cab = cabeceras_admin
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    # Fondo nuevo: la respuesta dice qué configuró la carga y en qué estado quedó la versión 1.
+    r = cliente.post("/api/fondos/configurar", headers=cab, json={
+        "fondo": {"titulo": "Fondo desde instrumentos"}, "filas": filas, "crear": True}).json()
+    assert r["parametrizacion"] == {"dependencias": 1, "series": 2, "subseries": 2, "tipos_documentales": 6,
+                                    "filas": 3, "repetidas": 0}
+    assert r["version"] == {"nombre": "TRD versión 1", "estado": "borrador"}
+    # Fondo existente: la carga abre el borrador de la versión siguiente y lo configura entero.
+    c = cliente.post("/api/trd/cargar", headers=cab, json={"fondo_id": str(fondo.id), "filas": filas})
+    assert c.status_code == 200, c.text
+    assert c.json()["version"]["estado"] == "borrador" and c.json()["parametrizacion"]["filas"] == 3
+    # Cargar otra vez reutiliza el mismo borrador sin duplicar.
+    c2 = cliente.post("/api/trd/cargar", headers=cab, json={"fondo_id": str(fondo.id), "filas": filas}).json()
+    assert c2["version"]["id"] == c.json()["version"]["id"] and c2["parametrizacion"]["repetidas"] == 3

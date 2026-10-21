@@ -31,18 +31,41 @@ Fuentes:
 - Manual de la TRD en Orfeo:
   https://avante.gov.co/wp-content/uploads/2025/05/7.17.8-Manual-trd.pdf
 
+## Todo parte de cargar los instrumentos
+
+El recorrido empieza en **Fondos › 1. Cargar CCD y TRD**. Se carga el archivo del
+cuadro y la tabla de retención (plantilla del sistema o formato del AGN, en Excel
+o PDF) y el sistema configura, de una vez:
+
+- el fondo (si es nuevo),
+- las dependencias productoras (secciones y subsecciones),
+- el banco de series, subseries y tipos documentales,
+- la matriz de retención por dependencia,
+- la versión de la TRD: vigente si se dio el acto que la aprueba, su fecha y la
+  vigencia; si no, en borrador.
+
+Al terminar, un resumen dice cuánto se configuró, con enlaces a los pasos de
+ajuste manual (2. Dependencias, 3. Series, subseries y tipos, 4. Matriz) y a
+5. Aplicar y versiones. Cada pantalla de ajuste lo recuerda: lo que muestra salió
+de la carga, y los cambios valen al aplicar la versión.
+
+Para un fondo que ya existe, «Una versión nueva de la TRD» abre el borrador de la
+versión siguiente y lo llena con el archivo; la vigente sigue rigiendo hasta que
+se aplique la nueva.
+
 ## Dónde está en el menú
 
 **Fondos**
 
 | Entrada                   | Qué se hace ahí                                                                  |
 |---------------------------|----------------------------------------------------------------------------------|
-| Fondos del archivo        | Registrar un fondo y elegir con cuál se trabaja.                                 |
-| Versiones de la TRD       | Abrir, cargar desde archivo, validar en RiC-O y aplicar cada versión.             |
-| Dependencias              | Secciones y subsecciones con su código.                                          |
-| Series, subseries y tipos | Banco terminológico.                                                             |
-| Matriz de la TRD          | La tabla de retención por dependencia. Se edita en el borrador y se consulta en las demás. |
-| Cuadro de clasificación   | El cuadro que resultó de aplicar la TRD. Solo consulta.                          |
+| 1. Cargar CCD y TRD | El punto de partida: un fondo nuevo o una versión nueva, configurados desde el archivo. |
+| 2. Dependencias | Ajuste manual de secciones y subsecciones con su código. |
+| 3. Series, subseries y tipos | Ajuste manual del banco terminológico. |
+| 4. Matriz de la TRD | Ajuste manual de la tabla de retención por dependencia. Se edita en el borrador y se consulta en las demás. |
+| 5. Aplicar y versiones | Acto de aprobación, vigencia, validación en RiC-O y aplicación; historia de las versiones. |
+| Cuadro de clasificación | El cuadro que resultó de aplicar la TRD. Solo consulta. |
+| Fondos del archivo | Lista de fondos y elegir con cuál se trabaja. |
 
 ## Cómo queda en RiC
 
@@ -114,6 +137,7 @@ serie.
 | Fondo sin cuadro | Permitirlo; exigir el cuadro al registrar | Exigirlo | Sin cuadro, los documentos quedarían sueltos en el fondo. Un fondo histórico sin TRD registra igual su cuadro, sin las columnas de retención. | Un fondo acumulado sin cuadro reconstruido no se puede registrar todavía. Hay que levantar primero el cuadro. |
 | Documentos sueltos en un fondo con cuadro | Permitirlos; exigir serie o subserie | Exigirla | Todo documento tiene un lugar en el cuadro: es lo que hace posible heredar la retención. | Los fondos anteriores a este cambio sin series no se ven afectados. |
 | Reglas de retención en Autoridades y términos | Editables; solo consulta | Solo consulta (salvo el texto del procedimiento) | Una retención cambiada fuera de la TRD no tendría acto que la respalde. | Corregir un error de digitación exige una versión nueva de la TRD. |
+| Punto de partida | Pantallas sueltas (dependencias, series, matriz) llenadas a mano; cargar los instrumentos y ajustar después | Cargar primero; ajustar a mano después | Así trabaja un archivo: el CCD y la TRD ya existen aprobados y se cargan. El ajuste manual corrige lo que el archivo no traía o se leyó mal. | Un PDF mal escaneado obliga a corregir más a mano. La vista previa marca las filas con problemas antes de cargar. |
 | Quién parametriza | Archivista; administración | Administración (consulta: quien lee la descripción) | La TRD es un instrumento aprobado por la entidad, no una descripción. | La autora puede querer abrirlo a un rol de archivo. Se cambia en los permisos. |
 
 ## Pruebas

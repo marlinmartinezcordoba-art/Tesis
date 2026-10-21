@@ -47,12 +47,13 @@ interface Entrada {
 const ENTRADAS: Entrada[] = [
   // En el orden del proceso archivístico (decisión de la autora): primero el fondo y su cuadro.
   { ruta: "/fondos", nombre: "Fondos", icono: "fondos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "fondos", nombre: "Fondos del archivo" },
-    { vista: "versiones", nombre: "Versiones de la TRD" },
-    { vista: "dependencias", nombre: "Dependencias" },
-    { vista: "series", nombre: "Series, subseries y tipos" },
-    { vista: "matriz", nombre: "Matriz de la TRD" },
-    { vista: "cuadro", nombre: "Cuadro de clasificación" }] },
+    { vista: "cargar", nombre: "1. Cargar CCD y TRD" },
+    { vista: "dependencias", nombre: "2. Dependencias" },
+    { vista: "series", nombre: "3. Series, subseries y tipos" },
+    { vista: "matriz", nombre: "4. Matriz de la TRD" },
+    { vista: "versiones", nombre: "5. Aplicar y versiones" },
+    { vista: "cuadro", nombre: "Cuadro de clasificación" },
+    { vista: "fondos", nombre: "Fondos del archivo" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },

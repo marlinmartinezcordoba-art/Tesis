@@ -19,6 +19,19 @@ const GUIAS: Record<string, Guia> = {
         texto: "Versiones de la TRD → Dependencias → Series, subseries y tipos → Matriz de la TRD → aplicar (en Versiones). El resultado se consulta en «Cuadro de clasificación»." },
     ],
   },
+  "fondos:cargar": {
+    titulo: "Fondos · Cargar CCD y TRD",
+    pasos: [
+      { titulo: "Todo parte de aquí.",
+        texto: "Cargue el cuadro de clasificación y la tabla de retención (plantilla del sistema o formato del AGN, Excel o PDF). El sistema configura el fondo, las dependencias, las series, subseries, tipos documentales y la matriz de retención." },
+      { titulo: "Fondo nuevo o versión nueva.",
+        texto: "«Un fondo nuevo» registra el fondo con su cuadro. «Una versión nueva de la TRD» configura el borrador de la versión siguiente del fondo activo; la vigente sigue rigiendo." },
+      { titulo: "Revise lo que se configuró.",
+        texto: "El resumen dice cuántas dependencias, series, subseries, tipos y filas se crearon, con enlaces para ajustar a mano en 2. Dependencias, 3. Series y 4. Matriz." },
+      { titulo: "Aplique.",
+        texto: "En 5. Aplicar y versiones registre el acto de aprobación y la vigencia, valide en RiC-O y aplique: ahí queda vigente." },
+    ],
+  },
   "fondos:versiones": {
     titulo: "Fondos · Versiones de la TRD",
     pasos: [
@@ -367,7 +380,7 @@ const GUIAS: Record<string, Guia> = {
 
 /** La guía de la pantalla actual, o null si no hay una. */
 export function guiaPara(ruta: string, vista: string | null): Guia | null {
-  if (ruta.startsWith("/fondos")) return GUIAS.fondos;
+  if (ruta.startsWith("/fondos")) return GUIAS[`fondos:${vista || "cargar"}`] || GUIAS.fondos;
   if (ruta.startsWith("/ingesta")) return GUIAS.ingesta;
   if (ruta.startsWith("/descripcion/trabajo")) return GUIAS.trabajo;
   if (ruta.startsWith("/descripcion/registro")) return GUIAS.registro;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Ventana } from "@/components/Ventana";
@@ -54,14 +55,29 @@ function useLista<T>(ruta: string | null) {
   return { datos, error, cargar };
 }
 
-function Pasos({ actual }: { actual: number }) {
-  const pasos = ["Versión de la TRD", "Dependencias", "Series, subseries y tipos", "Matriz de la TRD", "Aplicar"];
+// El recorrido de la parametrización: todo parte de cargar los instrumentos; lo
+// demás es revisar y ajustar a mano lo que la carga configuró, y aplicar.
+const PASOS: [string, string][] = [["cargar", "Cargar CCD y TRD"], ["dependencias", "Dependencias"],
+  ["series", "Series, subseries y tipos"], ["matriz", "Matriz de la TRD"], ["versiones", "Aplicar la versión"]];
+
+export function Pasos({ actual }: { actual: number }) {
   return (
     <p className="meta">
-      {pasos.map((p, i) => (
-        <span key={p}>{i > 0 && " → "}{i + 1 === actual ? <strong>{i + 1}. {p}</strong> : `${i + 1}. ${p}`}</span>
+      {PASOS.map(([vista, nombre], i) => (
+        <span key={vista}>{i > 0 && " → "}{i + 1 === actual ? <strong>{i + 1}. {nombre}</strong>
+          : <Link to={`/fondos?vista=${vista}`}>{i + 1}. {nombre}</Link>}</span>
       ))}
     </p>
+  );
+}
+
+// Aviso en las pantallas de ajuste: lo que se ve salió de la carga de los instrumentos.
+function DesdeLaCarga() {
+  return (
+    <div className="aviso" role="note">
+      Esto lo configura la carga del CCD y la TRD (<Link to="/fondos?vista=cargar">Cargar CCD y TRD</Link>). Aquí se
+      revisa y se ajusta a mano lo que haga falta; los cambios valen al aplicar la versión.
+    </div>
   );
 }
 
@@ -241,7 +257,7 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
         y queda vigente. La anterior pasa a histórica; nada se borra y cada expediente conserva la retención de la TRD con
         que se produjo.
       </p>
-      <Pasos actual={1} />
+      <Pasos actual={5} />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {esAdmin && !borrador && versiones && (
@@ -410,6 +426,7 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
         (rico:CorporateBody). Su código encabeza el de sus series: la serie 2 de la dependencia 110 es la 110.2.
       </p>
       <Pasos actual={2} />
+      <DesdeLaCarga />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && <div className="acciones"><button type="button" className="boton primario" onClick={() => setForm("nueva")}>
         + Registrar una dependencia</button></div>}
@@ -534,6 +551,7 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
         serie y subserie es un rico:RecordSet del cuadro y cada tipo documental un rico:DocumentaryFormType.
       </p>
       <Pasos actual={3} />
+      <DesdeLaCarga />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && (
         <div className="acciones">
@@ -750,6 +768,7 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
         versión en borrador; la vigente y las históricas se consultan.
       </p>
       <Pasos actual={4} />
+      <DesdeLaCarga />
       {(versiones.error || filas.error || fallo) && (
         <div className="aviso error" role="alert">{versiones.error || filas.error || fallo}</div>
       )}

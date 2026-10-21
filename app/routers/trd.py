@@ -156,6 +156,24 @@ def importar(version_id: uuid.UUID, datos: ImportarIn, actor: Actor = Depends(so
     return informe
 
 
+class CargarIn(BaseModel):
+    fondo_id: uuid.UUID
+    filas: list[dict] = Field(min_length=1, max_length=3000)
+
+
+@router.post("/cargar", response_model=rt.CargaTrd,
+             summary="Cargar el CCD y la TRD de un archivo: configura dependencias, series, tipos y matriz del borrador")
+def cargar(datos: CargarIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    fondo = fondo_o_404(db, datos.fondo_id)
+    try:
+        v, informe = p.cargar(db, fondo, datos.filas, actor.id)
+    except p.ErrorTrd as exc:
+        db.rollback()
+        raise _error(exc) from exc
+    db.commit()
+    return {"version": p._version_dict(db, v), "parametrizacion": informe}
+
+
 # --- Dependencias --------------------------------------------------------------------------------------
 
 

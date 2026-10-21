@@ -104,3 +104,9 @@ class ImportacionTrd(BaseModel):
     tipos_documentales: int
     filas: int
     repetidas: int
+
+
+class CargaTrd(BaseModel):
+    """El borrador configurado desde el archivo y lo que se agregó a cada tabla."""
+    version: VersionTrdOut
+    parametrizacion: ImportacionTrd

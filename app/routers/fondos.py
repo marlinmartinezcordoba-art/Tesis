@@ -94,6 +94,7 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
     from app.servicios import cuadro, parametrizacion_trd
 
     version = datos.version.model_dump() if datos.version else {}
+    parametrizado = None
     completa = bool(version.get("acto_aprobacion") and version.get("fecha_aprobacion") and version.get("vigente_desde"))
     punto = db.begin_nested()
     try:
@@ -102,7 +103,7 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
             # Con el acto y la vigencia, el cuadro sale de la versión 1 de la TRD, aplicada.
             v = parametrizacion_trd.crear_version(db, fondo, version | {"nombre": "TRD versión 1"}, actor.id,
                                                   copiar_vigente=False)
-            parametrizacion_trd.importar(db, v, datos.filas, actor.id)
+            parametrizado = parametrizacion_trd.importar(db, v, datos.filas, actor.id)
             informe, validacion = parametrizacion_trd.aplicar(db, v, actor.id, crear=True)
         else:
             informe = cuadro.aplicar(db, fondo, datos.filas, actor.id)
@@ -123,16 +124,24 @@ def configurar_fondo(datos: ConfigurarFondoIn, request: Request, actor: Actor = 
     salida = _fondo_out(db, fondo).model_dump(mode="json") if creado else None
     if creado:
         if not completa:
-            _primera_version_trd(db, fondo, datos.filas, actor.id, informe)
+            parametrizado = _primera_version_trd(db, fondo, datos.filas, actor.id, informe)
         punto.commit()
         db.commit()
     else:
         punto.rollback()
         db.rollback()
-    return {"creado": creado, "fondo": salida, "informe": informe, "validacion": validacion}
+    version_1 = None
+    if creado:
+        from app.models.trd import VersionTrd
+
+        v1 = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id).order_by(VersionTrd.numero))
+        version_1 = {"nombre": v1.nombre, "estado": v1.estado} if v1 else None
+    return {"creado": creado, "fondo": salida, "informe": informe, "validacion": validacion,
+            "parametrizacion": parametrizado, "version": version_1}
 
 
-def _primera_version_trd(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id, informe: dict) -> None:
+def _primera_version_trd(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id,
+                         informe: dict) -> dict | None:
     """La TRD cargada al registrar el fondo queda como versión 1 en borrador de la
     parametrización: falta el acto que la aprueba y su vigencia para aplicarla.
     Si el archivo trae dependencias o series sin código, el cuadro se crea igual
@@ -142,15 +151,16 @@ def _primera_version_trd(db: Session, fondo: RecursoDocumental, filas: list[dict
     punto = db.begin_nested()
     try:
         v = parametrizacion_trd.crear_version(db, fondo, {"nombre": "TRD versión 1"}, usuario_id, copiar_vigente=False)
-        parametrizacion_trd.importar(db, v, filas, usuario_id)
+        hecho = parametrizacion_trd.importar(db, v, filas, usuario_id)
     except parametrizacion_trd.ErrorTrd as exc:
         punto.rollback()
         informe["avisos"].append(f"La matriz de la TRD no se llenó sola ({exc}); complétela en Fondos › "
                                  "Matriz de la TRD.")
-        return
+        return None
     punto.commit()
     informe["avisos"].append("La TRD quedó como versión 1 en borrador: registre el acto que la aprueba y su vigencia "
                              "y aplíquela en Fondos › Versiones de la TRD.")
+    return hecho
 
 
 @router.get("/{fondo_id}/expedientes", response_model=list[ExpedienteOut],

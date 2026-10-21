@@ -559,3 +559,14 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
     registrar(db, modulo="instrumentos", accion="trd_importada", usuario_id=usuario_id, entidad_tipo="recurso_documental",
               entidad_id=fondo.id, detalle=f"{v.nombre}: {informe['filas']} fila(s) desde un archivo", nuevo=informe)
     return informe
+
+
+def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID) -> tuple[VersionTrd, dict]:
+    """El punto de partida de la parametrización: con el CCD y la TRD leídos de un
+    archivo se configura el borrador completo del fondo (dependencias, banco de
+    series, subseries y tipos, y la matriz). Si no hay borrador, se abre uno nuevo
+    vacío: la tabla que se carga es la nueva TRD completa, no un ajuste de la vigente."""
+    v = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.estado == "borrador"))
+    if v is None:
+        v = crear_version(db, fondo, {}, usuario_id, copiar_vigente=False)
+    return v, importar(db, v, filas_leidas, usuario_id)

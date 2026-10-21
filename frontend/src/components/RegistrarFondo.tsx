@@ -13,9 +13,10 @@ const NOMBRE: Record<string, string> = { seccion: "sección(es)", subseccion: "s
 
 const PASOS = ["Datos del fondo", "Cuadro de clasificación y TRD", "Validación RiC-O", "Crear"];
 
-interface Respuesta { creado: boolean; fondo: Fondo | null; informe: Informe; validacion: Validacion }
+export interface Respuesta { creado: boolean; fondo: Fondo | null; informe: Informe; validacion: Validacion;
+  parametrizacion: Record<string, number> | null; version: { nombre: string; estado: string } | null }
 
-export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
+export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void; alCrear?: (r: Respuesta) => void }) {
   const { recargar, elegir } = useFondo();
   const [paso, setPaso] = useState(0);
   const [titulo, setTitulo] = useState("");
@@ -77,7 +78,8 @@ export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
       }
       await recargar();
       elegir(r.fondo.id);
-      alTerminar();
+      if (alCrear) alCrear(r);
+      else alTerminar();
     } catch (err) {
       setError(mensaje(err, "No se pudo crear el fondo."));
     } finally {
@@ -127,7 +129,7 @@ export function RegistrarFondo({ alTerminar }: { alTerminar: () => void }) {
           </div>
           <div className="acciones">
             <button className="boton primario" type="submit">Siguiente: el cuadro de clasificación</button>
-            <button className="boton" type="button" onClick={alTerminar}>Cancelar</button>
+            {!alCrear && <button className="boton" type="button" onClick={alTerminar}>Cancelar</button>}
           </div>
         </form>
       )}
