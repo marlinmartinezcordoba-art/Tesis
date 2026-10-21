@@ -106,10 +106,12 @@ def _lectores(base: str) -> dict[str, dict]:
         return lambda g, f: _valor(g, u(f), RICO[prop])
 
     def padre(g, f):
-        for prop in (ric_o.PROPIEDADES["includes_or_included"].rico, ric_o.PROPIEDADES["has_or_had_constituent"].rico):
-            for p in g.subjects(RICO[prop], u(f)):
-                return _id_de(p, base)
-        return None
+        # Con pertenencias adicionales hay varios conjuntos: solo si hay uno se sabe cuál es el
+        # orgánico; si no, el dato va en el control (así la lectura nunca depende del orden).
+        padres = {p for prop in (ric_o.PROPIEDADES["includes_or_included"].rico,
+                                 ric_o.PROPIEDADES["has_or_had_constituent"].rico)
+                  for p in g.subjects(RICO[prop], u(f))}
+        return _id_de(next(iter(padres)), base) if len(padres) == 1 else None
 
     def forma(g, f):
         return _id_de(g.value(u(f), RICO[ric_o.APOYO["forma_documental"][0]]), base)

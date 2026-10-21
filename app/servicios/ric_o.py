@@ -57,6 +57,7 @@ class Propiedad:
 # fondo con skos:broadMatch hacia el oficial más cercano.
 CLASE_NIVEL = {
     "fondo": "RecordSet",
+    "coleccion": "RecordSet",
     "seccion": "RecordSet",
     "subseccion": "RecordSet",
     "serie": "RecordSet",
@@ -65,7 +66,7 @@ CLASE_NIVEL = {
     "unidad_documental": "Record",
     "parte_documental": "RecordPart",
 }
-TIPO_AGRUPACION_OFICIAL = {"fondo": "Fonds", "serie": "Series", "expediente": "File"}
+TIPO_AGRUPACION_OFICIAL = {"fondo": "Fonds", "coleccion": "Collection", "serie": "Series", "expediente": "File"}
 TIPO_AGRUPACION_PROPIO = {"seccion": "Fonds", "subseccion": "Fonds", "subserie": "Series"}  # → skos:broadMatch
 
 CLASE_AGENTE = {

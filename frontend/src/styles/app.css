@@ -767,3 +767,7 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 .ventana-cuerpo .formulario-nuevo { margin: 0; padding: 0; border: 0; background: transparent; }
 @keyframes ventana-aparece { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 640px) { .ventana-fondo { padding: 8px; } .ventana { max-height: calc(100vh - 16px); } }
+
+/* Listas simples dentro de una tarjeta */
+.lista-simple { margin: 6px 0 10px; padding-left: 18px; }
+.lista-simple li { margin: 3px 0; }

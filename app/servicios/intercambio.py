@@ -33,7 +33,8 @@ EAD = "http://ead3.archivists.org/schema/"
 EAC = "https://archivists.org/ns/eac/v2"
 
 NIVEL_EAD = {"fondo": "fonds", "seccion": "subfonds", "subseccion": "subfonds", "serie": "series",
-             "subserie": "subseries", "expediente": "file", "unidad_documental": "item"}
+             "subserie": "subseries", "expediente": "file", "unidad_documental": "item",
+             "coleccion": "collection"}
 
 
 class ErrorIntercambio(ValueError):

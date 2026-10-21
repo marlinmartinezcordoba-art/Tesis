@@ -22,6 +22,7 @@ import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { NivelRiC } from "@/components/NivelRiC";
 import { Ventana } from "@/components/Ventana";
+import { Pertenencias } from "@/components/Pertenencias";
 
 interface EntidadRegistrada {
   relacion_id: string;
@@ -85,6 +86,8 @@ interface Registro {
   partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null;
             instanciaciones: { id: string; nombre: string }[] }[];
   parte_de: { id: string; titulo: string; nivel: string } | null;
+  tambien_en?: { id: string; titulo: string; nivel: string; relacion_id: string }[];
+  miembros_adicionales?: { id: string; titulo: string; nivel: string; relacion_id: string }[];
   secuencia: { relacion_id: string; id: string; titulo: string; posicion: "precede_a" | "sigue_a"; uri_rico: string }[];
 }
 
@@ -300,6 +303,8 @@ export function RegistroDescripcion() {
           <code className="rico">rico:isOrWasConstituentOf · RiC-R003i</code>
         </div>
       )}
+
+      {!editando && <Pertenencias registro={registro} alCambiar={(r) => cargar(r)} />}
 
       {editando ? (
         <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null}

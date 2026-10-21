@@ -80,6 +80,7 @@ export const RELACION_DEL_ROL: Record<string, string> = {
 // tipo oficial más próximo (skos:broadMatch) cuando el nivel no tiene uno propio en RiC-O.
 export const NIVEL_RIC: Record<string, { clase: string; tipo: string | null; cercano: string | null }> = {
   fondo: { clase: "rico:RecordSet", tipo: "rst:Fonds", cercano: null },
+  coleccion: { clase: "rico:RecordSet", tipo: "rst:Collection", cercano: null },
   seccion: { clase: "rico:RecordSet", tipo: null, cercano: "rst:Fonds" },
   subseccion: { clase: "rico:RecordSet", tipo: null, cercano: "rst:Fonds" },
   serie: { clase: "rico:RecordSet", tipo: "rst:Series", cercano: null },

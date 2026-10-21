@@ -12,7 +12,9 @@ from app.db.base import Base, ahora
 # un sello) es el último nivel, por debajo de la unidad documental.
 # La subsección (cuadro de clasificación documental colombiano, Acuerdo AGN
 # 004 de 2019) va entre la sección y la serie (hallazgo DES-08).
-NIVEL_DESCRIPCION = ("fondo", "seccion", "subseccion", "serie", "subserie", "expediente", "unidad_documental",
+# La colección (RiC-O rst:Collection) reúne documentos de distintas series sin
+# moverlos de su lugar orgánico: los incluye como pertenencia adicional.
+NIVEL_DESCRIPCION = ("fondo", "coleccion", "seccion", "subseccion", "serie", "subserie", "expediente", "unidad_documental",
                      "parte_documental")
 
 

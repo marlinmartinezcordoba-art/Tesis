@@ -134,6 +134,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "regla_creada": ("Creó una regla de retención (TRD)", "Reglas de retención"),
     "agrupacion_creada": ("Creó una agrupación del cuadro de clasificación", "Agrupaciones"),
     "inclusion_adicional": ("Incluyó una descripción en otro conjunto", None),
+    "inclusion_adicional_anulada": ("Quitó una descripción de un conjunto adicional", None),
     "documento_individualizado": ("Separó un documento de su conjunto", None),
     "original_fisico_registrado": ("Registró el original físico de un documento", None),
     "original_fisico_actualizado": ("Corrigió la ubicación, la signatura o el estado de conservación del original físico", None),

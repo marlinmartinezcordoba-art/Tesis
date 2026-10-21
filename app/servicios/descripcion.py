@@ -822,6 +822,15 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
     superior = db.get(RecursoDocumental, incluido_en_id) if incluido_en_id else db.get(RecursoDocumental, fondo_id)
     if superior is None or superior.fondo_id != fondo_id:
         raise ErrorDescripcion("El nivel superior elegido no pertenece a este fondo.")
+    # La colección no está en la jerarquía orgánica: va en el fondo o en otra
+    # colección, y reúne documentos por pertenencia adicional (RiC: varios conjuntos).
+    if nivel == "coleccion":
+        if superior.nivel not in ("fondo", "coleccion"):
+            raise ErrorDescripcion("Una colección va en el fondo o dentro de otra colección.")
+        return superior
+    if superior.nivel == "coleccion":
+        raise ErrorDescripcion("Los documentos entran a una colección como pertenencia adicional («Incluir en otro "
+                               "conjunto»), sin dejar su lugar en el cuadro de clasificación.")
     if rango(superior.nivel) >= rango(nivel):
         raise ErrorDescripcion(f"Un {nivel.replace('_', ' ')} no puede quedar dentro de un {superior.nivel.replace('_', ' ')}.")
     return superior
@@ -938,8 +947,14 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         ((Relacion.origen_id == recurso.id) | (Relacion.destino_id == recurso.id)))
         .order_by(Relacion.creado_en)).all()
     partes, parte_de, secuencia = [], None, []
+    tambien_en, miembros = [], []
     for r in relaciones:
         if r.codigo_ric == "includes_or_included":
+            if r.rol == "adicional":  # pertenencia adicional (RiC: un documento en varios conjuntos)
+                otro = db.get(RecursoDocumental, r.origen_id if r.destino_id == recurso.id else r.destino_id)
+                if otro is not None:
+                    breve = {"id": str(otro.id), "titulo": otro.titulo, "nivel": otro.nivel, "relacion_id": str(r.id)}
+                    (tambien_en if r.destino_id == recurso.id else miembros).append(breve)
             continue
         if r.codigo_ric == "has_or_had_constituent":
             otro = db.get(RecursoDocumental, r.destino_id if r.origen_id == recurso.id else r.origen_id)
@@ -1026,7 +1041,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
         "isadg": _isadg_valores(recurso),
         "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
-        "partes": partes, "parte_de": parte_de, "secuencia": secuencia,
+        "partes": partes, "parte_de": parte_de, "secuencia": secuencia, "tambien_en": tambien_en, "miembros_adicionales": miembros,
         "origen_titulo": recurso.origen_titulo, "origen_alcance": recurso.origen_alcance,
         "confianza_alcance": recurso.confianza_alcance, "motor": recurso.motor,
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
@@ -1203,7 +1218,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
 
 # --- Agrupaciones sin archivos propios e inclusiones adicionales (CM-02, CM-21) ---------------------
 
-NIVELES_AGRUPACION = ("seccion", "subseccion", "serie", "subserie", "expediente")
+NIVELES_AGRUPACION = ("coleccion", "seccion", "subseccion", "serie", "subserie", "expediente")
 
 
 def crear_agrupacion(db: Session, *, fondo_id: uuid.UUID, nivel: str, titulo: str, incluido_en_id: uuid.UUID | None,
@@ -1213,7 +1228,7 @@ def crear_agrupacion(db: Session, *, fondo_id: uuid.UUID, nivel: str, titulo: st
     agrupa expedientes, no porque tenga archivos propios (hallazgo CM-02).
     Se crea aquí sin ninguna instanciación, con su productor y sus fechas."""
     if nivel not in NIVELES_AGRUPACION:
-        raise ErrorDescripcion("Solo se crean así secciones, subsecciones, series, subseries o expedientes.")
+        raise ErrorDescripcion("Solo se crean así colecciones, secciones, subsecciones, series, subseries o expedientes.")
     titulo = " ".join((titulo or "").split())[:500]
     if not titulo:
         raise ErrorDescripcion("La agrupación necesita un título.")
@@ -1268,6 +1283,20 @@ def _descendientes(db: Session, raiz_id: uuid.UUID) -> set[uuid.UUID]:
                 vistos.add(hijo)
                 pendientes.append(hijo)
     return vistos
+
+
+def quitar_inclusion(db: Session, recurso: RecursoDocumental, relacion_id: uuid.UUID, usuario_id: uuid.UUID) -> None:
+    """Anula una pertenencia adicional (nunca la orgánica). No se borra: queda anulada y en la auditoría."""
+    r = db.get(Relacion, relacion_id)
+    if (r is None or r.destino_id != recurso.id or r.codigo_ric != "includes_or_included" or r.rol != "adicional"
+            or r.estado != "vigente"):
+        raise ErrorDescripcion("Esa no es una pertenencia adicional vigente de esta descripción.", 404)
+    r.estado, r.anulada_en, r.anulada_por_id = "anulada", ahora(), usuario_id
+    conjunto = db.get(RecursoDocumental, r.origen_id)
+    registrar(db, modulo="descripcion", accion="inclusion_adicional_anulada", usuario_id=usuario_id,
+              entidad_tipo="recurso_documental", entidad_id=recurso.id,
+              detalle=f"«{recurso.titulo}» ya no está en «{conjunto.titulo if conjunto else r.origen_id}»",
+              anterior={"relacion_id": str(r.id), "conjunto": str(r.origen_id)})
 
 
 def agregar_inclusion(db: Session, recurso: RecursoDocumental, conjunto: RecursoDocumental,

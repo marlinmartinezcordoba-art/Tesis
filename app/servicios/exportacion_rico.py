@@ -62,7 +62,7 @@ RST = Namespace(ric_o.RST)
 SKOS = Namespace(ric_o.SKOS)
 LEXVO = Namespace("http://lexvo.org/id/iso639-3/")
 
-NOMBRE_NIVEL = {"fondo": "Fondo", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
+NOMBRE_NIVEL = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
                 "expediente": "Expediente"}
 
 

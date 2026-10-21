@@ -25,9 +25,9 @@ from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.servicios import retencion, alertas, consulta, motor, terminos, vocabulario
 
-NIVEL_PLURAL = {"seccion": "secciones", "subseccion": "subsecciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
+NIVEL_PLURAL = {"coleccion": "colecciones", "seccion": "secciones", "subseccion": "subsecciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
                 "unidad_documental": "unidades documentales", "parte_documental": "partes documentales"}
-NIVEL_NOMBRE = {"fondo": "Fondo", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
+NIVEL_NOMBRE = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
                 "expediente": "Expediente", "unidad_documental": "Unidad documental",
                 "parte_documental": "Parte documental"}
 

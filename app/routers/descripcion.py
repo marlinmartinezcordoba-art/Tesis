@@ -100,12 +100,19 @@ def buscar_publicadas(fondo_id: uuid.UUID, q: str = "", db: Session = Depends(ge
 
 @router.get("/niveles-superiores", response_model=list[NivelSuperiorOut],
             summary="Dónde puede quedar incluido lo que se describe")
-def niveles_superiores(fondo_id: uuid.UUID, nivel: str, db: Session = Depends(get_db)):
+def niveles_superiores(fondo_id: uuid.UUID, nivel: str, adicional: bool = False, db: Session = Depends(get_db)):
+    """Sin `adicional`: el lugar orgánico (las colecciones no cuentan, salvo para otra
+    colección). Con `adicional`: cualquier agrupación donde además puede incluirse."""
     if nivel not in NIVEL_DESCRIPCION:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nivel desconocido.")
     fondo_o_404(db, fondo_id)
     filas = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id)).all()
-    posibles = [r for r in filas if descripcion.rango(r.nivel) < descripcion.rango(nivel)]
+    if nivel == "coleccion":
+        posibles = [r for r in filas if r.nivel in ("fondo", "coleccion")]
+    elif adicional:
+        posibles = [r for r in filas if r.nivel not in ("unidad_documental", "parte_documental")]
+    else:
+        posibles = [r for r in filas if r.nivel != "coleccion" and descripcion.rango(r.nivel) < descripcion.rango(nivel)]
     posibles.sort(key=lambda r: (descripcion.rango(r.nivel), r.titulo))
     return [NivelSuperiorOut(id=r.id, titulo=r.titulo, nivel=r.nivel) for r in posibles]
 
@@ -540,6 +547,21 @@ def agregar_inclusion(recurso_id: uuid.UUID, datos: InclusionIn,
     conjunto = _recurso_o_404(db, datos.conjunto_id)
     try:
         descripcion.agregar_inclusion(db, recurso, conjunto, actor.id)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, recurso)
+
+
+@router.post("/registros/{recurso_id}/inclusiones/{relacion_id}/anular",
+             responses={200: {"model": DetalleDescripcionOut, "description": "La descripción sin esa pertenencia adicional"}},
+             summary="Quitar una pertenencia adicional (queda anulada, no se borra)")
+def quitar_inclusion(recurso_id: uuid.UUID, relacion_id: uuid.UUID,
+                     actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        descripcion.quitar_inclusion(db, recurso, relacion_id, actor.id)
         db.commit()
     except descripcion.ErrorDescripcion as exc:
         db.rollback()

@@ -312,6 +312,9 @@ class DetalleDescripcionOut(BaseModel):
     tipo_parte: VocabularioBreve | None
     partes: list[ParteDetalle]
     parte_de: ParteDeOut | None
+    # RiC: un documento en varios conjuntos. Las pertenencias adicionales (la orgánica es incluido_en).
+    tambien_en: list[ParteDeOut] = []
+    miembros_adicionales: list[ParteDeOut] = []
     secuencia: list[SecuenciaDetalle]
     origen_titulo: str | None
     origen_alcance: str | None

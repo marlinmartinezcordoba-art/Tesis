@@ -69,6 +69,7 @@ export const ROL_LUGAR_NOMBRE: Record<string, string> = {
 
 export const NIVEL_NOMBRE: Record<string, string> = {
   fondo: "Fondo",
+  coleccion: "Colección",
   seccion: "Sección",
   subseccion: "Subsección",
   serie: "Serie",
@@ -109,8 +110,8 @@ export interface NivelSuperior {
   nivel: string;
 }
 
-export function nivelesSuperiores(fondoId: string, nivel: string): Promise<NivelSuperior[]> {
-  return pedir<NivelSuperior[]>(`/api/descripcion/niveles-superiores?fondo_id=${fondoId}&nivel=${nivel}`);
+export function nivelesSuperiores(fondoId: string, nivel: string, adicional = false): Promise<NivelSuperior[]> {
+  return pedir<NivelSuperior[]>(`/api/descripcion/niveles-superiores?fondo_id=${fondoId}&nivel=${nivel}${adicional ? "&adicional=true" : ""}`);
 }
 
 // Estado de la verificación de vocabulario de una entidad en pantalla.

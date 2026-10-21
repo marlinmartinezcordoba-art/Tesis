@@ -41,7 +41,7 @@ ESCRITURAS = {
     "Hani": "han (china)", "Jpan": "japonesa", "Zmth": "notación matemática", "Zsym": "símbolos",
     "Zyyy": "común (sin escritura determinada)", "Zxxx": "sin escritura (no escrito)", "Zzzz": "escritura desconocida",
 }
-NOMBRE_NIVEL = {"fondo": "Fondo", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie",
+NOMBRE_NIVEL = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie",
                 "subserie": "Subserie", "expediente": "Expediente", "unidad_documental": "Unidad documental",
                 "parte_documental": "Parte documental"}
 
