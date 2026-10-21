@@ -5,6 +5,7 @@ import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { TablaVistaPrevia, type Vista } from "@/components/CuadroClasificacion";
 import { Pasos, type VersionTrd } from "@/components/ParametrizacionTrd";
+import { ImportarRico, type Importado } from "@/components/ImportarRico";
 import { RegistrarFondo, type Respuesta } from "@/components/RegistrarFondo";
 
 // El punto de partida de todo: se cargan el CCD y la TRD y de ahí el sistema
@@ -16,6 +17,7 @@ interface Configurado {
   version: { nombre: string; estado: string } | null;
   conteo: Record<string, number> | null;
   cuadroCreado: boolean;
+  importado?: Record<string, number>;
 }
 
 const CONTEO: [string, string][] = [["dependencias", "dependencia(s) productora(s)"], ["series", "serie(s)"],
@@ -32,6 +34,11 @@ function Resumen({ c }: { c: Configurado }) {
             {!!c.conteo.repetidas && <li className="meta">{c.conteo.repetidas} fila(s) ya estaban y no se repitieron.</li>}
           </ul>
         ) : <p className="meta">La matriz no se llenó sola: complétela a mano en los pasos siguientes.</p>}
+        {c.importado && (
+          <p className="meta">Del RiC-O también se importaron {c.importado.expedientes ?? 0} expediente(s),
+            {" "}{c.importado.documentos ?? 0} documento(s), {c.importado.entidades ?? 0} entidad(es) del vocabulario y
+            {" "}{c.importado.relaciones ?? 0} relación(es).</p>
+        )}
         {c.version && (
           <p>
             {c.version.nombre}: {c.version.estado === "vigente"
@@ -127,8 +134,13 @@ function NuevaVersion({ fondoId, titulo, alConfigurar }: { fondoId: string; titu
 export function CargarInstrumentos() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
-  const [modo, setModo] = useState<"nuevo" | "version">(fondo ? "version" : "nuevo");
+  const [modo, setModo] = useState<"nuevo" | "version" | "rico">(fondo ? "version" : "nuevo");
   const [hecho, setHecho] = useState<Configurado | null>(null);
+
+  function alImportar(r: Importado) {
+    setHecho({ fondo: r.fondo?.titulo || "", conteo: r.parametrizacion, cuadroCreado: r.creado, version: r.version,
+      importado: r.contenido });
+  }
 
   function alCrear(r: Respuesta) {
     setHecho({ fondo: r.fondo?.titulo || "", conteo: r.parametrizacion, cuadroCreado: r.creado, version: r.version });
@@ -158,10 +170,13 @@ export function CargarInstrumentos() {
             <label className={`boton chico${fondo ? "" : " deshabilitado"}`}>
               <input type="radio" disabled={!fondo} checked={modo === "version"} onChange={() => setModo("version")} />
               {" "}Una versión nueva de la TRD de {fondo ? `«${fondo.titulo}»` : "un fondo existente"}</label>
+            <label className="boton chico"><input type="radio" checked={modo === "rico"} onChange={() => setModo("rico")} />
+              {" "}Un fondo en RiC-O de otro sistema</label>
           </div>
           <div className="tarjeta">
             <div className="tarjeta-cuerpo">
-              {modo === "nuevo" || !fondo
+              {modo === "rico" ? <ImportarRico alImportar={alImportar} />
+                : modo === "nuevo" || !fondo
                 ? <RegistrarFondo alTerminar={() => undefined} alCrear={alCrear} />
                 : <NuevaVersion key={fondo.id} fondoId={fondo.id} titulo={fondo.titulo} alConfigurar={setHecho} />}
             </div>

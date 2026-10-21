@@ -24,8 +24,8 @@ const GUIAS: Record<string, Guia> = {
     pasos: [
       { titulo: "Todo parte de aquí.",
         texto: "Cargue el cuadro de clasificación y la tabla de retención (plantilla del sistema o formato del AGN, Excel o PDF). El sistema configura el fondo, las dependencias, las series, subseries, tipos documentales y la matriz de retención." },
-      { titulo: "Fondo nuevo o versión nueva.",
-        texto: "«Un fondo nuevo» registra el fondo con su cuadro. «Una versión nueva de la TRD» configura el borrador de la versión siguiente del fondo activo; la vigente sigue rigiendo." },
+      { titulo: "Fondo nuevo, versión nueva o RiC-O.",
+        texto: "«Un fondo nuevo» registra el fondo con su cuadro. «Una versión nueva de la TRD» configura el borrador de la versión siguiente del fondo activo; la vigente sigue rigiendo. «Un fondo en RiC-O de otro sistema» importa un fondo descrito en RiC-O: su cuadro entra por la misma parametrización." },
       { titulo: "Revise lo que se configuró.",
         texto: "El resumen dice cuántas dependencias, series, subseries, tipos y filas se crearon, con enlaces para ajustar a mano en 2. Dependencias, 3. Series y 4. Matriz." },
       { titulo: "Aplique.",

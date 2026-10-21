@@ -570,3 +570,48 @@ def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usua
     if v is None:
         v = crear_version(db, fondo, {}, usuario_id, copiar_vigente=False)
     return v, importar(db, v, filas_leidas, usuario_id)
+
+
+# --- Fondo nuevo -----------------------------------------------------------------------------------------
+
+
+def configurar_cuadro_nuevo(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID,
+                            version: dict | None) -> tuple[dict, dict, dict | None, bool]:
+    """El cuadro de un fondo recién registrado, desde las filas del CCD y la TRD.
+    Con el acto, su fecha y la vigencia, sale de la versión 1 de la TRD aplicada;
+    sin ellos, el cuadro se crea y la versión 1 queda en borrador (`primera_version`).
+    Devuelve el informe, la validación RiC-O, lo parametrizado y si la versión vino completa."""
+    version = version or {}
+    completa = bool(version.get("acto_aprobacion") and version.get("fecha_aprobacion") and version.get("vigente_desde"))
+    if completa:
+        v = crear_version(db, fondo, version | {"nombre": "TRD versión 1"}, usuario_id, copiar_vigente=False)
+        parametrizado = importar(db, v, filas_leidas, usuario_id)
+        informe, validacion = aplicar(db, v, usuario_id, crear=True)
+        return informe, validacion, parametrizado, True
+    informe = cuadro.aplicar(db, fondo, filas_leidas, usuario_id)
+    return informe, cuadro.validar_rico(db, fondo), None, False
+
+
+def primera_version(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID,
+                    informe: dict) -> dict | None:
+    """Sin acto de aprobación, la TRD cargada queda como versión 1 en borrador: falta
+    el acto y su vigencia para aplicarla. Si el archivo trae dependencias o series sin
+    código, el cuadro se crea igual y la matriz se completa a mano."""
+    punto = db.begin_nested()
+    try:
+        v = crear_version(db, fondo, {"nombre": "TRD versión 1"}, usuario_id, copiar_vigente=False)
+        hecho = importar(db, v, filas_leidas, usuario_id)
+    except ErrorTrd as exc:
+        punto.rollback()
+        informe["avisos"].append(f"La matriz de la TRD no se llenó sola ({exc}); complétela en Fondos › "
+                                 "Matriz de la TRD.")
+        return None
+    punto.commit()
+    informe["avisos"].append("La TRD quedó como versión 1 en borrador: registre el acto que la aprueba y su vigencia "
+                             "y aplíquela en Fondos › Versiones de la TRD.")
+    return hecho
+
+
+def estado_version_1(db: Session, fondo: RecursoDocumental) -> dict | None:
+    v1 = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id).order_by(VersionTrd.numero))
+    return {"nombre": v1.nombre, "estado": v1.estado} if v1 else None
