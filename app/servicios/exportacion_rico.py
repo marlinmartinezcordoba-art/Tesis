@@ -234,7 +234,60 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
     for i in instancias.values():
         _instanciacion(db, ex, i)
     _acciones_tecnicas(db, ex, instancias, entidades)
+    _trd(db, ex, entidades)
     return ex
+
+
+def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
+    """La TRD como instrumento (no solo sus reglas): cada versión aplicada es una
+    rico:Rule de tipo «Tabla de retención documental» con su vigencia, que regula el
+    fondo y tiene por partes las reglas de retención que rigieron durante ella; el
+    acto administrativo que la aprueba es un rico:Mandate que la regula."""
+    from app.models.trd import VersionTrd
+    from app.servicios import retencion
+
+    g = ex.grafo
+    versiones = db.scalars(select(VersionTrd).where(VersionTrd.fondo_id == ex.fondo.id,
+                                                    VersionTrd.estado.in_(("vigente", "historica")))
+                           .order_by(VersionTrd.numero)).all()
+    if not versiones:
+        return
+    reglas = db.execute(select(Relacion.origen_id, Relacion.fecha_edtf).where(
+        Relacion.codigo_ric == "regulates_or_regulated", Relacion.rol == "retencion", Relacion.estado == "vigente",
+        Relacion.origen_id.in_([i for i, e in entidades.items() if e.clase == "regla"]))).all()
+    prop_tipo, clase_tipo = _apoyo("tipo_regla")
+    tipo_trd = _concepto(ex, "tipo-de-regla", "tabla-de-retencion", clase_tipo, "Tabla de retención documental")
+    for v in versiones:
+        nodo = uri(v.id)
+        g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["regla"]]))
+        g.add((nodo, _a("nombre"), Literal(v.nombre)))
+        g.add((nodo, RDFS.label, Literal(v.nombre)))
+        g.add((nodo, prop_tipo, tipo_trd))
+        descripcion = " ".join(x for x in (
+            f"Aprobada por {v.acto_aprobacion}" + (f" del {v.fecha_aprobacion.isoformat()}" if v.fecha_aprobacion else "")
+            + "." if v.acto_aprobacion else None,
+            f"Convalidación: {v.convalidacion}" + (f" del {v.fecha_convalidacion.isoformat()}" if v.fecha_convalidacion
+                                                   else "") + "." if v.convalidacion else None,
+            "Vigente." if v.estado == "vigente" else "Histórica: la reemplazó una versión posterior.") if x)
+        g.add((nodo, _a("descripcion_general"), Literal(descripcion, lang="es")))
+        if v.vigente_desde:
+            _periodo(ex, nodo, f"{v.vigente_desde.isoformat()}/{v.vigente_hasta.isoformat() if v.vigente_hasta else ''}")
+        g.add((nodo, RICO[ric_o.PROPIEDADES["regulates_or_regulated"].rico], uri(ex.fondo.id)))
+        # Sus partes: las reglas de serie cuya vigencia cubre el primer día de la versión.
+        for regla_id, vigencia in reglas:
+            if v.vigente_desde and retencion._elegir_por_fecha(vigencia, v.vigente_desde):
+                g.add((nodo, _apoyo("parte_regla")[0], uri(regla_id)))
+        if v.acto_aprobacion:
+            acto = uri(v.id, "acto")
+            g.add((acto, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["mandato"]]))
+            g.add((acto, _a("titulo"), Literal(v.acto_aprobacion)))
+            g.add((acto, RDFS.label, Literal(v.acto_aprobacion)))
+            prop_m, clase_m = _apoyo("tipo_mandato")
+            g.add((acto, prop_m, _concepto(ex, "tipo-de-mandato", "aprobacion-trd", clase_m,
+                                           "Acto de aprobación de la TRD")))
+            if v.fecha_aprobacion:
+                _periodo(ex, acto, v.fecha_aprobacion.isoformat())
+            g.add((acto, RICO[ric_o.PROPIEDADES["regulates_or_regulated"].rico], nodo))
 
 
 def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades: dict) -> None:

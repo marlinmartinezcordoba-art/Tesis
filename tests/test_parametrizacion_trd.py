@@ -140,7 +140,8 @@ def test_el_archivo_de_la_trd_llena_el_borrador(cliente, db, fondo, cabeceras_ad
                          files={"archivo": ("trd.pdf", trd_agn_pdf())}).json()["filas"]
     v = _post(cliente, cab, "/api/trd/versiones", {"fondo_id": str(fondo.id)})
     inf = _post(cliente, cab, f"/api/trd/versiones/{v['id']}/importar", {"filas": filas}, 200)
-    assert inf == {"dependencias": 1, "series": 2, "subseries": 2, "tipos_documentales": 6, "filas": 3, "repetidas": 0}
+    assert inf == {"dependencias": 1, "series": 2, "subseries": 2, "tipos_documentales": 6, "filas": 3, "repetidas": 0,
+                   "sin_funcion": 3}
     # Repetir no duplica.
     assert _post(cliente, cab, f"/api/trd/versiones/{v['id']}/importar", {"filas": filas}, 200)["repetidas"] == 3
     matriz = cliente.get(f"/api/trd/versiones/{v['id']}/filas", headers=cab).json()
@@ -236,7 +237,7 @@ def test_todo_parte_de_cargar_el_ccd_y_la_trd(cliente, db, fondo, cabeceras_admi
     r = cliente.post("/api/fondos/configurar", headers=cab, json={
         "fondo": {"titulo": "Fondo desde instrumentos"}, "filas": filas, "crear": True}).json()
     assert r["parametrizacion"] == {"dependencias": 1, "series": 2, "subseries": 2, "tipos_documentales": 6,
-                                    "filas": 3, "repetidas": 0}
+                                    "filas": 3, "repetidas": 0, "sin_funcion": 3}
     assert r["version"] == {"nombre": "TRD versión 1", "estado": "borrador"}
     # Fondo existente: la carga abre el borrador de la versión siguiente y lo configura entero.
     c = cliente.post("/api/trd/cargar", headers=cab, json={"fondo_id": str(fondo.id), "filas": filas})
@@ -245,3 +246,30 @@ def test_todo_parte_de_cargar_el_ccd_y_la_trd(cliente, db, fondo, cabeceras_admi
     # Cargar otra vez reutiliza el mismo borrador sin duplicar.
     c2 = cliente.post("/api/trd/cargar", headers=cab, json={"fondo_id": str(fondo.id), "filas": filas}).json()
     assert c2["version"]["id"] == c.json()["version"]["id"] and c2["parametrizacion"]["repetidas"] == 3
+
+
+def test_avisa_las_series_sin_la_funcion_que_las_produce(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+    from rdflib import Namespace
+
+    from app.servicios import exportacion_rico
+
+    cab, a = cabeceras_admin, _armar(cliente, cabeceras_admin, fondo)
+    vid = a["version"]["id"]
+    prueba = _post(cliente, cab, f"/api/trd/versiones/{vid}/validar", None, 200)
+    assert prueba["informe"]["series_sin_funcion"] == ["100.110.2.1 Actas del Comité de Archivo"]
+    f = a["fila"]
+    r = cliente.put(f"/api/trd/filas/{f['id']}", headers=cab, json={
+        "dependencia_id": f["dependencia_id"], "serie_id": f["serie_id"], "subserie_id": f["subserie_id"],
+        "tipos": f["tipos"], "gestion": 2, "central": 8, "disposicion": "ct", "funcion": "Gestión documental"})
+    assert r.status_code == 200 and r.json()["funcion"] == "Gestión documental"
+    cliente.patch(f"/api/trd/versiones/{vid}", headers=cab, json={
+        "acto_aprobacion": "Resolución 045", "fecha_aprobacion": "2019-02-15", "vigente_desde": "2019-03-01"})
+    hecho = _post(cliente, cab, f"/api/trd/versiones/{vid}/aplicar", None, 200)
+    assert hecho["informe"]["series_sin_funcion"] == []
+    # En el grafo, la función (rico:ActivityType) se relaciona con la subserie que produce.
+    rico = Namespace("https://www.ica.org/standards/RiC/ontology#")
+    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "100.110.2.1"))
+    g = exportacion_rico.exportar(db, fondo, incluir_restringidos=True).grafo
+    funciones = [o for o in g.objects(exportacion_rico.uri(sub.id), rico.isRelatedTo)] + \
+                [s for s in g.subjects(rico.isRelatedTo, exportacion_rico.uri(sub.id))]
+    assert any((x, None, rico.ActivityType) in g or (x, rico.name, None) in g for x in funciones)

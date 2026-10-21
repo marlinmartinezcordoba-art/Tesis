@@ -32,6 +32,8 @@ function Resumen({ c }: { c: Configurado }) {
           <ul>
             {CONTEO.map(([k, nombre]) => <li key={k}><strong>{c.conteo?.[k] ?? 0}</strong> {nombre}</li>)}
             {!!c.conteo.repetidas && <li className="meta">{c.conteo.repetidas} fila(s) ya estaban y no se repitieron.</li>}
+            {!!c.conteo.sin_funcion && <li className="meta">{c.conteo.sin_funcion} fila(s) sin la función que produce la
+              serie: asígnela en 4. Matriz de la TRD.</li>}
           </ul>
         ) : <p className="meta">La matriz no se llenó sola: complétela a mano en los pasos siguientes.</p>}
         {c.importado && (

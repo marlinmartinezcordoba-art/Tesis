@@ -179,10 +179,11 @@ PROPIEDADES: dict[str, Propiedad] = {
     "has_direct_subevent": Propiedad("hasDirectSubevent", None, ("Activity",), ("Activity",), "isDirectSubeventOf",
                                      nota="Atajo directo de RiC-R006 has or had subevent."),
     "regulates_or_regulated": Propiedad(
-        "regulatesOrRegulated", "RiC-R063", ("Mandate", "Rule"), ("Activity", "ActivityType", "Mandate") + RECURSOS,
+        "regulatesOrRegulated", "RiC-R063", ("Mandate", "Rule"), ("Activity", "ActivityType", "Rule") + RECURSOS,
         "isOrWasRegulatedBy",
         nota="Mandato que regula una actividad; con rol «creacion», el mandato que crea un tipo de actividad; "
-             "con rol «jerarquia_normativa», la norma superior que regula a la que la desarrolla.",
+             "con rol «jerarquia_normativa», la norma superior que regula a la que la desarrolla. El acto "
+             "administrativo (rico:Mandate) que aprueba una versión de la TRD (rico:Rule) también la regula.",
     ),
     "issued_by": Propiedad("issuedBy", "RiC-R065", ("Mandate",), AGENTES, None,
                            nota="RiC-O no declara inversa."),
@@ -204,7 +205,8 @@ PROPIEDADES: dict[str, Propiedad] = {
     "exists_or_existed_in": Propiedad("existsOrExistedIn", "RiC-R056", ("Position",), GRUPOS, "hasOrHadPosition"),
     "is_or_was_leader_of": Propiedad("isOrWasLeaderOf", "RiC-R042", ("Person",), GRUPOS, "hasOrHadLeader"),
     # Eventos institucionales (línea de tiempo del agente)
-    "affects_or_affected": Propiedad("affectsOrAffected", "RiC-R059", ("Event",), AGENTES + RECURSOS,
+    # Destino también la instanciación: la transferencia (actividad) afectó a cada archivo recibido.
+    "affects_or_affected": Propiedad("affectsOrAffected", "RiC-R059", ("Event",), AGENTES + RECURSOS + ("Instantiation",),
                                      "isOrWasAffectedBy", estado="general",
                                      nota="RiC-O no tiene una propiedad dedicada a «hito de la historia de»; "
                                           "R059 (el evento tuvo un impacto significativo en la cosa) es la más "
@@ -418,6 +420,8 @@ APOYO = {
     "tipo_lugar": ("hasOrHadPlaceType", ("Place",), "PlaceType"),
     "tipo_soporte": ("hasCarrierType", ("Instantiation",), "CarrierType"),
     "tipo_regla": ("hasOrHadRuleType", ("Rule",), "RuleType"),
+    # La TRD (rico:Rule de la versión) contiene las reglas de retención de sus series.
+    "parte_regla": ("hasOrHadPart", ("Rule",), "Rule"),
     "nombre_lugar": ("hasOrHadPlaceName", ("Place",), "PlaceName"),
     "nombre_agente": ("hasOrHadAgentName", AGENTES, "AgentName"),
     "identificador_externo": ("hasOrHadIdentifier", ("Thing",), "Identifier"),

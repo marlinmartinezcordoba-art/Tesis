@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useVista } from "@/components/Marco";
 import { CargarInstrumentos } from "@/components/CargarInstrumentos";
 import { CuadroClasificacion } from "@/components/CuadroClasificacion";
+import { DisposicionFinal } from "@/components/DisposicionFinal";
 import { BancoTrd, DependenciasTrd, MatrizTrd, VersionesTrd } from "@/components/ParametrizacionTrd";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
@@ -9,7 +10,7 @@ import { useSesion } from "@/lib/sesion";
 // Fondos: el punto de partida del archivo. Todo nace de cargar el cuadro de
 // clasificación (CCD) y la tabla de retención (TRD): el fondo, sus dependencias,
 // series, subseries, tipos y matriz. Lo demás es ajuste manual, aplicación y consulta.
-type VistaFondos = "cargar" | "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro";
+type VistaFondos = "cargar" | "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro" | "disposicion";
 
 function ListaFondos() {
   const { usuario } = useSesion();
@@ -59,7 +60,7 @@ export function Fondos() {
   if (vista === "cargar") return <CargarInstrumentos />;
   if (!fondo) return <div className="vacio">Registre un fondo primero (Fondos del archivo).</div>;
   const pantallas = { versiones: VersionesTrd, dependencias: DependenciasTrd, series: BancoTrd, matriz: MatrizTrd,
-    cuadro: CuadroClasificacion };
+    cuadro: CuadroClasificacion, disposicion: DisposicionFinal };
   const Pantalla = pantallas[vista] || ListaFondos;
   return <Pantalla key={fondo.id} fondoId={fondo.id} />;
 }

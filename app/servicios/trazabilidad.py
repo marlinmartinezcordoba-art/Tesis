@@ -97,6 +97,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "trd_termino_anulado": ("Anuló un término del banco terminológico", "Cuadro de clasificación"),
     "trd_fila_guardada": ("Registró o corrigió una serie en la matriz de la TRD", "Cuadro de clasificación"),
     "trd_fila_anulada": ("Quitó una serie de la matriz de la TRD en borrador", "Cuadro de clasificación"),
+    "disposicion_ejecutada": ("Registró una disposición final ejecutada (eliminación, selección, conservación…)",
+                              "Cuadro de clasificación"),
     "rico_importado": ("Importó un fondo descrito en RiC-O desde otro sistema", "Cuadro de clasificación"),
     "trd_importada": ("Llenó una versión de la TRD desde un archivo", "Cuadro de clasificación"),
     "regla_cerrada": ("Cerró la vigencia de una regla de retención al aplicar una TRD nueva", "Reglas de retención"),

@@ -104,6 +104,7 @@ class ImportacionTrd(BaseModel):
     tipos_documentales: int
     filas: int
     repetidas: int
+    sin_funcion: int = 0
 
 
 class CargaTrd(BaseModel):

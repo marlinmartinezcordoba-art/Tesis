@@ -100,6 +100,22 @@ versión 1 era de 2 + 8 años y conservación total. Lo que pasa:
   - Uno de 2025 toma la retención nueva.
   - Sin fechas, toma la vigente.
 
+## La TRD como instrumento en el grafo
+
+Además de la regla de retención de cada serie, cada versión aplicada de la TRD
+(vigente o histórica) está en el grafo RiC-O como instrumento:
+
+| En el sistema | En RiC-O |
+|---|---|
+| La versión de la TRD | `rico:Rule` de tipo «Tabla de retención documental» (`rico:hasOrHadRuleType`), con su nombre, su vigencia (`rico:hasBeginningDate` y `rico:hasEndDate`) y una descripción con el acto y la convalidación. |
+| El acto que la aprueba | `rico:Mandate` de tipo «Acto de aprobación de la TRD», con su fecha, que regula la TRD (`rico:regulatesOrRegulated`). |
+| Lo que regula | La TRD regula el fondo (`rico:regulatesOrRegulated`). |
+| Sus reglas | La TRD tiene por partes (`rico:hasOrHadPart`) las reglas de retención de serie que rigieron en su vigencia. |
+
+Así una consulta SPARQL responde qué TRD regía una serie en una fecha, qué acto
+la aprobó y qué reglas la componían. La importación de RiC-O reconoce esta forma
+y llena con ella el acto, la fecha y la vigencia de la versión 1.
+
 ## Un solo camino para el cuadro
 
 El cuadro de clasificación sale de la TRD aprobada. Por ningún otro camino se
@@ -130,7 +146,8 @@ serie.
 | Qué fecha decide la versión | Fecha inicial; fecha final del expediente | Fecha final (cierre) | La retención se cuenta desde el cierre del expediente en el archivo de gestión. | Expedientes abiertos que cruzan dos versiones toman la de su fecha final conocida. |
 | Requisitos para aplicar | Aplicar sin acto; exigir acto, fecha de aprobación y vigencia | Exigir los tres | Sin acto administrativo la TRD no es válida. Sin vigencia no se pueden fechar las reglas. | Validar sí funciona sin ellos, y la pantalla dice qué falta. |
 | Banco terminológico | Nombres libres en cada fila; banco único del fondo | Banco del fondo con código propio | Una serie (Actas, 2) se usa en varias dependencias con el mismo nombre normalizado. El código compuesto (110.2) sale solo. | Una entidad que use códigos de serie distintos por dependencia registra términos distintos. |
-| Tablas de parametrización en el grafo | Llevarlas a RiC-O; dejarlas como mesa de trabajo | Mesa de trabajo; lo aplicado es RiC-O | Las filas en borrador no son descripción archivística. Lo aplicado (agrupaciones, reglas, tipos, productor) sí está en el grafo. | La versión como acto administrativo se lee en la descripción de cada regla, no como entidad propia del grafo. |
+| Tablas de parametrización en el grafo | Llevarlas a RiC-O; dejarlas como mesa de trabajo | Mesa de trabajo; lo aplicado es RiC-O | Las filas en borrador no son descripción archivística. Lo aplicado sí está en el grafo: agrupaciones, reglas, tipos, productor y la versión misma de la TRD. | El borrador no se publica hasta aplicarse. |
+| El acto de aprobación en RiC-O | `rico:Record` (el documento de la resolución); `rico:Mandate` (la norma) | `rico:Mandate` que regula la TRD | El acto no es un documento del fondo: el perfil exige que todo `rico:Record` esté en el árbol. Como norma que da validez a la TRD es un mandato, como el sistema ya trata las resoluciones. | Si el archivo custodia la resolución misma, se describe además como documento en su serie. |
 | Registro del fondo con su TRD | Pedir el acto en el asistente; dejar la versión 1 en borrador | Versión 1 en borrador | El asistente ya es largo. El acto se completa después y, al aplicarla, fecha las reglas que se crearon. | Un fondo puede quedar con la versión 1 sin aplicar. La pantalla y el aviso del asistente lo dicen. |
 | Nada se borra | Borrar dependencias o términos sin uso; anularlos | Anular | Regla del proyecto. Lo usado en el borrador no se anula hasta quitarlo de la matriz. Los códigos usados en una TRD aplicada no cambian. | Quedan registros anulados en las tablas. |
 | Cuadro solo desde la TRD | Dejar crear series en Descripción; crearlas solo al aplicar la TRD | Solo desde la TRD | Evita series sueltas, con nombres o códigos que no están en la tabla aprobada. Es el control que piden los requisitos del AGN para un SGDEA. | Una serie que falta en la TRD obliga a abrir una versión nueva. Es lo correcto en la norma, aunque sea más lento. |

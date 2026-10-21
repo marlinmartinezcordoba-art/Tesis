@@ -80,6 +80,17 @@ def _fecha_de(recurso: RecursoDocumental):
     return i.fin or i.inicio
 
 
+def _elegir_por_fecha(vigencia: str | None, fecha) -> bool:
+    """¿La vigencia de la relación de una regla cubre la fecha? Sin vigencia, siempre."""
+    if not vigencia:
+        return True
+    try:
+        i = fechas.interpretar(vigencia)
+    except fechas.FechaInvalida:
+        return False
+    return (i.inicio is None or i.inicio <= fecha) and (i.fin is None or fecha <= i.fin)
+
+
 def _elegir(relaciones: list[Relacion], fecha) -> Relacion | None:
     """Entre las reglas de una serie (una por versión de la TRD), la que regía
     en la fecha; sin fecha, o si ninguna la cubre, la que rige hoy."""

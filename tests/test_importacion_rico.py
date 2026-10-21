@@ -157,3 +157,25 @@ def test_solo_la_administracion_y_solo_rico(cliente, db, cabeceras_admin):
     assert r.status_code == 422 and "RiC-O" in r.json()["detail"]
     assert _vista(cliente, cabeceras_admin, b"hola", "x.docx").status_code == 422
     assert _vista(cliente, cabeceras_admin, b"@prefix : <x", "x.ttl").status_code == 422
+
+
+def test_la_trd_viaja_como_instrumento_en_rico(cliente, db, cabeceras_admin):
+    from rdflib import RDF, Namespace
+
+    rico = Namespace("https://www.ica.org/standards/RiC/ontology#")
+    original = _fondo_de_ricora(cliente, db, cabeceras_admin)
+    ex = exportacion_rico.exportar(db, original, incluir_restringidos=True)
+    v = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == original.id))
+    trd, acto = exportacion_rico.uri(v.id), exportacion_rico.uri(v.id, "acto")
+    g = ex.grafo
+    assert (trd, RDF.type, rico.Rule) in g and (acto, RDF.type, rico.Mandate) in g
+    assert (acto, rico.regulatesOrRegulated, trd) in g and (trd, rico.regulatesOrRegulated, exportacion_rico.uri(original.id)) in g
+    assert len(list(g.objects(trd, rico.hasOrHadPart))) == 3  # las tres reglas de serie de la versión
+    from app.servicios import conformidad_rico
+    assert conformidad_rico.verificar_owl(g) == [] and conformidad_rico.validar_shacl(g)["conforme"]
+    # Al importarlo en otro sistema, la vista previa trae el acto, su fecha y la vigencia.
+    ttl = exportacion_rico.serializar(g, "turtle")
+    p = _vista(cliente, cabeceras_admin, ttl, "secretaria.ttl").json()
+    assert p["trd"] == {"nombre": "TRD versión 1", "acto_aprobacion": "Resolución 045",
+                        "fecha_aprobacion": "2019-02-15", "vigente_desde": "2019-03-01"}
+    assert "mandato" not in p["entidades"]  # el acto no se vuelve una entidad suelta del vocabulario

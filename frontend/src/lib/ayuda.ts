@@ -76,6 +76,17 @@ const GUIAS: Record<string, Guia> = {
         texto: "La vigente y las históricas se consultan eligiéndolas arriba. Para cambiar la vigente, abra una versión nueva." },
     ],
   },
+  "fondos:disposicion": {
+    titulo: "Fondos · Disposición final",
+    pasos: [
+      { titulo: "El calendario de retención.",
+        texto: "Cada expediente con la regla de su serie y la fecha en que cumple su tiempo en archivo de gestión y central (desde su fecha final). Filtre lo que ya cumplió." },
+      { titulo: "Registre lo ejecutado con su acta.",
+        texto: "Elija expedientes con la misma disposición y «Registrar la disposición»: número y fecha del acta y quién la ejecuta. Solo se acepta lo que manda la TRD y lo que ya cumplió." },
+      { titulo: "Es un hecho de RiC, no un borrado.",
+        texto: "Queda una actividad (rico:Activity) con su tipo, quién la ejerció, su fecha, la regla que la mandó y lo que afectó. El expediente eliminado sigue descrito." },
+    ],
+  },
   "fondos:cuadro": {
     titulo: "Fondos · Cuadro de clasificación",
     pasos: [

@@ -195,7 +195,7 @@ def almacen():
 # Tablas cuyo contenido entra en el grafo RiC-O de un fondo. Las que tienen
 # fondo_id marcan solo ese fondo; las demás, todos (son pocas y raras).
 _CON_FONDO = {"recursos_documentales", "entidades_vocabulario", "actividades", "hitos", "instanciaciones",
-              "declaraciones_derechos"}
+              "declaraciones_derechos", "trd_versiones"}
 _SIN_FONDO = {"fechas", "nombres_entidad", "identificadores_entidad", "verificaciones_integridad", "migraciones",
               "comprobaciones_tecnicas", "conceptos_tesauro", "etiquetas_concepto"}
 

@@ -136,6 +136,7 @@ class Analisis:
     filas: list[dict]
     omitidas: Counter
     problemas: list[str]
+    trd: dict | None = None  # la TRD vigente que trae el archivo: acto, fecha de aprobación y vigencia
 
     def productor(self) -> str | None:
         """El productor del fondo: la sugerencia para la sección de las series sin ella."""
@@ -155,7 +156,7 @@ class Analisis:
                 "filas_con_problemas": sum(1 for f in self.filas if f["problemas"]),
                 "series_sin_seccion": sum(1 for f in self.filas if not f["seccion"]),
                 "productor_sugerido": self.productor(),
-                "omitidas": dict(self.omitidas), "problemas": self.problemas}
+                "omitidas": dict(self.omitidas), "problemas": self.problemas, "trd": self.trd}
 
 
 def _nivel_declarado(g: Graph, s) -> str | None:
@@ -218,10 +219,41 @@ def analizar(g: Graph, seccion: dict | None = None) -> Analisis:
         entidades[s] = (*CLASE_ENTIDAD[nombre_clase], nombre)
     omitidas["instanciaciones: los archivos no viajan en el RDF (cárguelos en Carga de documentos)"] += \
         len(set(g.subjects(RDF.type, RICO.Instantiation)))
+    trd, actos = _trd(g)
+    for acto in actos:  # el acto de aprobación es dato de la versión de la TRD, no una entidad del vocabulario
+        entidades.pop(acto, None)
     filas = _filas_cuadro(g, fondo, recursos, seccion) if fondo else []
     if fondo is not None and not filas:
         problemas.append("El fondo no trae series: sin cuadro de clasificación no se registra.")
-    return Analisis(g, fondo, recursos, entidades, filas, +omitidas, problemas)
+    return Analisis(g, fondo, recursos, entidades, filas, +omitidas, problemas, trd)
+
+
+def _normalizada(g: Graph, s, *props) -> str | None:
+    for p in props:
+        for d in g.objects(s, p):
+            valor = _texto(g, d, RICO.normalizedDateValue)
+            if valor:
+                return valor
+    return None
+
+
+def _trd(g: Graph) -> tuple[dict | None, set]:
+    """La TRD como instrumento, si el archivo la trae como la escribe RICORA: una
+    rico:Rule de tipo «Tabla de retención documental» y el rico:Mandate que la aprueba.
+    Se toma la vigente (sin fecha de fin) para llenar los datos de la versión 1."""
+    actos, vigente = set(), None
+    for regla in set(g.subjects(RICO.hasOrHadRuleType, None)):
+        tipos = [cuadro._n(_nombre(g, t) or "") for t in g.objects(regla, RICO.hasOrHadRuleType)]
+        if "tabla de retencion documental" not in tipos:
+            continue
+        mandatos = [m for m in g.subjects(RICO.regulatesOrRegulated, regla) if (m, RDF.type, RICO.Mandate) in g]
+        actos.update(mandatos)
+        if _normalizada(g, regla, RICO.hasEndDate) is None:
+            acto = mandatos[0] if mandatos else None
+            vigente = {"nombre": _nombre(g, regla), "acto_aprobacion": _nombre(g, acto) if acto else None,
+                       "fecha_aprobacion": _normalizada(g, acto, RICO.isAssociatedWithDate) if acto else None,
+                       "vigente_desde": _normalizada(g, regla, RICO.hasBeginningDate)}
+    return vigente, actos
 
 
 def _desciende(n: Nodo, raiz: Nodo, recursos: dict) -> bool:

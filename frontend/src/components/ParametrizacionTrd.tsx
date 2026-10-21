@@ -14,6 +14,7 @@ export interface VersionTrd {
   id: string; numero: number; nombre: string; acto_aprobacion: string | null; fecha_aprobacion: string | null;
   convalidacion: string | null; fecha_convalidacion: string | null; vigente_desde: string | null;
   vigente_hasta: string | null; estado: "borrador" | "vigente" | "historica" | "anulada"; observaciones: string | null;
+  fondo_id: string;
   filas: number; editable: boolean;
 }
 interface Dependencia { id: string; codigo: string; nombre: string; superior_id: string | null; codigo_completo: string;
@@ -26,7 +27,7 @@ interface FilaTrd { id: string; dependencia_id: string; serie_id: string; subser
   otras_disposiciones: string[]; soporte: string | null; procedimiento: string | null; funcion: string | null }
 interface Aplicacion { aplicada: boolean; version: VersionTrd; validacion: Validacion;
   informe: { reglas: number; reglas_reemplazadas?: number; reglas_sin_cambio?: number; creados: Record<string, number>;
-    avisos: string[]; faltan_para_aplicar?: string[] } }
+    avisos: string[]; faltan_para_aplicar?: string[]; series_sin_funcion?: string[] } }
 
 const ESTADO: Record<VersionTrd["estado"], [string, string]> = {
   borrador: ["En borrador", "proceso"], vigente: ["Vigente", "bien"], historica: ["Histórica", "acento"],
@@ -307,6 +308,14 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
             {!!resultado.informe.faltan_para_aplicar?.length && (
               <div className="aviso alerta">Para aplicarla falta {resultado.informe.faltan_para_aplicar.join(", ")}
                 {" "}(Datos de la versión).</div>
+            )}
+            {!!resultado.informe.series_sin_funcion?.length && (
+              <div className="aviso alerta">
+                {resultado.informe.series_sin_funcion.length} serie(s) o subserie(s) sin la función que las produce. En RiC
+                una serie existe porque una actividad la produce: asígnela en la Matriz de la TRD (no es obligatorio).
+                <details><summary className="meta">Cuáles</summary>
+                  <ul className="meta">{resultado.informe.series_sin_funcion.map((x) => <li key={x}>{x}</li>)}</ul></details>
+              </div>
             )}
             {resultado.informe.avisos.length > 0 && <ul>{resultado.informe.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
           </div>
@@ -618,6 +627,11 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
   const [otras, setOtras] = useState<Set<string>>(new Set(fila?.otras_disposiciones || []));
   const [filtro, setFiltro] = useState("");
   const [error, setError] = useState("");
+  const [funciones, setFunciones] = useState<string[]>([]);
+  useEffect(() => {
+    pedir<{ nombre: string }[]>(`/api/vocabulario?fondo_id=${version.fondo_id}&clase=tipo_actividad`)
+      .then((l) => setFunciones(l.map((x) => x.nombre))).catch(() => setFunciones([]));
+  }, [version.fondo_id]);
   const subseries = banco.filter((t) => t.clase === "subserie" && t.superior_id === d.serie_id);
   const todosTipos = banco.filter((t) => t.clase === "tipo_documental");
   const visibles = todosTipos.filter((t) => tipos.has(t.id) || t.nombre.toLowerCase().includes(filtro.toLowerCase()));
@@ -717,8 +731,11 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
         <textarea id="f-proc" className="entrada" rows={3} value={d.procedimiento} onChange={poner("procedimiento")} />
       </div>
       <div className="campo">
-        <label htmlFor="f-fun">Función que produce la serie (opcional)</label>
-        <input id="f-fun" className="entrada" value={d.funcion} onChange={poner("funcion")} />
+        <label htmlFor="f-fun">Función que produce la serie</label>
+        <input id="f-fun" className="entrada" list="funciones-fondo" value={d.funcion} onChange={poner("funcion")} />
+        <datalist id="funciones-fondo">{funciones.map((n) => <option key={n} value={n} />)}</datalist>
+        <div className="pista">En RiC la serie existe porque una actividad la produce (rico:ActivityType). Sale del manual
+          de funciones; elija una ya registrada o escriba una nueva.</div>
       </div>
       <div className="acciones"><button type="submit" className="boton primario">Guardar</button></div>
     </form>
@@ -798,10 +815,11 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
             ) : (
               <table className="tabla-permisos">
                 <thead><tr><th>Código</th><th>Serie / subserie y tipos documentales</th><th>AG</th><th>AC</th>
-                  <th>Disposición</th><th>Soporte</th><th>Procedimiento</th>{editable && <th />}</tr></thead>
+                  <th>Disposición</th><th>Soporte</th><th>Función que la produce</th><th>Procedimiento</th>
+                  {editable && <th />}</tr></thead>
                 <tbody>
                   {porDependencia.flatMap(([dep, lista]) => [
-                    <tr key={dep}><td colSpan={editable ? 8 : 7}><strong>{dep}</strong></td></tr>,
+                    <tr key={dep}><td colSpan={editable ? 9 : 8}><strong>{dep}</strong></td></tr>,
                     ...lista.map((f) => (
                       <tr key={f.id}>
                         <td><strong>{f.codigo}</strong></td>
@@ -811,6 +829,7 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
                         <td>{f.central ?? "—"}</td>
                         <td>{f.disposicion ? [f.disposicion, ...f.otras_disposiciones].map((x) => x.toUpperCase()).join(" + ") : "—"}</td>
                         <td>{f.soporte ? SOPORTE[f.soporte] : "—"}</td>
+                        <td>{f.funcion || <span className="insignia alerta" title="En RiC una serie existe porque una actividad la produce">sin función</span>}</td>
                         <td className="meta">{f.procedimiento || "—"}</td>
                         {editable && <td><button type="button" className="boton chico" onClick={() => setForm(f)}>Corregir</button>
                           {" "}<button type="button" className="boton chico" onClick={() => quitar(f)}>Quitar</button></td>}

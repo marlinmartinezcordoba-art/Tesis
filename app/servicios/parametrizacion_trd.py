@@ -54,7 +54,8 @@ def _norm(valor) -> str:
 def _version_dict(db: Session, v: VersionTrd) -> dict:
     filas = db.scalar(select(func.count()).select_from(FilaTrd).where(FilaTrd.version_id == v.id,
                                                                      FilaTrd.estado == "vigente"))
-    return {"id": str(v.id), "numero": v.numero, "nombre": v.nombre, "acto_aprobacion": v.acto_aprobacion,
+    return {"id": str(v.id), "fondo_id": str(v.fondo_id), "numero": v.numero, "nombre": v.nombre,
+            "acto_aprobacion": v.acto_aprobacion,
             "fecha_aprobacion": v.fecha_aprobacion, "convalidacion": v.convalidacion,
             "fecha_convalidacion": v.fecha_convalidacion, "vigente_desde": v.vigente_desde,
             "vigente_hasta": v.vigente_hasta, "estado": v.estado, "observaciones": v.observaciones,
@@ -473,12 +474,16 @@ def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> t
     except cuadro.ErrorCuadro as exc:
         raise ErrorTrd(str(exc), exc.codigo) from exc
     informe["faltan_para_aplicar"] = faltan
+    # En RiC una serie existe porque una actividad la produce: se avisa (no se exige: la TRD del AGN
+    # no trae la función; sale del manual de funciones y se asigna en la matriz).
+    informe["series_sin_funcion"] = [(d["codigos"]["subserie"] or d["codigos"]["serie"] or "") + " "
+                                     + (d["subserie"] or d["serie"])["nombre"] for d in datos if not d.get("funcion")]
     if crear and validacion["conforme"]:
         if anterior is not None:
             anterior.estado, anterior.vigente_hasta = "historica", desde - timedelta(days=1)
         v.estado, v.aplicado_por_id = "vigente", usuario_id
         v.aplicado_en = ahora()
-        v.informe = {k: x for k, x in informe.items() if k != "faltan_para_aplicar"}
+        v.informe = {k: x for k, x in informe.items() if k not in ("faltan_para_aplicar", "series_sin_funcion")}
         db.flush()
         registrar(db, modulo="instrumentos", accion="trd_version_aplicada", usuario_id=usuario_id,
                   entidad_tipo="recurso_documental", entidad_id=v.fondo_id,
@@ -503,7 +508,8 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
         raise ErrorTrd(f"Corrija las {len(malas)} fila(s) con problemas (la primera es la {malas[0].fila}: "
                        f"{malas[0].problemas[0]})")
     fondo = db.get(RecursoDocumental, v.fondo_id)
-    informe = {"dependencias": 0, "series": 0, "subseries": 0, "tipos_documentales": 0, "filas": 0, "repetidas": 0}
+    informe = {"dependencias": 0, "series": 0, "subseries": 0, "tipos_documentales": 0, "filas": 0, "repetidas": 0,
+               "sin_funcion": sum(1 for f in leidas if not f.funcion)}
 
     def dependencia(nodo: cuadro.Nodo, superior: DependenciaTrd | None) -> DependenciaTrd:
         consulta = select(DependenciaTrd).where(DependenciaTrd.fondo_id == fondo.id, DependenciaTrd.estado == "activa",

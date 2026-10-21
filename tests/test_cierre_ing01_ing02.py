@@ -118,6 +118,18 @@ def test_confirmar_registra_la_custodia_anterior_y_el_acuse(cliente, db, fondo, 
     assert ev.valor_nuevo["acuse"]["paquete_bagit_sha256"] == ev.valor_nuevo["sip_huella"]
     acuse = cliente.get(f"/api/ingesta/lotes/{lote['id']}/acuse", headers=archivista).json()
     assert acuse["dependencia_origen"] == "Secretaría de Gobierno" and acuse["recibido_en"]
+    # La transferencia misma, como rico:Activity: de su tipo, ejercida por la dependencia y el remitente,
+    # con la fecha del acta, que afectó al archivo recibido.
+    afecta = db.scalar(select(Relacion).where(Relacion.destino_id == uuid.UUID(r["id"]),
+                                              Relacion.codigo_ric == "affects_or_affected"))
+    assert afecta.rol == "ingreso"
+    from app.models.descripcion import EntidadVocabulario
+    actividad = db.get(EntidadVocabulario, afecta.origen_id)
+    assert actividad.clase == "actividad" and actividad.nombre.startswith("Transferencia primaria · lote L-")
+    assert actividad.existencia_edtf == "2026-09-30"
+    ejercen = set(db.scalars(select(Relacion.origen_id).where(Relacion.destino_id == actividad.id,
+                                                              Relacion.codigo_ric == "performs_or_performed")))
+    assert ejercen == {secretaria.id, jefe.id}
 
 
 def test_un_lote_abierto_se_anula_con_motivo_y_sus_archivos_quedan_sin_lote(cliente, db, fondo, archivista,

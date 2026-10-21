@@ -20,6 +20,7 @@ class VistaPreviaRico(BaseModel):
     productor_sugerido: str | None
     omitidas: dict[str, int]
     problemas: list[str]
+    trd: dict[str, Any] | None = None
     filas: list[dict[str, Any]]
     huella: str
 

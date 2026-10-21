@@ -223,6 +223,10 @@ def confirmar(db: Session, lote: LoteIngesta, usuario_id: uuid.UUID, ip: str | N
                     db, inst, lote.dependencia_origen_id, tramo,
                     f"Custodia antes de la transferencia (lote {lote.numero}"
                     + (f", acta {lote.acta_numero})" if lote.acta_numero else ")"), usuario_id)
+    # El ingreso mismo, como hecho de RiC: una actividad que afectó a cada archivo recibido.
+    from app.servicios import disposicion
+
+    disposicion.transferencia(db, lote, archivos, usuario_id)
     recibo = acuse(db, lote)
     registrar(db, modulo="ingesta", accion="lote_confirmado", usuario_id=usuario_id, entidad_tipo="lote_ingesta",
               entidad_id=lote.id, ip=ip,

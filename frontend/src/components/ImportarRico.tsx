@@ -11,6 +11,8 @@ interface Previa {
   fondo: string | null; niveles: Record<string, number>; entidades: Record<string, number>; filas_cuadro: number;
   filas_con_problemas: number; series_sin_seccion: number; productor_sugerido: string | null;
   omitidas: Record<string, number>; problemas: string[]; filas: Vista["filas"];
+  trd: { nombre: string | null; acto_aprobacion: string | null; fecha_aprobacion: string | null;
+    vigente_desde: string | null } | null;
 }
 export interface Importado {
   creado: boolean; fondo: { id: string; titulo: string } | null; validacion: Validacion;
@@ -56,6 +58,9 @@ export function ImportarRico({ alImportar }: { alImportar: (r: Importado) => voi
       setPrevia(p);
       setTitulo(p.fondo || "");
       setSeccion({ nombre: p.productor_sugerido || "", codigo: "" });
+      // Si el archivo trae la TRD vigente con su acto, sus datos llenan la versión 1.
+      setActo({ acto_aprobacion: p.trd?.acto_aprobacion || "", fecha_aprobacion: p.trd?.fecha_aprobacion || "",
+        vigente_desde: p.trd?.vigente_desde || "" });
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
     } finally {
@@ -149,7 +154,9 @@ export function ImportarRico({ alImportar }: { alImportar: (r: Importado) => voi
               </div>
             </>
           )}
-          <p className="meta">Si la TRD está aprobada, registre su acto: el fondo nace con la versión 1 vigente.</p>
+          <p className="meta">{previa.trd?.acto_aprobacion
+            ? `El archivo trae la TRD vigente (${previa.trd.nombre || "TRD"}) con su acto: revise los datos.`
+            : "Si la TRD está aprobada, registre su acto: el fondo nace con la versión 1 vigente."}</p>
           <div className="rejilla">
             <div className="campo">
               <label htmlFor="i-acto">Acto que aprueba la TRD (opcional)</label>

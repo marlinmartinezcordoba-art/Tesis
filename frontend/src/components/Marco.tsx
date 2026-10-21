@@ -53,6 +53,7 @@ const ENTRADAS: Entrada[] = [
     { vista: "matriz", nombre: "4. Matriz de la TRD" },
     { vista: "versiones", nombre: "5. Aplicar y versiones" },
     { vista: "cuadro", nombre: "Cuadro de clasificación" },
+    { vista: "disposicion", nombre: "Disposición final" },
     { vista: "fondos", nombre: "Fondos del archivo" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
