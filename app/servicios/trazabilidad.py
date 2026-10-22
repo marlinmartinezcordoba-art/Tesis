@@ -116,6 +116,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     # Instrumentos
     "inventario_exportado": ("Exportó un inventario", "Instrumentos generados"),
     "guia_exportada": ("Exportó una guía", "Instrumentos generados"),
+    "instrumento_aprobado": ("Aprobó un instrumento de descripción (FUID, guía o índice)", "Instrumentos generados"),
+    "instrumento_anulado": ("Anuló un instrumento de descripción aprobado", "Instrumentos generados"),
     "rdf_exportado": ("Exportó el fondo en RiC-O (RDF)", "Instrumentos generados"),
     "tablas_reconstruidas_desde_grafo": ("Rehízo las tablas del fondo desde el grafo RiC-O (la fuente de verdad)",
                                          "Instrumentos generados"),

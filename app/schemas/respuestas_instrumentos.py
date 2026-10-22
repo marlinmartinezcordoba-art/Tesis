@@ -336,3 +336,36 @@ class IndiceLey1712(BaseModel):
     fondo: str
     columnas: list[ClaveNombre]
     filas: list[FilaLey1712]
+
+
+# --- Instrumentos aprobados -----------------------------------------------------------------------
+
+
+class NivelBreve(BaseModel):
+    """El nivel que describe el instrumento."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    titulo: str
+
+
+class InstrumentoAprobadoOut(BaseModel):
+    """Un FUID, una guía o un índice aprobado: documento fijo con su huella y su acta."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    tipo: str
+    tipo_nombre: str
+    version: int
+    titulo: str
+    nivel: NivelBreve
+    estado: str
+    huella: str
+    tamano_bytes: int
+    acta: str | None
+    fecha_acta: str | None
+    aprobado_por: str
+    aprobado_en: str
+    motivo_anulacion: str | None

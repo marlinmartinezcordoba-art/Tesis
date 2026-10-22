@@ -272,7 +272,7 @@ def _usuario_del_desafio(db: Session, desafio: str) -> Usuario:
 
 def _comprobar_segundo_factor(db: Session, usuario: Usuario, valor: str, ip: str | None) -> bool:
     """Código de la aplicación o, si no, uno de los de respaldo (que se gasta)."""
-    paso = doble_factor.verificar(usuario.mfa_secreto or "", valor, usuario.mfa_ultimo_paso)
+    paso = doble_factor.verificar(doble_factor.leer(usuario.mfa_secreto, usuario.id), valor, usuario.mfa_ultimo_paso)
     if paso is not None:
         usuario.mfa_ultimo_paso = paso
         return True
@@ -448,11 +448,12 @@ def iniciar_doble_factor(actor: Actor = Depends(usuario_actual), db: Session = D
     u = actor.usuario
     if u.mfa_activo:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="El segundo factor ya está activo. Desactívelo para cambiar de teléfono.")
-    u.mfa_secreto = doble_factor.generar_secreto()
+    clave = doble_factor.generar_secreto()
+    u.mfa_secreto = doble_factor.guardar(clave, u.id)
     u.mfa_ultimo_paso = None
     db.commit()
     # Única vez que la clave sale del servidor: la persona la escribe o escanea en su aplicación.
-    return JSONResponse({"clave": u.mfa_secreto, "uri": doble_factor.uri(u.mfa_secreto, u.correo)},
+    return JSONResponse({"clave": clave, "uri": doble_factor.uri(clave, u.correo)},
                         headers={"Cache-Control": "no-store"})
 
 
@@ -463,7 +464,7 @@ def activar_doble_factor(datos: CodigoIn, request: Request, actor: Actor = Depen
     u = actor.usuario
     if u.mfa_activo or not u.mfa_secreto:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Primero genere la clave para su aplicación.")
-    paso = doble_factor.verificar(u.mfa_secreto, datos.codigo, None)
+    paso = doble_factor.verificar(doble_factor.leer(u.mfa_secreto, u.id), datos.codigo, None)
     if paso is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             detail="El código no coincide. Revise que la hora del teléfono esté bien y escriba el código actual.")

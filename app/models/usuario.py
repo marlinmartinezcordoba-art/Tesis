@@ -28,7 +28,7 @@ class Usuario(Base):
     contrasena_cambiada_en = Column(DateTime(timezone=True), nullable=True)
     # Segundo factor (TOTP). El secreto nunca se devuelve después de activarlo
     # ni se escribe en la auditoría; de los códigos de respaldo solo hay huellas.
-    mfa_secreto = Column(String(64), nullable=True)
+    mfa_secreto = Column(String(200), nullable=True)  # cifrada: app/core/cifrado.py
     mfa_activo = Column(Boolean, nullable=False, default=False, server_default="false")
     mfa_activado_en = Column(DateTime(timezone=True), nullable=True)
     mfa_ultimo_paso = Column(BigInteger, nullable=True)

@@ -158,6 +158,9 @@ jobs:
             # Clave de sesiones y de base de datos: se generan una sola vez.
             [ -n "$(valor RICORA_SECRET_KEY)" ] || poner RICORA_SECRET_KEY "$(openssl rand -hex 32)"
             [ -n "$(valor POSTGRES_PASSWORD)" ] || poner POSTGRES_PASSWORD "$(openssl rand -hex 16)"
+            # Clave de los datos cifrados (la del segundo factor): solo en este .env, nunca
+            # en la base ni en el paquete de recuperación. Perderla obliga a reconfigurar el segundo factor.
+            [ -n "$(valor RICORA_CLAVE_CIFRADO)" ] || poner RICORA_CLAVE_CIFRADO "$(openssl rand -hex 32)"
             # Puerto: se conserva el que ya usaba el servidor.
             [ -n "$(valor RICORA_PUERTO)" ] || poner RICORA_PUERTO "$(grep -E '^[A-Z]+_PUERTO=' .env | head -1 | cut -d= -f2-)"
             [ -n "$(valor RICORA_PUERTO)" ] || poner RICORA_PUERTO 80

@@ -17,6 +17,7 @@ import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { NivelRiC } from "@/components/NivelRiC";
+import { AprobarInstrumento, ListaAprobados } from "@/components/InstrumentosAprobados";
 
 type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
 const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
@@ -322,6 +323,7 @@ function encabezadoParaEnviar(v: Record<string, string>) {
 
 function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) {
   const [datos, setDatos] = useState<DatosInventario | null>(null);
+  const [aprobados, setAprobados] = useState(0);
   const [encabezado, setEncabezado] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
@@ -409,14 +411,19 @@ function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) 
             <div className="acciones">
               <button type="button" className="boton chico" disabled={ocupado} onClick={generar}>Volver a armar</button>
               <button type="button" className="boton chico primario" disabled={ocupado} onClick={exportar}>Exportar a Excel</button>
+              <AprobarInstrumento tipo="inventario" recursoId={a.id} extra={{ encabezado: encabezadoParaEnviar(encabezado) }}
+                                  bloqueo={datos.filas.length === 0 ? "No hay renglones que aprobar."
+                                    : datos.pendientes > 0 ? "Complete los campos pendientes antes de aprobar." : null}
+                                  alAprobar={() => setAprobados((n) => n + 1)} />
             </div>
           </div>
           {datos.pendientes > 0 && (
             <p className="meta">Los pendientes se completan en la descripción de cada unidad (Descripción › Corregir › Datos de control).
-              El archivo se exporta igual, con esas celdas marcadas.</p>
+              El archivo se exporta igual, con esas celdas marcadas, pero no se puede aprobar.</p>
           )}
         </>
       )}
+      <ListaAprobados fondoId={nivel.fondo.id} tipo="inventario" recursoId={a.id} puede={puede} recargar={aprobados} />
     </>
   );
 }
@@ -426,6 +433,7 @@ function Inventario({ nivel, puede }: { nivel: NivelCatalogo; puede: boolean }) 
 function Guia({ fondo, puede }: { fondo: { id: string; titulo: string }; puede: boolean }) {
   const [texto, setTexto] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [aprobados, setAprobados] = useState(0);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
 
@@ -494,10 +502,14 @@ function Guia({ fondo, puede }: { fondo: { id: string; titulo: string }; puede: 
                       onClick={() => window.confirm("¿Reemplazar su texto por un borrador nuevo?") && redactar()}>
                 Redactar de nuevo
               </button>
+              <AprobarInstrumento tipo="guia" recursoId={fondo.id} extra={{ texto }}
+                                  bloqueo={texto.trim() ? null : "La nota de presentación está vacía."}
+                                  alAprobar={() => setAprobados((n) => n + 1)} />
             </div>
           </div>
         </div>
       )}
+      <ListaAprobados fondoId={fondo.id} tipo="guia" puede={puede} recargar={aprobados} />
     </>
   );
 }
@@ -507,8 +519,11 @@ function Guia({ fondo, puede }: { fondo: { id: string; titulo: string }; puede: 
 // Índice de consulta: cada término lleva a los documentos que lo citan
 // (lo que el lector puede ver). La gestión de los términos es interna y
 // vive en Vocabularios.
-function Indice({ fondo, abrir }: { fondo: { id: string; titulo: string }; abrir: (id: string) => void }) {
+function Indice({ fondo, abrir, puede, verAprobados }: {
+  fondo: { id: string; titulo: string }; abrir: (id: string) => void; puede: boolean; verAprobados: boolean;
+}) {
   const [datos, setDatos] = useState<DatosIndice | null>(null);
+  const [aprobados, setAprobados] = useState(0);
   const [error, setError] = useState("");
   const [abierto, setAbierto] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -536,6 +551,11 @@ function Indice({ fondo, abrir }: { fondo: { id: string; titulo: string }; abrir
         <div className="filtros">
           <input className="entrada" type="search" placeholder="Buscar un nombre en el índice…" aria-label="Buscar en el índice"
                  value={q} onChange={(e) => setQ(e.target.value)} />
+          {puede && (
+            <AprobarInstrumento tipo="indice" recursoId={fondo.id}
+                                bloqueo={datos.grupos.some((g) => g.total > 0) ? null : "El índice está vacío."}
+                                alAprobar={() => setAprobados((n) => n + 1)} />
+          )}
         </div>
       )}
       {datos && grupos.length === 0 && (
@@ -581,6 +601,9 @@ function Indice({ fondo, abrir }: { fondo: { id: string; titulo: string }; abrir
           ))}
         </div>
       ))}
+      {verAprobados && (
+        <ListaAprobados fondoId={fondo.id} tipo="indice" puede={puede} recargar={aprobados} />
+      )}
     </>
   );
 }
@@ -706,7 +729,8 @@ export function Instrumentos() {
           )}
           {pestana === "inventario" && <Inventario nivel={nivel} puede={puede} />}
           {pestana === "guia" && <Guia fondo={nivel.fondo} puede={puede} />}
-          {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} />}
+          {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} puede={puede}
+                                               verAprobados={tienePermiso(usuario, "instrumentos")} />}
           {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
           <Proposito vista={pestana} />
           {pestana === "grafo" && (

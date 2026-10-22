@@ -10,6 +10,7 @@ alerta de campos pendientes.
 import re
 import unicodedata
 import uuid
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -19,13 +20,14 @@ from sqlalchemy.orm import Session
 
 from app.core.permisos import Actor, acceso_modulo, lectura_catalogo
 from app.db.session import get_db
+from app.models.instrumento_aprobado import InstrumentoAprobado
 from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
 from app.schemas.respuestas_ingesta import VistaPreviaDocumento
-from app.schemas.respuestas_instrumentos import (BorradorGuia, FichaConsulta, IndiceTerminos, NivelCatalogo,
-                                                 ResumenFondo, SubgrafoFondo, VistaPreviaInventario)
-from app.servicios import instrumentos
-from app.servicios.auditoria import registrar
+from app.schemas.respuestas_instrumentos import (BorradorGuia, FichaConsulta, IndiceTerminos, InstrumentoAprobadoOut,
+                                                 NivelCatalogo, ResumenFondo, SubgrafoFondo, VistaPreviaInventario)
+from app.servicios import instrumentos, instrumentos_aprobados
+from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/instrumentos", tags=["Módulo 4 · Instrumentos"])
 
@@ -254,3 +256,86 @@ def guia_exportar(datos: GuiaExportarIn, request: Request, actor: Actor = Depend
               detalle=f"Guía del fondo «{fondo.titulo}»")
     db.commit()
     return _descarga(contenido, DOCX, _nombre_archivo("Guia", fondo.titulo, "docx"))
+
+
+# --- Instrumentos aprobados --------------------------------------------------------------------
+
+
+class AprobarIn(BaseModel):
+    tipo: Literal["inventario", "guia", "indice"]
+    # El nivel que describe: el del inventario, o el fondo para la guía y el índice.
+    recurso_id: uuid.UUID
+    acta: str | None = Field(default=None, max_length=200)
+    fecha_acta: date | None = None
+    texto: str | None = Field(default=None, max_length=50_000)  # la nota de presentación de la guía
+    encabezado: EncabezadoFuid | None = None  # el del FUID
+
+
+class AnularIn(BaseModel):
+    motivo: str = Field(max_length=2000)
+
+
+def _aprobado_o_404(db: Session, instrumento_id: uuid.UUID) -> InstrumentoAprobado:
+    i = db.get(InstrumentoAprobado, instrumento_id)
+    if i is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El instrumento no existe.")
+    return i
+
+
+def _uno(db: Session, i: InstrumentoAprobado) -> dict:
+    return next(x for x in instrumentos_aprobados.listar(db, i.fondo_id) if x["id"] == str(i.id))
+
+
+@router.get("/aprobados", responses={200: {"model": list[InstrumentoAprobadoOut], "description": "Instrumentos aprobados del fondo."}},
+            summary="Instrumentos aprobados del fondo (vigentes, reemplazados y anulados)")
+def aprobados(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    return instrumentos_aprobados.listar(db, fondo_id)
+
+
+@router.post("/aprobados", status_code=201,
+             responses={201: {"model": InstrumentoAprobadoOut, "description": "El instrumento aprobado."}},
+             summary="Aprueba un FUID, una guía o un índice y lo guarda como documento fijo")
+def aprobar(datos: AprobarIn, request: Request, actor: Actor = Depends(acceso_modulo("instrumentos")),
+            db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, datos.recurso_id)
+    try:
+        i = instrumentos_aprobados.aprobar(
+            db, tipo=datos.tipo, recurso=recurso, usuario_id=actor.id, acta=datos.acta, fecha_acta=datos.fecha_acta,
+            texto=datos.texto, encabezado=datos.encabezado.model_dump() if datos.encabezado else None,
+            ip=ip_de(request))
+    except (instrumentos_aprobados.ErrorAprobacion, instrumentos.ErrorInstrumento) as exc:
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    db.commit()
+    return _uno(db, i)
+
+
+@router.get("/aprobados/{instrumento_id}/archivo",
+            responses={200: {"content": {XLSX: {}, DOCX: {}}, "description": "El archivo aprobado, tal como se aprobó."}},
+            summary="Descarga el archivo aprobado (comprueba su huella)")
+def archivo_aprobado(instrumento_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")),
+                     db: Session = Depends(get_db)):
+    i = _aprobado_o_404(db, instrumento_id)
+    try:
+        contenido = instrumentos_aprobados.leer(db, i)
+    except instrumentos_aprobados.ErrorAprobacion as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    extension = "docx" if i.formato_mime == DOCX else "xlsx"
+    return _descarga(contenido, i.formato_mime, _nombre_archivo(i.tipo.capitalize(), i.titulo, extension),
+                     {"X-Huella-SHA256": i.huella})
+
+
+@router.post("/aprobados/{instrumento_id}/anular",
+             responses={200: {"model": InstrumentoAprobadoOut, "description": "El instrumento, anulado."}},
+             summary="Anula un instrumento aprobado, con su motivo (no se borra)")
+def anular(instrumento_id: uuid.UUID, datos: AnularIn, request: Request,
+           actor: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    i = _aprobado_o_404(db, instrumento_id)
+    try:
+        instrumentos_aprobados.anular(db, i, motivo=datos.motivo, usuario_id=actor.id, ip=ip_de(request))
+    except instrumentos_aprobados.ErrorAprobacion as exc:
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    db.commit()
+    return _uno(db, i)

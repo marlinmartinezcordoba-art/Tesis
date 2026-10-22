@@ -11,6 +11,7 @@ from app.models.descripcion import (  # noqa: F401
     Actividad, EntidadVocabulario, Fecha, Relacion, SugerenciaFusion, TrabajoDescripcion, TrabajoInstanciacion,
 )
 from app.models.instanciacion import Instanciacion  # noqa: F401
+from app.models.instrumento_aprobado import InstrumentoAprobado  # noqa: F401
 from app.models.lote import LoteIngesta  # noqa: F401
 from app.models.parametro import Parametro  # noqa: F401
 from app.models.preservacion import (  # noqa: F401

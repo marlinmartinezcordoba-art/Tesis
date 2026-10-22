@@ -106,6 +106,10 @@ class Settings:
     # Clave con la que se firman los tokens de sesión. Sin ella el sistema
     # no arranca en producción (ver app/main.py).
     secret_key: str = os.getenv("RICORA_SECRET_KEY", "")
+    # Clave de los datos cifrados (la del segundo factor). Distinta de la de
+    # sesiones: cambiar esta invalida sesiones; perder aquella obliga a
+    # configurar de nuevo el segundo factor. Ver app/core/cifrado.py.
+    clave_cifrado: str = os.getenv("RICORA_CLAVE_CIFRADO", "")
 
     # Dirección pública con la que se arman los enlaces que se envían por
     # correo (invitación y recuperación). Se fija por configuración y no se

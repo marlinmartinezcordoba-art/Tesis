@@ -70,8 +70,9 @@ const ENTRADAS: Entrada[] = [
     { vista: "inventario", nombre: "Inventario (FUID)", permitir: (u) => puede(u, "instrumentos", "escribir") },
     { vista: "guia", nombre: "Guía del fondo", permitir: (u) => puede(u, "instrumentos", "escribir") },
     // El índice es la puerta de consulta por nombres; el equipo interno trabaja
-    // los mismos términos en Vocabularios, así que no lo ve dos veces.
-    { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") },
+    // los mismos términos en Vocabularios, así que no lo ve dos veces, salvo
+    // quien genera instrumentos: lo revisa y lo aprueba como documento.
+    { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
     { vista: "rico", nombre: "Datos enlazados (RiC-O)" }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },

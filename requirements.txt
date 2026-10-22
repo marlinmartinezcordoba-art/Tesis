@@ -50,3 +50,5 @@ tzdata==2025.2
 rdflib==7.6.0
 pyshacl==0.40.1
 pyoxigraph==0.5.11
+# Cifrado de la clave del segundo factor (AES-GCM, HKDF): app/core/cifrado.py. Ya llegaba con pdfminer.six.
+cryptography==50.0.2

@@ -238,6 +238,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
         _instanciacion(db, ex, i)
     _acciones_tecnicas(db, ex, instancias, entidades)
     _trd(db, ex, entidades)
+    _instrumentos_aprobados(db, ex, recursos)
     for i in instancias.values():  # el recorte y el archivo del que salió (RiC-R034)
         if i.recorte_de_id in instancias:
             g.add((uri(i.id), _apoyo("instanciacion_asociada")[0], uri(i.recorte_de_id)))
@@ -357,6 +358,42 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
             if v.fecha_aprobacion:
                 _periodo(ex, acto, v.fecha_aprobacion.isoformat())
             g.add((acto, RICO[ric_o.PROPIEDADES["regulates_or_regulated"].rico], nodo))
+
+
+def _instrumentos_aprobados(db: Session, ex: Exportacion, recursos: dict) -> None:
+    """El FUID, la guía y el índice aprobados (no los anulados) como documentos que
+    describen su nivel (RiC-R021), con su fecha de aprobación, su archivo con la
+    huella (autenticidad) y, si reemplazó a otro, la secuencia entre versiones (RiC-R008)."""
+    from app.models.instrumento_aprobado import TIPO_INSTRUMENTO, InstrumentoAprobado
+
+    g = ex.grafo
+    filas = db.scalars(select(InstrumentoAprobado).where(
+        InstrumentoAprobado.fondo_id == ex.fondo.id, InstrumentoAprobado.estado != "anulado")).all()
+    prop_forma, clase_forma = _apoyo("forma_documental")
+    exportados = {i.id for i in filas if i.recurso_id in recursos}
+    for i in filas:
+        if i.id not in exportados:
+            continue  # describe un nivel que esta exportación no incluye (restringido)
+        doc = uri(i.id, "documento")
+        g.add((doc, RDF.type, RICO[ric_o.CLASE_NIVEL["unidad_documental"]]))
+        g.add((doc, _a("titulo"), Literal(i.titulo)))
+        g.add((doc, RDFS.label, Literal(i.titulo)))
+        g.add((doc, prop_forma, _concepto(ex, "forma-documental-instrumento", i.tipo, clase_forma,
+                                          TIPO_INSTRUMENTO[i.tipo])))
+        g.add((doc, _apoyo("describe")[0], uri(i.recurso_id)))
+        estado = "Vigente." if i.estado == "vigente" else "Reemplazado por una versión posterior."
+        acta = f" Aprobado en {i.acta}" + (f" del {i.fecha_acta.isoformat()}" if i.fecha_acta else "") + "." if i.acta else ""
+        g.add((doc, _a("descripcion_general"), Literal(f"Versión {i.version}. {estado}{acta}", lang="es")))
+        _fecha_libre(ex, doc, _apoyo("fecha_creacion")[0], URIRef(f"{doc}/fecha"), None,
+                     i.aprobado_en.date().isoformat())
+        archivo = uri(i.id)
+        g.add((archivo, RDF.type, RICO[ric_o.CLASE_NODO["instanciacion"]]))
+        g.add((archivo, _a("titulo"), Literal(i.titulo)))
+        g.add((archivo, _a("identificador"), Literal(f"urn:uuid:{i.id}")))
+        g.add((archivo, _a("autenticidad"), Literal(f"Huella SHA-256 del archivo aprobado: {i.huella}.", lang="es")))
+        g.add((doc, RICO[ric_o.PROPIEDADES["has_or_had_instantiation"].rico], archivo))
+        if i.reemplaza_id in exportados:
+            g.add((uri(i.reemplaza_id, "documento"), RICO[ric_o.PROPIEDADES["precedes_or_preceded"].rico], doc))
 
 
 def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades: dict) -> None:

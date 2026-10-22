@@ -9,15 +9,21 @@ estándar.
 - Un código ya usado no vuelve a servir (se guarda el último paso aceptado).
 - Códigos de respaldo de un solo uso para cuando se pierde el teléfono; se
   guardan solo sus huellas, como las contraseñas.
+- La clave se guarda cifrada (app/core/cifrado.py), atada a su cuenta: el
+  sistema necesita leerla para calcular el código, así que no basta una huella.
 """
 
 import base64
 import hashlib
 import hmac
+import logging
 import secrets
 import struct
 import time
+import uuid
 from urllib.parse import quote
+
+from app.core import cifrado
 
 PASO_S = 30
 DIGITOS = 6
@@ -28,6 +34,44 @@ CODIGOS_RESPALDO = 8
 
 def generar_secreto() -> str:
     return base64.b32encode(secrets.token_bytes(20)).decode("ascii").rstrip("=")
+
+
+def _contexto(usuario_id: uuid.UUID) -> str:
+    return f"usuarios.mfa_secreto:{usuario_id}"
+
+
+def guardar(secreto: str, usuario_id: uuid.UUID) -> str:
+    """Lo que va en la columna: la clave cifrada y atada a la cuenta."""
+    return cifrado.cifrar(secreto, _contexto(usuario_id))
+
+
+def leer(guardado: str | None, usuario_id: uuid.UUID) -> str:
+    """La clave en claro, o vacío si no hay ni se puede leer (otra clave, valor
+    alterado o sin cifrar): entonces ningún código de la aplicación sirve y la
+    persona entra con un código de respaldo o pide el restablecimiento. La
+    migración 0045 cifró las claves que había en claro."""
+    if not guardado:
+        return ""
+    try:
+        return cifrado.descifrar(guardado, _contexto(usuario_id))
+    except cifrado.ErrorCifrado as exc:
+        logging.getLogger(__name__).error("Clave del segundo factor ilegible para %s: %s", usuario_id, exc)
+        return ""
+
+
+def cifrar_en_claro(conexion) -> int:
+    """Cifra las claves que quedaron en claro (las de antes de la migración 0045).
+    Devuelve cuántas cifró. Recibe una conexión de SQLAlchemy."""
+    from sqlalchemy import text
+
+    filas = conexion.execute(text("SELECT id, mfa_secreto FROM usuarios WHERE mfa_secreto IS NOT NULL")).all()
+    cifradas = 0
+    for ident, valor in filas:
+        if not cifrado.cifrado(valor):
+            conexion.execute(text("UPDATE usuarios SET mfa_secreto = :v WHERE id = :i"),
+                             {"v": guardar(valor, ident), "i": ident})
+            cifradas += 1
+    return cifradas
 
 
 def _clave(secreto: str) -> bytes:
@@ -49,7 +93,7 @@ def paso_actual(instante: float | None = None) -> int:
 def verificar(secreto: str, valor: str, ultimo_paso: int | None, instante: float | None = None) -> int | None:
     """El paso aceptado, o None. Rechaza un paso igual o anterior al último usado."""
     valor = "".join(c for c in (valor or "") if c.isdigit())
-    if len(valor) != DIGITOS:
+    if not secreto or len(valor) != DIGITOS:
         return None
     actual = paso_actual(instante)
     for paso in range(actual - VENTANA, actual + VENTANA + 1):

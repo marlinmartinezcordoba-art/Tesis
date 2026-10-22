@@ -48,7 +48,7 @@ log = logging.getLogger("ricora.recuperacion")
 
 # Variables que el servidor nuevo necesita (solo los nombres; los valores
 # están en el gestor de secretos, nunca en el paquete).
-VARIABLES_REQUERIDAS = ("DATABASE_URL", "RICORA_SECRET_KEY", "RICORA_URL_PUBLICA", "DIRECTORIO_ALMACENAMIENTO",
+VARIABLES_REQUERIDAS = ("DATABASE_URL", "RICORA_SECRET_KEY", "RICORA_CLAVE_CIFRADO", "RICORA_URL_PUBLICA", "DIRECTORIO_ALMACENAMIENTO",
                         "RICORA_RESPALDO", "RICORA_SEGUNDA_COPIA", "RICORA_ADMIN_CORREO", "RICORA_ADMIN_PASSWORD")
 
 LEEME = """RICORA · Paquete de recuperación ante desastres
@@ -56,7 +56,9 @@ LEEME = """RICORA · Paquete de recuperación ante desastres
 
 Contiene la base de datos, todos los documentos digitales del almacén y un
 manifiesto con la huella SHA-256 de cada archivo. No contiene contraseñas
-ni claves: tómelas del gestor de secretos del despliegue.
+ni claves: tómelas del gestor de secretos del despliegue. Sin la misma
+RICORA_CLAVE_CIFRADO, el segundo factor de cada cuenta debe configurarse de
+nuevo (los códigos de respaldo siguen sirviendo para entrar).
 
 Restaurar en un servidor nuevo
 ------------------------------
