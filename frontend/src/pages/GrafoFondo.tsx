@@ -35,6 +35,13 @@ const ICONO_CAMPO: Record<string, JSX.Element> = {
   extension: <path d="M6 3h12v18H6zM9 8h6M9 12h6" />,
 };
 
+// Qué tan lejos del centro se recorre el grafo, dicho sin jerga.
+const ALCANCE: [number, string][] = [
+  [1, "Solo lo relacionado directamente"],
+  [2, "También lo relacionado con eso (2 niveles)"],
+  [3, "Hasta 3 niveles de relación"],
+];
+
 function consulta(f: Filtros, saltos: number, fondoId: string): URLSearchParams {
   const p = new URLSearchParams({ fondo_id: fondoId, saltos: String(saltos) });
   f.familias.forEach((x) => p.append("tipo_entidad", x));
@@ -384,12 +391,13 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
             <PanelFiltros opciones={opciones} filtros={filtros} cambiar={setFiltros} cerrar={() => setVerFiltros(false)} />
           )}
         </div>
-        <div className="segmentado" role="radiogroup" aria-label="Profundidad del recorrido">
-          {[1, 2, 3].map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={saltos === n} className={saltos === n ? "elegido" : ""}
-                    onClick={() => setSaltos(n)}>{n === 1 ? "Relaciones directas" : `${n} saltos`}</button>
-          ))}
-        </div>
+        <label className="alcance-grafo" title="Cuántos pasos de relación se muestran desde la entidad del centro">
+          <span>Mostrar</span>
+          <select className="entrada" value={saltos} onChange={(e) => setSaltos(Number(e.target.value))}
+                  aria-label="Qué tan lejos mostrar las relaciones">
+            {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
+          </select>
+        </label>
         <button type="button" className="boton" onClick={() => setCompleta(!completa)} aria-pressed={completa}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" {...trazo}>
             {completa ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /> : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}
@@ -402,7 +410,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
       {hallazgo && <div className="aviso" role="status">Ninguna entidad visible se llama así. La búsqueda no cambia los filtros.</div>}
       {datos?.truncado && (
         <div className="aviso alerta" role="status">
-          El grafo se truncó en {datos.maximo_nodos} entidades para seguir siendo legible. Reduzca los saltos, aplique un
+          El grafo se truncó en {datos.maximo_nodos} entidades para seguir siendo legible. Muestre menos niveles de relación, aplique un
           filtro o elija una entidad raíz más específica.
         </div>
       )}
@@ -414,7 +422,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
               <div className="vacio-lienzo">
                 {numFiltros ? (
                   <EstadoVacio icono="filtro" titulo="Ningún nodo pasa los filtros activos"
-                               texto={`Con ${numFiltros} filtro${numFiltros === 1 ? "" : "s"} y ${saltos} salto${saltos === 1 ? "" : "s"}, no queda ninguna entidad relacionada con «${raiz?.etiqueta}». El recorrido no pasa por lo filtrado: para llegar más lejos, incluya también los tipos intermedios (agrupaciones, documentos).`}
+                               texto={`Con ${numFiltros} filtro${numFiltros === 1 ? "" : "s"} y ${saltos} nivel${saltos === 1 ? "" : "es"} de relación, no queda ninguna entidad relacionada con «${raiz?.etiqueta}». El recorrido no pasa por lo filtrado: para llegar más lejos, incluya también los tipos intermedios (agrupaciones, documentos).`}
                                accion={{ texto: "Limpiar filtros", alHacer: () => setFiltros(SIN_FILTROS) }} />
                 ) : (
                   <EstadoVacio icono="grafo" titulo="Esta entidad todavía no tiene relaciones registradas"

@@ -119,6 +119,8 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   // Leyenda interactiva: cada tipo de entidad se muestra u oculta con un toque.
   // Lo oculto desaparece del dibujo con sus relaciones; la raíz nunca se oculta.
   const [ocultas, setOcultas] = useState<Set<Familia>>(new Set());
+  // La leyenda no tapa el grafo: aparece flotando solo cuando se pide.
+  const [verLeyenda, setVerLeyenda] = useState(false);
   const datos = useMemo<DatosGrafo>(() => {
     if (!ocultas.size) return completo;
     const nodos = completo.nodos.filter((n) => !ocultas.has(n.familia) || n.clave === completo.centro);
@@ -338,7 +340,13 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
 
   return (
     <div className={`lienzo-grafo${paneando ? " paneando" : ""}`}>
-      <div className="leyenda-grafo" role="group" aria-label="Leyenda: toque un tipo para mostrarlo u ocultarlo">
+      <button type="button" className={`boton chico boton-leyenda${ocultas.size ? " con-filtros" : ""}`}
+              aria-expanded={verLeyenda} aria-controls="leyenda-grafo" onClick={() => setVerLeyenda(!verLeyenda)}>
+        Tipos{ocultas.size > 0 && <span className="contador" aria-label={`${ocultas.size} ocultos`}>{ocultas.size}</span>}
+      </button>
+      {verLeyenda && (
+      <div className="leyenda-grafo" id="leyenda-grafo" role="group"
+           aria-label="Leyenda: toque un tipo para mostrarlo u ocultarlo">
         {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => {
           const cuantos = completo.nodos.filter((n) => n.familia === f.clave).length;
           return (
@@ -356,6 +364,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
           <button type="button" className="enlace mostrar-todos" onClick={() => setOcultas(new Set())}>Mostrar todos</button>
         )}
       </div>
+      )}
       <div className="controles-grafo" role="group" aria-label="Acercamiento y desplazamiento del grafo">
         <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
         <input type="range" className="deslizador-zoom" min={20} max={300} step={5} value={Math.round(vista.k * 100)}
