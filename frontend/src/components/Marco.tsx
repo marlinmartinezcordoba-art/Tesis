@@ -70,9 +70,9 @@ const ENTRADAS: Entrada[] = [
     { vista: "vocabulario", nombre: "Autoridades" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
     { vista: "tesauros", nombre: "Tesauros" }] },
   { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["Catálogo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"], vistas: [
-      { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo" },
-      { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo" },
+    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"], vistas: [
+      { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo y grafo" },
+      { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo y grafo" },
       // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
       { vista: "inventario", nombre: "Inventario (FUID)", submodulo: "Instrumentos de descripción",
         permitir: (u) => puede(u, "instrumentos", "escribir") },

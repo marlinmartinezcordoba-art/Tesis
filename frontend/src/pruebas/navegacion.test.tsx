@@ -75,7 +75,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("elegir un submódulo lleva a su primera vista; la pestaña cambia de vista dentro de él", () => {
     montar("/instrumentos");
-    expect(submodulosVisibles("Consulta y difusión")).toEqual(["Catálogo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
+    expect(submodulosVisibles("Consulta y difusión")).toEqual(["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
     expect(pestanas()).toEqual(["Catálogo", "Grafo de contexto"]);
     fireEvent.click(screen.getByRole("link", { name: "Instrumentos de descripción" }));
     expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=inventario");
@@ -101,7 +101,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("cada rol ve solo lo suyo: consulta ve el índice, no el FUID ni la guía; sin pestañas de una sola vista", () => {
     expect(submodulosDe("/instrumentos", CONSULTA).map((sm) => [sm.nombre, sm.vistas.map((v) => v.nombre)])).toEqual([
-      ["Catálogo", ["Catálogo", "Grafo de contexto"]], ["Instrumentos de descripción", ["Índice"]],
+      ["Catálogo y grafo", ["Catálogo", "Grafo de contexto"]], ["Instrumentos de descripción", ["Índice"]],
       ["Datos enlazados (RiC-O)", ["Datos enlazados (RiC-O)"]]]);
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
     montar("/instrumentos?vista=indice", CONSULTA);
