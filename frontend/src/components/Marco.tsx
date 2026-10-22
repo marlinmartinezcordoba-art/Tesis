@@ -27,6 +27,8 @@ interface Vista {
   nombre: string;
   ruta?: string; // una vista con ruta propia (p. ej. la configuración de preservación)
   permitir?: (u: UsuarioBreve) => boolean;
+  // Submódulo del menú al que pertenece (solo en los módulos que tienen submódulos).
+  submodulo?: string;
 }
 
 interface Entrada {
@@ -36,44 +38,50 @@ interface Entrada {
   grupo: "trabajo" | "sistema";
   modulo: Modulo | "usuarios";
   tipo?: "leer" | "escribir";
+  // Las vistas son pestañas dentro de la pantalla. Solo los módulos con
+  // `submodulos` se despliegan en el menú (criterio único, decisión de la autora:
+  // un módulo es un proceso archivístico; sus pasos y pestañas van adentro).
   vistas?: Vista[];
+  submodulos?: string[];
 }
 
 
-// Solo aparecen los módulos ya construidos; cada módulo nuevo se agrega
-// aquí cuando se entrega, en el orden de la barra del diseño consolidado:
-// Ingesta, Descripción, Vocabularios, Instrumentos, Preservación ·
-// Auditoría, Usuarios.
+// Un módulo es un proceso archivístico. En el menú solo hay módulos y, en los
+// dos más amplios, submódulos; los pasos y las pestañas van dentro de la pantalla.
 const ENTRADAS: Entrada[] = [
-  // En el orden del proceso archivístico (decisión de la autora): primero el fondo y su cuadro.
-  { ruta: "/fondos", nombre: "Fondos", icono: "fondos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "cargar", nombre: "1. Cargar CCD y TRD" },
-    { vista: "dependencias", nombre: "2. Dependencias" },
-    { vista: "series", nombre: "3. Series, subseries y tipos" },
-    { vista: "matriz", nombre: "4. Matriz de la TRD" },
-    { vista: "versiones", nombre: "5. Aplicar y versiones" },
-    { vista: "cuadro", nombre: "Cuadro de clasificación" },
-    { vista: "disposicion", nombre: "Disposición final" },
-    { vista: "fondos", nombre: "Fondos del archivo" }] },
+  { ruta: "/fondos", nombre: "Instrumentos archivísticos", icono: "fondos", grupo: "trabajo", modulo: "catalogo",
+    submodulos: ["TRD y CCD", "TVD", "Disposición final"], vistas: [
+      { vista: "cargar", nombre: "1. Cargar CCD y TRD", submodulo: "TRD y CCD" },
+      { vista: "dependencias", nombre: "2. Dependencias", submodulo: "TRD y CCD" },
+      { vista: "series", nombre: "3. Series y tipos", submodulo: "TRD y CCD" },
+      { vista: "matriz", nombre: "4. Matriz", submodulo: "TRD y CCD" },
+      { vista: "versiones", nombre: "5. Aplicar y versiones", submodulo: "TRD y CCD" },
+      { vista: "cuadro", nombre: "Cuadro de clasificación", submodulo: "TRD y CCD" },
+      { vista: "fondos", nombre: "Fondos del archivo", submodulo: "TRD y CCD" },
+      { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD" },
+      { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },
   { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion", vistas: [
     { vista: "cola", nombre: "Por describir" }, { vista: "publicadas", nombre: "Descritas" }] },
   { ruta: "/vocabularios", nombre: "Autoridades y términos", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
-    { vista: "vocabulario", nombre: "Agentes, lugares y más" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
+    { vista: "vocabulario", nombre: "Autoridades" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
     { vista: "tesauros", nombre: "Tesauros" }] },
-  { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo", vistas: [
-    { vista: "catalogo", nombre: "Catálogo" },
-    { vista: "grafo", nombre: "Grafo de contexto" },
-    // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
-    { vista: "inventario", nombre: "Inventario (FUID)", permitir: (u) => puede(u, "instrumentos", "escribir") },
-    { vista: "guia", nombre: "Guía del fondo", permitir: (u) => puede(u, "instrumentos", "escribir") },
-    // El índice es la puerta de consulta por nombres; el equipo interno trabaja
-    // los mismos términos en Vocabularios, así que no lo ve dos veces, salvo
-    // quien genera instrumentos: lo revisa y lo aprueba como documento.
-    { vista: "indice", nombre: "Índice", permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
-    { vista: "rico", nombre: "Datos enlazados (RiC-O)" }] },
+  { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo",
+    submodulos: ["Catálogo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"], vistas: [
+      { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo" },
+      { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo" },
+      // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
+      { vista: "inventario", nombre: "Inventario (FUID)", submodulo: "Instrumentos de descripción",
+        permitir: (u) => puede(u, "instrumentos", "escribir") },
+      { vista: "guia", nombre: "Guía del fondo", submodulo: "Instrumentos de descripción",
+        permitir: (u) => puede(u, "instrumentos", "escribir") },
+      // El índice es la puerta de consulta por nombres; el equipo interno trabaja
+      // los mismos términos en Autoridades, salvo quien genera instrumentos: lo aprueba.
+      { vista: "indice", nombre: "Índice", submodulo: "Instrumentos de descripción",
+        permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
+      { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
@@ -92,6 +100,14 @@ const ENTRADAS: Entrada[] = [
 export function vistasDe(ruta: string, u: UsuarioBreve | null): Vista[] {
   const e = ENTRADAS.find((x) => x.ruta === ruta);
   return (e?.vistas || []).filter((v) => !v.permitir || (u && v.permitir(u)));
+}
+
+/** Submódulos visibles de un módulo, cada uno con sus vistas (pestañas). */
+export function submodulosDe(ruta: string, u: UsuarioBreve | null): { nombre: string; vistas: Vista[] }[] {
+  const e = ENTRADAS.find((x) => x.ruta === ruta);
+  const vistas = vistasDe(ruta, u);
+  return (e?.submodulos || []).map((nombre) => ({ nombre, vistas: vistas.filter((v) => v.submodulo === nombre) }))
+    .filter((sm) => sm.vistas.length > 0);
 }
 
 /** La vista activa de un módulo, leída de ?vista= (la primera permitida si no hay o no vale). */
@@ -137,8 +153,9 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
           <div key={clave} style={{ display: "contents" }}>
             {entradas.map((e) => {
               const vistas = vistasDe(e.ruta, usuario);
+              const subs = submodulosDe(e.ruta, usuario);
               const enModulo = actual?.ruta === e.ruta;
-              if (vistas.length < 2) {
+              if (subs.length < 2) {
                 return (
                   <NavLink key={e.ruta} to={e.ruta} onClick={alNavegar}>
                     {ICONOS[e.icono]}
@@ -161,13 +178,13 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
                   </button>
                   {abierto && (
                     <ul id={idLista} className="subvistas">
-                      {vistas.map((v, i) => {
-                        const activa = v.ruta ? pathname === v.ruta
-                          : enModulo && pathname === e.ruta && activaInterna?.vista === v.vista;
+                      {subs.map((sm) => {
+                        const primera = sm.vistas[0];
+                        const activa = enModulo && pathname === e.ruta && activaInterna?.submodulo === sm.nombre;
                         return (
-                          <li key={v.vista}>
-                            <Link to={hrefDe(e, v, i === 0)} className={activa ? "active" : undefined}
-                                  aria-current={activa ? "page" : undefined} onClick={alNavegar}>{v.nombre}</Link>
+                          <li key={sm.nombre}>
+                            <Link to={hrefDe(e, primera, primera === vistas[0])} className={activa ? "active" : undefined}
+                                  aria-current={activa ? "page" : undefined} onClick={alNavegar}>{sm.nombre}</Link>
                           </li>
                         );
                       })}
@@ -179,6 +196,33 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
           </div>
         ) : null,
       )}
+    </nav>
+  );
+}
+
+/** Pestañas de la pantalla: las vistas del módulo o, si tiene submódulos, las del submódulo activo. */
+export function PestanasModulo() {
+  const { usuario } = useSesion();
+  const { pathname } = useLocation();
+  const [parametros] = useSearchParams();
+  const e = ENTRADAS.find((x) => pathname === x.ruta || pathname.startsWith(`${x.ruta}/`));
+  if (!e) return null;
+  const vistas = vistasDe(e.ruta, usuario);
+  const internas = vistas.filter((v) => !v.ruta);
+  const activa = vistas.find((v) => v.ruta === pathname)
+    || (pathname === e.ruta ? internas.find((v) => v.vista === parametros.get("vista")) || internas[0] : undefined);
+  if (!activa) return null;
+  const grupo = e.submodulos ? vistas.filter((v) => v.submodulo === activa.submodulo) : vistas;
+  if (grupo.length < 2) return null;
+  return (
+    <nav className="pestanas-modulo" aria-label={activa.submodulo || e.nombre}>
+      {grupo.map((v) => {
+        const actual = v === activa;
+        return (
+          <Link key={v.vista} to={hrefDe(e, v, v === vistas[0])} className={actual ? "activa" : undefined}
+                aria-current={actual ? "page" : undefined}>{v.nombre}</Link>
+        );
+      })}
     </nav>
   );
 }
@@ -316,6 +360,7 @@ export function Marco({ children }: { children: ReactNode }) {
           </div>
         </div>
         <AvisoSinCifrar />
+        <PestanasModulo />
         {children}
       </main>
     </div>

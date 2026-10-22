@@ -4,7 +4,7 @@ import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { TablaVistaPrevia, type Vista } from "@/components/CuadroClasificacion";
-import { Pasos, type VersionTrd } from "@/components/ParametrizacionTrd";
+import { type VersionTrd } from "@/components/ParametrizacionTrd";
 import { ImportarRico, type Importado } from "@/components/ImportarRico";
 import { RegistrarFondo, type Respuesta } from "@/components/RegistrarFondo";
 
@@ -156,7 +156,6 @@ export function CargarInstrumentos() {
         AGN, en Excel o PDF) y el sistema configura el fondo, sus dependencias productoras, series, subseries, tipos
         documentales y la matriz de retención. Después revise y ajuste a mano lo que haga falta y aplique la versión.
       </p>
-      <Pasos actual={1} />
       {!usuario?.es_administrador ? (
         <div className="vacio">Solo la administración carga los instrumentos archivísticos.</div>
       ) : hecho ? (

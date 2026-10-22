@@ -59,20 +59,6 @@ function useLista<T>(ruta: string | null) {
 
 // El recorrido de la parametrización: todo parte de cargar los instrumentos; lo
 // demás es revisar y ajustar a mano lo que la carga configuró, y aplicar.
-const PASOS: [string, string][] = [["cargar", "Cargar CCD y TRD"], ["dependencias", "Dependencias"],
-  ["series", "Series, subseries y tipos"], ["matriz", "Matriz de la TRD"], ["versiones", "Aplicar la versión"]];
-
-export function Pasos({ actual }: { actual: number }) {
-  return (
-    <p className="meta">
-      {PASOS.map(([vista, nombre], i) => (
-        <span key={vista}>{i > 0 && " → "}{i + 1 === actual ? <strong>{i + 1}. {nombre}</strong>
-          : <Link to={`/fondos?vista=${vista}`}>{i + 1}. {nombre}</Link>}</span>
-      ))}
-    </p>
-  );
-}
-
 // Aviso en las pantallas de ajuste: lo que se ve salió de la carga de los instrumentos.
 function DesdeLaCarga() {
   return (
@@ -261,7 +247,6 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
         y queda vigente. La anterior pasa a histórica; nada se borra y cada expediente conserva la retención de la TRD con
         que se produjo.
       </p>
-      <Pasos actual={5} />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {esAdmin && !borrador && versiones && (
@@ -437,7 +422,6 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
         Al aplicar la TRD cada una es una sección del cuadro (rico:RecordSet) y la dependencia es su productor
         (rico:CorporateBody). Su código encabeza el de sus series: la serie 2 de la dependencia 110 es la 110.2.
       </p>
-      <Pasos actual={2} />
       <DesdeLaCarga />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && <div className="acciones"><button type="button" className="boton primario" onClick={() => setForm("nueva")}>
@@ -562,7 +546,6 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
         código y su definición. Se registran una vez y la matriz de la TRD los usa en cada dependencia. Al aplicar, cada
         serie y subserie es un rico:RecordSet del cuadro y cada tipo documental un rico:DocumentaryFormType.
       </p>
-      <Pasos actual={3} />
       <DesdeLaCarga />
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && (
@@ -787,7 +770,6 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
         de gestión (AG) y en el central (AC), la disposición final, el soporte y el procedimiento. Se edita solo en una
         versión en borrador; la vigente y las históricas se consultan.
       </p>
-      <Pasos actual={4} />
       <DesdeLaCarga />
       {(versiones.error || filas.error || fallo) && (
         <div className="aviso error" role="alert">{versiones.error || filas.error || fallo}</div>

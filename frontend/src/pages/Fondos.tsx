@@ -10,7 +10,7 @@ import { useSesion } from "@/lib/sesion";
 // Fondos: el punto de partida del archivo. Todo nace de cargar el cuadro de
 // clasificación (CCD) y la tabla de retención (TRD): el fondo, sus dependencias,
 // series, subseries, tipos y matriz. Lo demás es ajuste manual, aplicación y consulta.
-type VistaFondos = "cargar" | "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro" | "disposicion";
+type VistaFondos = "cargar" | "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro" | "disposicion" | "tvd";
 
 function ListaFondos() {
   const { usuario } = useSesion();
@@ -53,11 +53,27 @@ function ListaFondos() {
   );
 }
 
+// La TVD (Acuerdo 004 de 2019) se está construyendo con la misma lógica de la TRD:
+// versiones, periodos institucionales, series, retención, disposición y RiC-O.
+function TvdEnConstruccion() {
+  return (
+    <>
+      <h1>Tabla de valoración documental (TVD)</h1>
+      <div className="aviso" role="note">
+        En construcción. La TVD tendrá el mismo recorrido que la TRD: versiones con su acto de aprobación y su
+        convalidación, los periodos institucionales del fondo acumulado, sus series y tipos, la retención y la
+        disposición final, y su paso a RiC-O como regla del fondo.
+      </div>
+    </>
+  );
+}
+
 export function Fondos() {
   const vista = useVista<VistaFondos>("/fondos");
   const { fondo } = useFondo();
   if (vista === "fondos") return <ListaFondos />;
   if (vista === "cargar") return <CargarInstrumentos />;
+  if (vista === "tvd") return <TvdEnConstruccion />;
   if (!fondo) return <div className="vacio">Registre un fondo primero (Fondos del archivo).</div>;
   const pantallas = { versiones: VersionesTrd, dependencias: DependenciasTrd, series: BancoTrd, matriz: MatrizTrd,
     cuadro: CuadroClasificacion, disposicion: DisposicionFinal };

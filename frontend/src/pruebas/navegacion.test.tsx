@@ -8,7 +8,7 @@ const sesion: { usuario: UsuarioBreve | null } = { usuario: null };
 vi.mock("@/lib/sesion", () => ({ useSesion: () => ({ usuario: sesion.usuario, salir: vi.fn() }) }));
 vi.mock("@/lib/fondo", () => ({ useFondo: () => ({ fondo: null, fondos: [], elegir: vi.fn() }) }));
 
-const { ArbolNavegacion, vistasDe } = await import("@/components/Marco");
+const { ArbolNavegacion, PestanasModulo, submodulosDe, vistasDe } = await import("@/components/Marco");
 
 const TODO = { ingesta: "escribir", descripcion: "escribir", vocabularios: "escribir", instrumentos: "escribir",
   preservacion: "escribir", catalogo: "escribir", auditoria: "todo" };
@@ -24,92 +24,84 @@ function Ubicacion() {
 
 function montar(ruta: string, usuario: UsuarioBreve = ADMIN) {
   sesion.usuario = usuario;
-  return render(<MemoryRouter initialEntries={[ruta]}><ArbolNavegacion /><Ubicacion /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[ruta]}><ArbolNavegacion /><PestanasModulo /><Ubicacion /></MemoryRouter>);
 }
 
 const rama = (nombre: string) => screen.getByRole("button", { name: nombre });
-const vistasVisibles = (nombre: string) => {
+const submodulosVisibles = (nombre: string) => {
   const id = rama(nombre).getAttribute("aria-controls")!;
   const lista = document.getElementById(id);
   return lista ? within(lista).getAllByRole("link").map((a) => a.textContent) : [];
 };
+const pestanas = () => {
+  const barra = document.querySelector(".pestanas-modulo") as HTMLElement | null;
+  return barra ? within(barra).getAllByRole("link").map((a) => a.textContent) : [];
+};
+const pestanaActual = () => (document.querySelector(".pestanas-modulo [aria-current=page]") as HTMLElement | null)?.textContent;
 
 afterEach(cleanup);
 
-describe("árbol de submódulos", () => {
-  it("al entrar por la URL de una vista interna expande su módulo y la resalta", () => {
-    montar("/vocabularios?vista=sugerencias");
-    expect(rama("Autoridades y términos").getAttribute("aria-expanded")).toBe("true");
-    expect(vistasVisibles("Autoridades y términos")).toEqual(["Agentes, lugares y más", "Posibles duplicados", "Tesauros"]);
-    const activa = screen.getByRole("link", { current: "page" });
-    expect(activa.textContent).toBe("Posibles duplicados");
-    // Los demás módulos quedan contraídos.
-    for (const m of ["Carga de documentos", "Descripción", "Consulta y difusión", "Preservación", "Auditoría", "Usuarios y permisos"]) {
-      expect(rama(m).getAttribute("aria-expanded")).toBe("false");
+describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro de la pantalla", () => {
+  it("solo Instrumentos archivísticos y Consulta y difusión se despliegan; lo demás es un enlace", () => {
+    montar("/ingesta");
+    expect(screen.getAllByRole("button", { expanded: false }).concat(screen.queryAllByRole("button", { expanded: true }))
+      .map((b) => b.textContent)).toEqual(["Instrumentos archivísticos", "Consulta y difusión"]);
+    for (const m of ["Carga de documentos", "Descripción", "Autoridades y términos", "Preservación", "Auditoría",
+      "Evaluación", "Usuarios y permisos"]) {
+      expect(screen.getByRole("link", { name: m })).toBeTruthy();
     }
   });
 
-  it("acordeón: abrir un módulo revela exactamente sus vistas y esconde las del que estaba abierto", () => {
-    montar("/vocabularios");
-    // Sin ?vista, la primera vista del módulo es la activa.
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Agentes, lugares y más");
+  it("un paso de la TRD abre su submódulo y sus pasos son pestañas de la pantalla", () => {
+    montar("/fondos?vista=matriz");
+    expect(rama("Instrumentos archivísticos").getAttribute("aria-expanded")).toBe("true");
+    expect(submodulosVisibles("Instrumentos archivísticos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
+    expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
+    expect(pestanas()).toEqual(["1. Cargar CCD y TRD", "2. Dependencias", "3. Series y tipos", "4. Matriz",
+      "5. Aplicar y versiones", "Cuadro de clasificación", "Fondos del archivo"]);
+    expect(pestanaActual()).toBe("4. Matriz");
+  });
+
+  it("un módulo sin submódulos muestra sus vistas como pestañas", () => {
+    montar("/vocabularios?vista=sugerencias");
+    expect(pestanas()).toEqual(["Autoridades", "Posibles duplicados", "Tesauros"]);
+    expect(pestanaActual()).toBe("Posibles duplicados");
+  });
+
+  it("elegir un submódulo lleva a su primera vista; la pestaña cambia de vista dentro de él", () => {
+    montar("/instrumentos");
+    expect(submodulosVisibles("Consulta y difusión")).toEqual(["Catálogo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
+    expect(pestanas()).toEqual(["Catálogo", "Grafo de contexto"]);
+    fireEvent.click(screen.getByRole("link", { name: "Instrumentos de descripción" }));
+    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=inventario");
+    expect(pestanas()).toEqual(["Inventario (FUID)", "Guía del fondo", "Índice"]);
+    fireEvent.click(screen.getByRole("link", { name: "Índice" }));
+    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=indice");
+    expect(pestanaActual()).toBe("Índice");
+  });
+
+  it("acordeón: abrir un módulo cierra el otro; tocar el abierto lo cierra", () => {
+    montar("/fondos");
     fireEvent.click(rama("Consulta y difusión"));
-    expect(vistasVisibles("Consulta y difusión")).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Índice", "Datos enlazados (RiC-O)"]);
-    expect(rama("Autoridades y términos").getAttribute("aria-expanded")).toBe("false");
-    expect(vistasVisibles("Autoridades y términos")).toEqual([]);
-    // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
+    expect(rama("Instrumentos archivísticos").getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(rama("Consulta y difusión"));
     expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
   });
 
-  it("al pasar de un módulo a otro, las vistas del anterior se esconden solas", () => {
-    montar("/ingesta");
-    fireEvent.click(rama("Descripción"));
-    fireEvent.click(screen.getByRole("link", { name: "Descritas" }));
-    fireEvent.click(rama("Consulta y difusión"));
-    fireEvent.click(screen.getByRole("link", { name: "Grafo de contexto" }));
-    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=grafo");
-    const abiertos = screen.getAllByRole("button", { expanded: true }).map((b) => b.textContent);
-    expect(abiertos).toEqual(["Consulta y difusión"]);
-  });
-
-  it("elegir una vista navega a ella y pasa a ser la resaltada", () => {
-    montar("/instrumentos");
-    fireEvent.click(screen.getByRole("link", { name: "Grafo de contexto" }));
-    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=grafo");
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Grafo de contexto");
-  });
-
-  it("la configuración de preservación es una vista del árbol con ruta propia", () => {
+  it("la configuración de preservación es una pestaña con ruta propia", () => {
     montar("/preservacion/configuracion");
-    expect(rama("Preservación").getAttribute("aria-expanded")).toBe("true");
-    expect(vistasVisibles("Preservación")).toEqual(["Panel", "Configuración"]);
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Configuración");
+    expect(pestanas()).toEqual(["Panel", "Configuración"]);
+    expect(pestanaActual()).toBe("Configuración");
   });
 
-  it("cada rol ve solo sus vistas; un módulo con una sola vista es un enlace simple", () => {
-    montar("/auditoria", CONSULTA);
-    expect(screen.queryByRole("button", { name: "Auditoría" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Auditoría" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Usuarios y permisos" })).toBeNull(); // solo la administración
-    expect(vistasDe("/preservacion", CONSULTA).map((v) => v.vista)).toEqual(["panel"]);
+  it("cada rol ve solo lo suyo: consulta ve el índice, no el FUID ni la guía; sin pestañas de una sola vista", () => {
+    expect(submodulosDe("/instrumentos", CONSULTA).map((sm) => [sm.nombre, sm.vistas.map((v) => v.nombre)])).toEqual([
+      ["Catálogo", ["Catálogo", "Grafo de contexto"]], ["Instrumentos de descripción", ["Índice"]],
+      ["Datos enlazados (RiC-O)", ["Datos enlazados (RiC-O)"]]]);
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
-    // Evaluación no tiene vistas internas: enlace simple también para la administración.
-    cleanup();
-    montar("/evaluacion");
-    expect(screen.queryByRole("button", { name: "Evaluación" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Evaluación" })).toBeTruthy();
-  });
-
-  it("el perfil de consulta ve el índice y no lo que no puede usar; quien genera instrumentos también lo ve para aprobarlo", () => {
-    // Consulta: catálogo, grafo, índice y RiC-O; sin inventario ni guía (se generan) y sin Vocabularios.
-    expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Índice", "Datos enlazados (RiC-O)"]);
-    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Índice", "Datos enlazados (RiC-O)"]);
     montar("/instrumentos?vista=indice", CONSULTA);
-    expect(screen.queryByRole("link", { name: "Agentes, lugares y más" })).toBeNull();
-    // El menú no lleva títulos de grupo (decisión de la autora).
-    expect(screen.queryByText("Consulta del archivo")).toBeNull();
-    expect(screen.queryByText("Trabajo archivístico")).toBeNull();
-    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Índice");
+    expect(pestanas()).toEqual([]);
+    expect(screen.queryByRole("link", { name: "Autoridades y términos" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Usuarios y permisos" })).toBeNull();
   });
 });
