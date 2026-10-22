@@ -28,8 +28,10 @@ def avance(db: Session, fondo: RecursoDocumental) -> dict:
     from app.servicios import descripcion
 
     f = fondo.id
-    vigente = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == f, VersionTrd.estado == "vigente"))
-    borrador = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == f, VersionTrd.estado == "borrador"))
+    vigente = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == f, VersionTrd.instrumento == "trd",
+                                                 VersionTrd.estado == "vigente"))
+    borrador = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == f, VersionTrd.instrumento == "trd",
+                                                  VersionTrd.estado == "borrador"))
     series = _contar(db, select(RecursoDocumental.id).where(
         RecursoDocumental.fondo_id == f, RecursoDocumental.nivel.in_(("serie", "subserie"))))
     archivos = _contar(db, select(Instanciacion.id).where(

@@ -13,7 +13,14 @@ gestión documental del país):
    la versión), se valida contra la ontología y el perfil SHACL y, solo si es
    conforme, queda vigente; la anterior pasa a histórica.
 
-Solo un borrador por fondo a la vez. Lo vigente y lo histórico no se editan:
+La TVD (Acuerdo 004 de 2019) sigue el mismo recorrido, con dos diferencias:
+cada versión valora un periodo institucional del fondo acumulado (desde,
+hasta), y sus reglas rigen los documentos producidos en ese periodo (no
+desde una fecha hacia adelante). Puede haber varias TVD vigentes, una por
+periodo, sin traslaparse; una versión nueva del mismo periodo reemplaza a la
+anterior.
+
+Solo un borrador por fondo e instrumento a la vez. Lo vigente y lo histórico no se editan:
 para cambiar una TRD se abre una versión nueva (copia de la vigente) y se
 aplica. Nada se borra: se anula.
 """
@@ -26,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import ahora
 from app.models.recurso_documental import RecursoDocumental
-from app.models.trd import CLASE_BANCO, SOPORTE, DependenciaTrd, FilaTrd, TerminoBanco, VersionTrd
+from app.models.trd import CLASE_BANCO, INSTRUMENTO, SOPORTE, DependenciaTrd, FilaTrd, TerminoBanco, VersionTrd
 from app.servicios import cuadro
 from app.servicios.auditoria import registrar
 
@@ -55,6 +62,8 @@ def _version_dict(db: Session, v: VersionTrd) -> dict:
     filas = db.scalar(select(func.count()).select_from(FilaTrd).where(FilaTrd.version_id == v.id,
                                                                      FilaTrd.estado == "vigente"))
     return {"id": str(v.id), "fondo_id": str(v.fondo_id), "numero": v.numero, "nombre": v.nombre,
+            "instrumento": v.instrumento, "instrumento_nombre": INSTRUMENTO[v.instrumento], "periodo": v.periodo,
+            "periodo_desde": v.periodo_desde, "periodo_hasta": v.periodo_hasta,
             "acto_aprobacion": v.acto_aprobacion,
             "fecha_aprobacion": v.fecha_aprobacion, "convalidacion": v.convalidacion,
             "fecha_convalidacion": v.fecha_convalidacion, "vigente_desde": v.vigente_desde,
@@ -81,26 +90,29 @@ def _poner_ente(db: Session, v: VersionTrd, nombre: str | None, usuario_id: uuid
     v.ente_vigilancia_id = ente.id
 
 
-def versiones(db: Session, fondo: RecursoDocumental) -> list[dict]:
-    return [_version_dict(db, v) for v in db.scalars(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id)
-                                                     .order_by(VersionTrd.numero.desc()))]
+def versiones(db: Session, fondo: RecursoDocumental, instrumento: str | None = "trd") -> list[dict]:
+    consulta = select(VersionTrd).where(VersionTrd.fondo_id == fondo.id)
+    if instrumento:
+        consulta = consulta.where(VersionTrd.instrumento == instrumento)
+    return [_version_dict(db, v) for v in db.scalars(consulta.order_by(VersionTrd.instrumento,
+                                                                       VersionTrd.numero.desc()))]
 
 
 def version_de(db: Session, version_id: uuid.UUID) -> VersionTrd:
     v = db.get(VersionTrd, version_id)
     if v is None:
-        raise ErrorTrd("La versión de la TRD no existe.", 404)
+        raise ErrorTrd("La versión no existe.", 404)
     return v
 
 
 def _editable(v: VersionTrd) -> None:
     if v.estado != "borrador":
-        raise ErrorTrd("Solo se edita una versión en borrador. Para cambiar la TRD vigente, abra una versión nueva "
-                       "a partir de ella.", 409)
+        raise ErrorTrd(f"Solo se edita una versión en borrador. Para cambiar la {v.instrumento.upper()} vigente, abra "
+                       "una versión nueva a partir de ella.", 409)
 
 
 CAMPOS_VERSION = ("nombre", "acto_aprobacion", "fecha_aprobacion", "convalidacion", "fecha_convalidacion",
-                  "vigente_desde", "observaciones")
+                  "vigente_desde", "observaciones", "periodo", "periodo_desde", "periodo_hasta")
 
 
 def _poner_campos(v: VersionTrd, datos: dict) -> None:
@@ -108,7 +120,7 @@ def _poner_campos(v: VersionTrd, datos: dict) -> None:
         if campo not in datos:
             continue
         valor = datos[campo]
-        if campo.startswith(("fecha_", "vigente_")):
+        if campo.startswith(("fecha_", "vigente_", "periodo_")):
             setattr(v, campo, valor if isinstance(valor, date) else None)
         elif campo == "observaciones":
             setattr(v, campo, (valor or "").strip()[:5000] or None)
@@ -116,22 +128,35 @@ def _poner_campos(v: VersionTrd, datos: dict) -> None:
             setattr(v, campo, _texto(valor, 300))
     if not v.nombre:
         raise ErrorTrd("La versión necesita un nombre (por ejemplo «TRD 2024»).")
+    if v.periodo_desde and v.periodo_hasta and v.periodo_desde > v.periodo_hasta:
+        raise ErrorTrd("El periodo institucional termina antes de empezar: revise las fechas.")
 
 
 def crear_version(db: Session, fondo: RecursoDocumental, datos: dict, usuario_id: uuid.UUID,
-                  copiar_vigente: bool = True) -> VersionTrd:
-    if db.scalar(select(VersionTrd.id).where(VersionTrd.fondo_id == fondo.id, VersionTrd.estado == "borrador")):
-        raise ErrorTrd("Ya hay una versión en borrador: termínela o anúlela antes de abrir otra.", 409)
-    numero = (db.scalar(select(func.max(VersionTrd.numero)).where(VersionTrd.fondo_id == fondo.id)) or 0) + 1
-    v = VersionTrd(fondo_id=fondo.id, numero=numero, nombre=f"TRD versión {numero}", estado="borrador",
+                  copiar_vigente: bool = True, instrumento: str = "trd") -> VersionTrd:
+    if instrumento not in INSTRUMENTO:
+        raise ErrorTrd("El instrumento es la TRD o la TVD.")
+    sigla = instrumento.upper()
+    if db.scalar(select(VersionTrd.id).where(VersionTrd.fondo_id == fondo.id, VersionTrd.instrumento == instrumento,
+                                             VersionTrd.estado == "borrador")):
+        raise ErrorTrd(f"Ya hay una {sigla} en borrador: termínela o anúlela antes de abrir otra.", 409)
+    numero = (db.scalar(select(func.max(VersionTrd.numero)).where(VersionTrd.fondo_id == fondo.id,
+                                                                  VersionTrd.instrumento == instrumento)) or 0) + 1
+    periodo = _texto(datos.get("periodo"), 300)
+    nombre = f"TVD {periodo}" if instrumento == "tvd" and periodo else f"{sigla} versión {numero}"
+    v = VersionTrd(fondo_id=fondo.id, instrumento=instrumento, numero=numero, nombre=nombre, estado="borrador",
                    creado_por_id=usuario_id)
-    _poner_campos(v, {"nombre": f"TRD versión {numero}"} | {k: x for k, x in datos.items() if x is not None})
+    _poner_campos(v, {"nombre": nombre} | {k: x for k, x in datos.items() if x is not None})
     db.add(v)
     db.flush()
     if datos.get("ente_vigilancia"):
         _poner_ente(db, v, datos["ente_vigilancia"], usuario_id)
     copiadas = 0
-    vigente = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.estado == "vigente"))
+    # Una TVD nueva parte de la vigente del mismo periodo (si se está corrigiendo); la TRD, de la vigente.
+    vigente = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.instrumento == instrumento,
+                                                 VersionTrd.estado == "vigente",
+                                                 *([VersionTrd.periodo_desde == v.periodo_desde] if instrumento == "tvd"
+                                                   else [])))
     if copiar_vigente and vigente is not None:
         for f in db.scalars(select(FilaTrd).where(FilaTrd.version_id == vigente.id, FilaTrd.estado == "vigente")):
             db.add(FilaTrd(version_id=v.id, dependencia_id=f.dependencia_id, serie_id=f.serie_id,
@@ -143,7 +168,7 @@ def crear_version(db: Session, fondo: RecursoDocumental, datos: dict, usuario_id
     registrar(db, modulo="instrumentos", accion="trd_version_creada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=fondo.id,
               detalle=f"{v.nombre} (borrador)" + (f", copia de la {vigente.nombre}" if copiadas else ""),
-              nuevo={"numero": numero, "filas_copiadas": copiadas})
+              nuevo={"instrumento": instrumento, "numero": numero, "filas_copiadas": copiadas})
     return v
 
 
@@ -492,9 +517,31 @@ def _requisitos(v: VersionTrd) -> list[str]:
         faltan.append("el acto administrativo que la aprueba")
     if not v.fecha_aprobacion:
         faltan.append("la fecha de aprobación")
-    if not v.vigente_desde:
+    if v.instrumento == "tvd":
+        if not v.periodo:
+            faltan.append("el nombre del periodo institucional")
+        if not (v.periodo_desde and v.periodo_hasta):
+            faltan.append("las fechas del periodo institucional (desde y hasta)")
+    elif not v.vigente_desde:
         faltan.append("la fecha desde la que rige")
     return faltan
+
+
+def _tvd_anterior(db: Session, v: VersionTrd) -> VersionTrd | None:
+    """La TVD vigente del mismo periodo (que la nueva reemplaza). Otra vigente que se
+    traslape con el periodo es un error: cada documento se valora con una sola TVD."""
+    if not (v.periodo_desde and v.periodo_hasta):
+        return None
+    vigentes = db.scalars(select(VersionTrd).where(VersionTrd.fondo_id == v.fondo_id, VersionTrd.instrumento == "tvd",
+                                                   VersionTrd.estado == "vigente", VersionTrd.id != v.id)).all()
+    mismo = next((x for x in vigentes if (x.periodo_desde, x.periodo_hasta) == (v.periodo_desde, v.periodo_hasta)), None)
+    for x in vigentes:
+        if x is not mismo and x.periodo_desde and x.periodo_hasta and \
+                x.periodo_desde <= v.periodo_hasta and v.periodo_desde <= x.periodo_hasta:
+            raise ErrorTrd(f"El periodo se traslapa con el de la {x.nombre} ({x.periodo_desde.isoformat()} a "
+                           f"{x.periodo_hasta.isoformat()}): cada documento se valora con una sola TVD. Corrija las "
+                           "fechas o reemplace esa TVD con una del mismo periodo.", 409)
+    return mismo
 
 
 def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> tuple[dict, dict]:
@@ -508,14 +555,22 @@ def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> t
     if not datos:
         raise ErrorTrd("La versión no tiene filas: agregue al menos una serie en la matriz.")
     fondo = db.get(RecursoDocumental, v.fondo_id)
-    anterior = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == v.fondo_id, VersionTrd.estado == "vigente"))
-    desde = v.vigente_desde or date.today()
-    if anterior is not None and anterior.vigente_desde and desde <= anterior.vigente_desde:
-        raise ErrorTrd(f"La versión tiene que regir después de la vigente ({anterior.nombre}, desde "
-                       f"{anterior.vigente_desde.isoformat()}).", 409)
+    tvd = v.instrumento == "tvd"
+    if tvd:
+        anterior = _tvd_anterior(db, v)
+        desde = v.periodo_desde or date.today()
+    else:
+        anterior = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == v.fondo_id, VersionTrd.instrumento == "trd",
+                                                      VersionTrd.estado == "vigente"))
+        desde = v.vigente_desde or date.today()
+        if anterior is not None and anterior.vigente_desde and desde <= anterior.vigente_desde:
+            raise ErrorTrd(f"La versión tiene que regir después de la vigente ({anterior.nombre}, desde "
+                           f"{anterior.vigente_desde.isoformat()}).", 409)
     acto = v.acto_aprobacion + (f" del {v.fecha_aprobacion.isoformat()}" if v.fecha_aprobacion else "") \
         if v.acto_aprobacion else None
-    info = {"numero": v.numero, "nombre": v.nombre, "acto": acto, "desde": desde}
+    # Sin el periodo completo la TVD se puede validar (no aplicar): se prueba con un periodo de un día.
+    info = {"numero": v.numero, "nombre": v.nombre, "acto": acto, "desde": desde, "instrumento": v.instrumento,
+            "hasta": (v.periodo_hasta or desde) if tvd else None}
     try:
         informe, validacion = cuadro.probar_y_aplicar(db, fondo, datos, usuario_id, crear=crear, version=info)
     except cuadro.ErrorCuadro as exc:
@@ -527,16 +582,21 @@ def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> t
                                      + (d["subserie"] or d["serie"])["nombre"] for d in datos if not d.get("funcion")]
     if crear and validacion["conforme"]:
         if anterior is not None:
-            anterior.estado, anterior.vigente_hasta = "historica", desde - timedelta(days=1)
+            # La TVD reemplazada del mismo periodo pasa a histórica desde hoy; la TRD, el día antes de la nueva.
+            anterior.estado = "historica"
+            anterior.vigente_hasta = date.today() if tvd else desde - timedelta(days=1)
+        if tvd and not v.vigente_desde:
+            v.vigente_desde = date.today()  # desde cuándo se aplica la valoración (no el periodo que valora)
         v.estado, v.aplicado_por_id = "vigente", usuario_id
         v.aplicado_en = ahora()
         v.informe = {k: x for k, x in informe.items() if k not in ("faltan_para_aplicar", "series_sin_funcion")}
         db.flush()
         registrar(db, modulo="instrumentos", accion="trd_version_aplicada", usuario_id=usuario_id,
                   entidad_tipo="recurso_documental", entidad_id=v.fondo_id,
-                  detalle=f"{v.nombre} vigente desde {desde.isoformat()} ({v.acto_aprobacion})"
+                  detalle=(f"{v.nombre} aplicada al periodo {v.periodo_desde.isoformat()} a {v.periodo_hasta.isoformat()}"
+                           if tvd else f"{v.nombre} vigente desde {desde.isoformat()}") + f" ({v.acto_aprobacion})"
                           + (f"; la {anterior.nombre} pasa a histórica" if anterior else ""),
-                  nuevo={"version": v.numero, "conforme": True, "reglas": informe.get("reglas"),
+                  nuevo={"instrumento": v.instrumento, "version": v.numero, "conforme": True, "reglas": informe.get("reglas"),
                          "reglas_reemplazadas": informe.get("reglas_reemplazadas", 0)})
     return informe, validacion
 
@@ -615,14 +675,16 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
     return informe
 
 
-def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID) -> tuple[VersionTrd, dict]:
+def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID,
+           instrumento: str = "trd") -> tuple[VersionTrd, dict]:
     """El punto de partida de la parametrización: con el CCD y la TRD leídos de un
     archivo se configura el borrador completo del fondo (dependencias, banco de
     series, subseries y tipos, y la matriz). Si no hay borrador, se abre uno nuevo
     vacío: la tabla que se carga es la nueva TRD completa, no un ajuste de la vigente."""
-    v = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.estado == "borrador"))
+    v = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.instrumento == instrumento,
+                                           VersionTrd.estado == "borrador"))
     if v is None:
-        v = crear_version(db, fondo, {}, usuario_id, copiar_vigente=False)
+        v = crear_version(db, fondo, {}, usuario_id, copiar_vigente=False, instrumento=instrumento)
     return v, importar(db, v, filas_leidas, usuario_id)
 
 
@@ -667,5 +729,6 @@ def primera_version(db: Session, fondo: RecursoDocumental, filas_leidas: list[di
 
 
 def estado_version_1(db: Session, fondo: RecursoDocumental) -> dict | None:
-    v1 = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id).order_by(VersionTrd.numero))
+    v1 = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.instrumento == "trd")
+                   .order_by(VersionTrd.numero))
     return {"nombre": v1.nombre, "estado": v1.estado} if v1 else None

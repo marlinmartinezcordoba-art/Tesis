@@ -867,8 +867,11 @@ def _regla(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f: Fi
     vigentes = db.scalars(select(Relacion).where(Relacion.destino_id == hoja.id, Relacion.estado == "vigente",
                                                  Relacion.codigo_ric == "regulates_or_regulated",
                                                  Relacion.rol == "retencion")).all()
-    abierta = next((r for r in vigentes if retencion.abierta(r.fecha_edtf)), None)
     texto = _texto_regla(f, version)
+    if version and version.get("instrumento") == "tvd":
+        _regla_tvd(db, fondo, hoja, f, usuario_id, informe, version, vigentes, texto)
+        return
+    abierta = next((r for r in vigentes if retencion.abierta(r.fecha_edtf)), None)
     if abierta is not None:
         actual = db.get(EntidadVocabulario, abierta.origen_id)
         igual = actual is not None and (actual.retencion_gestion_anios, actual.retencion_central_anios,
@@ -902,6 +905,37 @@ def _regla(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f: Fi
     autoridad.vincular(db, tipo="regla_serie", desde=regla, con_tipo="recurso_documental", con_id=hoja.id,
                        usuario_id=usuario_id, fecha_edtf=f"{version['desde'].isoformat()}/" if version else None,
                        nota=f"{version['nombre']}" if version else None, desde_trd=True)
+    informe["reglas"] += 1
+
+
+def _regla_tvd(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f: FilaCuadro, usuario_id: uuid.UUID,
+               informe: dict, version: dict, vigentes: list, texto: str | None) -> None:
+    """La regla de la TVD rige los documentos producidos en su periodo
+    institucional (desde/hasta), no desde una fecha hacia adelante: no cierra la
+    regla de la TRD ni la de otro periodo. Si el mismo periodo ya tenía regla (una
+    TVD anterior) y cambia, la anterior se anula con la nota de quién la reemplaza:
+    no se borra ni se modifica."""
+    from app.servicios import autoridad, retencion
+
+    periodo = f"{version['desde'].isoformat()}/{version['hasta'].isoformat()}"
+    previa = next((r for r in vigentes if r.fecha_edtf == periodo), None)
+    if previa is not None:
+        actual = db.get(EntidadVocabulario, previa.origen_id)
+        if actual is not None and (actual.retencion_gestion_anios, actual.retencion_central_anios,
+                                   actual.disposicion_final) == (f.gestion, f.central, DISPOSICION[f.disposicion]):
+            informe["reglas_sin_cambio"] = informe.get("reglas_sin_cambio", 0) + 1
+            return
+        previa.estado = "anulada"
+        previa.nota = f"Reemplazada por la {version['nombre']}."
+        registrar(db, modulo="vocabularios", accion="regla_cerrada", usuario_id=usuario_id, entidad_tipo="relacion",
+                  entidad_id=previa.id, detalle=f"Valoración de «{hoja.titulo}» reemplazada por la {version['nombre']}",
+                  nuevo={"periodo": periodo})
+        informe["reglas_reemplazadas"] = informe.get("reglas_reemplazadas", 0) + 1
+    regla = retencion.crear_regla(db, fondo_id=fondo.id, nombre=f"TVD v{version['numero']} {hoja.codigo_referencia or ''} "
+                                  f"{hoja.titulo}".replace("  ", " ").strip(), gestion=f.gestion, central=f.central,
+                                  disposicion=DISPOSICION[f.disposicion], procedimiento=texto, usuario_id=usuario_id)
+    autoridad.vincular(db, tipo="regla_serie", desde=regla, con_tipo="recurso_documental", con_id=hoja.id,
+                       usuario_id=usuario_id, fecha_edtf=periodo, nota=version["nombre"], desde_trd=True)
     informe["reglas"] += 1
 
 

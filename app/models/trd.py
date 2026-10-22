@@ -29,17 +29,26 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from app.db.base import Base, ahora
 
 ESTADO_VERSION = ("borrador", "vigente", "historica", "anulada")
+# TRD: rige desde su vigencia hacia adelante. TVD (Acuerdo 004 de 2019): valora el
+# fondo acumulado por periodos institucionales; sus reglas rigen los documentos
+# producidos en el periodo (desde, hasta).
+INSTRUMENTO = {"trd": "Tabla de retención documental", "tvd": "Tabla de valoración documental"}
 CLASE_BANCO = ("serie", "subserie", "tipo_documental")
 SOPORTE = ("fisico", "electronico", "hibrido")
 
 
 class VersionTrd(Base):
     __tablename__ = "trd_versiones"
-    __table_args__ = (UniqueConstraint("fondo_id", "numero", name="uq_trd_version_numero"),)
+    __table_args__ = (UniqueConstraint("fondo_id", "instrumento", "numero", name="uq_trd_version_numero"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id", ondelete="CASCADE"), nullable=False,
                       index=True)
+    instrumento = Column(String(3), nullable=False, default="trd", server_default="trd")
+    # Solo la TVD: el periodo institucional que valora (p. ej. «Periodo 2: MAVDT»).
+    periodo = Column(String(300), nullable=True)
+    periodo_desde = Column(Date, nullable=True)
+    periodo_hasta = Column(Date, nullable=True)
     numero = Column(Integer, nullable=False)
     nombre = Column(String(300), nullable=False)
     acto_aprobacion = Column(String(300), nullable=True)  # p. ej. «Resolución 123 de 2024»

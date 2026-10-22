@@ -54,17 +54,29 @@ function ListaFondos({ seccion = false }: { seccion?: boolean }) {
   );
 }
 
-// La TVD (Acuerdo 004 de 2019) se está construyendo con la misma lógica de la TRD:
-// versiones, periodos institucionales, series, retención, disposición y RiC-O.
-function TvdEnConstruccion() {
+// La TVD (Acuerdo 004 de 2019): la valoración del fondo acumulado por periodos
+// institucionales. Mismo recorrido que la TRD; las dependencias y el banco de
+// series son los del fondo (Ajustar).
+function Tvd({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Tabla de valoración documental (TVD)</h1>
+      <p className="sub">
+        Para el fondo acumulado: una TVD por periodo institucional (cada cambio de estructura orgánica), con su acto de
+        aprobación y su convalidación. Sus reglas rigen los documentos producidos en ese periodo: un expediente de 2008 se
+        valora con la TVD 2006–2011 y uno de 2020 con la TRD. Al aplicarla se arma el cuadro del periodo en RiC-O.
+      </p>
       <div className="aviso" role="note">
-        En construcción. La TVD tendrá el mismo recorrido que la TRD: versiones con su acto de aprobación y su
-        convalidación, los periodos institucionales del fondo acumulado, sus series y tipos, la retención y la
-        disposición final, y su paso a RiC-O como regla del fondo.
+        Abra la TVD del periodo, cárguela desde el archivo (Excel, PDF con texto, Word, CSV o .zip) o llene la matriz a
+        mano, y aplíquela. Las dependencias y las series del periodo se revisan en{" "}
+        <Link to="/fondos?vista=ajustar">Ajustar</Link>.
       </div>
+      <VersionesTrd fondoId={fondoId} instrumento="tvd" />
+      <details className="seccion-ajuste tarjeta" open>
+        <summary><strong>Matriz de la TVD</strong> <span className="meta">Por dependencia del periodo: series, tipos,
+          retención en archivo central y disposición final.</span></summary>
+        <div className="seccion-ajuste-cuerpo"><MatrizTrd fondoId={fondoId} instrumento="tvd" /></div>
+      </details>
     </>
   );
 }
@@ -109,8 +121,8 @@ export function Fondos() {
       </>
     );
   }
-  if (vista === "tvd") return <TvdEnConstruccion />;
   if (!fondo) return <div className="vacio">Registre un fondo primero (Cargar el CCD y la TRD).</div>;
+  if (vista === "tvd") return <Tvd key={fondo.id} fondoId={fondo.id} />;
   if (vista === "ajustar") return <Ajustar key={fondo.id} fondoId={fondo.id} />;
   if (vista === "disposicion") return <DisposicionFinal key={fondo.id} fondoId={fondo.id} />;
   return (

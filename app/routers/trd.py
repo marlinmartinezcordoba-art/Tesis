@@ -48,6 +48,10 @@ class VersionIn(BaseModel):
     fecha_convalidacion: date | None = None
     vigente_desde: date | None = None
     observaciones: str | None = Field(default=None, max_length=5000)
+    # Solo la TVD: el periodo institucional del fondo acumulado que valora.
+    periodo: str | None = Field(default=None, max_length=300)
+    periodo_desde: date | None = None
+    periodo_hasta: date | None = None
     # Quién vigila su aplicación (RiC-R066): el AGN o el consejo territorial de archivos.
     ente_vigilancia: str | None = Field(default=None, max_length=300)
 
@@ -55,15 +59,18 @@ class VersionIn(BaseModel):
 class NuevaVersionIn(VersionIn):
     fondo_id: uuid.UUID
     copiar_vigente: bool = True
+    instrumento: Literal["trd", "tvd"] = "trd"
 
 
 class AnularIn(BaseModel):
     motivo: str | None = Field(default=None, max_length=500)
 
 
-@router.get("/versiones", response_model=list[rt.VersionTrdOut], summary="Versiones de la TRD del fondo")
-def versiones(fondo_id: uuid.UUID, _: Actor = Depends(lectura), db: Session = Depends(get_db)):
-    return p.versiones(db, fondo_o_404(db, fondo_id))
+@router.get("/versiones", response_model=list[rt.VersionTrdOut],
+            summary="Versiones de la TRD (o de la TVD, con instrumento=tvd) del fondo")
+def versiones(fondo_id: uuid.UUID, instrumento: Literal["trd", "tvd"] = "trd", _: Actor = Depends(lectura),
+              db: Session = Depends(get_db)):
+    return p.versiones(db, fondo_o_404(db, fondo_id), instrumento)
 
 
 @router.post("/versiones", response_model=rt.VersionTrdOut, status_code=status.HTTP_201_CREATED,
@@ -71,8 +78,8 @@ def versiones(fondo_id: uuid.UUID, _: Actor = Depends(lectura), db: Session = De
 def crear_version(datos: NuevaVersionIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, datos.fondo_id)
     try:
-        v = p.crear_version(db, fondo, datos.model_dump(exclude={"fondo_id", "copiar_vigente"}), actor.id,
-                            datos.copiar_vigente)
+        v = p.crear_version(db, fondo, datos.model_dump(exclude={"fondo_id", "copiar_vigente", "instrumento"}),
+                            actor.id, datos.copiar_vigente, datos.instrumento)
     except p.ErrorTrd as exc:
         db.rollback()
         raise _error(exc) from exc
@@ -161,6 +168,7 @@ def importar(version_id: uuid.UUID, datos: ImportarIn, actor: Actor = Depends(so
 class CargarIn(BaseModel):
     fondo_id: uuid.UUID
     filas: list[dict] = Field(min_length=1, max_length=3000)
+    instrumento: Literal["trd", "tvd"] = "trd"
 
 
 @router.post("/cargar", response_model=rt.CargaTrd,
@@ -168,7 +176,7 @@ class CargarIn(BaseModel):
 def cargar(datos: CargarIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, datos.fondo_id)
     try:
-        v, informe = p.cargar(db, fondo, datos.filas, actor.id)
+        v, informe = p.cargar(db, fondo, datos.filas, actor.id, datos.instrumento)
     except p.ErrorTrd as exc:
         db.rollback()
         raise _error(exc) from exc

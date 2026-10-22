@@ -18,7 +18,15 @@ export interface VersionTrd {
   vigente_hasta: string | null; estado: "borrador" | "vigente" | "historica" | "anulada"; observaciones: string | null;
   fondo_id: string;
   filas: number; editable: boolean;
+  instrumento?: Instrumento; periodo?: string | null; periodo_desde?: string | null; periodo_hasta?: string | null;
 }
+export type Instrumento = "trd" | "tvd";
+// La TVD (Acuerdo 004 de 2019) sigue el recorrido de la TRD; cambia que valora un periodo
+// institucional del fondo acumulado y que no lleva retención en archivo de gestión.
+const TEXTO: Record<Instrumento, { sigla: string; nombre: string }> = {
+  trd: { sigla: "TRD", nombre: "tabla de retención documental" },
+  tvd: { sigla: "TVD", nombre: "tabla de valoración documental" },
+};
 interface Dependencia { id: string; codigo: string; nombre: string; superior_id: string | null; codigo_completo: string;
   nivel: "seccion" | "subseccion" }
 interface Termino { id: string; clase: "serie" | "subserie" | "tipo_documental"; codigo: string | null; nombre: string;
@@ -72,13 +80,15 @@ function DesdeLaCarga() {
 
 // --- 1. Versiones ---------------------------------------------------------------------------------------
 
-function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: string; version: VersionTrd | null;
-  hayVigente: boolean; alTerminar: () => void }) {
+function FormVersion({ fondoId, version, hayVigente, alTerminar, instrumento = "trd" }: { fondoId: string;
+  version: VersionTrd | null; hayVigente: boolean; alTerminar: () => void; instrumento?: Instrumento }) {
+  const tvd = instrumento === "tvd";
   const [d, setD] = useState({
     nombre: version?.nombre || "", acto_aprobacion: version?.acto_aprobacion || "",
     fecha_aprobacion: version?.fecha_aprobacion || "", convalidacion: version?.convalidacion || "",
     fecha_convalidacion: version?.fecha_convalidacion || "", vigente_desde: version?.vigente_desde || "",
     observaciones: version?.observaciones || "", ente_vigilancia: version?.ente_vigilancia || "",
+    periodo: version?.periodo || "", periodo_desde: version?.periodo_desde || "", periodo_hasta: version?.periodo_hasta || "",
   });
   const [copiar, setCopiar] = useState(true);
   const [error, setError] = useState("");
@@ -87,11 +97,13 @@ function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: st
   async function guardar(e: FormEvent) {
     e.preventDefault();
     setError("");
-    const cuerpo = Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.trim() || null]));
+    const cuerpo = Object.fromEntries(Object.entries(d)
+      .filter(([k]) => tvd ? k !== "vigente_desde" : !k.startsWith("periodo"))
+      .map(([k, v]) => [k, v.trim() || null]));
     try {
       if (version) await pedir(`/api/trd/versiones/${version.id}`, { method: "PATCH", body: JSON.stringify(cuerpo) });
       else await pedir("/api/trd/versiones", { method: "POST",
-        body: JSON.stringify({ ...cuerpo, fondo_id: fondoId, copiar_vigente: copiar }) });
+        body: JSON.stringify({ ...cuerpo, fondo_id: fondoId, copiar_vigente: copiar, instrumento }) });
       alTerminar();
     } catch (err) {
       setError(mensaje(err, "No se pudo guardar."));
@@ -109,12 +121,17 @@ function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: st
     <form onSubmit={guardar}>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="rejilla">
-        {campo("nombre", "Nombre", "text", "Si lo deja vacío: «TRD versión N».")}
+        {tvd && campo("periodo", "Periodo institucional", "text",
+                      "Por ejemplo «Periodo 2: Ministerio de Ambiente, Vivienda y Desarrollo Territorial».")}
+        {tvd && campo("periodo_desde", "El periodo empieza", "date", "Desde: creación o cambio de estructura orgánica.")}
+        {tvd && campo("periodo_hasta", "El periodo termina", "date",
+                      "Hasta: la supresión o el siguiente cambio de estructura. Las reglas rigen los documentos de estas fechas.")}
+        {campo("nombre", "Nombre", "text", tvd ? "Si lo deja vacío: «TVD» y el periodo." : "Si lo deja vacío: «TRD versión N».")}
         {campo("acto_aprobacion", "Acto administrativo que la aprueba", "text", "Por ejemplo «Resolución 045».")}
         {campo("fecha_aprobacion", "Fecha de aprobación", "date")}
         {campo("convalidacion", "Convalidación", "text", "Certificado del AGN o del consejo departamental.")}
         {campo("fecha_convalidacion", "Fecha de convalidación", "date")}
-        {campo("vigente_desde", "Rige desde", "date", "Las reglas de retención valen desde este día.")}
+        {!tvd && campo("vigente_desde", "Rige desde", "date", "Las reglas de retención valen desde este día.")}
         {campo("ente_vigilancia", "Ente que vigila su aplicación", "text",
                "El AGN o el consejo departamental de archivos (rico:isOrWasEnforcedBy). Queda en el vocabulario del fondo.")}
       </div>
@@ -124,7 +141,7 @@ function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: st
       </div>
       {!version && hayVigente && (
         <label className="meta"><input type="checkbox" checked={copiar} onChange={(e) => setCopiar(e.target.checked)} />
-          {" "}Partir de la matriz de la TRD vigente (se cambian solo las series que cambian)</label>
+          {" "}Partir de la matriz de la {TEXTO[instrumento].sigla} vigente (se cambian solo las series que cambian)</label>
       )}
       <div className="acciones">
         <button type="submit" className="boton primario">{version ? "Guardar" : "Abrir la versión en borrador"}</button>
@@ -201,9 +218,12 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
   );
 }
 
-export function VersionesTrd({ fondoId }: { fondoId: string }) {
+export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string; instrumento?: Instrumento }) {
   const esAdmin = useAdmin();
-  const { datos: versiones, error, cargar } = useLista<VersionTrd>(`/api/trd/versiones?fondo_id=${fondoId}`);
+  const tvd = instrumento === "tvd";
+  const sigla = TEXTO[instrumento].sigla;
+  const { datos: versiones, error, cargar } = useLista<VersionTrd>(
+    `/api/trd/versiones?fondo_id=${fondoId}&instrumento=${instrumento}`);
   const [formulario, setFormulario] = useState<VersionTrd | "nueva" | null>(null);
   const [cargando, setCargando] = useState<VersionTrd | null>(null);
   const [resultado, setResultado] = useState<Aplicacion | null>(null);
@@ -212,6 +232,7 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
   const [ocupado, setOcupado] = useState(false);
   const borrador = versiones?.find((v) => v.estado === "borrador") || null;
   const vigente = versiones?.find((v) => v.estado === "vigente") || null;
+  const periodo = (v: VersionTrd) => v.periodo_desde ? `${v.periodo_desde} a ${v.periodo_hasta || "?"}` : "—";
 
   async function probar(v: VersionTrd, crear: boolean) {
     setFallo("");
@@ -241,19 +262,25 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
 
   return (
     <>
-      <h1>Versiones de la TRD</h1>
-      <p className="sub">
-        Cada tabla de retención aprobada es una versión, con el acto que la aprueba, su convalidación y desde cuándo rige.
-        Se trabaja en borrador (dependencias, series y matriz) y se aplica: entonces se arma el cuadro en RiC-O, se valida
-        y queda vigente. La anterior pasa a histórica; nada se borra y cada expediente conserva la retención de la TRD con
-        que se produjo.
-      </p>
+      {tvd ? (
+        <h2>Periodos y versiones de la TVD</h2>
+      ) : (
+        <>
+          <h1>Versiones de la TRD</h1>
+          <p className="sub">
+            Cada tabla de retención aprobada es una versión, con el acto que la aprueba, su convalidación y desde cuándo
+            rige. Se trabaja en borrador (dependencias, series y matriz) y se aplica: entonces se arma el cuadro en RiC-O,
+            se valida y queda vigente. La anterior pasa a histórica; nada se borra y cada expediente conserva la retención
+            de la TRD con que se produjo.
+          </p>
+        </>
+      )}
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {esAdmin && !borrador && versiones && (
         <div className="acciones">
           <button type="button" className="boton primario" onClick={() => setFormulario("nueva")}>
-            + Abrir una versión nueva{vigente ? " (para modificar la TRD)" : ""}</button>
+            {tvd ? "+ Abrir la TVD de un periodo" : `+ Abrir una versión nueva${vigente ? " (para modificar la TRD)" : ""}`}</button>
         </div>
       )}
       {borrador && (
@@ -264,7 +291,9 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
               {borrador.filas} serie(s) o subserie(s) en la matriz. {borrador.acto_aprobacion
                 ? `Aprobada por ${borrador.acto_aprobacion}${borrador.fecha_aprobacion ? ` del ${borrador.fecha_aprobacion}` : ""}.`
                 : "Falta el acto administrativo que la aprueba."}{" "}
-              {borrador.vigente_desde ? `Rige desde ${borrador.vigente_desde}.` : "Falta la fecha desde la que rige."}
+              {tvd ? (borrador.periodo_desde && borrador.periodo_hasta
+                ? `Valora ${borrador.periodo || "el periodo"} (${periodo(borrador)}).` : "Faltan el periodo institucional y sus fechas.")
+                : borrador.vigente_desde ? `Rige desde ${borrador.vigente_desde}.` : "Falta la fecha desde la que rige."}
             </p>
             {esAdmin && (
               <div className="acciones">
@@ -274,7 +303,8 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
                   Validar en RiC-O</button>
                 <button type="button" className="boton chico primario" disabled={ocupado || !resultado?.validacion.conforme
                   || resultado.version.id !== borrador.id || !!resultado.informe.faltan_para_aplicar?.length}
-                        title="Primero valide en RiC-O y complete el acto y la vigencia" onClick={() => probar(borrador, true)}>
+                        title={`Primero valide en RiC-O y complete el acto y ${tvd ? "el periodo" : "la vigencia"}`}
+                        onClick={() => probar(borrador, true)}>
                   Aplicar la versión</button>
                 <button type="button" className="boton chico" onClick={() => anular(borrador)}>Anular el borrador</button>
               </div>
@@ -313,10 +343,10 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Todas las versiones</div>
         {!versiones ? <div className="cargando">Cargando…</div> : versiones.length === 0 ? (
-          <p className="meta" style={{ padding: "0 18px" }}>Este fondo todavía no tiene TRD parametrizada.</p>
+          <p className="meta" style={{ padding: "0 18px" }}>Este fondo todavía no tiene {sigla} parametrizada.</p>
         ) : (
           <table className="tabla-permisos">
-            <thead><tr><th>Versión</th><th>Acto de aprobación</th><th>Convalidación</th><th>Vigencia</th>
+            <thead><tr><th>Versión</th><th>Acto de aprobación</th><th>Convalidación</th><th>{tvd ? "Periodo que valora" : "Vigencia"}</th>
               <th>Series</th><th>Estado</th></tr></thead>
             <tbody>
               {versiones.map((v) => (
@@ -324,7 +354,7 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
                   <td><strong>{v.nombre}</strong></td>
                   <td>{v.acto_aprobacion || "—"}{v.fecha_aprobacion && <div className="meta">{v.fecha_aprobacion}</div>}</td>
                   <td>{v.convalidacion || "—"}{v.fecha_convalidacion && <div className="meta">{v.fecha_convalidacion}</div>}</td>
-                  <td>{v.vigente_desde ? `${v.vigente_desde} a ${v.vigente_hasta || "hoy"}` : "—"}</td>
+                  <td>{tvd ? periodo(v) : v.vigente_desde ? `${v.vigente_desde} a ${v.vigente_hasta || "hoy"}` : "—"}</td>
                   <td>{v.filas}</td>
                   <td><span className={`insignia ${ESTADO[v.estado][1]}`}>{ESTADO[v.estado][0]}</span></td>
                 </tr>
@@ -334,14 +364,15 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
         )}
       </div>
       {formulario && (
-        <Ventana titulo={formulario === "nueva" ? "Abrir una versión de la TRD" : `Datos de la ${formulario.nombre}`}
-                 alCerrar={() => setFormulario(null)} ancha>
+        <Ventana titulo={formulario === "nueva" ? (tvd ? "Abrir la TVD de un periodo" : "Abrir una versión de la TRD")
+          : `Datos de la ${formulario.nombre}`} alCerrar={() => setFormulario(null)} ancha>
           <FormVersion fondoId={fondoId} version={formulario === "nueva" ? null : formulario} hayVigente={!!vigente}
+                       instrumento={instrumento}
                        alTerminar={() => { setFormulario(null); setResultado(null); cargar(); }} />
         </Ventana>
       )}
       {cargando && (
-        <Ventana titulo={`Cargar la TRD desde un archivo · ${cargando.nombre}`} alCerrar={() => setCargando(null)} ancha>
+        <Ventana titulo={`Cargar la ${sigla} desde un archivo · ${cargando.nombre}`} alCerrar={() => setCargando(null)} ancha>
           <CargarArchivo version={cargando} alTerminar={(t) => { setCargando(null); setAviso(t); setResultado(null); cargar(); }} />
         </Ventana>
       )}
@@ -378,7 +409,7 @@ function FormDependencia({ fondoId, dep, secciones, alTerminar }: { fondoId: str
             <label htmlFor="d-sup">Es</label>
             <select id="d-sup" className="selector" value={superior} onChange={(e) => setSuperior(e.target.value)}>
               <option value="">Una sección (dependencia productora)</option>
-              {secciones.map((s) => <option key={s.id} value={s.id}>Una subsección de {s.codigo} {s.nombre}</option>)}
+              {secciones.map((s) => <option key={s.id} value={s.id}>Una subsección de {s.codigo_completo} {s.nombre}</option>)}
             </select>
           </div>
         )}
@@ -402,7 +433,8 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
   const { datos, error, cargar } = useLista<Dependencia>(`/api/trd/dependencias?fondo_id=${fondoId}`);
   const [form, setForm] = useState<Dependencia | "nueva" | null>(null);
   const [fallo, setFallo] = useState("");
-  const secciones = (datos || []).filter((d) => d.nivel === "seccion");
+  // Cualquier dependencia puede tener subsecciones (Secretaría General › Subdirección › Grupo).
+  const secciones = datos || [];
 
   async function anular(d: Dependencia) {
     if (!await confirmar(`¿Anular ${d.codigo} ${d.nombre}? Queda registrada como anulada; no se borra.`)) return;
@@ -603,6 +635,7 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
 
 function FormFila({ version, fila, deps, banco, alTerminar }: { version: VersionTrd; fila: FilaTrd | null;
   deps: Dependencia[]; banco: Termino[]; alTerminar: () => void }) {
+  const tvd = version.instrumento === "tvd";
   const series = banco.filter((t) => t.clase === "serie");
   const [d, setD] = useState({
     dependencia_id: fila?.dependencia_id || deps[0]?.id || "", serie_id: fila?.serie_id || series[0]?.id || "",
@@ -633,7 +666,7 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
     setError("");
     const numero = (x: string) => (x.trim() === "" ? null : Number(x));
     const cuerpo = { dependencia_id: d.dependencia_id, serie_id: d.serie_id, subserie_id: d.subserie_id || null,
-      tipos: [...tipos], gestion: numero(d.gestion), central: numero(d.central), disposicion: d.disposicion || null,
+      tipos: [...tipos], gestion: tvd ? null : numero(d.gestion), central: numero(d.central), disposicion: d.disposicion || null,
       otras_disposiciones: [...otras].filter((x) => x !== d.disposicion), soporte: d.soporte || null,
       procedimiento: d.procedimiento.trim() || null, funcion: d.funcion.trim() || null };
     try {
@@ -668,10 +701,12 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
             {subseries.map((x) => <option key={x.id} value={x.id}>{x.codigo_completo} {x.nombre}</option>)}
           </select>
         </div>
-        <div className="campo">
-          <label htmlFor="f-ag">Retención en archivo de gestión (años)</label>
-          <input id="f-ag" className="entrada" type="number" min={0} max={100} value={d.gestion} onChange={poner("gestion")} />
-        </div>
+        {!tvd && (
+          <div className="campo">
+            <label htmlFor="f-ag">Retención en archivo de gestión (años)</label>
+            <input id="f-ag" className="entrada" type="number" min={0} max={100} value={d.gestion} onChange={poner("gestion")} />
+          </div>
+        )}
         <div className="campo">
           <label htmlFor="f-ac">Retención en archivo central (años)</label>
           <input id="f-ac" className="entrada" type="number" min={0} max={100} value={d.central} onChange={poner("central")} />
@@ -729,9 +764,10 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
   );
 }
 
-export function MatrizTrd({ fondoId }: { fondoId: string }) {
+export function MatrizTrd({ fondoId, instrumento = "trd" }: { fondoId: string; instrumento?: Instrumento }) {
   const esAdmin = useAdmin();
-  const versiones = useLista<VersionTrd>(`/api/trd/versiones?fondo_id=${fondoId}`);
+  const tvd = instrumento === "tvd";
+  const versiones = useLista<VersionTrd>(`/api/trd/versiones?fondo_id=${fondoId}&instrumento=${instrumento}`);
   const deps = useLista<Dependencia>(`/api/trd/dependencias?fondo_id=${fondoId}`);
   const banco = useLista<Termino>(`/api/trd/banco?fondo_id=${fondoId}`);
   const visibles = useMemo(() => (versiones.datos || []).filter((v) => v.estado !== "anulada"), [versiones.datos]);
@@ -765,18 +801,22 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
 
   return (
     <>
-      <h1>Matriz de la TRD</h1>
-      <p className="sub">
-        La tabla de retención por dependencia: cada serie o subserie con sus tipos documentales, cuántos años en el archivo
-        de gestión (AG) y en el central (AC), la disposición final, el soporte y el procedimiento. Se edita solo en una
-        versión en borrador; la vigente y las históricas se consultan.
-      </p>
-      <DesdeLaCarga />
+      {tvd ? null : (
+        <>
+          <h1>Matriz de la TRD</h1>
+          <p className="sub">
+            La tabla de retención por dependencia: cada serie o subserie con sus tipos documentales, cuántos años en el
+            archivo de gestión (AG) y en el central (AC), la disposición final, el soporte y el procedimiento. Se edita solo
+            en una versión en borrador; la vigente y las históricas se consultan.
+          </p>
+          <DesdeLaCarga />
+        </>
+      )}
       {(versiones.error || filas.error || fallo) && (
         <div className="aviso error" role="alert">{versiones.error || filas.error || fallo}</div>
       )}
       {versiones.datos && !visibles.length ? (
-        <div className="vacio">Abra primero una versión de la TRD (Versiones de la TRD).</div>
+        <div className="vacio">{tvd ? "Abra primero la TVD de un periodo (arriba)." : "Abra primero una versión de la TRD (Versiones de la TRD)."}</div>
       ) : (
         <>
           <div className="acciones">
@@ -800,18 +840,18 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
               <p className="meta" style={{ padding: "0 18px" }}>La matriz está vacía.</p>
             ) : (
               <table className="tabla-permisos">
-                <thead><tr><th>Código</th><th>Serie / subserie y tipos documentales</th><th>AG</th><th>AC</th>
+                <thead><tr><th>Código</th><th>Serie / subserie y tipos documentales</th>{!tvd && <th>AG</th>}<th>AC</th>
                   <th>Disposición</th><th>Soporte</th><th>Función que la produce</th><th>Procedimiento</th>
                   {editable && <th />}</tr></thead>
                 <tbody>
                   {porDependencia.flatMap(([dep, lista]) => [
-                    <tr key={dep}><td colSpan={editable ? 9 : 8}><strong>{dep}</strong></td></tr>,
+                    <tr key={dep}><td colSpan={(editable ? 9 : 8) - (tvd ? 1 : 0)}><strong>{dep}</strong></td></tr>,
                     ...lista.map((f) => (
                       <tr key={f.id}>
                         <td><strong>{f.codigo}</strong></td>
                         <td>{f.serie}{f.subserie && <> › {f.subserie}</>}
                           {f.nombres_tipos.length > 0 && <div className="meta">{f.nombres_tipos.join("; ")}</div>}</td>
-                        <td>{f.gestion ?? "—"}</td>
+                        {!tvd && <td>{f.gestion ?? "—"}</td>}
                         <td>{f.central ?? "—"}</td>
                         <td>{f.disposicion ? [f.disposicion, ...f.otras_disposiciones].map((x) => x.toUpperCase()).join(" + ") : "—"}</td>
                         <td>{f.soporte ? SOPORTE[f.soporte] : "—"}</td>

@@ -298,6 +298,9 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
         Relacion.origen_id.in_([i for i, e in entidades.items() if e.clase == "regla"]))).all()
     prop_tipo, clase_tipo = _apoyo("tipo_regla")
     tipo_trd = _concepto(ex, "tipo-de-regla", "tabla-de-retencion", clase_tipo, "Tabla de retención documental")
+    # La TVD (Acuerdo 004 de 2019) es el mismo tipo de instrumento para el fondo acumulado: una
+    # rico:Rule por periodo institucional, cuyas partes son las reglas que rigen ese periodo.
+    tipo_tvd = None
     # Los instrumentos archivísticos también son documentos (fase 1 de RiC
     # completo, RiC-R021 y R064): el cuadro de clasificación y el documento de
     # cada versión de la TRD describen el fondo, y la regla se expresa en su documento.
@@ -313,13 +316,18 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
         if fecha:
             _fecha_libre(ex, nodo, _apoyo("fecha_creacion")[0], URIRef(f"{nodo}/fecha"), None, fecha.isoformat())
 
-    primera = next((v.vigente_desde for v in versiones if v.vigente_desde), None)
+    primera = next((v.vigente_desde for v in versiones if v.vigente_desde and v.instrumento == "trd"), None)
     instrumento(uri(ex.fondo.id, "cuadro-de-clasificacion"), f"Cuadro de clasificación documental · {ex.fondo.titulo}",
                 "cuadro-de-clasificacion", "Cuadro de clasificación documental", primera)
     for v in versiones:
+        tvd = v.instrumento == "tvd"
+        if tvd and tipo_tvd is None:
+            tipo_tvd = _concepto(ex, "tipo-de-regla", "tabla-de-valoracion", clase_tipo, "Tabla de valoración documental")
         documento = uri(v.id, "documento")
-        instrumento(documento, f"{v.nombre} · {ex.fondo.titulo}", "tabla-de-retencion-documental",
-                    "Tabla de retención documental", v.fecha_aprobacion or v.vigente_desde)
+        instrumento(documento, f"{v.nombre} · {ex.fondo.titulo}",
+                    "tabla-de-valoracion-documental" if tvd else "tabla-de-retencion-documental",
+                    "Tabla de valoración documental" if tvd else "Tabla de retención documental",
+                    v.fecha_aprobacion or v.vigente_desde)
         g.add((uri(v.id), _apoyo("expresada_en")[0], documento))
         if v.ente_vigilancia_id:  # quien vigila su aplicación (RiC-R066): el AGN o el consejo territorial
             ente = entidades.get(v.ente_vigilancia_id) or db.get(EntidadVocabulario, v.ente_vigilancia_id)
@@ -332,20 +340,28 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
         g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["regla"]]))
         g.add((nodo, _a("nombre"), Literal(v.nombre)))
         g.add((nodo, RDFS.label, Literal(v.nombre)))
-        g.add((nodo, prop_tipo, tipo_trd))
+        g.add((nodo, prop_tipo, tipo_tvd if tvd else tipo_trd))
+        periodo = f"{v.periodo_desde.isoformat()}/{v.periodo_hasta.isoformat()}" \
+            if tvd and v.periodo_desde and v.periodo_hasta else None
         descripcion = " ".join(x for x in (
+            f"Valora el periodo institucional «{v.periodo}» ({v.periodo_desde.isoformat()} a "
+            f"{v.periodo_hasta.isoformat()}) del fondo acumulado." if periodo else None,
             f"Aprobada por {v.acto_aprobacion}" + (f" del {v.fecha_aprobacion.isoformat()}" if v.fecha_aprobacion else "")
             + "." if v.acto_aprobacion else None,
             f"Convalidación: {v.convalidacion}" + (f" del {v.fecha_convalidacion.isoformat()}" if v.fecha_convalidacion
                                                    else "") + "." if v.convalidacion else None,
             "Vigente." if v.estado == "vigente" else "Histórica: la reemplazó una versión posterior.") if x)
         g.add((nodo, _a("descripcion_general"), Literal(descripcion, lang="es")))
-        if v.vigente_desde:
+        if periodo:
+            _periodo(ex, nodo, periodo)
+        elif v.vigente_desde:
             _periodo(ex, nodo, f"{v.vigente_desde.isoformat()}/{v.vigente_hasta.isoformat() if v.vigente_hasta else ''}")
         g.add((nodo, RICO[ric_o.PROPIEDADES["regulates_or_regulated"].rico], uri(ex.fondo.id)))
-        # Sus partes: las reglas de serie cuya vigencia cubre el primer día de la versión.
+        # Sus partes: las reglas de serie de su periodo (TVD) o cuya vigencia cubre el primer día (TRD).
         for regla_id, vigencia in reglas:
-            if v.vigente_desde and retencion._elegir_por_fecha(vigencia, v.vigente_desde):
+            if (vigencia == periodo) if tvd else \
+                    (v.vigente_desde and retencion._elegir_por_fecha(vigencia, v.vigente_desde)
+                     and not (vigencia and not retencion.abierta(vigencia) and _es_de_tvd(vigencia, versiones))):
                 g.add((nodo, _apoyo("parte_regla")[0], uri(regla_id)))
         if v.acto_aprobacion:
             acto = uri(v.id, "acto")
@@ -353,11 +369,16 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
             g.add((acto, _a("titulo"), Literal(v.acto_aprobacion)))
             g.add((acto, RDFS.label, Literal(v.acto_aprobacion)))
             prop_m, clase_m = _apoyo("tipo_mandato")
-            g.add((acto, prop_m, _concepto(ex, "tipo-de-mandato", "aprobacion-trd", clase_m,
-                                           "Acto de aprobación de la TRD")))
+            g.add((acto, prop_m, _concepto(ex, "tipo-de-mandato", "aprobacion-tvd" if tvd else "aprobacion-trd", clase_m,
+                                           "Acto de aprobación de la TVD" if tvd else "Acto de aprobación de la TRD")))
             if v.fecha_aprobacion:
                 _periodo(ex, acto, v.fecha_aprobacion.isoformat())
             g.add((acto, RICO[ric_o.PROPIEDADES["regulates_or_regulated"].rico], nodo))
+
+
+def _es_de_tvd(vigencia: str, versiones) -> bool:
+    return any(v.instrumento == "tvd" and v.periodo_desde and v.periodo_hasta
+               and vigencia == f"{v.periodo_desde.isoformat()}/{v.periodo_hasta.isoformat()}" for v in versiones)
 
 
 def _instrumentos_aprobados(db: Session, ex: Exportacion, recursos: dict) -> None:

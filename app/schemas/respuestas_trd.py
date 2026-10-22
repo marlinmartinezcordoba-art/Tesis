@@ -33,6 +33,11 @@ class VersionTrdOut(BaseModel):
     aplicado_en: datetime | None
     editable: bool
     ente_vigilancia: str | None = None
+    instrumento: str = "trd"
+    instrumento_nombre: str | None = None
+    periodo: str | None = None
+    periodo_desde: date | None = None
+    periodo_hasta: date | None = None
 
 
 class DependenciaTrdOut(BaseModel):
