@@ -22,6 +22,7 @@ class FilaCuadroOut(BaseModel):
 
     fila: int
     seccion: NodoCuadroLeido | None
+    intermedias: list[NodoCuadroLeido] = []
     subseccion: NodoCuadroLeido | None
     serie: NodoCuadroLeido | None
     subserie: NodoCuadroLeido | None

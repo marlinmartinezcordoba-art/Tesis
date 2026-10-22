@@ -176,17 +176,28 @@ def anular_version(db: Session, v: VersionTrd, usuario_id: uuid.UUID, motivo: st
 # --- Dependencias --------------------------------------------------------------------------------------
 
 
-def _dependencia_dict(d: DependenciaTrd, superior: DependenciaTrd | None) -> dict:
+def _codigo_completo(d: DependenciaTrd, por_id: dict) -> str:
+    cadena = [d]
+    while cadena[0].superior_id and cadena[0].superior_id in por_id and len(cadena) < 12:
+        cadena.insert(0, por_id[cadena[0].superior_id])
+    codigo = None
+    for x in cadena:
+        codigo = cuadro.compone_dependencia(codigo, x.codigo)
+    return codigo
+
+
+def _dependencia_dict(d: DependenciaTrd, superior: DependenciaTrd | None, por_id: dict | None = None) -> dict:
     return {"id": str(d.id), "codigo": d.codigo, "nombre": d.nombre, "estado": d.estado,
             "superior_id": str(d.superior_id) if d.superior_id else None,
-            "codigo_completo": cuadro._compone(superior.codigo, d.codigo) if superior else d.codigo,
+            "codigo_completo": _codigo_completo(d, por_id) if por_id else
+            (cuadro.compone_dependencia(superior.codigo, d.codigo) if superior else d.codigo),
             "nivel": "subseccion" if d.superior_id else "seccion"}
 
 
 def dependencias(db: Session, fondo: RecursoDocumental, incluir_anuladas: bool = False) -> list[dict]:
     todas = db.scalars(select(DependenciaTrd).where(DependenciaTrd.fondo_id == fondo.id)).all()
     por_id = {d.id: d for d in todas}
-    salida = [_dependencia_dict(d, por_id.get(d.superior_id)) for d in todas
+    salida = [_dependencia_dict(d, por_id.get(d.superior_id), por_id) for d in todas
               if incluir_anuladas or d.estado == "activa"]
     return sorted(salida, key=lambda x: (x["codigo_completo"] or "", x["nombre"]))
 
@@ -206,8 +217,13 @@ def guardar_dependencia(db: Session, fondo: RecursoDocumental, datos: dict, usua
         sup = db.get(DependenciaTrd, superior_id)
         if sup is None or sup.fondo_id != fondo.id or sup.estado != "activa":
             raise ErrorTrd("La sección superior no existe en este fondo.")
-        if sup.superior_id is not None:
-            raise ErrorTrd("Una subsección va dentro de una sección, no de otra subsección.")
+        # Una subsección puede ir dentro de otra (estructuras de tres o más niveles), sin ciclos.
+        if dependencia is not None:
+            cursor = sup
+            while cursor is not None:
+                if cursor.id == dependencia.id:
+                    raise ErrorTrd("Una dependencia no puede quedar dentro de sí misma.")
+                cursor = db.get(DependenciaTrd, cursor.superior_id) if cursor.superior_id else None
     repetida = db.scalar(select(DependenciaTrd).where(
         DependenciaTrd.fondo_id == fondo.id, DependenciaTrd.estado == "activa", DependenciaTrd.codigo == codigo,
         DependenciaTrd.superior_id.is_(None) if superior_id is None else DependenciaTrd.superior_id == superior_id))
@@ -345,7 +361,8 @@ def filas(db: Session, v: VersionTrd) -> list[dict]:
     lista = db.scalars(select(FilaTrd).where(FilaTrd.version_id == v.id, FilaTrd.estado == "vigente")
                        .order_by(FilaTrd.creado_en)).all()
     deps = _cargar(db, DependenciaTrd, [f.dependencia_id for f in lista])
-    deps |= _cargar(db, DependenciaTrd, [d.superior_id for d in deps.values()])
+    while faltan := [d.superior_id for d in deps.values() if d.superior_id and d.superior_id not in deps]:
+        deps |= _cargar(db, DependenciaTrd, faltan)
     terminos = _cargar(db, TerminoBanco, [x for f in lista for x in (f.serie_id, f.subserie_id, *(f.tipos or []))])
     salida = []
     for f in lista:
@@ -366,11 +383,13 @@ def filas(db: Session, v: VersionTrd) -> list[dict]:
 
 
 def _fila_cuadro(f: FilaTrd, deps: dict, terminos: dict) -> cuadro.FilaCuadro:
-    dep = deps[f.dependencia_id]
-    sup = deps.get(dep.superior_id) if dep.superior_id else None
-    seccion, subseccion = (sup, dep) if sup else (dep, None)
+    cadena = [deps[f.dependencia_id]]
+    while cadena[0].superior_id and cadena[0].superior_id in deps:
+        cadena.insert(0, deps[cadena[0].superior_id])
+    seccion, subseccion = cadena[0], (cadena[-1] if len(cadena) > 1 else None)
     nodo = lambda x: cuadro.Nodo(x.codigo, x.nombre) if x else None  # noqa: E731
-    fc = cuadro.FilaCuadro(fila=0, seccion=nodo(seccion), subseccion=nodo(subseccion), serie=nodo(terminos[f.serie_id]),
+    fc = cuadro.FilaCuadro(fila=0, seccion=nodo(seccion), intermedias=[nodo(x) for x in cadena[1:-1]],
+                           subseccion=nodo(subseccion), serie=nodo(terminos[f.serie_id]),
                            subserie=nodo(terminos.get(f.subserie_id)) if f.subserie_id else None,
                            tipos=[terminos[t].nombre for t in f.tipos or [] if t in terminos],
                            gestion=f.gestion, central=f.central, disposicion=f.disposicion,
@@ -456,7 +475,8 @@ def filas_cuadro(db: Session, v: VersionTrd) -> list[dict]:
     lista = db.scalars(select(FilaTrd).where(FilaTrd.version_id == v.id, FilaTrd.estado == "vigente")
                        .order_by(FilaTrd.creado_en)).all()
     deps = _cargar(db, DependenciaTrd, [f.dependencia_id for f in lista])
-    deps |= _cargar(db, DependenciaTrd, [d.superior_id for d in deps.values()])
+    while faltan := [d.superior_id for d in deps.values() if d.superior_id and d.superior_id not in deps]:
+        deps |= _cargar(db, DependenciaTrd, faltan)
     terminos = _cargar(db, TerminoBanco, [x for f in lista for x in (f.serie_id, f.subserie_id, *(f.tipos or []))])
     salida = []
     for i, f in enumerate(lista, start=1):
@@ -565,8 +585,9 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
                                            "superior_id": superior.id if superior else None}, usuario_id)
 
     for f in leidas:
-        seccion = dependencia(f.seccion, None)
-        dep = dependencia(f.subseccion, seccion) if f.subseccion else seccion
+        dep = dependencia(f.seccion, None)
+        for n in [*f.intermedias, *([f.subseccion] if f.subseccion else [])]:
+            dep = dependencia(n, dep)
         if not f.serie.codigo:
             raise ErrorTrd(f"La serie «{f.serie.nombre}» (fila {f.fila}) no tiene código.")
         serie = termino("serie", f.serie)

@@ -64,14 +64,14 @@ def _armar(cliente, cab, fondo):  # noqa: F811
 
 def test_parametrizar_validar_y_aplicar_una_version(cliente, db, fondo, cabeceras_admin):  # noqa: F811
     cab, a = cabeceras_admin, _armar(cliente, cabeceras_admin, fondo)
-    assert a["oficina"]["codigo_completo"] == "100.110" and a["subserie"]["codigo_completo"] == "2.1"
-    assert a["fila"]["codigo"] == "100.110.2.1" and a["fila"]["nombres_tipos"] == ["Citación", "Acta"]
+    assert a["oficina"]["codigo_completo"] == "110" and a["subserie"]["codigo_completo"] == "2.1"
+    assert a["fila"]["codigo"] == "110.2.1" and a["fila"]["nombres_tipos"] == ["Citación", "Acta"]
     vid = a["version"]["id"]
     # Validar no crea nada y dice qué falta para aplicar.
     prueba = _post(cliente, cab, f"/api/trd/versiones/{vid}/validar", None, 200)
     assert prueba["aplicada"] is False and prueba["validacion"]["conforme"]
     assert len(prueba["informe"]["faltan_para_aplicar"]) == 3
-    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "100.110.2.1")) is None
+    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110.2.1")) is None
     r = cliente.post(f"/api/trd/versiones/{vid}/aplicar", headers=cab)
     assert r.status_code == 400 and "acto administrativo" in r.json()["detail"]
     r = cliente.patch(f"/api/trd/versiones/{vid}", headers=cab, json={
@@ -80,7 +80,7 @@ def test_parametrizar_validar_y_aplicar_una_version(cliente, db, fondo, cabecera
     assert r.status_code == 200, r.text
     hecho = _post(cliente, cab, f"/api/trd/versiones/{vid}/aplicar", None, 200)
     assert hecho["aplicada"] and hecho["version"]["estado"] == "vigente" and not hecho["version"]["editable"]
-    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "100.110.2.1"))
+    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110.2.1"))
     regla = retencion.retencion_de(db, sub)
     assert (regla["gestion_anios"], regla["central_anios"], regla["disposicion_final"]) == (2, 8, "conservacion_total")
     assert regla["vigencia"] == "2019-03-01/" and "Soporte: híbrido" in regla["procedimiento"]
@@ -116,7 +116,7 @@ def test_version_nueva_cierra_la_regla_anterior_y_cada_expediente_usa_la_de_su_f
                                                      params={"fondo_id": str(fondo.id)}).json()}
     assert versiones[1]["estado"] == "historica" and versiones[1]["vigente_hasta"] == "2024-06-30"
     assert versiones[2]["estado"] == "vigente"
-    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "100.110.2.1"))
+    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110.2.1"))
     hoy = retencion.retencion_de(db, sub)
     assert (hoy["central_anios"], hoy["disposicion_final"], hoy["versiones"]) == (12, "seleccion", 2)
 
@@ -256,7 +256,7 @@ def test_avisa_las_series_sin_la_funcion_que_las_produce(cliente, db, fondo, cab
     cab, a = cabeceras_admin, _armar(cliente, cabeceras_admin, fondo)
     vid = a["version"]["id"]
     prueba = _post(cliente, cab, f"/api/trd/versiones/{vid}/validar", None, 200)
-    assert prueba["informe"]["series_sin_funcion"] == ["100.110.2.1 Actas del Comité de Archivo"]
+    assert prueba["informe"]["series_sin_funcion"] == ["110.2.1 Actas del Comité de Archivo"]
     f = a["fila"]
     r = cliente.put(f"/api/trd/filas/{f['id']}", headers=cab, json={
         "dependencia_id": f["dependencia_id"], "serie_id": f["serie_id"], "subserie_id": f["subserie_id"],
@@ -268,7 +268,7 @@ def test_avisa_las_series_sin_la_funcion_que_las_produce(cliente, db, fondo, cab
     assert hecho["informe"]["series_sin_funcion"] == []
     # En el grafo, la función (rico:ActivityType) se relaciona con la subserie que produce.
     rico = Namespace("https://www.ica.org/standards/RiC/ontology#")
-    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "100.110.2.1"))
+    sub = db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110.2.1"))
     g = exportacion_rico.exportar(db, fondo, incluir_restringidos=True).grafo
     funciones = [o for o in g.objects(exportacion_rico.uri(sub.id), rico.isRelatedTo)] + \
                 [s for s in g.subjects(rico.isRelatedTo, exportacion_rico.uri(sub.id))]

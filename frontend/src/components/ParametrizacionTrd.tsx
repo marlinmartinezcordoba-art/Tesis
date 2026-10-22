@@ -175,15 +175,15 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
     <>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <p className="meta" style={{ marginTop: 0 }}>
-        La plantilla Excel del sistema o la TRD en el formato del AGN (Excel o PDF). Lo leído llena la matriz del borrador
+        La TRD en el formato de la entidad (Excel, PDF con texto, Word, CSV o un .zip): las columnas se reconocen por su nombre. Lo leído llena la matriz del borrador
         y el banco terminológico; nada se crea en el cuadro hasta que aplique la versión.
       </p>
       <div className="acciones">
         <button type="button" className="boton chico"
                 onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>Descargar la plantilla Excel</button>
         <label className="boton chico primario">
-          {ocupado ? "Leyendo…" : "Leer un archivo (Excel o PDF)"}
-          <input type="file" accept=".xlsx,.xlsm,.pdf" hidden disabled={ocupado}
+          {ocupado ? "Leyendo…" : "Leer un archivo"}
+          <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
                  onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
         </label>
       </div>

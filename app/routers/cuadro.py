@@ -46,7 +46,7 @@ async def vista_previa(request: Request, actor: Actor = Depends(solo_administrad
         archivo = formulario.get("archivo")
         if not isinstance(archivo, StarletteUploadFile):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
-        contenido = await archivo.read(cuadro.MAX_BYTES + 1)
+        contenido = await archivo.read(3 * cuadro.MAX_BYTES + 1)
         nombre = archivo.filename or ""
     finally:
         await formulario.close()

@@ -931,7 +931,9 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
     if superior.nivel == "coleccion":
         raise ErrorDescripcion("Los documentos entran a una colección como pertenencia adicional («Incluir en otro "
                                "conjunto»), sin dejar su lugar en el cuadro de clasificación.")
-    if rango(superior.nivel) >= rango(nivel):
+    # Una subsección puede ir dentro de otra: la estructura orgánica tiene varios niveles
+    # (Secretaría General › Subdirección › Grupo); RiC lo admite (Record Set dentro de Record Set).
+    if rango(superior.nivel) >= rango(nivel) and not (nivel == superior.nivel == "subseccion"):
         raise ErrorDescripcion(f"Un {nivel.replace('_', ' ')} no puede quedar dentro de un {superior.nivel.replace('_', ' ')}.")
     # Con cuadro de clasificación, todo expediente o documento va en una serie o
     # subserie del cuadro (o en un expediente de ellas), no suelto en el fondo o la sección.

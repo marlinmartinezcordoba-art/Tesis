@@ -12,7 +12,7 @@ interface NodoCuadro { id: string; nivel: string; codigo: string | null; titulo:
   expedientes: number; hijos: NodoCuadro[] }
 export interface NodoLeido { codigo: string | null; nombre: string }
 export interface FilaLeida {
-  fila: number; seccion: NodoLeido | null; subseccion: NodoLeido | null; serie: NodoLeido | null; subserie: NodoLeido | null;
+  fila: number; seccion: NodoLeido | null; intermedias?: NodoLeido[]; subseccion: NodoLeido | null; serie: NodoLeido | null; subserie: NodoLeido | null;
   tipos: string[]; gestion: number | null; central: number | null; disposicion: string | null; otras_disposiciones: string[];
   procedimiento: string | null; funcion: string | null; problemas: string[];
   codigos: { seccion: string | null; subseccion: string | null; serie: string | null; subserie: string | null };
@@ -44,7 +44,9 @@ export function TablaVistaPrevia({ vista, incluir, setIncluir }: { vista: Vista;
             <td><input type="checkbox" aria-label={`Crear la fila ${f.fila}`} disabled={!!f.problemas.length}
                        checked={incluir.has(f.fila)}
                        onChange={(e) => setIncluir((s) => { const n = new Set(s); if (e.target.checked) n.add(f.fila); else n.delete(f.fila); return n; })} /></td>
-            <td>{f.codigos.seccion} {f.seccion?.nombre}{f.subseccion ? ` › ${f.codigos.subseccion || ""} ${f.subseccion.nombre}` : ""}</td>
+            <td>{f.codigos.seccion} {f.seccion?.nombre}
+              {(f.intermedias || []).map((n, i) => <span key={i}> › {n.codigo || ""} {n.nombre}</span>)}
+              {f.subseccion ? ` › ${f.codigos.subseccion || ""} ${f.subseccion.nombre}` : ""}</td>
             <td><strong>{f.codigos.serie}</strong> {f.serie?.nombre}
               {f.subserie && <div>› <strong>{f.codigos.subserie}</strong> {f.subserie.nombre}</div>}</td>
             <td>{f.tipos.join("; ")}</td>

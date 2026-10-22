@@ -75,6 +75,9 @@ class Nodo:
 class FilaCuadro:
     fila: int
     seccion: Nodo | None = None
+    # Dependencias entre la sección y la subsección productora (estructuras de
+    # tres o más niveles: Secretaría General › Subdirección › Grupo).
+    intermedias: list[Nodo] = field(default_factory=list)
     subseccion: Nodo | None = None
     serie: Nodo | None = None
     subserie: Nodo | None = None
@@ -96,7 +99,9 @@ class FilaCuadro:
     @staticmethod
     def de_dict(d: dict) -> "FilaCuadro":
         nodo = lambda x: Nodo(_limpio(x.get("codigo")) or None, _limpio(x.get("nombre"))) if x and _limpio(x.get("nombre")) else None  # noqa: E731
-        f = FilaCuadro(fila=int(d.get("fila") or 0), seccion=nodo(d.get("seccion")), subseccion=nodo(d.get("subseccion")),
+        f = FilaCuadro(fila=int(d.get("fila") or 0), seccion=nodo(d.get("seccion")),
+                       intermedias=[n for n in (nodo(x) for x in d.get("intermedias") or []) if n][:10],
+                       subseccion=nodo(d.get("subseccion")),
                        serie=nodo(d.get("serie")), subserie=nodo(d.get("subserie")),
                        tipos=[_limpio(t) for t in d.get("tipos") or [] if _limpio(t)][:200],
                        gestion=d.get("gestion"), central=d.get("central"), disposicion=d.get("disposicion"),
@@ -157,12 +162,25 @@ def _compone(superior: str | None, propio: str | None) -> str | None:
     return f"{superior}.{propio}"
 
 
+def compone_dependencia(superior: str | None, propio: str | None) -> str | None:
+    """El código de una dependencia dentro de otra. En la codificación usual de
+    las entidades (Acuerdo 004 de 2019) el código de la oficina ya es completo:
+    100 › 110, 1000 › 1001, 4000 › 4106 (números del mismo largo). Ese no se
+    compone; uno corto o con letras sí (1 › 1.2)."""
+    if superior and propio and superior.isdigit() and propio.isdigit() and len(superior) == len(propio):
+        return propio
+    return _compone(superior, propio)
+
+
 def codigos_compuestos(f: FilaCuadro) -> dict:
     """El código de cada nivel, compuesto desde el superior: en el CCD, una
     serie 2 de la dependencia 110 es 110.2 y su subserie 1, 110.2.1."""
     sec = f.seccion.codigo if f.seccion else None
-    sub = _compone(sec, f.subseccion.codigo) if f.subseccion else None
-    base = sub or sec
+    actual = sec
+    for n in f.intermedias:
+        actual = compone_dependencia(actual, n.codigo) if n.codigo else actual
+    sub = compone_dependencia(actual, f.subseccion.codigo) if f.subseccion else None
+    base = sub or actual
     serie = _compone(base, f.serie.codigo) if f.serie else None
     subserie = _compone(serie, f.subserie.codigo) if f.subserie else None
     return {"seccion": sec, "subseccion": sub, "serie": serie, "subserie": subserie}
@@ -183,6 +201,95 @@ def _filas_excel(contenido: bytes) -> list[list[list[str]]]:
                 for hoja in libro.worksheets]
     finally:
         libro.close()
+
+
+def _filas_csv(contenido: bytes) -> list[list[list[str]]]:
+    import csv
+
+    for codificacion in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            texto = contenido.decode(codificacion)
+            break
+        except UnicodeDecodeError:
+            continue
+    try:
+        dialecto = csv.Sniffer().sniff(texto[:5000], delimiters=",;\t|")
+    except csv.Error:
+        dialecto = csv.excel
+    return [[[c.strip() for c in fila] for fila in csv.reader(io.StringIO(texto), dialecto)]]
+
+
+def _filas_word(contenido: bytes) -> list[list[list[str]]]:
+    """Las tablas de un .docx (las TRD a veces se aprueban en Word), con la
+    dependencia de los párrafos que las anteceden («Dependencia productora: …»)."""
+    from docx import Document
+
+    try:
+        documento = Document(io.BytesIO(contenido))
+    except Exception as exc:  # noqa: BLE001
+        raise ErrorCuadro(f"No se pudo abrir el documento de Word ({exc}).") from exc
+    filas: list[list[str]] = []
+    cuerpo = documento.element.body
+    tablas = {t._tbl: t for t in documento.tables}
+    for bloque in cuerpo.iterchildren():
+        if bloque.tag.endswith("}p"):
+            texto = "".join(x.text or "" for x in bloque.iter() if x.tag.endswith("}t"))
+            if (dep := _dependencia_en([texto])) is not None:
+                filas.append(["__dependencia__", dep.codigo or "", dep.nombre])
+        elif bloque in tablas:
+            for fila in tablas[bloque].rows:
+                celdas, vistas = [], set()
+                for celda in fila.cells:  # una celda combinada se repite: se toma una vez por fila
+                    celdas.append("" if id(celda._tc) in vistas else celda.text.strip())
+                    vistas.add(id(celda._tc))
+                filas.append(celdas)
+    return [filas]
+
+
+EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip")
+
+
+def _filas_zip(contenido: bytes) -> list[tuple[str, list[list[list[str]]]]]:
+    """Una TRD que se publica en un .zip (una tabla por dependencia): se leen
+    todos los archivos que el sistema entiende, en orden de nombre."""
+    import zipfile
+
+    try:
+        paquete = zipfile.ZipFile(io.BytesIO(contenido))
+    except zipfile.BadZipFile as exc:
+        raise ErrorCuadro("El .zip está dañado o no es un .zip.") from exc
+    salida, total = [], 0
+    for info in sorted(paquete.infolist(), key=lambda i: i.filename):
+        nombre = info.filename
+        if info.is_dir() or "__MACOSX" in nombre or nombre.rsplit("/", 1)[-1].startswith((".", "~$")):
+            continue
+        if not nombre.lower().endswith(EXTENSIONES) or nombre.lower().endswith(".zip"):
+            continue
+        total += info.file_size
+        if info.file_size > MAX_BYTES or total > 4 * MAX_BYTES:
+            raise ErrorCuadro("El .zip descomprimido es demasiado grande para leerlo de una vez: súbalo por partes.", 413)
+        try:
+            salida.append((nombre, _hojas(paquete.read(info), nombre)))
+        except ErrorCuadro:
+            salida.append((nombre, []))  # se informa como no leído
+    if not salida:
+        raise ErrorCuadro("El .zip no trae archivos de Excel, PDF, Word ni CSV.")
+    return salida
+
+
+def _hojas(contenido: bytes, nombre: str) -> list[list[list[str]]]:
+    n = nombre.lower()
+    if n.endswith((".xlsx", ".xlsm")):
+        return _filas_excel(contenido)
+    if n.endswith(".pdf"):
+        return _filas_pdf(contenido)
+    if n.endswith(".csv"):
+        return _filas_csv(contenido)
+    if n.endswith(".docx"):
+        return _filas_word(contenido)
+    if n.endswith((".xls", ".doc")):
+        raise ErrorCuadro("Es un formato antiguo de Office (.xls o .doc): ábralo y guárdelo como .xlsx o .docx.")
+    raise ErrorCuadro("Formatos que se leen: Excel (.xlsx), PDF con texto, Word (.docx), CSV o un .zip con ellos.")
 
 
 DEPENDENCIA = re.compile(r"dependencia(?:\s+productora)?\s*[:.]?\s*(.+)", re.I)
@@ -212,8 +319,9 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
                 filas.append(["__dependencia__", codigo or "", nombre])
             for tabla in pagina.extract_tables():
                 filas += [["" if c is None else str(c).strip() for c in fila] for fila in tabla]
-    if not filas:
-        raise ErrorCuadro("El PDF no tiene tablas legibles. Si es escaneado, use la plantilla Excel del sistema.")
+    if not any(f and f[0] != "__dependencia__" for f in filas):
+        raise ErrorCuadro("El PDF no tiene tablas con texto: parece escaneado (una imagen). Pida la TRD en Excel o en "
+                          "PDF generado desde el original, o pásela a la plantilla del sistema.")
     return [filas]
 
 
@@ -364,29 +472,259 @@ def _desde_agn(filas: list[list[str]], cabecera: int) -> list[FilaCuadro]:
     return final
 
 
+# --- Formato libre: las columnas se reconocen por su nombre ------------------------------------------
+#
+# Cada entidad arma su CCD y su TRD a su manera: una fila por serie, por
+# subserie o por tipo documental; la jerarquía de dependencias en una o en
+# varias columnas (sección, subsección 1, 2, 3…); el encabezado en una o dos
+# filas (RETENCIÓN sobre AG y AC; DISPOSICIÓN FINAL sobre CT, E, M, S). Aquí
+# se reconoce cada columna por lo que dice su encabezado, esté donde esté.
+
+CORTAS = {"ag": "ag", "ac": "ac", "ct": "ct", "e": "e", "m": "m", "s": "s", "d": "d", "sb": "sb", "ss": "sb",
+          "c.t.": "ct", "c.t": "ct", "dt": "m", "mt": "m", "sel": "s", "el": "e", "dig": "m"}
+
+
+def _clase_columna(texto: str, abajo: str = "") -> str | None:
+    t, b = _n(texto).strip(" :./"), _n(abajo).strip(" :/")
+    if b in CORTAS and CORTAS[b] not in ("d", "sb"):
+        return CORTAS[b]
+    if not t:
+        return None
+    if t in ("fondo", "subfondo", "periodo", "item", "no", "no.", "n°", "#", "consecutivo", "soporte", "observaciones"):
+        return None
+    codigo = t.startswith("cod") or t in ("d", "s", "sb", "ss")
+    if "tipo" in t and "serie" not in t:
+        return "tipos"
+    if "subserie" in t or t in ("sb", "ss"):
+        return "codigo_subserie" if codigo else "subserie"
+    if "serie" in t or t == "s":
+        if "tipo" in t or "subserie" in t:
+            return None  # columna combinada del formato del AGN
+        return "codigo_serie" if codigo else "serie"
+    if any(x in t for x in ("seccion", "dependencia", "oficina", "unidad", "area", "grupo")) or t == "d":
+        return "codigo_dependencia" if codigo else "nivel"
+    if codigo:
+        return "codigo"  # «CÓDIGO» suelto: se ubica por su vecina
+    if "procedimiento" in t:
+        return "procedimiento"
+    if "funcion" in t or "proceso" in t:
+        return "funcion"
+    if "gestion" in t or t == "ag":
+        return "ag"
+    if "central" in t or t == "ac":
+        return "ac"
+    if "conservacion" in t or t == "ct":
+        return "ct"
+    if "eliminacion" in t or t == "e":
+        return "e"
+    if "seleccion" in t or t == "s":
+        return "s"
+    if "medio tecnico" in t or "microfilm" in t or "digitaliz" in t or t == "m":
+        return "m"
+    return None
+
+
+def _tipos_en(celda: str) -> list[str]:
+    """Los tipos documentales de una celda: separados por «;» o uno por renglón.
+    Un renglón que empieza en minúscula sigue al anterior (el PDF partió la línea)."""
+    tipos = []
+    for parte in re.split(r";", celda or ""):
+        renglones = []
+        for linea in parte.split("\n"):
+            linea = _limpio(linea)
+            if not linea:
+                continue
+            if renglones and (linea[0].islower() or renglones[-1].endswith((",", " de", " y", " o", " del", " la"))):
+                renglones[-1] = f"{renglones[-1]} {linea}"
+            else:
+                renglones.append(linea)
+        tipos += [r.strip(" .-•") for r in renglones if r.strip(" .-•")]
+    return tipos
+
+
+def _columnas_libres(top: list[str], sub: list[str] | None) -> dict:
+    col: dict = {"nivel": []}
+    arriba = ""
+    clases = []
+    for j, celda in enumerate(top):
+        arriba = celda if _n(celda) else (arriba if sub else "")
+        abajo = sub[j] if sub and j < len(sub) else ""
+        clases.append(_clase_columna(celda or arriba, abajo))
+    for j, clase in enumerate(clases):
+        if clase == "codigo":
+            # Un «CÓDIGO» suelto es del nombre que lo antecede (dependencia, serie o subserie);
+            # si no hay uno antes, del que le sigue (código | serie).
+            nombres = {"serie": "codigo_serie", "subserie": "codigo_subserie", "nivel": "codigo_dependencia"}
+            antes = clases[j - 1] if j > 0 else None
+            despues = clases[j + 1] if j + 1 < len(clases) else None
+            clase = nombres.get(antes or "") or nombres.get(despues or "")
+        if clase == "nivel":
+            col["nivel"].append(j)
+        elif clase:
+            col.setdefault(clase, j)
+    return col
+
+
+def _es_encabezado_libre(fila: list[str], sub: list[str] | None) -> dict | None:
+    col = _columnas_libres(fila, sub)
+    otras = {"subserie", "tipos", "codigo_serie", "ag", "ac", "ct", "codigo_dependencia"} & set(col)
+    if "serie" in col and (otras or col["nivel"]):
+        return col
+    return None
+
+
+def _desde_tabla(hojas: list[list[list[str]]]) -> list[FilaCuadro]:
+    grupos: dict[tuple, dict] = {}
+    codigos_dep: dict[tuple, set] = {}
+    for filas in hojas:
+        col = None
+        anterior: dict = {}
+        marcador: Nodo | None = None
+        i = 0
+        while i < len(filas):
+            fila = filas[i]
+            i += 1
+            dep = _dependencia_en(fila)
+            if dep is not None:
+                marcador, anterior = dep, {}
+                continue
+            sub = filas[i] if i < len(filas) else None
+            es_sub = sub is not None and sum(1 for c in sub if _n(c).strip(" ./") in CORTAS) >= 2
+            nueva = _es_encabezado_libre(fila, sub if es_sub else None)
+            if nueva is not None:
+                col, anterior = nueva, {}
+                i += 1 if es_sub else 0
+                continue
+            if col is None:
+                continue
+            celda = lambda k: _limpio(fila[col[k]]) if k in col and col[k] < len(fila) else ""  # noqa: E731
+            niveles = [_limpio(fila[j]) for j in col["nivel"] if j < len(fila)]
+            niveles = [x for x in niveles if x and _n(x) not in ("n/a", "na", "-", "no aplica")]
+            serie, cod_serie = celda("serie"), celda("codigo_serie")
+            subserie, cod_sub, tipos = celda("subserie"), celda("codigo_subserie"), celda("tipos")
+            if not any((niveles, serie, subserie, tipos)):
+                continue
+            # Celdas combinadas (Excel) o repetidas al cambiar de página: se hereda de la fila anterior.
+            if not niveles:
+                niveles = anterior.get("niveles", [])
+            heredada = False
+            if not serie and (subserie or tipos) and anterior.get("niveles") == niveles:
+                serie, cod_serie, heredada = anterior.get("serie", ""), anterior.get("cod_serie", ""), True
+            if heredada and not subserie:
+                subserie, cod_sub = anterior.get("subserie", ""), anterior.get("cod_sub", "")
+            anterior = {"niveles": niveles, "serie": serie, "cod_serie": cod_serie, "subserie": subserie,
+                        "cod_sub": cod_sub}
+            if not serie:
+                continue
+            if not niveles and marcador is not None:
+                niveles = [marcador.nombre]
+                if marcador.codigo:
+                    codigos_dep.setdefault((_n(marcador.nombre),), set()).add(marcador.codigo)
+            ruta = tuple(_n(x) for x in niveles)
+            if celda("codigo_dependencia") and ruta:
+                codigos_dep.setdefault(ruta, set()).add(celda("codigo_dependencia"))
+            clave = (ruta, _n(serie), _n(subserie))
+            g = grupos.get(clave)
+            if g is None:
+                g = grupos[clave] = {"fila": i, "niveles": niveles, "serie": serie, "subserie": subserie,
+                                     "cod_serie": set(), "cod_sub": set(), "tipos": [], "ag": "", "ac": "", "disp": {},
+                                     "procedimiento": "", "funcion": ""}
+            if cod_serie:
+                g["cod_serie"].add(cod_serie)
+            if cod_sub:
+                g["cod_sub"].add(cod_sub)
+            for t in _tipos_en(fila[col["tipos"]] if "tipos" in col and col["tipos"] < len(fila) else ""):
+                if t not in g["tipos"]:
+                    g["tipos"].append(t)
+            for k in ("ag", "ac", "procedimiento", "funcion"):
+                if not g[k] and celda(k):
+                    g[k] = celda(k)
+            for k in DISPOSICION:
+                g["disp"][k] = g["disp"].get(k) or _marcada(celda(k))
+    salida = []
+    for (ruta, _, _), g in grupos.items():
+        niveles = g["niveles"]
+        nodos = []
+        for k, nombre in enumerate(niveles):
+            codigos = codigos_dep.get(ruta[:k + 1], set())
+            nodos.append(Nodo(sorted(codigos)[0] if len(codigos) == 1 else None, nombre))
+        f = FilaCuadro(fila=g["fila"])
+        if nodos:
+            f.seccion = nodos[0]
+            f.intermedias = nodos[1:-1]
+            f.subseccion = nodos[-1] if len(nodos) > 1 else None
+        f.serie = Nodo(next(iter(g["cod_serie"])) if len(g["cod_serie"]) == 1 else None, g["serie"])
+        if g["subserie"]:
+            f.subserie = Nodo(next(iter(g["cod_sub"])) if len(g["cod_sub"]) == 1 else None, g["subserie"])
+        f.tipos = g["tipos"][:200]
+        f.gestion = _anios(g["ag"], "archivo de gestión", f)
+        f.central = _anios(g["ac"], "archivo central", f)
+        _disposicion(f, g["disp"])
+        f.procedimiento = g["procedimiento"] or None
+        f.funcion = g["funcion"] or None
+        productora = nodos[-1] if nodos else None
+        if productora is not None and not productora.codigo:
+            varios = codigos_dep.get(ruta, set())
+            f.problemas.append(f"La dependencia «{productora.nombre}» tiene varios códigos en el archivo ("
+                               f"{', '.join(sorted(varios))}): confirme cuál." if len(varios) > 1 else
+                               f"La dependencia «{productora.nombre}» no tiene código en el archivo: sin él, el código "
+                               f"de la serie se repite en otras dependencias. Regístrelo en Dependencias o cargue la "
+                               f"TRD que lo trae.")
+        for nombre, codigos in ((g["serie"], g["cod_serie"]), (g["subserie"], g["cod_sub"])):
+            if len(codigos) > 1:
+                f.problemas.append(f"«{nombre}» aparece con varios códigos ({', '.join(sorted(codigos))}): el archivo "
+                                   "se contradice; confirme cuál es.")
+        salida.append(validar(f))
+    return salida
+
+
 def interpretar(contenido: bytes, archivo: str) -> tuple[list[FilaCuadro], str]:
     if not contenido:
         raise ErrorCuadro("El archivo está vacío.")
-    if len(contenido) > MAX_BYTES:
-        raise ErrorCuadro(f"El archivo pasa de {MAX_BYTES // (1024 * 1024)} MB.", 413)
     nombre = archivo.lower()
-    if nombre.endswith((".xlsx", ".xlsm")):
-        hojas, origen = _filas_excel(contenido), "excel"
-    elif nombre.endswith(".pdf"):
-        hojas, origen = _filas_pdf(contenido), "pdf"
-    else:
-        raise ErrorCuadro("Use la plantilla Excel del sistema (.xlsx) o la TRD en Excel o PDF.")
+    limite = 3 * MAX_BYTES if nombre.endswith(".zip") else MAX_BYTES
+    if len(contenido) > limite:
+        raise ErrorCuadro(f"El archivo pasa de {limite // (1024 * 1024)} MB.", 413)
+    if nombre.endswith(".zip"):
+        partes = _filas_zip(contenido)
+        filas, leidos, sin_leer = [], [], []
+        for parte, hojas in partes:
+            try:
+                filas += _interpretar_hojas(hojas)[0] if hojas else []
+                (leidos if hojas else sin_leer).append(parte)
+            except ErrorCuadro:
+                sin_leer.append(parte)
+        if not filas:
+            raise ErrorCuadro("Ningún archivo del .zip tiene una tabla de CCD o TRD reconocible (" +
+                              ", ".join(p.rsplit("/", 1)[-1] for p in sin_leer[:5]) + ").")
+        origen = f"zip · {len(leidos)} archivo(s) leídos"
+        if sin_leer:
+            origen += f", {len(sin_leer)} sin tabla reconocible ({', '.join(p.rsplit('/', 1)[-1] for p in sin_leer[:3])}" \
+                      + ("…" if len(sin_leer) > 3 else "") + ")"
+        return filas, origen
+    origen = {".pdf": "pdf", ".csv": "csv", ".docx": "word"}.get("." + nombre.rsplit(".", 1)[-1], "excel")
+    filas, forma = _interpretar_hojas(_hojas(contenido, nombre))
+    return filas, f"{origen} · {forma}"
+
+
+def _interpretar_hojas(hojas: list[list[list[str]]]) -> tuple[list[FilaCuadro], str]:
     plantilla = {_n(n) for n, _ in PLANTILLA}
     for filas in hojas:
-        for i, fila in enumerate(filas[:40]):
+        for i, fila in enumerate(filas[:60]):
             celdas = {_n(c) for c in fila if c}
-            if {"serie", "codigo serie"} <= celdas and len(celdas & plantilla) >= 4:
-                return _desde_plantilla(filas, i), f"{origen} · plantilla del sistema"
-            if any("serie" in c and ("tipo" in c or "subserie" in c) for c in celdas) and \
+            # La plantilla del sistema: sus encabezados exactos, con «Sección (dependencia)».
+            if {"serie", "codigo serie", "seccion (dependencia)"} <= celdas and len(celdas & plantilla) >= 4:
+                return _desde_plantilla(filas, i), "plantilla del sistema"
+            # El formato del AGN: series, subseries y tipos en una misma columna.
+            if any("serie" in c and "tipo" in c for c in celdas) and \
                     any("retencion" in c or "procedimiento" in c or "disposicion" in c for c in celdas):
-                return _desde_agn(filas, i), f"{origen} · formato de TRD del AGN"
-    raise ErrorCuadro("No se reconoció el formato: no hay una fila de encabezados de CCD o TRD. Descargue la plantilla "
-                      "del sistema o revise que el archivo tenga las columnas de serie, retención y disposición.")
+                return _desde_agn(filas, i), "formato de TRD del AGN"
+    leidas = _desde_tabla(hojas)
+    if leidas:
+        return leidas, "columnas reconocidas por su nombre"
+    raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga un encabezado "
+                      "con «Serie» (y, si es una TRD, la retención y la disposición final), o use la plantilla del "
+                      "sistema.")
 
 
 def vista_previa(contenido: bytes, archivo: str) -> dict:
@@ -460,7 +798,17 @@ def _agrupacion(db: Session, fondo: RecursoDocumental, nivel: str, nodo: Nodo, c
                 raise ErrorCuadro(f"El código «{codigo}» ya es de un(a) {existente.nivel} y aquí sería {nivel}.", 409)
             informe["reutilizados"] += existente.id not in informe["_nuevos"]
             return existente
-    else:
+    if codigo and nivel in ("seccion", "subseccion"):
+        # Una dependencia creada antes con otro código compuesto (100.110 en vez de 110) se reconoce
+        # por su nombre dentro de la misma superior: no se duplica ni se le cambia el código.
+        existente = next((r for r in db.scalars(select(RecursoDocumental).where(
+            RecursoDocumental.fondo_id == fondo.id, RecursoDocumental.nivel == nivel,
+            RecursoDocumental.incluido_en_id == superior.id)).all() if _n(r.titulo) == _n(nodo.nombre)), None)
+        if existente is not None:
+            informe["avisos"].append(f"«{existente.titulo}» conserva su código {existente.codigo_referencia}.")
+            informe["reutilizados"] += existente.id not in informe["_nuevos"]
+            return existente
+    if not codigo:
         existente = next((r for r in db.scalars(select(RecursoDocumental).where(
             RecursoDocumental.fondo_id == fondo.id, RecursoDocumental.nivel == nivel,
             RecursoDocumental.incluido_en_id == superior.id)).all() if _n(r.titulo) == _n(nodo.nombre)), None)
@@ -581,13 +929,21 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
         productor, nuevo = _de_vocabulario(db, fondo.id, "agente", f.seccion.nombre, usuario_id, "entidad_corporativa")
         seccion = _agrupacion(db, fondo, "seccion", f.seccion, c["seccion"], fondo, usuario_id, informe,
                               productor_id=productor.id)
-        superior = seccion
+        superior, codigo = seccion, c["seccion"]
+        for n in f.intermedias:
+            codigo = compone_dependencia(codigo, n.codigo) if n.codigo else None
+            superior = _agrupacion(db, fondo, "subseccion", n, codigo, superior, usuario_id, informe)
         if f.subseccion:
-            superior = _agrupacion(db, fondo, "subseccion", f.subseccion, c["subseccion"], seccion, usuario_id, informe)
+            superior = _agrupacion(db, fondo, "subseccion", f.subseccion, c["subseccion"], superior, usuario_id, informe)
         tipos = "Tipos documentales: " + "; ".join(f.tipos) + "." if f.tipos else None
-        serie = _agrupacion(db, fondo, "serie", f.serie, c["serie"], superior, usuario_id, informe,
+        # El código de la serie sale del de la dependencia tal como quedó en el cuadro (una ya existente
+        # conserva el suyo).
+        cod_serie = _compone(superior.codigo_referencia, f.serie.codigo) if superior.codigo_referencia \
+            and superior.nivel != "fondo" else c["serie"]
+        serie = _agrupacion(db, fondo, "serie", f.serie, cod_serie, superior, usuario_id, informe,
                             alcance=None if f.subserie else tipos)
-        hoja = _agrupacion(db, fondo, "subserie", f.subserie, c["subserie"], serie, usuario_id, informe, alcance=tipos) \
+        hoja = _agrupacion(db, fondo, "subserie", f.subserie, _compone(serie.codigo_referencia, f.subserie.codigo)
+                           if serie.codigo_referencia else c["subserie"], serie, usuario_id, informe, alcance=tipos) \
             if f.subserie else serie
         formas = []
         for t in f.tipos:

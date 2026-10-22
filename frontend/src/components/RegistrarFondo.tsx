@@ -138,16 +138,16 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
         <>
           <p className="meta">
             El fondo se organiza desde su cuadro de clasificación: secciones (dependencias productoras), series,
-            subseries y tipos documentales, y, si los hay, los tiempos de retención y la disposición final de la TRD. Use
-            la plantilla Excel del sistema o la TRD en el formato del AGN, en Excel o PDF. Si el fondo es histórico y no
+            subseries y tipos documentales, y, si los hay, los tiempos de retención y la disposición final de la TRD. Sirve
+            el archivo de la entidad tal como está (Excel, PDF con texto, Word, CSV o un .zip) o la plantilla del sistema. Si el fondo es histórico y no
             tiene TRD, deje vacías las columnas de retención.
           </p>
           <div className="acciones">
             <button type="button" className="boton chico" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
               Descargar la plantilla Excel</button>
             <label className="boton chico primario">
-              {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el cuadro (Excel o PDF)"}
-              <input type="file" accept=".xlsx,.xlsm,.pdf" hidden disabled={ocupado}
+              {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el cuadro"}
+              <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
                      onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
             </label>
           </div>

@@ -113,8 +113,8 @@ function NuevaVersion({ fondoId, titulo, alConfigurar }: { fondoId: string; titu
         <button type="button" className="boton chico" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
           Descargar la plantilla Excel</button>
         <label className="boton chico primario">
-          {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el CCD y la TRD (Excel o PDF)"}
-          <input type="file" accept=".xlsx,.xlsm,.pdf" hidden disabled={ocupado}
+          {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el CCD y la TRD"}
+          <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
                  onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
         </label>
       </div>
@@ -152,8 +152,8 @@ export function CargarInstrumentos() {
     <>
       <h1>Cargar el CCD y la TRD</h1>
       <p className="sub">
-        Todo parte de aquí. Cargue el cuadro de clasificación y la tabla de retención (plantilla del sistema o formato del
-        AGN, en Excel o PDF) y el sistema configura el fondo, sus dependencias productoras, series, subseries, tipos
+        Todo parte de aquí. Cargue el cuadro de clasificación y la tabla de retención en el formato en que los tenga la
+        entidad: Excel, PDF con texto, Word, CSV o un .zip con varias tablas) y el sistema configura el fondo, sus dependencias productoras, series, subseries, tipos
         documentales y la matriz de retención. Después revise y ajuste a mano lo que haga falta y aplique la versión.
       </p>
       {!usuario?.es_administrador ? (
