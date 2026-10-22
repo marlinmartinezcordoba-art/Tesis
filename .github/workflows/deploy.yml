@@ -59,8 +59,14 @@ jobs:
       - name: Herramientas de ingesta y preservación (Siegfried/PRONOM, Tesseract en español, Ghostscript)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-spa ghostscript postgresql-client clamav
-          pg_dump --version
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-spa ghostscript postgresql-common clamav
+          # pg_dump/pg_restore de la misma versión que la base (16), como en el Dockerfile: un cliente
+          # más nuevo escribe órdenes (SET transaction_timeout) que PostgreSQL 16 no entiende.
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-16
+          echo "RICORA_PG_DUMP=/usr/lib/postgresql/16/bin/pg_dump" >> "$GITHUB_ENV"
+          echo "RICORA_PG_RESTORE=/usr/lib/postgresql/16/bin/pg_restore" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/16/bin/pg_dump --version
           CGO_ENABLED=0 go install github.com/richardlehane/siegfried/cmd/sf@v1.11.9
           echo "RICORA_SIEGFRIED=$(go env GOPATH)/bin/sf" >> "$GITHUB_ENV"
           echo "RICORA_SIEGFRIED_HOME=$(go env GOMODCACHE)/github.com/richardlehane/siegfried@v1.11.9/cmd/roy/data" >> "$GITHUB_ENV"
