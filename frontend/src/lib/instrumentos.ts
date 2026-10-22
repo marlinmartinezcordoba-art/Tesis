@@ -77,6 +77,8 @@ export interface Ficha {
   vinculos?: { id: string; titulo: string; tipo: string; uri_rico: string | null }[];
   estado_documento?: string | null;
   nota_integridad?: string | null;
+  tipo_contenido?: string | null;
+  fechas_predominantes?: string | null;
 }
 
 export interface Inventario {

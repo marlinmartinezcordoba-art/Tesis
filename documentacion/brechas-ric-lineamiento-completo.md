@@ -26,11 +26,11 @@ RiC tiene cuatro partes. RICORA debe responder a todas, pero no de la misma form
 
 ## 2. Dónde está RICORA (medido)
 
-| Qué se mide | Antes de la fase 1 | Después de la fase 1 | Total |
-|---|---|---|---|
-| Entidades de RiC-CM | 19 | 19 | 19 |
-| Atributos de RiC-CM | 29 (69 %) | **35 (83 %)** | 42 |
-| Relaciones de RiC-CM | 43 (51 %) | **50 (59 %)**, más 1 cubierta por su especialización | 85 |
+| Qué se mide | Antes de la fase 1 | Después de la fase 1 | Cobertura total (sección 8) | Total |
+|---|---|---|---|---|
+| Entidades de RiC-CM | 19 | 19 | 19 | 19 |
+| Atributos de RiC-CM | 29 (69 %) | 35 (83 %) | **42 (100 %)** | 42 |
+| Relaciones de RiC-CM | 43 (51 %) | 50 (59 %), más 1 cubierta por su especialización | **84, más 1 cubierta por su especialización (100 %)** | 85 |
 
 > **Corrección.** La primera versión de este informe decía 53 relaciones. Eran
 > 43: la búsqueda de texto contó como cubiertos nueve códigos que el sistema
@@ -100,6 +100,10 @@ RiC, o procesos que la gestión documental colombiana exige.
 
 ### Prioridad C: no aplica o vale poco. Se documenta y no se implementa por ahora.
 
+> Esta tabla fue la recomendación inicial. La cobertura total (sección 8) las
+> implementó todas por decisión de la usuaria; quedan como capacidad disponible,
+> no como campo obligatorio, y el grupo demográfico con su protección.
+
 | Brecha | Código | Por qué no ahora |
 |---|---|---|
 | Maestro-alumno, estudios | RiC-R053, `StudyAtRelation` | Propio de archivos personales y biografías. |
@@ -132,7 +136,7 @@ RiC, o procesos que la gestión documental colombiana exige.
 |---|---|---|
 | 1 | Prioridad A completa (A1 a A9). Casi todo son datos que ya existen; se agrega la propiedad en `ric_o.py`, la forma en el SHACL, el campo donde falte y la prueba de tripleta. | Hecho: atributos de 29 a 35 de 42; relaciones de 43 a 50 de 85 (sección 7). |
 | 2 | Piloto con un fondo real: CCD, TRD aprobada, un lote de transferencia y unas decenas de documentos descritos. | Informe de conformidad SHACL del fondo real y medición de la IA con el módulo Evaluación. |
-| 3 | Prioridad B, en el orden que pida el fondo real (no todas aplican a todos los fondos). | Cobertura justificada: cada código con «cubierto» o «no aplica, porque…». |
+| 3 | Prioridad B, en el orden que pida el fondo real (no todas aplican a todos los fondos). | Hecho, junto con la prioridad C, antes del piloto (sección 8): 42 de 42 atributos y 85 de 85 relaciones. |
 | 4 | Interoperabilidad comprobada: exportar el fondo real e importarlo de vuelta; importar un conjunto RiC-O de un tercero (por ejemplo, datos publicados de FranceArchives o Memobase, que RiC-AG cita como usuarios de RiC-O). | Ida y vuelta sin pérdida, e informe de lo que se omite al importar. |
 | 5 | Prueba automática de cobertura: falla si una propiedad cubierta deja de escribirse, y lista lo marcado «no aplica». | La cobertura deja de ser una afirmación y queda en la integración continua. |
 
@@ -189,11 +193,62 @@ cobertura no baja y todo faltante tiene prioridad y motivo).
 | Instrumentos como documentos | Incluirlos en el fondo; describirlo | Describirlo (`describesOrDescribed`) | El cuadro y la TRD no son parte del fondo sino su descripción. El perfil SHACL admite un documento que no está incluido si describe el fondo. | El FUID y la guía no salen todavía: el sistema los genera al vuelo y no los guarda; deben registrarse cuando se aprueben (siguiente paso). |
 | Medición | Búsqueda de texto; desde el mapeo | Desde el mapeo, con prueba | La búsqueda de texto infló el resultado (corrección de la sección 2). | Ninguno: la prueba lo mantiene. |
 
+## 8. Cobertura total ejecutada (22 de octubre de 2026)
+
+Con la fase 1 hecha, la usuaria pidió completar el total: 42 de 42 atributos y
+85 de 85 relaciones. Se hizo antes del piloto con un fondo real, que sigue siendo
+la recomendación de RiC-AG (sección 4) y el siguiente paso. La regla fue que
+cada código fuera una capacidad real: un dato que el archivista registra o que
+el sistema deduce de lo que ya tiene, nunca una tripleta de relleno.
+
+| Grupo | Qué hace ahora el sistema | En RiC-O 1.1 | Dónde se registra |
+|---|---|---|---|
+| Roles del documento | Receptor, coleccionista, propietario, gestor, titular de derechos de autor y materia principal, además de los que ya había. | `hasReceiver` (R029), `hasCollector` (R030), `hasOrHadOwner` (R037), `hasOrHadManager` (R038), `hasOrHadIntellectualPropertyRightsHolder` (R040), `hasOrHadMainSubject` (R020) | Descripción, «Agentes del documento». |
+| Copia y original | «Es copia de…»: la copia queda unida a su original. | `hasCopy` (R012), `isOriginalOf` (R010) | Descripción, «Respuesta, borrador y copia». |
+| Fecha de modificación | Rol «modificación» en las fechas del documento. | `isModificationDateOf` (R073) | Descripción, fechas. |
+| Contenido y técnica | Tipo de contenido del documento (texto, imagen, plano, audio…); técnica de producción del original (manuscrito, mecanografiado, impreso…). | `hasContentOfType` (A10), `productionTechnique` y `hasProductionTechniqueType` (A33) | Descripción; perfil AGN del original físico. |
+| Fechas entre niveles | Fechas predominantes de la agrupación; el sistema deduce si la fecha de cada documento está dentro de las del conjunto o se cruza con ellas. | `hasOrHadMostMembersWithCreationDate` (R083), `hasOrHadSomeMembersWithCreationDate` (R082), `isWithin` (R085), `intersects` (R086) | Descripción de la agrupación; lo demás se deduce. |
+| Archivos | Componentes de un archivo (el correo y sus adjuntos); el recorte y su fuente; la migración como equivalente funcional del original. | `hasOrHadComponent` (R004), `isInstantiationAssociatedWithInstantiation` (R034), `isFunctionallyEquivalentTo` (R035) | Registro, «Componentes»; recorte y migración (automáticos). |
+| Agentes | Tipo de entidad (ocho tipos del Estado colombiano), tipo de familia, ocupación, grupo demográfico; nacimiento y muerte de personas. | `hasOrHadCorporateBodyType` (A12), `hasFamilyType` (A20), `hasOrHadOccupationOfType` (A30), `hasOrHadDemographicGroup` (A15), `hasBirthDate` (R070), `hasDeathDate` (R072) | Ficha de autoridad. |
+| Vínculos de autoridad | Ascendiente de, autoridad sobre, control, relación laboral, sabe de, conoce a, correspondencia, maestro de, participante en una actividad, jurisdicción de un lugar, lugares adyacentes y superpuestos. | R017, R036, R041, R046, R050, R051, R052, R053, R058, R076, R077, R078 | Ficha de autoridad, «Vínculos». |
+| Hitos | Cada hito con su tipo, su fecha de ocurrencia y el orden entre hitos sucesivos. | `hasEventType` (A18), `occurredAtDate` (R084), `precedesInTime` (R009), `hasOrHadSubevent` (R006) | Línea de tiempo de la ficha. |
+| TRD | El ente que vigila la TRD (el AGN o el consejo departamental). | `isOrWasEnforcedBy` (R066) | Parametrización de la TRD; se puede corregir también en una versión vigente. |
+
+Pruebas:
+
+- `tests/test_cobertura_ric.py`: 42 de 42 y 84 más 1 de 85, medidos desde el mapeo.
+- `tests/test_ric_total.py`: arma un fondo con TRD, disposición, documentos,
+  archivos, original en papel, agentes, vínculos e hitos; lo exporta completo y
+  exige que **cada uno de los 127 códigos** aparezca en el grafo como propiedad
+  o clase, que el grafo sea conforme al OWL y al perfil SHACL, que el grupo
+  demográfico no salga en la exportación pública y que la ida y vuelta tablas →
+  grafo → tablas sea exacta.
+
+Esa prueba encontró un defecto que la medida del mapeo no veía: en RiC-O 1.1
+`OccupationType` es subclase de `ActivityType`, y el perfil exige a todo tipo de
+actividad su etiqueta SKOS y su esquema. Las ocupaciones salían sin esquema. Se
+corrigió: los tipos de entidad, de familia, las ocupaciones y los grupos
+demográficos van ahora cada uno en su esquema SKOS del fondo, como recomienda
+RiC-AG.
+
+### Decisiones de la cobertura total
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Alcance | Solo prioridad B; B y C | B y C (pedido de la usuaria) | Con todo cubierto, el piloto mide qué se usa en vez de qué falta. | Campos que un fondo institucional no usa. Se mitiga: todos son opcionales y ninguno bloquea la publicación. |
+| R026, procedencia orgánica | Escribirla también; dejarla a su especialización | Dejarla a su especialización | Igual que en la fase 1: la nota de uso de RiC-O lo pide. | El mismo de la fase 1. |
+| Grupo demográfico (A15) | No implementarlo; implementarlo abierto; implementarlo protegido | Protegido | Es dato sensible (Ley 1581, art. 5). Solo sale en el grafo completo, nunca en el público ni en la consulta; la ficha advierte que requiere consentimiento y finalidad. | Que se registre sin consentimiento. La advertencia no lo impide; la responsabilidad es de la entidad. |
+| Fechas dentro y que se cruzan (R085, R086) | Pedirlas al archivista; deducirlas | Deducirlas de las fechas EDTF | Es un cálculo, no un juicio; pedirlo sería trabajo doble. La que solo se cruza sirve de alerta de revisión. | Solo se deducen con fechas EDTF normalizadas en el documento y en el conjunto. |
+| Equivalencia funcional (R035) | Entre funciones de entidades; entre archivos | Entre el archivo migrado y su original | Es el uso que RiC-O documenta para instanciaciones y el sistema ya registra las migraciones. | No compara funciones entre entidades; si se necesita, se agrega como vínculo de autoridad. |
+| Copia (R012) e isOriginalOf (R010) | Dos campos; uno | Uno («Es copia de…») y el otro se deduce | Son la misma relación vista desde cada lado. | Ninguno relevante. |
+| Ocupación y tipos de agente | Texto suelto; concepto SKOS | Concepto en un esquema SKOS del fondo | RiC-AG y el perfil SHACL (ver el defecto encontrado arriba). | Las ocupaciones escritas distinto crean conceptos distintos; normalizarlas con un tesauro queda como mejora. |
+| Medición | Solo el mapeo; mapeo y grafo exportado | Ambas | El mapeo dice qué puede escribir el sistema; el grafo prueba que lo escribe y que es conforme. | La prueba usa un fondo armado para ella, no un fondo real: el piloto sigue siendo necesario. |
+
 ## Anexo A. Cobertura de RiC-CM 1.0, código por código
 
-Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportación (no desde una búsqueda de texto). «Cubierto» = el sistema escribe al menos uno de los términos de RiC-O que implementan ese código, o su inversa. Lo que falta lleva la prioridad y el motivo declarados en el mismo módulo.
+Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportación (no desde una búsqueda de texto). «Cubierto» = el sistema escribe al menos uno de los términos de RiC-O que implementan ese código, o su inversa. Desde la cobertura total (sección 8) no falta ningún código; R026 se cubre por su especialización, como pide RiC-O. La prueba `tests/test_ric_total.py` comprueba además que cada término aparece de verdad en un grafo exportado.
 
-| Código | Estado | Términos de RiC-O que escribe el sistema, o prioridad y motivo |
+| Código | Estado | Términos de RiC-O que escribe el sistema, o motivo |
 |---|---|---|
 | RiC-A01 | Cubierto | `accruals` |
 | RiC-A02 | Cubierto | `ActivityType` |
@@ -203,15 +258,15 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-A07 | Cubierto | `classification` |
 | RiC-A08 | Cubierto | `conditionsOfAccess` |
 | RiC-A09 | Cubierto | `conditionsOfUse` |
-| RiC-A10 | Falta · prioridad B | Tipo de contenido (texto, imagen, mapa): falta el vocabulario. |
+| RiC-A10 | Cubierto | `ContentType` |
 | RiC-A11 | Cubierto | `geographicalCoordinates` |
-| RiC-A12 | Falta · prioridad B | Tipo de entidad (orden nacional o territorial, sector): falta el campo. |
+| RiC-A12 | Cubierto | `CorporateBodyType` |
 | RiC-A13 | Cubierto | `dateQualifier` |
-| RiC-A15 | Falta · prioridad C | Grupo demográfico: dato sensible (Ley 1581); solo con finalidad y consentimiento. |
+| RiC-A15 | Cubierto | `DemographicGroup` |
 | RiC-A17 | Cubierto | `DocumentaryFormType` |
-| RiC-A18 | Falta · prioridad B | Tipo de evento para los hitos: falta el vocabulario. |
+| RiC-A18 | Cubierto | `EventType` |
 | RiC-A19 | Cubierto | `expressedDate` |
-| RiC-A20 | Falta · prioridad B | Tipo de familia: archivos familiares. |
+| RiC-A20 | Cubierto | `FamilyType` |
 | RiC-A21 | Cubierto | `history` |
 | RiC-A22 | Cubierto | `Identifier`, `identifier` |
 | RiC-A23 | Cubierto | `InstantiationExtent`, `instantiationExtent` |
@@ -221,10 +276,10 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-A27 | Cubierto | `location` |
 | RiC-A28 | Cubierto | `AgentName`, `PlaceName`, `name`, `title` |
 | RiC-A29 | Cubierto | `normalizedDateValue` |
-| RiC-A30 | Falta · prioridad B | Tipo de ocupación de los agentes: falta el vocabulario. |
+| RiC-A30 | Cubierto | `OccupationType` |
 | RiC-A31 | Cubierto | `physicalCharacteristicsNote` |
 | RiC-A32 | Cubierto | `PlaceType` |
-| RiC-A33 | Falta · prioridad B | Técnica de producción (manuscrito, mecanografiado, impreso): falta el campo. |
+| RiC-A33 | Cubierto | `ProductionTechniqueType`, `productionTechnique` |
 | RiC-A34 | Cubierto | `qualityOfRepresentationNote` |
 | RiC-A35 | Cubierto | `RecordResourceExtent`, `recordResourceExtent` |
 | RiC-A36 | Cubierto | `RecordSetType` |
@@ -240,23 +295,23 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-R001 | Cubierto | `isRelatedTo` |
 | RiC-R002 | Cubierto | `WholePartRelation`, `hasOrHadPart` |
 | RiC-R003 | Cubierto | `hasOrHadConstituent`, `isOrWasConstituentOf` |
-| RiC-R004 | Falta · prioridad B | Componentes de una instanciación (correo y adjuntos). |
+| RiC-R004 | Cubierto | `hasOrHadComponent`, `isOrWasComponentOf` |
 | RiC-R005 | Cubierto | `GroupSubdivisionRelation`, `hasOrHadSubdivision`, `isOrWasSubdivisionOf` |
-| RiC-R006 | Falta · prioridad B | Subevento general: se usa la sub-actividad directa (hasDirectSubevent). |
+| RiC-R006 | Cubierto | `hasOrHadSubevent` |
 | RiC-R007 | Cubierto | `containsOrContained`, `isOrWasContainedBy` |
 | RiC-R008 | Cubierto | `SequentialRelation`, `followsOrFollowed`, `precedesOrPreceded` |
-| RiC-R009 | Falta · prioridad B | Precede en el tiempo sin secuencia archivística. |
-| RiC-R010 | Falta · prioridad C | Original y copia como dos documentos: el original físico es una instanciación (CM-04). |
+| RiC-R009 | Cubierto | `precedesInTime` |
+| RiC-R010 | Cubierto | `isOriginalOf` |
 | RiC-R011 | Cubierto | `hasDraft`, `isDraftOf` |
-| RiC-R012 | Falta · prioridad C | Copia como otro documento: mismo motivo que R010. |
+| RiC-R012 | Cubierto | `hasCopy`, `isCopyOf` |
 | RiC-R013 | Cubierto | `hasReply`, `isReplyTo` |
 | RiC-R014 | Cubierto | `DerivationRelation`, `hasOrHadDerivedInstantiation`, `isOrWasDerivedFromInstantiation` |
 | RiC-R015 | Cubierto | `MigrationRelation`, `migratedFrom`, `migratedInto` |
 | RiC-R016 | Cubierto | `AgentTemporalRelation`, `hasSuccessor`, `isSuccessorOf` |
-| RiC-R017 | Falta · prioridad B | Descendencia: genealogías de archivos familiares. |
+| RiC-R017 | Cubierto | `DescendanceRelation`, `hasAncestor`, `hasDescendant` |
 | RiC-R018 | Cubierto | `ChildRelation` |
 | RiC-R019 | Cubierto | `hasOrHadSubject`, `isOrWasSubjectOf` |
-| RiC-R020 | Falta · prioridad B | Materia principal frente a las secundarias del tesauro. |
+| RiC-R020 | Cubierto | `hasOrHadMainSubject`, `isOrWasMainSubjectOf` |
 | RiC-R021 | Cubierto | `describesOrDescribed` |
 | RiC-R022 | Cubierto | `RecordResourceToRecordResourceRelation` |
 | RiC-R023 | Cubierto | `RecordResourceGeneticRelation` |
@@ -265,35 +320,35 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-R026 | Cubierto por su especialización | Procedencia orgánica: el sistema escribe hasCreator (R027) y hasAccumulator (R028), subpropiedades de hasOrganicProvenance; RiC-O pide usar la general solo si no cabe una más específica. |
 | RiC-R027 | Cubierto | `CreationRelation`, `hasCreator`, `isCreatorOf` |
 | RiC-R028 | Cubierto | `AccumulationRelation`, `hasAccumulator`, `isAccumulatorOf` |
-| RiC-R029 | Falta · prioridad C | Receptor: se cubre con el destinatario (R032). |
-| RiC-R030 | Falta · prioridad C | Coleccionista: el fondo no tiene colecciones facticias de un coleccionista identificado. |
+| RiC-R029 | Cubierto | `hasReceiver`, `isReceiverOf` |
+| RiC-R030 | Cubierto | `hasCollector`, `isCollectorOf` |
 | RiC-R031 | Cubierto | `hasSender`, `isSenderOf` |
 | RiC-R032 | Cubierto | `hasAddressee`, `isAddresseeOf` |
 | RiC-R033 | Cubierto | `ActivityDocumentationRelation`, `documentedBy`, `documents` |
-| RiC-R034 | Falta · prioridad B | Instanciaciones asociadas entre sí. |
-| RiC-R035 | Falta · prioridad C | Equivalencia funcional entre entidades: no la pide la TRD. |
-| RiC-R036 | Falta · prioridad B | Autoridad sobre (adscripción o vinculación de una entidad). |
-| RiC-R037 | Falta · prioridad C | Propietario: la custodia se registra con hasOrHadHolder. |
-| RiC-R038 | Falta · prioridad C | Gestor: sin caso en el fondo. |
+| RiC-R034 | Cubierto | `isInstantiationAssociatedWithInstantiation` |
+| RiC-R035 | Cubierto | `isFunctionallyEquivalentTo` |
+| RiC-R036 | Cubierto | `AuthorityRelation`, `hasOrHadAuthorityOver`, `isOrWasUnderAuthorityOf` |
+| RiC-R037 | Cubierto | `OwnershipRelation`, `hasOrHadOwner`, `isOrWasOwnerOf` |
+| RiC-R038 | Cubierto | `ManagementRelation`, `hasOrHadManager`, `isOrWasManagerOf` |
 | RiC-R039 | Cubierto | `RecordResourceHoldingRelation`, `hasOrHadHolder`, `isOrWasHolderOf` |
-| RiC-R040 | Falta · prioridad B | Titular de derechos de autor (Ley 23 de 1982). |
-| RiC-R041 | Falta · prioridad C | Control entre agentes: se cubre con la subordinación (R045). |
+| RiC-R040 | Cubierto | `IntellectualPropertyRightsRelation`, `hasOrHadIntellectualPropertyRightsHolder`, `isOrWasHolderOfIntellectualPropertyRightsOf` |
+| RiC-R041 | Cubierto | `AgentControlRelation`, `hasOrHadController`, `isOrWasControllerOf` |
 | RiC-R042 | Cubierto | `LeadershipRelation`, `hasOrHadLeader`, `isOrWasLeaderOf` |
 | RiC-R044 | Cubierto | `AgentToAgentRelation`, `isAgentAssociatedWithAgent` |
 | RiC-R045 | Cubierto | `AgentHierarchicalRelation`, `hasOrHadSubordinate`, `isOrWasSubordinateTo` |
-| RiC-R046 | Falta · prioridad C | Relación laboral: la cubren el cargo y la membresía en archivos institucionales. |
+| RiC-R046 | Cubierto | `WorkRelation`, `hasOrHadWorkRelationWith` |
 | RiC-R047 | Cubierto | `FamilyRelation`, `hasFamilyAssociationWith` |
 | RiC-R048 | Cubierto | `SiblingRelation` |
 | RiC-R049 | Cubierto | `SpouseRelation` |
-| RiC-R050 | Falta · prioridad C | Conoce de: archivos personales. |
-| RiC-R051 | Falta · prioridad C | Conoce a: archivos personales. |
-| RiC-R052 | Falta · prioridad C | Correspondiente: lo cubren el remitente y el destinatario. |
-| RiC-R053 | Falta · prioridad C | Maestro y alumno: archivos personales. |
+| RiC-R050 | Cubierto | `KnowingOfRelation`, `knownBy`, `knowsOf` |
+| RiC-R051 | Cubierto | `KnowingRelation`, `knows` |
+| RiC-R052 | Cubierto | `CorrespondenceRelation`, `hasOrHadCorrespondent` |
+| RiC-R053 | Cubierto | `TeachingRelation`, `hasOrHadStudent`, `hasOrHadTeacher` |
 | RiC-R054 | Cubierto | `PositionHoldingRelation`, `isOrWasOccupiedBy`, `occupiesOrOccupied` |
 | RiC-R055 | Cubierto | `MembershipRelation`, `hasOrHadMember`, `isOrWasMemberOf` |
 | RiC-R056 | Cubierto | `PositionToGroupRelation`, `existsOrExistedIn`, `hasOrHadPosition` |
 | RiC-R057 | Cubierto | `EventRelation` |
-| RiC-R058 | Falta · prioridad B | Participante de un evento o de un comité. |
+| RiC-R058 | Cubierto | `hasOrHadParticipant`, `isOrWasParticipantIn` |
 | RiC-R059 | Cubierto | `affectsOrAffected`, `isOrWasAffectedBy` |
 | RiC-R060 | Cubierto | `PerformanceRelation`, `isOrWasPerformedBy`, `performsOrPerformed` |
 | RiC-R061 | Cubierto | `resultsOrResultedIn` |
@@ -301,27 +356,27 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-R063 | Cubierto | `isOrWasRegulatedBy`, `regulatesOrRegulated` |
 | RiC-R064 | Cubierto | `isOrWasExpressedBy` |
 | RiC-R065 | Cubierto | `issuedBy` |
-| RiC-R066 | Falta · prioridad B | Quién vigila la regla (el AGN o el consejo departamental sobre la TRD). |
+| RiC-R066 | Cubierto | `isOrWasEnforcedBy` |
 | RiC-R067 | Cubierto | `MandateRelation`, `authorizedBy`, `authorizes` |
 | RiC-R068 | Cubierto | `isAssociatedWithDate`, `isDateAssociatedWith` |
 | RiC-R069 | Cubierto | `DateType`, `hasBeginningDate` |
-| RiC-R070 | Falta · prioridad B | Fecha de nacimiento: hoy la existencia sale como fechas de inicio y fin. |
+| RiC-R070 | Cubierto | `hasBirthDate` |
 | RiC-R071 | Cubierto | `hasEndDate` |
-| RiC-R072 | Falta · prioridad B | Fecha de muerte: mismo motivo que R070. |
-| RiC-R073 | Falta · prioridad C | Fecha de modificación de un documento histórico: el sistema no la registra. |
+| RiC-R072 | Cubierto | `hasDeathDate` |
+| RiC-R073 | Cubierto | `hasModificationDate`, `isModificationDateOf` |
 | RiC-R074 | Cubierto | `PlaceRelation` |
 | RiC-R075 | Cubierto | `hasOrHadLocation`, `isOrWasLocationOf` |
-| RiC-R076 | Falta · prioridad C | Jurisdicción: el lugar de actuación usa isOrWasLocationOf (R075). |
-| RiC-R077 | Falta · prioridad C | Lugares adyacentes: sin uso en la descripción institucional. |
-| RiC-R078 | Falta · prioridad C | Lugares superpuestos: sin uso en la descripción institucional. |
+| RiC-R076 | Cubierto | `hasOrHadJurisdiction`, `isOrWasJurisdictionOf` |
+| RiC-R077 | Cubierto | `isOrWasAdjacentTo` |
+| RiC-R078 | Cubierto | `overlapsOrOverlapped` |
 | RiC-R079 | Cubierto | `AuthorshipRelation`, `hasAuthor`, `isAuthorOf` |
 | RiC-R080 | Cubierto | `hasCreationDate`, `isCreationDateOf` |
 | RiC-R081 | Cubierto | `hasOrHadAllMembersWithCreationDate` |
-| RiC-R082 | Falta · prioridad B | Fechas de creación de algunos miembros (fechas predominantes del FUID). |
-| RiC-R083 | Falta · prioridad B | Fechas de creación de la mayoría de los miembros (fechas predominantes). |
-| RiC-R084 | Falta · prioridad B | Fecha en que ocurrió un evento. |
-| RiC-R085 | Falta · prioridad C | Fecha dentro de otra: EDTF ya expresa intervalos e incertidumbre. |
-| RiC-R086 | Falta · prioridad C | Fechas que se cruzan: mismo motivo que R085. |
+| RiC-R082 | Cubierto | `hasOrHadSomeMembersWithCreationDate` |
+| RiC-R083 | Cubierto | `hasOrHadMostMembersWithCreationDate` |
+| RiC-R084 | Cubierto | `occurredAtDate` |
+| RiC-R085 | Cubierto | `isWithin` |
+| RiC-R086 | Cubierto | `intersects` |
 
 ## Anexo B. Cómo repetir la medición
 

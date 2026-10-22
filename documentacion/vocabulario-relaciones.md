@@ -23,6 +23,27 @@ mapeo verificado contra RiC-O 1.1 (`app/servicios/ric_o.py`).
 | Secuencia | — | precede a | sigue a | rico:precedesOrPreceded | RiC-R008 | precede o precedía secuencialmente a |
 | Respuesta | — | tiene por respuesta | responde a | rico:hasReply | RiC-R013 | tiene como contestación |
 | Borrador | — | es borrador de | tiene por borrador | rico:isDraftOf | RiC-R011 | es borrador de |
+| Copia | — | tiene por copia | es copia de | rico:hasCopy | RiC-R012 | tiene como copia |
+| Receptor | — | recibido por | receptor de | rico:hasReceiver | RiC-R029 | tiene como receptor(a) a |
+| Coleccionista | — | reunido por el coleccionista | coleccionista de | rico:hasCollector | RiC-R030 | tiene como coleccionista a |
+| Propietario | — | de propiedad de | propietario de | rico:hasOrHadOwner | RiC-R037i | tiene o tenía como poseedor a |
+| Gestor | — | gestionado por | gestor de | rico:hasOrHadManager | RiC-R038i | tiene o tenía como gestor a |
+| Titular de derechos de autor | — | con derechos de autor de | titular de los derechos de autor de | rico:hasOrHadIntellectualPropertyRightsHolder | RiC-R040i | tiene o tenía como titular de derechos de propiedad intelectual a |
+| Tema principal | — | trata principalmente de | es el tema principal de | rico:hasOrHadMainSubject | RiC-R020 | tiene o tenía como matería principal |
+| Fecha de modificación | — | es la fecha de modificación de | modificado en | rico:isModificationDateOf | RiC-R073 | es fecha de modificación de |
+| Descendencia | — | es ascendiente de | es descendiente de | rico:hasDescendant | RiC-R017 | tiene como descendiente a |
+| Autoridad | — | tiene o tuvo autoridad sobre | está o estuvo bajo la autoridad de | rico:hasOrHadAuthorityOver | RiC-R036 | tiene o tenía control sobre |
+| Control | — | controla o controló a | es o fue controlado por | rico:isOrWasControllerOf | RiC-R041 | es o era controlador de |
+| Relación laboral | — | trabaja o trabajó con | trabaja o trabajó con | rico:hasOrHadWorkRelationWith | RiC-R046 | tiene o tenía relación profesional con |
+| Conocimiento | — | sabe de | es conocido por | rico:knowsOf | RiC-R050 | conoce indirectamente a |
+| Conocidos | — | conoce a | conoce a | rico:knows | RiC-R051 | conoce a |
+| Correspondencia | — | mantiene o mantuvo correspondencia con | mantiene o mantuvo correspondencia con | rico:hasOrHadCorrespondent | RiC-R052 | tiene o tenía como correspondiente |
+| Enseñanza | — | es o fue maestro de | es o fue alumno de | rico:hasOrHadStudent | RiC-R053i | tiene o tenía como estudiante a |
+| Participante | — | tuvo como participante a | participó en | rico:hasOrHadParticipant | RiC-R058 | tiene o tenía como participante |
+| Jurisdicción | — | es o fue jurisdicción de | tiene o tuvo jurisdicción en | rico:isOrWasJurisdictionOf | RiC-R076 | es o era jurisdicción de |
+| Lugar vecino | — | es o fue vecino de | es o fue vecino de | rico:isOrWasAdjacentTo | RiC-R077 | es o era un lugar contiguo a |
+| Superposición | — | se superpone o se superpuso con | se superpone o se superpuso con | rico:overlapsOrOverlapped | RiC-R078 | se superpone o superponía con |
+| Componente | — | tiene como componente a | es componente de | rico:hasOrHadComponent | RiC-R004 | tiene o tenía como componente |
 | Instanciación | — | tiene la instanciación | es instanciación de | rico:hasOrHadInstantiation | RiC-R025 | tiene o tenía como instanciación |
 | Migración | — | migrada a | migrada desde | rico:migratedInto | RiC-R015 | migrado a |
 | Instanciación derivada | — | tiene como derivada a | deriva de | rico:hasOrHadDerivedInstantiation | RiC-R014 | tiene o tenía como instanciación derivada |

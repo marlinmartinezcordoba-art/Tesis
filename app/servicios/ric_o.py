@@ -168,6 +168,48 @@ PROPIEDADES: dict[str, Propiedad] = {
     # origen es el borrador; el destino, la versión definitiva).
     "has_reply": Propiedad("hasReply", "RiC-R013", RECURSOS, RECURSOS, "isReplyTo"),
     "is_draft_of": Propiedad("isDraftOf", "RiC-R011", REGISTROS, REGISTROS, "hasDraft"),
+    # --- Cobertura total de RiC-CM (documentacion/brechas-ric-lineamiento-completo.md) ---
+    # Copia de un documento (el origen es el original; RiC-R012). Entre dos documentos
+    # se escribe además rico:isOriginalOf (RiC-R010), más específica para Record.
+    "has_copy": Propiedad("hasCopy", "RiC-R012", RECURSOS, RECURSOS, "isCopyOf"),
+    # Otros agentes del documento, desde el documento.
+    "has_receiver": Propiedad("hasReceiver", "RiC-R029", RECURSOS + ("Instantiation",), AGENTES, "isReceiverOf"),
+    "has_collector": Propiedad("hasCollector", "RiC-R030", RECURSOS + ("Instantiation",), AGENTES, "isCollectorOf"),
+    "has_or_had_owner": Propiedad("hasOrHadOwner", "RiC-R037i", RECURSOS + ("Instantiation",),
+                                  ("Person", "Group", "Position"), "isOrWasOwnerOf"),
+    "has_or_had_manager": Propiedad("hasOrHadManager", "RiC-R038i", RECURSOS + ("Instantiation",), AGENTES,
+                                    "isOrWasManagerOf"),
+    "has_or_had_ipr_holder": Propiedad("hasOrHadIntellectualPropertyRightsHolder", "RiC-R040i",
+                                       RECURSOS + ("Instantiation",), ("Person", "Group", "Position"),
+                                       "isOrWasHolderOfIntellectualPropertyRightsOf"),
+    "has_or_had_main_subject": Propiedad("hasOrHadMainSubject", "RiC-R020", RECURSOS, ("Thing",), "isOrWasMainSubjectOf"),
+    "is_modification_date_of": Propiedad("isModificationDateOf", "RiC-R073", ("Date",), RECURSOS + ("Instantiation",),
+                                         "hasModificationDate"),
+    # Agente a agente.
+    "has_descendant": Propiedad("hasDescendant", "RiC-R017", ("Person",), ("Person",), "hasAncestor"),
+    "has_or_had_authority_over": Propiedad("hasOrHadAuthorityOver", "RiC-R036", AGENTES, ("Thing",),
+                                           "isOrWasUnderAuthorityOf"),
+    "is_or_was_controller_of": Propiedad("isOrWasControllerOf", "RiC-R041", AGENTES, AGENTES, "hasOrHadController"),
+    "has_or_had_work_relation_with": Propiedad("hasOrHadWorkRelationWith", "RiC-R046", AGENTES, AGENTES,
+                                               "hasOrHadWorkRelationWith", nota="Simétrica."),
+    "knows_of": Propiedad("knowsOf", "RiC-R050", ("Person",), ("Person",), "knownBy"),
+    "knows": Propiedad("knows", "RiC-R051", ("Person",), ("Person",), "knows", nota="Simétrica."),
+    "has_or_had_correspondent": Propiedad("hasOrHadCorrespondent", "RiC-R052", ("Person",), ("Person",),
+                                          "hasOrHadCorrespondent", nota="Simétrica."),
+    "has_or_had_student": Propiedad("hasOrHadStudent", "RiC-R053i", ("Person",), ("Person",), "hasOrHadTeacher"),
+    # Evento o actividad y lo que participa en él.
+    "has_or_had_participant": Propiedad("hasOrHadParticipant", "RiC-R058", ("Activity", "Event"), ("Thing",),
+                                        "isOrWasParticipantIn"),
+    # Lugares.
+    "is_or_was_jurisdiction_of": Propiedad("isOrWasJurisdictionOf", "RiC-R076", ("Place",), AGENTES,
+                                           "hasOrHadJurisdiction"),
+    "is_or_was_adjacent_to": Propiedad("isOrWasAdjacentTo", "RiC-R077", ("Place",), ("Place",), "isOrWasAdjacentTo",
+                                       nota="Simétrica."),
+    "overlaps_or_overlapped": Propiedad("overlapsOrOverlapped", "RiC-R078", ("Place",), ("Place",),
+                                        "overlapsOrOverlapped", nota="Simétrica."),
+    # Archivo compuesto: el todo y el archivo que lo compone (un correo y sus adjuntos).
+    "has_or_had_component": Propiedad("hasOrHadComponent", "RiC-R004", ("Instantiation",), ("Instantiation",),
+                                      "isOrWasComponentOf"),
     "has_or_had_instantiation": Propiedad("hasOrHadInstantiation", "RiC-R025", RECURSOS, ("Instantiation",),
                                           "isOrWasInstantiationOf"),
     "migrated_into": Propiedad("migratedInto", "RiC-R015", ("Instantiation",), ("Instantiation",), "migratedFrom"),
@@ -241,22 +283,16 @@ PROPIEDADES: dict[str, Propiedad] = {
 # enumerado no se retira; tampoco se ofrecen como relación disponible. Una
 # prueba exige que todo código esté mapeado y escrito, o declarado aquí.
 CODIGOS_RESERVADOS = {
-    "has_receiver": "Receptor (R029): se cubre con el destinatario (hasAddressee, R032).",
-    "has_collector": "Coleccionista (R030): el fondo no tiene colecciones facticias de un coleccionista identificado.",
     "is_or_was_holder_of": "Duplicado del sentido inverso de hasOrHadHolder (R039i), que es el que se escribe.",
-    "is_or_was_manager_of": "Gestor (R038): sin caso en el fondo.",
-    "is_or_was_owner_of": "Propietario (R037): sin caso en el fondo; la custodia se registra con hasOrHadHolder.",
-    "is_or_was_controller_of": "Control entre agentes (R041): se cubre con la subordinación (R045).",
-    "is_original_of": "R010 relaciona dos Records (original y copia como documentos); el original físico de un mismo "
-                      "documento se modela como Instantiation con hasOrHadDerivedInstantiation (R014).",
-    "has_copy": "R012 relaciona dos Record Resources; mismo motivo que is_original_of.",
+    "is_or_was_manager_of": "Gestor (R038): se escribe desde el documento con has_or_had_manager (R038i).",
+    "is_or_was_owner_of": "Propietario (R037): se escribe desde el documento con has_or_had_owner (R037i).",
+    "is_original_of": "R010: no es una fila; se escribe al exportar desde cada fila has_copy entre dos documentos "
+                      "(rico:isOriginalOf, más específica para Record).",
     "is_or_was_expressed_by": "Regla expresada en un documento (R064): no es una fila que declare el archivista; se "
                               "escribe al exportar, de cada versión aplicada de la TRD a su documento (APOYO "
                               "«expresada_en»).",
     "is_beginning_date_of": "Se exporta en sentido inverso (hasBeginningDate) desde la fecha guardada como dato.",
     "is_end_date_of": "Se exporta en sentido inverso (hasEndDate) desde la fecha guardada como dato.",
-    "is_modification_date_of": "El sistema no registra fechas de modificación de un documento histórico.",
-    "is_or_was_jurisdiction_of": "Jurisdicción (R076): sin pantalla; el lugar de actuación usa isOrWasLocationOf (R075).",
 }
 
 # Perfil de aplicación de RICORA (decisión CM-21 de la autora, 3 de octubre de
@@ -339,6 +375,7 @@ ATRIBUTOS = {
     "integridad": ("integrityNote", "RiC-A24"),  # completitud intelectual
     "extension_soporte": ("carrierExtent", "RiC-A04"),
     "localizacion": ("location", "RiC-A27"),
+    "tecnica_produccion": ("productionTechnique", "RiC-A33"),
 }
 
 # Relaciones entre agentes y de los mandatos como nodo de relación de RiC-O
@@ -374,6 +411,25 @@ RELACION_NARIA = {
     ("contains_or_contained", None): "WholePartRelation",
     ("precedes_or_preceded", None): "SequentialRelation",
     ("has_reply", None): "RecordResourceToRecordResourceRelation",
+    ("has_copy", None): "RecordResourceGeneticRelation",
+    ("has_receiver", None): "AccumulationRelation",
+    ("has_collector", None): "AccumulationRelation",
+    ("has_or_had_owner", None): "OwnershipRelation",
+    ("has_or_had_manager", None): "ManagementRelation",
+    ("has_or_had_ipr_holder", None): "IntellectualPropertyRightsRelation",
+    ("has_descendant", None): "DescendanceRelation",
+    ("has_or_had_authority_over", None): "AuthorityRelation",
+    ("is_or_was_controller_of", None): "AgentControlRelation",
+    ("has_or_had_work_relation_with", None): "WorkRelation",
+    ("knows_of", None): "KnowingOfRelation",
+    ("knows", None): "KnowingRelation",
+    ("has_or_had_correspondent", None): "CorrespondenceRelation",
+    ("has_or_had_student", None): "TeachingRelation",
+    ("has_or_had_participant", None): "EventRelation",
+    ("is_or_was_jurisdiction_of", None): "PlaceRelation",
+    ("is_or_was_adjacent_to", None): "PlaceRelation",
+    ("overlaps_or_overlapped", None): "PlaceRelation",
+    ("has_or_had_component", None): "WholePartRelation",
     ("is_draft_of", None): "RecordResourceGeneticRelation",
     ("has_or_had_instantiation", None): "RecordResourceToInstantiationRelation",
     ("migrated_into", None): "MigrationRelation",
@@ -394,7 +450,9 @@ TIPO_FECHA = {"simple": "Fecha simple", "rango": "Rango de fechas", "conjunto": 
 #   PerformanceRelation: la actividad es la fuente (el agente, el destino).
 #   RecordResourceHoldingRelation: el agente custodio es la fuente.
 #   TypeRelation: el tipo es la fuente.
-RELACION_INVERTIDA = {"performs_or_performed", "has_or_had_holder", "has_activity_type"}
+#   ManagementRelation, IntellectualPropertyRightsRelation: el agente es la fuente.
+RELACION_INVERTIDA = {"performs_or_performed", "has_or_had_holder", "has_activity_type", "has_or_had_manager",
+                      "has_or_had_ipr_holder"}
 RELACION_ORIGEN, RELACION_DESTINO = "relationHasSource", "relationHasTarget"
 
 # Certeza de una relación propuesta por el motor de análisis (relationCertainty).
@@ -467,6 +525,27 @@ APOYO = {
     # fondo (RiC-R021) y la TRD aplicada (rico:Rule) se expresa en su documento (RiC-R064).
     "describe": ("describesOrDescribed", RECURSOS, "Thing"),
     "expresada_en": ("isOrWasExpressedBy", ("Rule",), "RecordResource"),
+    # --- Cobertura total: lo que se deduce de datos que el sistema ya tiene ---
+    "nacimiento": ("hasBirthDate", ("Person",), "Date"),  # existencia de una persona (RiC-R070)
+    "muerte": ("hasDeathDate", ("Person",), "Date"),  # RiC-R072
+    "ocurrio": ("occurredAtDate", ("Event",), "Date"),  # fecha de un hito (RiC-R084)
+    "precede_en_el_tiempo": ("precedesInTime", ("Thing",), "Thing"),  # hitos sucesivos de un agente (RiC-R009)
+    "fecha_dentro_de": ("isWithin", ("Date",), "Date"),  # fecha del documento dentro de las de su conjunto (R085)
+    "fecha_se_cruza": ("intersects", ("Date",), "Date"),  # o que se cruza con ellas (R086)
+    "fechas_algunos": ("hasOrHadSomeMembersWithCreationDate", ("RecordSet",), "Date"),  # RiC-R082
+    "fechas_mayoria": ("hasOrHadMostMembersWithCreationDate", ("RecordSet",), "Date"),  # predominantes, RiC-R083
+    "equivalente": ("isFunctionallyEquivalentTo", ("Instantiation",), "Instantiation"),  # migración (RiC-R035)
+    "instanciacion_asociada": ("isInstantiationAssociatedWithInstantiation", ("Instantiation",), "Instantiation"),  # R034
+    "original_de": ("isOriginalOf", REGISTROS, "Record"),  # RiC-R010, desde has_copy
+    "subevento": ("hasOrHadSubevent", ("Event",), "Event"),  # RiC-R006, junto a hasDirectSubevent
+    "vigilada_por": ("isOrWasEnforcedBy", ("Rule",), "Agent"),  # RiC-R066: quien vigila la TRD
+    "tipo_contenido": ("hasContentOfType", ("Record", "RecordPart"), "ContentType"),  # RiC-A10
+    "tipo_tecnica": ("hasProductionTechniqueType", ("Instantiation",), "ProductionTechniqueType"),  # RiC-A33
+    "tipo_entidad": ("hasOrHadCorporateBodyType", ("CorporateBody",), "CorporateBodyType"),  # RiC-A12
+    "tipo_familia": ("hasFamilyType", ("Family",), "FamilyType"),  # RiC-A20
+    "ocupacion": ("hasOrHadOccupationOfType", ("Person",), "OccupationType"),  # RiC-A30
+    "grupo_demografico": ("hasOrHadDemographicGroup", ("Person", "Group"), "DemographicGroup"),  # RiC-A15
+    "tipo_evento": ("hasEventType", ("Event",), "EventType"),  # RiC-A18
     "fin": ("hasEndDate", ("Thing",), "Date"),
 }
 
@@ -662,7 +741,9 @@ def verificar_contra_owl() -> list[str]:
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
                                       "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType",
                                       "CarrierType", "RecordResourceExtent", "InstantiationExtent", "DateType",
-                                      "CarrierExtent", "RepresentationType", "RecordState"}
+                                      "CarrierExtent", "RepresentationType", "RecordState", "ContentType",
+                                      "ProductionTechniqueType", "CorporateBodyType", "FamilyType", "OccupationType",
+                                      "DemographicGroup", "EventType"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")
@@ -731,5 +812,5 @@ def etiqueta_es(nombre: str) -> str | None:
 
     for lbl in _owl().objects(URIRef(RICO + nombre), RDFS.label):
         if getattr(lbl, "language", None) == "es":
-            return str(lbl)
+            return " ".join(str(lbl).split())  # algunas etiquetas del OWL traen saltos de línea
     return None

@@ -77,5 +77,6 @@ def ficha_publica(db: Session, recurso: RecursoDocumental, visibles: set[uuid.UU
         # RiC completo, fase 1: respuesta y borrador (RiC-R013, R011), estado (A39) y completitud (A24).
         "vinculos": [{k: x[k] for k in ("id", "titulo", "tipo", "uri_rico")} for x in d["vinculos"]],
         "estado_documento": d["estado_documento"], "nota_integridad": d["nota_integridad"],
+        "tipo_contenido": d["tipo_contenido"], "fechas_predominantes": d["fechas_predominantes"],
         "publicado_en": d["publicado_en"],
     }

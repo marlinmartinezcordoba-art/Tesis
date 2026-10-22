@@ -4,7 +4,7 @@ import { SugerenciaTesauro } from "@/components/Tesauros";
 import { useState, type FormEvent } from "react";
 import { SelectorFecha } from "@/components/SelectorFecha";
 import {
-  EN_VOCABULARIO, ROL_LUGAR_NOMBRE, ROL_NOMBRE, SUBTIPO_AGENTE, SUBTIPO_MANDATO, SUBTIPO_NOMBRE, TIPO_NOMBRE, type TipoEntidad,
+  EN_VOCABULARIO, ROL_FECHA_NOMBRE, ROL_LUGAR_NOMBRE, ROL_NOMBRE, SUBTIPO_AGENTE, SUBTIPO_MANDATO, SUBTIPO_NOMBRE, TIPO_NOMBRE, type TipoEntidad,
   type Verificacion,
 } from "@/lib/descripcion";
 import { desarmar, type ControlFecha } from "@/lib/fechas";
@@ -91,7 +91,8 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
     alGuardar({
       tipo, valor: valor.trim(),
       subtipo: tipo === "agente" || tipo === "mandato" ? subtipo : null,
-      rol: tipo === "agente" ? rol : tipo === "lugar" && rol === "expedicion" ? "expedicion" : null,
+      rol: tipo === "agente" ? rol : tipo === "lugar" && rol === "expedicion" ? "expedicion"
+        : tipo === "fecha" && rol === "modificacion" ? "modificacion" : null,
       fecha_normalizada: null,
       edtf: tipo === "fecha" || tipo === "mandato" ? edtf : tipo === "agente" && rol === "custodio" && periodo.trim() ? periodo.trim() : null,
       fecha_subtipo: tipo === "fecha" ? fecha.subtipo : null,
@@ -143,6 +144,12 @@ export function FormEntidad({ inicial, alGuardar, alCancelar, textoBoton = "Agre
           <select className="selector" aria-label="Papel del lugar" value={rol === "expedicion" ? "expedicion" : ""}
                   onChange={(e) => setRol(e.target.value)}>
             {Object.entries(ROL_LUGAR_NOMBRE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        )}
+        {tipo === "fecha" && (
+          <select className="selector" aria-label="Papel de la fecha" value={rol === "modificacion" ? "modificacion" : ""}
+                  onChange={(e) => setRol(e.target.value)}>
+            {Object.entries(ROL_FECHA_NOMBRE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         )}
         {tipo === "mandato" && (

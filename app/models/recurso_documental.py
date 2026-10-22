@@ -24,6 +24,10 @@ DATOS_PERSONALES = ("no_contiene", "personales", "sensibles", "menores")
 # Estado del documento (RiC-A39 State, rico:RecordState): su etapa de
 # producción (borrador, definitivo) o su forma de transmisión (original,
 # copia). Solo de una unidad o parte documental (dominio de hasRecordState).
+# Tipo de contenido (RiC-A10 Content Type): la forma fundamental en que se comunica.
+TIPO_CONTENIDO = {"texto": "Texto", "imagen_fija": "Imagen fija (fotografía, dibujo, grabado)",
+                  "imagen_cartografica": "Imagen cartográfica (mapa, plano)", "imagen_en_movimiento": "Imagen en movimiento",
+                  "sonido": "Sonido", "notacion_musical": "Notación musical", "datos": "Datos"}
 ESTADO_DOCUMENTO = {"borrador": "Borrador", "definitivo": "Definitivo", "original": "Original", "copia": "Copia",
                     "copia_autentica": "Copia auténtica"}
 
@@ -132,3 +136,6 @@ class RecursoDocumental(Base):
     # Completitud intelectual (RiC-A24 Integrity Note): si al expediente o al
     # documento le falta algo. No es la fijeza del archivo (eso es autenticidad).
     nota_integridad = Column(Text, nullable=True)
+    tipo_contenido = Column(String(30), nullable=True)  # TIPO_CONTENIDO; RiC-A10, de un documento
+    # Fechas predominantes de una agrupación (las de la mayoría de sus documentos; RiC-R083), en EDTF.
+    fechas_predominantes_edtf = Column(String(200), nullable=True)

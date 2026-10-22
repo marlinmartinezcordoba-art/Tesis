@@ -39,6 +39,10 @@ export interface CamposRegistroValor {
   borradorDe: { id: string; titulo: string } | null;
   estadoDocumento: string;
   notaIntegridad: string;
+  // Cobertura total: copia de (RiC-R012), tipo de contenido (RiC-A10), fechas predominantes (RiC-R083, EDTF).
+  copiaDe: { id: string; titulo: string } | null;
+  tipoContenido: string;
+  fechasPredominantes: string;
   // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
   isadg: Record<string, string>;
   escrituras: string[];
@@ -74,6 +78,7 @@ export const ESCRITURAS: Record<string, string> = {
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
            respondeA: null, borradorDe: null, estadoDocumento: "", notaIntegridad: "",
+           copiaDe: null, tipoContenido: "", fechasPredominantes: "",
            isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
 }
 
@@ -83,11 +88,18 @@ export const ESTADO_DOCUMENTO: [string, string][] = [
   ["copia_autentica", "Copia auténtica"],
 ];
 
+// Tipo de contenido (RiC-A10): la forma fundamental en que se comunica el documento.
+export const TIPO_CONTENIDO: [string, string][] = [
+  ["texto", "Texto"], ["imagen_fija", "Imagen fija (fotografía, dibujo, grabado)"],
+  ["imagen_cartografica", "Imagen cartográfica (mapa, plano)"], ["imagen_en_movimiento", "Imagen en movimiento"],
+  ["sonido", "Sonido"], ["notacion_musical", "Notación musical"], ["datos", "Datos"],
+];
+
 const ES_DOCUMENTO = (nivel?: string) => !nivel || nivel === "unidad_documental" || nivel === "parte_documental";
 
 /** Lo que RiC añade a una respuesta o un borrador, en palabras de la ficha. */
 export const VINCULO_NOMBRE: Record<string, string> = {
-  responde_a: "Responde a", tiene_respuesta: "Tiene por respuesta", borrador_de: "Es borrador de",
+  responde_a: "Responde a", tiene_respuesta: "Tiene por respuesta", borrador_de: "Es borrador de", copia_de: "Es copia de", tiene_copia: "Tiene por copia",
   tiene_borrador: "Tiene por borrador",
 };
 
@@ -245,7 +257,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
-  const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | null>(null);
+  const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | "copiaDe" | null>(null);
   const documento = ES_DOCUMENTO(nivel);
   const agregar = (c: string) => {
     const codigo = c.trim().toLowerCase();
@@ -347,7 +359,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
       </div>
       <div className="campo" style={{ marginTop: 12 }}>
-        <label>Respuesta y borrador <span className="meta">(opcional · rico:hasReply, rico:isDraftOf)</span></label>
+        <label>Respuesta, borrador y copia <span className="meta">(opcional · rico:hasReply, rico:isDraftOf, rico:hasCopy)</span></label>
         {valor.respondeA && (
           <p style={{ margin: "4px 0" }}>Responde a <b>{valor.respondeA.titulo}</b>{" "}
             <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, respondeA: null })}>Quitar</button></p>
@@ -355,6 +367,10 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         {valor.borradorDe && (
           <p style={{ margin: "4px 0" }}>Es borrador de <b>{valor.borradorDe.titulo}</b>{" "}
             <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, borradorDe: null })}>Quitar</button></p>
+        )}
+        {valor.copiaDe && (
+          <p style={{ margin: "4px 0" }}>Es copia de <b>{valor.copiaDe.titulo}</b>{" "}
+            <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, copiaDe: null })}>Quitar</button></p>
         )}
         {vinculando ? (
           <>
@@ -365,10 +381,28 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           <div className="acciones">
             {!valor.respondeA && <button type="button" className="boton chico" onClick={() => setVinculando("respondeA")}>Responde a…</button>}
             {documento && !valor.borradorDe && <button type="button" className="boton chico" onClick={() => setVinculando("borradorDe")}>Es borrador de…</button>}
+            {!valor.copiaDe && <button type="button" className="boton chico" onClick={() => setVinculando("copiaDe")}>Es copia de…</button>}
           </div>
         )}
         <p className="meta" style={{ margin: "4px 0 0" }}>La respuesta puede estar en otra serie (comunicaciones recibidas y enviadas).</p>
       </div>
+      {documento && (
+        <div className="campo">
+          <label htmlFor="tipo-contenido">Tipo de contenido <span className="meta">(opcional · rico:hasContentOfType)</span></label>
+          <select id="tipo-contenido" className="selector" value={valor.tipoContenido}
+                  onChange={(e) => alCambiar({ ...valor, tipoContenido: e.target.value })}>
+            <option value="">Sin indicar</option>
+            {TIPO_CONTENIDO.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+          </select>
+        </div>
+      )}
+      {!documento && (
+        <div className="campo">
+          <label htmlFor="predominantes">Fechas predominantes <span className="meta">(opcional · EDTF · las de la mayoría de sus documentos · rico:hasOrHadMostMembersWithCreationDate)</span></label>
+          <input id="predominantes" className="entrada" value={valor.fechasPredominantes} maxLength={200}
+                 placeholder="Ej.: 1948/1952" onChange={(e) => alCambiar({ ...valor, fechasPredominantes: e.target.value })} />
+        </div>
+      )}
       {documento && (
         <div className="campo">
           <label htmlFor="estado-doc">Estado del documento <span className="meta">(opcional · rico:hasRecordState)</span></label>

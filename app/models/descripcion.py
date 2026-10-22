@@ -39,6 +39,18 @@ DISPOSICION_FINAL = ("conservacion_total", "eliminacion", "seleccion", "medio_te
 SUBTIPO_AGENTE = ("persona", "entidad_corporativa", "grupo", "cargo", "familia", "mecanismo")
 # Estatuto jurídico de una entidad corporativa (ISAAR-CPF 5.2.4; rico:LegalStatus).
 ESTATUTO_JURIDICO = ("publica", "privada", "mixta")
+# RiC completo, cobertura total (documentacion/brechas-ric-lineamiento-completo.md).
+# Tipo de entidad corporativa (RiC-A12, rico:CorporateBodyType), según la estructura del Estado colombiano.
+TIPO_ENTIDAD = {"publica_nacional": "Entidad pública del orden nacional",
+                "publica_departamental": "Entidad pública del orden departamental",
+                "publica_distrital_municipal": "Entidad pública del orden distrital o municipal",
+                "publica_descentralizada": "Entidad pública descentralizada",
+                "privada_funciones_publicas": "Entidad privada que cumple funciones públicas",
+                "privada": "Entidad privada", "economia_mixta": "Sociedad de economía mixta",
+                "organismo_internacional": "Organismo internacional"}
+# Tipo de familia (RiC-A20, rico:FamilyType).
+TIPO_FAMILIA = {"nuclear": "Familia nuclear", "extensa": "Familia extensa", "linaje": "Linaje o casa",
+                "otra": "Otro tipo de familia"}
 # Tipo de lugar, lista controlada (rico:PlaceType).
 TIPO_LUGAR = ("pais", "departamento", "provincia", "municipio", "corregimiento", "vereda", "barrio", "edificio",
               "otro")
@@ -119,6 +131,12 @@ class EntidadVocabulario(_Procedencia, Base):
     retencion_central_anios = Column(Integer, nullable=True)
     disposicion_final = Column(String(30), nullable=True)
     estatuto_juridico = Column(String(20), nullable=True)
+    tipo_entidad = Column(String(40), nullable=True)  # TIPO_ENTIDAD; RiC-A12
+    tipo_familia = Column(String(20), nullable=True)  # TIPO_FAMILIA; RiC-A20
+    ocupacion = Column(String(200), nullable=True)  # de una persona; RiC-A30 Occupation Type
+    # Grupo demográfico (RiC-A15): dato sensible (Ley 1581, art. 5). Solo sale en el
+    # grafo completo, nunca en el público, y solo con finalidad y consentimiento.
+    grupo_demografico = Column(String(200), nullable=True)
     estructura = Column(Text, nullable=True)
     contexto_general = Column(Text, nullable=True)
     # Control: reglas o convenciones (vacío = ISAAR-CPF 2.ª ed.), nivel de

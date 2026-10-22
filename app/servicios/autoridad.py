@@ -52,6 +52,9 @@ class ErrorAutoridad(Exception):
 CAMPOS_CONTROL = ("reglas", "fuentes", "estado_elaboracion", "institucion_responsable", "lenguas", "escrituras",
                   "notas_mantenimiento")
 CAMPOS_AGENTE = ("version", "existencia_edtf", "historia", "estatuto_juridico", "estructura", "contexto_general",
+                 # Cobertura total de RiC-CM: tipo de entidad (A12), de familia (A20), ocupación (A30)
+                 # y grupo demográfico (A15, dato sensible).
+                 "tipo_entidad", "tipo_familia", "ocupacion", "grupo_demografico",
                  *CAMPOS_CONTROL)
 # Función (ISDF; hallazgo VOC-03): tipo, código de clasificación (skos:notation),
 # fechas, historia (nota de alcance) y el área de control.
@@ -181,6 +184,29 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
             v = _texto(valor)
             if v and v not in ESTATUTO_JURIDICO:
                 raise ErrorAutoridad("El estatuto jurídico es pública, privada o mixta.")
+            nuevos[campo] = v
+        elif campo in ("tipo_entidad", "tipo_familia"):
+            from app.models.descripcion import TIPO_ENTIDAD, TIPO_FAMILIA
+
+            v = _texto(valor)
+            subtipo, lista = ("entidad_corporativa", TIPO_ENTIDAD) if campo == "tipo_entidad" else ("familia", TIPO_FAMILIA)
+            if v and e.subtipo != subtipo:
+                raise ErrorAutoridad(f"El {campo.replace('_', ' de ')} solo se declara en una "
+                                     f"{'entidad corporativa' if subtipo == 'entidad_corporativa' else 'familia'}.")
+            if v and v not in lista:
+                raise ErrorAutoridad(f"Valor desconocido: {', '.join(lista.values()).lower()}.")
+            nuevos[campo] = v
+        elif campo == "ocupacion":
+            v = _texto(valor, 200)
+            if v and e.subtipo != "persona":
+                raise ErrorAutoridad("La ocupación se declara en una persona; la de un cargo es el cargo mismo.")
+            nuevos[campo] = v
+        elif campo == "grupo_demografico":
+            # Dato sensible (Ley 1581 de 2012, art. 5): solo con finalidad y consentimiento; sale solo
+            # en el grafo completo, nunca en la consulta pública.
+            v = _texto(valor, 200)
+            if v and e.subtipo in ("cargo", "mecanismo"):
+                raise ErrorAutoridad("El grupo demográfico es de una persona o de un grupo.")
             nuevos[campo] = v
         elif campo == "tipo_lugar":
             v = _texto(valor)
@@ -561,6 +587,30 @@ VINCULOS: dict[str, Vinculo] = {
     # Función ↔ serie que produce (TRD): R001, desde el tipo de actividad.
     "serie_producida": Vinculo("is_related_to", "serie_producida", "asociacion", ("tipo_actividad",),
                                ("recurso:serie,subserie",), False, False),
+    # --- Cobertura total de RiC-CM (documentacion/brechas-ric-lineamiento-completo.md) ---
+    # Genealogía (R017): de un ascendiente a su descendiente (no solo padre o madre).
+    "ascendiente_de": Vinculo("has_descendant", None, "asociacion", ("agente:persona",), ("agente:persona",), False,
+                              False),
+    # Autoridad (R036) y control (R041) entre agentes: adscripción o vinculación de una entidad.
+    "autoridad_sobre": Vinculo("has_or_had_authority_over", None, "asociacion", ("agente",), ("agente",), False, False),
+    "controla_a": Vinculo("is_or_was_controller_of", None, "asociacion", ("agente",), ("agente",), False, False),
+    "relacion_laboral": Vinculo("has_or_had_work_relation_with", None, "asociacion", ("agente",), ("agente",), False,
+                                False),
+    # Relaciones entre personas (R050-R053): archivos personales y familiares.
+    "sabe_de": Vinculo("knows_of", None, "asociacion", ("agente:persona",), ("agente:persona",), False, False),
+    "conoce_a": Vinculo("knows", None, "asociacion", ("agente:persona",), ("agente:persona",), False, False),
+    "correspondencia_con": Vinculo("has_or_had_correspondent", None, "asociacion", ("agente:persona",),
+                                   ("agente:persona",), False, False),
+    "maestro_de": Vinculo("has_or_had_student", None, "asociacion", ("agente:persona",), ("agente:persona",), False,
+                          False),
+    # Quien participa en una actividad sin ejercerla (R058): desde la actividad.
+    "participante": Vinculo("has_or_had_participant", None, "asociacion", ("actividad",), ("agente",), False, False),
+    # Jurisdicción de un agente (R076): desde el agente.
+    "jurisdiccion": Vinculo("is_or_was_jurisdiction_of", None, "espacial", ("lugar",), ("agente",), False, False,
+                            se_declara_desde="destino"),
+    # Lugares vecinos (R077) y que se superponen (R078).
+    "adyacente_a": Vinculo("is_or_was_adjacent_to", None, "espacial", ("lugar",), ("lugar",), False, False),
+    "se_superpone_con": Vinculo("overlaps_or_overlapped", None, "espacial", ("lugar",), ("lugar",), False, False),
 }
 
 

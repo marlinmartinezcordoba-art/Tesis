@@ -59,6 +59,19 @@ export const ROL_NOMBRE: Record<string, string> = {
   acumulador: nombreDelRol("acumulador"),
   mencionado: nombreDelRol("mencionado"),
   custodio: `${nombreDelRol("custodio")} (distinto del productor)`,
+  // Cobertura total de RiC-CM (R029, R030, R037, R038, R040, R020).
+  receptor: nombreDelRol("receptor"),
+  coleccionista: `${nombreDelRol("coleccionista")} (colección facticia)`,
+  tema_principal: nombreDelRol("tema_principal"),
+  propietario: `${nombreDelRol("propietario")} (persona, grupo o cargo)`,
+  gestor: nombreDelRol("gestor"),
+  titular_derechos: `${nombreDelRol("titular_derechos")} (Ley 23 de 1982)`,
+};
+
+// El papel de una fecha en la descripción: de creación (RiC-R080) o de modificación (RiC-R073).
+export const ROL_FECHA_NOMBRE: Record<string, string> = {
+  "": "Fecha de creación",
+  modificacion: "Fecha de modificación (reforma o adición posterior)",
 };
 
 // El papel de un lugar en la descripción, con los mismos términos.

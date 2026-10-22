@@ -16,6 +16,10 @@ TIPO_SOPORTE = ("papel", "pergamino", "papel_fotografico", "microfilme", "cinta_
 # Metadatos del AGN v1.4 (tabla 4). Se exporta dentro de la nota de
 # características físicas (RiC-A31), que en RiC-CM incluye el estado.
 ESTADO_CONSERVACION = ("bueno", "regular", "malo", "restaurado")
+# Técnica de producción del original (RiC-A33 Production Technique).
+TECNICA_PRODUCCION = {"manuscrito": "Manuscrito", "mecanografiado": "Mecanografiado", "impreso": "Impreso",
+                      "fotocopia": "Fotocopia", "fotografia": "Fotografía", "dibujo": "Dibujo o plano a mano",
+                      "impresion_digital": "Impreso desde un medio digital"}
 ESTADOS_COLA = ("procesando", "duplicado_pendiente", "error")
 
 # Paso interno del procesamiento, solo para mostrar el avance.
@@ -49,6 +53,7 @@ class Instanciacion(Base):
     ubicacion_fisica = Column(String(300), nullable=True)
     # Estado físico y de conservación (ISAD-G 3.4.4; rico:physicalCharacteristicsNote, RiC-A31).
     caracteristicas_fisicas = Column(Text, nullable=True)
+    tecnica_produccion = Column(String(30), nullable=True)  # TECNICA_PRODUCCION; RiC-A33, del original
     estado_conservacion = Column(String(20), nullable=True)  # ESTADO_CONSERVACION
     # Signatura topográfica (AGN tabla 4): depósito, estante y entrepaño; la
     # caja y la carpeta van en los datos de control del documento (FUID).

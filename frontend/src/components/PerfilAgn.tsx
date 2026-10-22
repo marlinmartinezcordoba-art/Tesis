@@ -21,12 +21,19 @@ export interface InstanciacionRegistro {
   estante?: string | null;
   entrepano?: string | null;
   signatura?: string | null;
+  tecnica_produccion?: string | null;
+  componente_de?: { id: string; relacion_id: string } | null;
 }
 
 const SOPORTES = ["papel", "pergamino", "papel_fotografico", "microfilme", "cinta_magnetica", "disco_optico", "otro"];
 const ESTADOS = ["bueno", "regular", "malo", "restaurado"];
+// Técnica de producción del original (RiC-A33); la misma lista de app/models/instanciacion.py.
+const TECNICAS: Record<string, string> = {
+  manuscrito: "Manuscrito", mecanografiado: "Mecanografiado", impreso: "Impreso", fotocopia: "Fotocopia",
+  fotografia: "Fotografía", dibujo: "Dibujo o plano a mano", impresion_digital: "Impreso desde un medio digital",
+};
 const VACIO = { soporte: "papel", ubicacion: "", deposito: "", estante: "", entrepano: "", estado_conservacion: "",
-                caracteristicas_fisicas: "" };
+                caracteristicas_fisicas: "", tecnica_produccion: "" };
 
 function nombreSoporte(s: string) {
   return (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, " ");
@@ -47,14 +54,15 @@ export function OriginalesFisicos({ recursoId, instanciaciones, puede, alGuardar
     setEditando(i ? i.id : "nuevo");
     setDatos(i ? { soporte: i.soporte || "papel", ubicacion: i.ubicacion || "", deposito: i.deposito || "",
                    estante: i.estante || "", entrepano: i.entrepano || "", estado_conservacion: i.estado_conservacion || "",
-                   caracteristicas_fisicas: i.caracteristicas_fisicas || "" } : VACIO);
+                   caracteristicas_fisicas: i.caracteristicas_fisicas || "", tecnica_produccion: i.tecnica_produccion || "" } : VACIO);
   }
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
     setError("");
     const cuerpo = { ubicacion: datos.ubicacion, deposito: datos.deposito, estante: datos.estante, entrepano: datos.entrepano,
-                     estado_conservacion: datos.estado_conservacion || null, caracteristicas_fisicas: datos.caracteristicas_fisicas };
+                     estado_conservacion: datos.estado_conservacion || null, caracteristicas_fisicas: datos.caracteristicas_fisicas,
+                     tecnica_produccion: datos.tecnica_produccion || null };
     try {
       const r = editando === "nuevo"
         ? await pedir(`/api/descripcion/registros/${recursoId}/original-fisico`, { method: "POST",
@@ -115,6 +123,14 @@ export function OriginalesFisicos({ recursoId, instanciaciones, puede, alGuardar
                         onChange={(e) => setDatos({ ...datos, estado_conservacion: e.target.value })}>
                   <option value="">Sin dato</option>
                   {ESTADOS.map((s) => <option key={s} value={s}>{nombreSoporte(s)}</option>)}
+                </select>
+              </div>
+              <div className="campo" style={{ margin: 0 }}>
+                <label htmlFor="f-tecnica">Técnica de producción</label>
+                <select id="f-tecnica" className="selector" value={datos.tecnica_produccion}
+                        onChange={(e) => setDatos({ ...datos, tecnica_produccion: e.target.value })}>
+                  <option value="">Sin dato</option>
+                  {Object.entries(TECNICAS).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
                 </select>
               </div>
               {campo("deposito", "Depósito")}
@@ -238,6 +254,57 @@ export function CompletitudFondo({ fondoId, abrir }: { fondoId: string; abrir: (
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Archivo compuesto (RiC-R004): un correo y sus adjuntos, un expediente electrónico y
+// cada uno de sus archivos. Solo aparece si la descripción tiene dos archivos digitales o más.
+export function ComponentesDigitales({ recursoId, instanciaciones, puede, alGuardar }: {
+  recursoId: string; instanciaciones: InstanciacionRegistro[]; puede: boolean; alGuardar: (r: unknown) => void;
+}) {
+  const digitales = instanciaciones.filter((i) => !i.fisica);
+  const [todo, setTodo] = useState("");
+  const [parte, setParte] = useState("");
+  const [error, setError] = useState("");
+  if (digitales.length < 2) return null;
+  const nombre = (id: string) => digitales.find((i) => i.id === id)?.nombre ?? "otro archivo";
+
+  async function unir(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      alGuardar(await pedir(`/api/descripcion/registros/${recursoId}/componentes`, {
+        method: "POST", body: JSON.stringify({ todo_id: todo, componente_id: parte }) }));
+      setTodo(""); setParte("");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo unir.");
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Archivos compuestos <code className="rico">rico:hasOrHadComponent</code></div>
+      <div className="tarjeta-cuerpo">
+        {digitales.filter((i) => i.componente_de).map((i) => (
+          <p key={i.id} style={{ margin: "4px 0" }}><b>{i.nombre}</b> es componente de <b>{nombre(i.componente_de!.id)}</b></p>
+        ))}
+        {!digitales.some((i) => i.componente_de) && <p className="meta" style={{ marginTop: 0 }}>Ningún archivo está marcado como parte de otro.</p>}
+        {puede && (
+          <form className="acciones" onSubmit={unir}>
+            <select className="selector" aria-label="Archivo compuesto" value={todo} onChange={(e) => setTodo(e.target.value)} required>
+              <option value="">El archivo compuesto…</option>
+              {digitales.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+            </select>
+            <select className="selector" aria-label="Componente" value={parte} onChange={(e) => setParte(e.target.value)} required>
+              <option value="">…tiene como componente a</option>
+              {digitales.filter((i) => i.id !== todo).map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+            </select>
+            <button type="submit" className="boton chico">Unir</button>
+          </form>
+        )}
+        {error && <div className="aviso error" role="alert">{error}</div>}
       </div>
     </div>
   );

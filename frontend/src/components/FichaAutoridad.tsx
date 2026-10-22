@@ -77,6 +77,16 @@ const HITO_NOMBRE: Record<string, string> = {
   creacion: "Creación", reforma: "Reforma administrativa", traslado: "Traslado del archivo", supresion: "Supresión", otro: "Otro hecho",
 };
 const ESTATUTO: Record<string, string> = { publica: "Pública", privada: "Privada", mixta: "Mixta" };
+// Tipo de entidad (RiC-A12) y de familia (RiC-A20); los mismos de app/models/descripcion.py.
+const TIPO_ENTIDAD: Record<string, string> = {
+  publica_nacional: "Entidad pública del orden nacional", publica_departamental: "Entidad pública del orden departamental",
+  publica_distrital_municipal: "Entidad pública del orden distrital o municipal", publica_descentralizada: "Entidad pública descentralizada",
+  privada_funciones_publicas: "Entidad privada que cumple funciones públicas", privada: "Entidad privada",
+  economia_mixta: "Sociedad de economía mixta", organismo_internacional: "Organismo internacional",
+};
+const TIPO_FAMILIA: Record<string, string> = {
+  nuclear: "Familia nuclear", extensa: "Familia extensa", linaje: "Linaje o casa", otra: "Otro tipo de familia",
+};
 const DISPOSICION: Record<string, string> = {
   conservacion_total: "Conservación total", eliminacion: "Eliminación", seleccion: "Selección",
   medio_tecnico: "Reproducción por medio técnico",
@@ -319,10 +329,28 @@ const OPCIONES: Record<string, OpcionVinculo[]> = {
     { tipo: "hermano_de", etiqueta: "Es hermano o hermana de", busca: "agente", subtipos: ["persona"] },
     { tipo: "conyuge_de", etiqueta: "Es o fue cónyuge de", busca: "agente", conFecha: true, subtipos: ["persona"] },
     { tipo: "familiar_de", etiqueta: "Tiene otro parentesco con", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "ascendiente_de", etiqueta: "Es ascendiente de (genealogía)", busca: "agente", subtipos: ["persona"] },
+    { tipo: "ascendiente_de", etiqueta: "Es descendiente de", busca: "agente", invertir: true, subtipos: ["persona"] },
+    // Autoridad, control y trabajo entre agentes (RiC-R036, R041, R046).
+    { tipo: "autoridad_sobre", etiqueta: "Tiene o tuvo autoridad sobre (adscripción o vinculación)", busca: "agente", conFecha: true },
+    { tipo: "autoridad_sobre", etiqueta: "Está o estuvo bajo la autoridad de", busca: "agente", conFecha: true, invertir: true },
+    { tipo: "controla_a", etiqueta: "Controla o controló a", busca: "agente", conFecha: true },
+    { tipo: "controla_a", etiqueta: "Es o fue controlado por", busca: "agente", conFecha: true, invertir: true },
+    { tipo: "relacion_laboral", etiqueta: "Trabaja o trabajó con", busca: "agente", conFecha: true },
+    // Entre personas (RiC-R050 a R053): archivos personales y familiares.
+    { tipo: "conoce_a", etiqueta: "Conoce o conoció a", busca: "agente", subtipos: ["persona"] },
+    { tipo: "sabe_de", etiqueta: "Sabe o supo de (sin conocerlo)", busca: "agente", subtipos: ["persona"] },
+    { tipo: "correspondencia_con", etiqueta: "Mantiene o mantuvo correspondencia con", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "maestro_de", etiqueta: "Es o fue maestro de", busca: "agente", conFecha: true, subtipos: ["persona"] },
+    { tipo: "maestro_de", etiqueta: "Es o fue alumno de", busca: "agente", conFecha: true, invertir: true, subtipos: ["persona"] },
   ],
-  agente_lugares: [{ tipo: "lugar_agente", etiqueta: "Actúa o actuó en", busca: "lugar" }],
+  agente_lugares: [{ tipo: "lugar_agente", etiqueta: "Actúa o actuó en", busca: "lugar" },
+                   { tipo: "jurisdiccion", etiqueta: "Tiene o tuvo jurisdicción en", busca: "lugar" }],
   agente_creacion: [{ tipo: "creado_por", etiqueta: "Fue creado o establecido por", busca: "mandato" }],
   lugar: [{ tipo: "lugar_superior", etiqueta: "Está o estuvo dentro de", busca: "lugar", conFecha: true }],
+  lugar_vecinos: [{ tipo: "adyacente_a", etiqueta: "Es o fue vecino de", busca: "lugar", conFecha: true },
+                  { tipo: "se_superpone_con", etiqueta: "Se superpone o se superpuso con", busca: "lugar", conFecha: true }],
+  actividad_participantes: [{ tipo: "participante", etiqueta: "Tuvo como participante a", busca: "agente" }],
   actividad: [
     { tipo: "actividad_mayor", etiqueta: "Es sub-actividad de", busca: "actividad" },
     { tipo: "ejercida_por", etiqueta: "Es o fue ejercida por", busca: "agente" },
@@ -692,13 +720,20 @@ function FichaAgente(p: Props) {
                          legible={f.existencia_legible} subtipos={["rango", "simple"]} {...comun} />
           <TextoEditable etiqueta={e.subtipo === "persona" ? "Historia (biografía)" : "Historia"} campo="historia" valor={f.campos.historia} multilinea {...comun} />
           {corporativa && <ListaEditable etiqueta="Estatuto jurídico" campo="estatuto_juridico" valor={(f.campos.estatuto_juridico as string) || null} opciones={ESTATUTO} {...comun} />}
+          {corporativa && <ListaEditable etiqueta="Tipo de entidad (rico:CorporateBodyType)" campo="tipo_entidad" valor={(f.campos.tipo_entidad as string) || null} opciones={TIPO_ENTIDAD} {...comun} />}
+          {e.subtipo === "familia" && <ListaEditable etiqueta="Tipo de familia (rico:FamilyType)" campo="tipo_familia" valor={(f.campos.tipo_familia as string) || null} opciones={TIPO_FAMILIA} {...comun} />}
+          {e.subtipo === "persona" && <TextoEditable etiqueta="Ocupación (rico:OccupationType)" campo="ocupacion" valor={f.campos.ocupacion} {...comun} />}
+          {e.subtipo !== "cargo" && e.subtipo !== "mecanismo" && (
+            <TextoEditable etiqueta="Grupo demográfico (dato sensible, Ley 1581: solo con finalidad y consentimiento; nunca sale en la consulta pública)"
+                           campo="grupo_demografico" valor={f.campos.grupo_demografico} {...comun} />
+          )}
           <TextoEditable etiqueta="Estructura interna o genealogía" campo="estructura" valor={f.campos.estructura} multilinea {...comun} />
           <TextoEditable etiqueta="Contexto general" campo="contexto_general" valor={f.campos.contexto_general} multilinea {...comun} />
         </dl>
         <h4>Línea de tiempo institucional</h4>
         <LineaDeTiempo ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
         <h4>Lugares de actuación</h4>
-        <Vinculos vinculos={f.vinculos} tipos={["lugar_agente"]} opciones={OPCIONES.agente_lugares} vacio="Sin lugares de actuación."
+        <Vinculos vinculos={f.vinculos} tipos={["lugar_agente", "jurisdiccion"]} opciones={OPCIONES.agente_lugares} vacio="Sin lugares de actuación ni jurisdicción."
                   entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
         <h4>Funciones y actividades</h4>
         <Vinculos vinculos={f.vinculos} tipos={["ejercida_por"]} opciones={[]} entidad={e} fondoId={fondoId} puede={false} alCambiar={alCambiar}
@@ -710,7 +745,8 @@ function FichaAgente(p: Props) {
 
       <Area titulo="3. Área de relaciones">
         <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado", "ocupa_cargo", "cargo_en", "miembro", "dirige", "subdivision",
-                 "progenitor_de", "hermano_de", "conyuge_de", "familiar_de"]}
+                 "progenitor_de", "hermano_de", "conyuge_de", "familiar_de", "ascendiente_de", "autoridad_sobre", "controla_a",
+                 "relacion_laboral", "conoce_a", "sabe_de", "correspondencia_con", "maestro_de"]}
                   opciones={OPCIONES.agente_relaciones}
                   vacio="Sin relaciones con otros agentes." entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
       </Area>
@@ -822,6 +858,9 @@ function FichaLugar(p: Props) {
         <h4 style={{ marginTop: 0 }}>Lugar superior</h4>
         <Vinculos vinculos={f.vinculos} tipos={["lugar_superior"]} opciones={OPCIONES.lugar} entidad={e} fondoId={fondoId} puede={puede}
                   alCambiar={alCambiar} vacio="No está registrado dentro de otro lugar." />
+        <h4>Lugares vecinos o que se superponen</h4>
+        <Vinculos vinculos={f.vinculos} tipos={["adyacente_a", "se_superpone_con"]} opciones={OPCIONES.lugar_vecinos} entidad={e}
+                  fondoId={fondoId} puede={puede} alCambiar={alCambiar} vacio="Sin lugares vecinos ni superpuestos registrados." />
         <h4>Lugares que contiene</h4>
         {(f.contiene || []).length === 0 ? <p className="meta">Ninguno.</p> : (f.contiene || []).map((v) => (
           <div key={v.relacion_id} className="fila" style={{ padding: "6px 0" }}>
@@ -928,6 +967,9 @@ function FichaActividad(p: Props) {
         <h4>Regulada por</h4>
         <Vinculos vinculos={f.vinculos} tipos={["mandato_actividad"]} opciones={OPCIONES.actividad.slice(2)} entidad={e} fondoId={fondoId}
                   puede={puede} alCambiar={alCambiar} vacio="Sin mandato registrado." />
+        <h4>Participantes (sin ejercerla)</h4>
+        <Vinculos vinculos={f.vinculos} tipos={["participante"]} opciones={OPCIONES.actividad_participantes} entidad={e} fondoId={fondoId}
+                  puede={puede} alCambiar={alCambiar} vacio="Sin participantes registrados." />
       </Area>
       <Area titulo="Estructura interna">
         <p className="meta" style={{ marginTop: 0 }}>

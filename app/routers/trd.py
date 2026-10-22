@@ -48,6 +48,8 @@ class VersionIn(BaseModel):
     fecha_convalidacion: date | None = None
     vigente_desde: date | None = None
     observaciones: str | None = Field(default=None, max_length=5000)
+    # Quién vigila su aplicación (RiC-R066): el AGN o el consejo territorial de archivos.
+    ente_vigilancia: str | None = Field(default=None, max_length=300)
 
 
 class NuevaVersionIn(VersionIn):

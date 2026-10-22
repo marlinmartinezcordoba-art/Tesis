@@ -121,6 +121,8 @@ class FichaConsulta(BaseModel):
     vinculos: list[dict] = []  # respuesta y borrador (RiC-R013, R011)
     estado_documento: str | None = None  # RiC-A39
     nota_integridad: str | None = None  # RiC-A24
+    tipo_contenido: str | None = None  # RiC-A10
+    fechas_predominantes: str | None = None  # RiC-R083
     publicado_en: Any = None
     forma_documental: FormaDocumentalFicha | None
     migas: list[Miga]

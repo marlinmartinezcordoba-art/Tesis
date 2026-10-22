@@ -93,6 +93,22 @@ CODIGO_RELACION_RIC = (
     # -- RiC completo, fase 1 --
     "has_reply",  # RiC-R013 — comunicación → su respuesta
     "is_draft_of",  # RiC-R011 — borrador → versión definitiva del documento
+    # -- RiC completo, cobertura total --
+    "has_or_had_owner",  # RiC-R037i — documento → propietario
+    "has_or_had_manager",  # RiC-R038i — documento → gestor
+    "has_or_had_ipr_holder",  # RiC-R040i — documento → titular de derechos de autor
+    "has_or_had_main_subject",  # RiC-R020 — documento → su tema principal
+    "has_descendant",  # RiC-R017 — ascendiente → descendiente
+    "has_or_had_authority_over",  # RiC-R036 — agente → lo que está bajo su autoridad
+    "has_or_had_work_relation_with",  # RiC-R046 — relación laboral entre agentes (simétrica)
+    "knows_of",  # RiC-R050 — una persona sabe de otra
+    "knows",  # RiC-R051 — dos personas se conocen (simétrica)
+    "has_or_had_correspondent",  # RiC-R052 — correspondencia entre personas (simétrica)
+    "has_or_had_student",  # RiC-R053i — maestro → alumno
+    "has_or_had_participant",  # RiC-R058 — evento o actividad → participante
+    "is_or_was_adjacent_to",  # RiC-R077 — lugares vecinos (simétrica)
+    "overlaps_or_overlapped",  # RiC-R078 — lugares que se superponen (simétrica)
+    "has_or_had_component",  # RiC-R004 — archivo → archivo que lo compone
 )
 
 # Los nombres de RiC-O de cada código (y su inversa) viven solo en

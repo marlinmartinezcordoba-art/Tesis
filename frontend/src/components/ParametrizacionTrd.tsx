@@ -13,6 +13,7 @@ import { ResultadoValidacion, TablaVistaPrevia, type Validacion, type Vista } fr
 export interface VersionTrd {
   id: string; numero: number; nombre: string; acto_aprobacion: string | null; fecha_aprobacion: string | null;
   convalidacion: string | null; fecha_convalidacion: string | null; vigente_desde: string | null;
+  ente_vigilancia?: string | null;
   vigente_hasta: string | null; estado: "borrador" | "vigente" | "historica" | "anulada"; observaciones: string | null;
   fondo_id: string;
   filas: number; editable: boolean;
@@ -90,7 +91,7 @@ function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: st
     nombre: version?.nombre || "", acto_aprobacion: version?.acto_aprobacion || "",
     fecha_aprobacion: version?.fecha_aprobacion || "", convalidacion: version?.convalidacion || "",
     fecha_convalidacion: version?.fecha_convalidacion || "", vigente_desde: version?.vigente_desde || "",
-    observaciones: version?.observaciones || "",
+    observaciones: version?.observaciones || "", ente_vigilancia: version?.ente_vigilancia || "",
   });
   const [copiar, setCopiar] = useState(true);
   const [error, setError] = useState("");
@@ -127,6 +128,8 @@ function FormVersion({ fondoId, version, hayVigente, alTerminar }: { fondoId: st
         {campo("convalidacion", "Convalidación", "text", "Certificado del AGN o del consejo departamental.")}
         {campo("fecha_convalidacion", "Fecha de convalidación", "date")}
         {campo("vigente_desde", "Rige desde", "date", "Las reglas de retención valen desde este día.")}
+        {campo("ente_vigilancia", "Ente que vigila su aplicación", "text",
+               "El AGN o el consejo departamental de archivos (rico:isOrWasEnforcedBy). Queda en el vocabulario del fondo.")}
       </div>
       <div className="campo">
         <label htmlFor="v-obs">Observaciones</label>

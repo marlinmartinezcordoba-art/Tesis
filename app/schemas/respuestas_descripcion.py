@@ -328,6 +328,8 @@ class DetalleDescripcionOut(BaseModel):
     vinculos: list[VinculoDetalle] = []
     estado_documento: str | None = None
     nota_integridad: str | None = None
+    tipo_contenido: str | None = None
+    fechas_predominantes: str | None = None
     origen_titulo: str | None
     origen_alcance: str | None
     confianza_alcance: float | None
@@ -502,6 +504,8 @@ class FichaPublicaOut(BaseModel):
     vinculos: list[VinculoPublico] = []
     estado_documento: str | None = None
     nota_integridad: str | None = None
+    tipo_contenido: str | None = None
+    fechas_predominantes: str | None = None
     publicado_en: str | None
 
 

@@ -273,6 +273,8 @@ export function EspacioTrabajo() {
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
           estado_documento: campos.estadoDocumento || null, nota_integridad: campos.notaIntegridad.trim() || null,
+          copia_de_id: campos.copiaDe?.id || null, tipo_contenido: campos.tipoContenido || null,
+          fechas_predominantes: campos.fechasPredominantes.trim() || null,
           partes: partes.map(parteParaEnviar),
         }),
       });

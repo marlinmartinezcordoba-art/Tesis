@@ -52,9 +52,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.base import ahora
 from app.models.descripcion import EntidadVocabulario, Fecha, Hito, IdentificadorEntidad, NombreEntidad, Relacion
-from app.models.instanciacion import Instanciacion
+from app.models.instanciacion import TECNICA_PRODUCCION, Instanciacion
 from app.models.preservacion import DeclaracionDerechos, Migracion
-from app.models.recurso_documental import ESTADO_DOCUMENTO, RecursoDocumental
+from app.models.recurso_documental import ESTADO_DOCUMENTO, TIPO_CONTENIDO, RecursoDocumental
 from app.servicios import derechos, fechas, ric_o, vocabulario
 
 RICO = Namespace(ric_o.RICO)
@@ -99,6 +99,7 @@ class Exportacion:
     fondo: RecursoDocumental
     omitidas: Counter = field(default_factory=Counter)
     nodos: dict = field(default_factory=dict)  # uuid → (tipo, clase RiC-O)
+    completa: bool = False  # con lo restringido (el grafo «completo»), no el público
 
     def resumen(self) -> dict:
         clases = Counter(str(o).split("#")[-1] for o in self.grafo.objects(None, RDF.type) if str(o).startswith(ric_o.RICO))
@@ -166,7 +167,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
     (y la evaluación de conformidad de lo que se está describiendo): lo que se consulta
     y se descarga sale del grafo guardado (`grafo_rdf.leer`)."""
     g = grafo_vacio()
-    ex = Exportacion(grafo=g, fondo=fondo)
+    ex = Exportacion(grafo=g, fondo=fondo, completa=incluir_restringidos)
     recursos = _recursos(db, fondo, incluir_restringidos, ex.omitidas)
     for r in recursos.values():
         _recurso(ex, r, recursos)
@@ -237,7 +238,44 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
         _instanciacion(db, ex, i)
     _acciones_tecnicas(db, ex, instancias, entidades)
     _trd(db, ex, entidades)
+    for i in instancias.values():  # el recorte y el archivo del que salió (RiC-R034)
+        if i.recorte_de_id in instancias:
+            g.add((uri(i.id), _apoyo("instanciacion_asociada")[0], uri(i.recorte_de_id)))
+    _fechas_entre_niveles(ex, recursos)
     return ex
+
+
+def _intervalo(edtf: str | None):
+    try:
+        f = fechas.interpretar(edtf) if edtf else None
+    except fechas.FechaInvalida:
+        return None
+    return (f.inicio, f.fin) if f and f.inicio and f.fin else None
+
+
+def _fechas_entre_niveles(ex: Exportacion, recursos: dict) -> None:
+    """Las fechas de cada descripción frente a las de su conjunto: la del documento
+    es fecha de creación de algunos miembros del conjunto (RiC-R082), y está dentro de
+    sus fechas extremas (RiC-R085) o se cruza con ellas (RiC-R086). Lo segundo también
+    sirve de control: una fecha que solo se cruza merece revisión."""
+    g = ex.grafo
+    for r in recursos.values():
+        padre = recursos.get(r.incluido_en_id) if r.id != ex.fondo.id else None
+        if padre is None or not r.fechas_extremas_edtf and not r.fechas_extremas:
+            continue
+        nodo_hijo = URIRef(f"{uri(r.id)}/fechas-extremas")
+        if ric_o.CLASE_NIVEL[r.nivel] == "Record" and ric_o.CLASE_NIVEL[padre.nivel] == "RecordSet":
+            g.add((uri(padre.id), _apoyo("fechas_algunos")[0], nodo_hijo))
+        if not (padre.fechas_extremas_edtf or padre.fechas_extremas):
+            continue
+        hijo, conjunto = _intervalo(r.fechas_extremas_edtf), _intervalo(padre.fechas_extremas_edtf)
+        if hijo is None or conjunto is None:
+            continue
+        nodo_padre = URIRef(f"{uri(padre.id)}/fechas-extremas")
+        if conjunto[0] <= hijo[0] and hijo[1] <= conjunto[1]:
+            g.add((nodo_hijo, _apoyo("fecha_dentro_de")[0], nodo_padre))
+        elif hijo[0] <= conjunto[1] and conjunto[0] <= hijo[1]:
+            g.add((nodo_hijo, _apoyo("fecha_se_cruza")[0], nodo_padre))
 
 
 def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
@@ -282,6 +320,13 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
         instrumento(documento, f"{v.nombre} · {ex.fondo.titulo}", "tabla-de-retencion-documental",
                     "Tabla de retención documental", v.fecha_aprobacion or v.vigente_desde)
         g.add((uri(v.id), _apoyo("expresada_en")[0], documento))
+        if v.ente_vigilancia_id:  # quien vigila su aplicación (RiC-R066): el AGN o el consejo territorial
+            ente = entidades.get(v.ente_vigilancia_id) or db.get(EntidadVocabulario, v.ente_vigilancia_id)
+            if ente is not None and ente.estado == "activa" and ente.clase == "agente":
+                if ente.id not in entidades:
+                    entidades[ente.id] = ente
+                    _entidad(db, ex, ente, entidades)
+                g.add((uri(v.id), _apoyo("vigilada_por")[0], uri(ente.id)))
         nodo = uri(v.id)
         g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["regla"]]))
         g.add((nodo, _a("nombre"), Literal(v.nombre)))
@@ -363,6 +408,8 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
         if m.instanciacion_resultado_id in instancias:
             g.add((uri(m.instanciacion_resultado_id), documenta, nodo))
             g.add((nodo, _apoyo("resultado")[0], uri(m.instanciacion_resultado_id)))  # RiC-R061
+            # La copia migrada cumple la misma función que el original (RiC-R035).
+            g.add((uri(origen.id), _apoyo("equivalente")[0], uri(m.instanciacion_resultado_id)))
 
 
 def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) -> set[uuid.UUID]:
@@ -479,6 +526,12 @@ def _derivadas_de_relacion(ex: Exportacion, rel: Relacion, n_o, n_d) -> None:
         g.add((nodo, _apoyo("resultado")[0], uri(n_d.id)))
         if n_d.cargado_en is not None:
             _fecha_libre(ex, nodo, _apoyo("inicio")[0], URIRef(f"{nodo}/fecha"), None, n_d.cargado_en.date().isoformat())
+    elif rel.codigo_ric == "has_copy" and isinstance(n_o, RecursoDocumental) and isinstance(n_d, RecursoDocumental) \
+            and ric_o.CLASE_NIVEL[n_o.nivel] != "RecordSet" and ric_o.CLASE_NIVEL[n_d.nivel] != "RecordSet":
+        g.add((uri(rel.origen_id), _apoyo("original_de")[0], uri(rel.destino_id)))  # RiC-R010, entre documentos
+    elif rel.codigo_ric == "has_direct_subevent":
+        # RiC-R006 (has or had subevent) junto al atajo directo de RiC-O.
+        g.add((uri(rel.origen_id), _apoyo("subevento")[0], uri(rel.destino_id)))
     elif rel.codigo_ric == "affects_or_affected" and rel.rol == "disposicion" and rel.destino_tipo == "recurso_documental" \
             and getattr(n_o, "subtipo", None) == "eliminacion" and n_o.existencia_edtf:
         # Expediente eliminado: su fecha de destrucción, la del acta (RiC-AG).
@@ -575,19 +628,70 @@ def _fecha_libre(ex: Exportacion, sujeto: URIRef, predicado: URIRef, nodo: URIRe
     g.add((sujeto, predicado, nodo))
 
 
-def _periodo(ex: Exportacion, sujeto: URIRef, edtf: str | None) -> None:
+def _periodo(ex: Exportacion, sujeto: URIRef, edtf: str | None, inicio_clave: str = "inicio", fin_clave: str = "fin",
+             una: str = "fecha_asociada") -> None:
     """Existencia o periodo en EDTF: un intervalo da fecha de inicio y de
-    fin (rico:hasBeginningDate / hasEndDate); una sola fecha, fecha asociada."""
+    fin (rico:hasBeginningDate / hasEndDate, o el nacimiento y la muerte de una
+    persona); una sola fecha, fecha asociada (o la de ocurrencia de un hito).
+    Las URI de los nodos no cambian con la propiedad."""
     if not edtf:
         return
     if "/" in edtf:
         inicio, fin = edtf.split("/", 1)
-        for parte, clave in ((inicio, "inicio"), (fin, "fin")):
+        for parte, clave, sufijo in ((inicio, inicio_clave, "inicio"), (fin, fin_clave, "fin")):
             if parte and parte != "..":
-                _fecha_libre(ex, sujeto, _apoyo(clave)[0], URIRef(f"{sujeto}/{clave}"),
+                _fecha_libre(ex, sujeto, _apoyo(clave)[0], URIRef(f"{sujeto}/{sufijo}"),
                              fechas.legible(parte), parte)
     else:
-        _fecha_libre(ex, sujeto, _apoyo("fecha_asociada")[0], URIRef(f"{sujeto}/fecha"), fechas.legible(edtf), edtf)
+        _fecha_libre(ex, sujeto, _apoyo(una)[0], URIRef(f"{sujeto}/fecha"), fechas.legible(edtf), edtf)
+
+
+TIPO_HITO_NOMBRE = {"creacion": "Creación", "reforma": "Reforma o reestructuración", "traslado": "Traslado",
+                    "supresion": "Supresión o liquidación", "otro": "Otro hito"}
+
+
+def _tipos_de_agente(ex: Exportacion, s: URIRef, e: EntidadVocabulario) -> None:
+    """Tipo de entidad (RiC-A12), de familia (A20), ocupación (A30) y grupo demográfico
+    (A15). El grupo demográfico es un dato sensible (Ley 1581, art. 5): solo sale en el
+    grafo completo, nunca en el público ni en la consulta."""
+    from app.models.descripcion import TIPO_ENTIDAD, TIPO_FAMILIA
+
+    if e.clase != "agente":
+        return
+    g = ex.grafo
+
+    def tipo(apoyo: str, grupo: str, clave: str, etiqueta: str, esquema: str) -> None:
+        # Cada tipo en su esquema SKOS del fondo (RiC-AG); la ocupación, además, es
+        # subclase de ActivityType en RiC-O y el perfil le exige etiqueta y esquema.
+        prop, clase = _apoyo(apoyo)
+        g.add((s, prop, _concepto_en_esquema(ex, grupo, clave, clase, etiqueta, esquema)))
+
+    if e.subtipo == "entidad_corporativa" and e.tipo_entidad in TIPO_ENTIDAD:
+        tipo("tipo_entidad", "tipo-de-entidad", e.tipo_entidad, TIPO_ENTIDAD[e.tipo_entidad], "Tipos de entidad")
+    if e.subtipo == "familia" and e.tipo_familia in TIPO_FAMILIA:
+        tipo("tipo_familia", "tipo-de-familia", e.tipo_familia, TIPO_FAMILIA[e.tipo_familia], "Tipos de familia")
+    if e.subtipo == "persona" and e.ocupacion:
+        tipo("ocupacion", "ocupacion", e.ocupacion, e.ocupacion, "Ocupaciones")
+    if e.grupo_demografico and e.subtipo in ("persona", "grupo", "entidad_corporativa", "familia"):
+        if ex.completa:
+            tipo("grupo_demografico", "grupo-demografico", e.grupo_demografico, e.grupo_demografico,
+                 "Grupos demográficos")
+        else:
+            ex.omitidas["grupo demográfico (dato sensible, Ley 1581: solo en el grafo completo)"] += 1
+
+
+def _concepto_en_esquema(ex: Exportacion, grupo: str, clave: str, clase: URIRef, etiqueta: str,
+                         esquema_nombre: str) -> URIRef:
+    """Concepto con su esquema SKOS del fondo (uno por grupo)."""
+    g = ex.grafo
+    concepto = _concepto(ex, grupo, clave, clase, etiqueta)
+    esquema = uri(ex.fondo.id, "esquema", grupo)
+    g.add((esquema, RDF.type, SKOS.ConceptScheme))
+    g.add((esquema, SKOS.prefLabel, Literal(f"{esquema_nombre} · {ex.fondo.titulo}")))
+    g.add((concepto, RDF.type, SKOS.Concept))
+    g.add((concepto, SKOS.prefLabel, Literal(etiqueta)))
+    g.add((concepto, SKOS.inScheme, esquema))
+    return concepto
 
 
 def _concepto(ex: Exportacion, grupo: str, clave: str, clase: URIRef, etiqueta: str) -> URIRef:
@@ -695,10 +799,18 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
         for forma_id in r.formas_miembros or []:  # tipos documentales de la TRD
             g.add((s, _apoyo("formas_miembros")[0], uri(forma_id)))
             ex.nodos.setdefault(forma_id, ("entidad_vocabulario", None))
-    elif r.estado_documento in ESTADO_DOCUMENTO:  # RiC-A39
-        prop, clase_ap = _apoyo("estado_documento")
-        g.add((s, prop, _concepto(ex, "estado-del-documento", r.estado_documento, clase_ap,
-                                  ESTADO_DOCUMENTO[r.estado_documento])))
+        if r.fechas_predominantes_edtf:  # RiC-R083: las de la mayoría de sus documentos
+            _fecha_libre(ex, s, _apoyo("fechas_mayoria")[0], URIRef(f"{s}/fechas-predominantes"),
+                         fechas.legible(r.fechas_predominantes_edtf), r.fechas_predominantes_edtf)
+    else:
+        if r.estado_documento in ESTADO_DOCUMENTO:  # RiC-A39
+            prop, clase_ap = _apoyo("estado_documento")
+            g.add((s, prop, _concepto(ex, "estado-del-documento", r.estado_documento, clase_ap,
+                                      ESTADO_DOCUMENTO[r.estado_documento])))
+        if r.tipo_contenido in TIPO_CONTENIDO:  # RiC-A10
+            prop, clase_ap = _apoyo("tipo_contenido")
+            g.add((s, prop, _concepto(ex, "tipo-de-contenido", r.tipo_contenido, clase_ap,
+                                      TIPO_CONTENIDO[r.tipo_contenido])))
     if r.folios:  # ISAD-G 3.1.5, RiC-A35: el texto y el nodo con cantidad y unidad (brecha 2)
         g.add((s, _a("extension"), Literal(f"{r.folios} folios", lang="es")))
         _extension(ex, s, "extension_recurso", "folios", r.folios, "folios")
@@ -781,7 +893,10 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
     if e.clase == "agente":
         # El periodo de una actividad tiene una sola fuente: su nodo Fecha
         # (is_date_associated_with), exportado con las relaciones (CM-14).
-        _periodo(ex, s, e.existencia_edtf)
+        # De una persona, el inicio y el fin de su existencia son su nacimiento y su
+        # muerte (RiC-R070 y R072): las propiedades más específicas, como pide RiC-O.
+        _periodo(ex, s, e.existencia_edtf, *(("nacimiento", "muerte") if e.subtipo == "persona" else ()))
+    _tipos_de_agente(ex, s, e)
     if e.clase == "agente" and e.estatuto_juridico:
         prop, clase_ap = _apoyo("estatuto_juridico")
         g.add((s, prop, _concepto(ex, "estatuto-juridico", e.estatuto_juridico, clase_ap,
@@ -829,13 +944,24 @@ def _entidad(db: Session, ex: Exportacion, e: EntidadVocabulario, entidades: dic
             g.add((s, OWL.sameAs, URIRef(externa)))
     # Línea de tiempo institucional: cada hito es un rico:Event.
     if e.clase == "agente":
-        for h in db.scalars(select(Hito).where(Hito.agente_id == e.id, Hito.estado == "vigente")).all():
+        hitos = db.scalars(select(Hito).where(Hito.agente_id == e.id, Hito.estado == "vigente")
+                           .order_by(Hito.inicio, Hito.edtf)).all()
+        anterior = None
+        for h in hitos:
             nodo = uri(h.id)
             g.add((nodo, RDF.type, RICO[ric_o.CLASE_NODO["hito"]]))
             g.add((nodo, _a("nombre"), Literal(h.descripcion)))
             g.add((nodo, RDFS.label, Literal(h.descripcion)))
             g.add((nodo, RICO[ric_o.PROPIEDADES["affects_or_affected"].rico], s))
-            _periodo(ex, nodo, h.edtf)
+            # Una fecha: la de su ocurrencia (RiC-R084); un periodo: inicio y fin.
+            _periodo(ex, nodo, h.edtf, una="ocurrio")
+            prop, clase_ap = _apoyo("tipo_evento")  # RiC-A18
+            g.add((nodo, prop, _concepto(ex, "tipo-de-evento", h.tipo, clase_ap, TIPO_HITO_NOMBRE.get(h.tipo, h.tipo))))
+            # La línea de tiempo del agente, en orden (RiC-R009): cada hito fechado precede al siguiente.
+            if h.inicio is not None:
+                if anterior is not None:
+                    g.add((uri(anterior.id), _apoyo("precede_en_el_tiempo")[0], nodo))
+                anterior = h
             # Otros afectados (hallazgo CM-13), solo si también se exportan.
             for r in db.scalars(select(Relacion).where(Relacion.origen_id == h.id, Relacion.estado == "vigente",
                                                        Relacion.codigo_ric == "affects_or_affected")).all():
@@ -982,6 +1108,11 @@ def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
     if nota_fisica:
         g.add((s, _a("caracteristicas_fisicas"), Literal(nota_fisica)))
     _ubicacion(ex, i, s)
+    if i.tecnica_produccion in TECNICA_PRODUCCION:  # RiC-A33: el texto y el tipo controlado
+        nombre = TECNICA_PRODUCCION[i.tecnica_produccion]
+        g.add((s, _a("tecnica_produccion"), Literal(nombre, lang="es")))
+        prop, clase_ap = _apoyo("tipo_tecnica")
+        g.add((s, prop, _concepto(ex, "tecnica-de-produccion", i.tecnica_produccion, clase_ap, nombre)))
     clave, nombre = _representacion(i)  # RiC-A37
     prop, clase_ap = _apoyo("tipo_representacion")
     g.add((s, prop, _concepto(ex, "tipo-de-representacion", clave, clase_ap, nombre)))

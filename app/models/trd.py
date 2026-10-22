@@ -46,6 +46,9 @@ class VersionTrd(Base):
     fecha_aprobacion = Column(Date, nullable=True)
     convalidacion = Column(String(300), nullable=True)  # certificado del AGN o del consejo territorial
     fecha_convalidacion = Column(Date, nullable=True)
+    # Quién vigila su aplicación (RiC-R066 is or was enforced by): el AGN o el consejo
+    # territorial de archivos, como agente del vocabulario del fondo.
+    ente_vigilancia_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
     vigente_desde = Column(Date, nullable=True)
     vigente_hasta = Column(Date, nullable=True)
     estado = Column(String(20), nullable=False, default="borrador")

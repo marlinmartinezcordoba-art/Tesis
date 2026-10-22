@@ -60,7 +60,25 @@ def _version_dict(db: Session, v: VersionTrd) -> dict:
             "fecha_convalidacion": v.fecha_convalidacion, "vigente_desde": v.vigente_desde,
             "vigente_hasta": v.vigente_hasta, "estado": v.estado, "observaciones": v.observaciones,
             "filas": filas, "informe": v.informe, "creado_en": v.creado_en, "aplicado_en": v.aplicado_en,
-            "editable": v.estado == "borrador"}
+            "editable": v.estado == "borrador", "ente_vigilancia": _nombre_ente(db, v.ente_vigilancia_id)}
+
+
+def _nombre_ente(db: Session, ente_id) -> str | None:
+    from app.models.descripcion import EntidadVocabulario
+
+    e = db.get(EntidadVocabulario, ente_id) if ente_id else None
+    return e.nombre if e is not None else None
+
+
+def _poner_ente(db: Session, v: VersionTrd, nombre: str | None, usuario_id: uuid.UUID) -> None:
+    """Quién vigila la aplicación de la TRD (RiC-R066): el AGN o el consejo territorial de
+    archivos, como entidad corporativa del vocabulario del fondo. Vacío: se quita."""
+    nombre = " ".join((nombre or "").split())
+    if not nombre:
+        v.ente_vigilancia_id = None
+        return
+    ente, _ = cuadro._de_vocabulario(db, v.fondo_id, "agente", nombre[:300], usuario_id, "entidad_corporativa")
+    v.ente_vigilancia_id = ente.id
 
 
 def versiones(db: Session, fondo: RecursoDocumental) -> list[dict]:
@@ -110,6 +128,8 @@ def crear_version(db: Session, fondo: RecursoDocumental, datos: dict, usuario_id
     _poner_campos(v, {"nombre": f"TRD versión {numero}"} | {k: x for k, x in datos.items() if x is not None})
     db.add(v)
     db.flush()
+    if datos.get("ente_vigilancia"):
+        _poner_ente(db, v, datos["ente_vigilancia"], usuario_id)
     copiadas = 0
     vigente = db.scalar(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id, VersionTrd.estado == "vigente"))
     if copiar_vigente and vigente is not None:
@@ -128,13 +148,20 @@ def crear_version(db: Session, fondo: RecursoDocumental, datos: dict, usuario_id
 
 
 def editar_version(db: Session, v: VersionTrd, datos: dict, usuario_id: uuid.UUID) -> VersionTrd:
-    _editable(v)
+    # Quién la vigila se puede completar también en la vigente o en una histórica: no
+    # cambia la tabla aprobada, solo su contexto.
+    if set(datos) - {"ente_vigilancia"} or v.estado == "anulada":
+        _editable(v)
     anterior = {c: str(getattr(v, c)) if getattr(v, c) is not None else None for c in CAMPOS_VERSION}
+    anterior["ente_vigilancia"] = _nombre_ente(db, v.ente_vigilancia_id)
     _poner_campos(v, datos)
+    if "ente_vigilancia" in datos:
+        _poner_ente(db, v, datos["ente_vigilancia"], usuario_id)
     db.flush()
     registrar(db, modulo="instrumentos", accion="trd_version_editada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=v.fondo_id, detalle=v.nombre, anterior=anterior,
-              nuevo={c: str(getattr(v, c)) if getattr(v, c) is not None else None for c in CAMPOS_VERSION})
+              nuevo={c: str(getattr(v, c)) if getattr(v, c) is not None else None for c in CAMPOS_VERSION}
+              | {"ente_vigilancia": _nombre_ente(db, v.ente_vigilancia_id)})
     return v
 
 

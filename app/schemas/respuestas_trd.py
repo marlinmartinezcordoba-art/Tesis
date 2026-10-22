@@ -32,6 +32,7 @@ class VersionTrdOut(BaseModel):
     creado_en: datetime
     aplicado_en: datetime | None
     editable: bool
+    ente_vigilancia: str | None = None
 
 
 class DependenciaTrdOut(BaseModel):

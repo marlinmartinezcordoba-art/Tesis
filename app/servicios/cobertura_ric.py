@@ -18,54 +18,14 @@ from functools import lru_cache
 
 from app.servicios import ric_o
 
-# Prioridad: «B» conviene con el fondo real; «C» no aplica o vale poco por ahora;
-# «especializada» está cubierta por una relación más específica, como pide la
-# nota de uso de RiC-O (escribir la general además sería contrario a ella).
+# Desde la cobertura total solo queda R026, cubierta por una relación más
+# específica («especializada»), como pide la nota de uso de RiC-O: escribir la
+# general además sería contrario a ella. Un código nuevo sin cubrir debe
+# declararse aquí con su prioridad y su motivo.
 FALTANTES: dict[str, tuple[str, str]] = {
-    "A10": ("B", "Tipo de contenido (texto, imagen, mapa): falta el vocabulario."),
-    "A12": ("B", "Tipo de entidad (orden nacional o territorial, sector): falta el campo."),
-    "A15": ("C", "Grupo demográfico: dato sensible (Ley 1581); solo con finalidad y consentimiento."),
-    "A18": ("B", "Tipo de evento para los hitos: falta el vocabulario."),
-    "A20": ("B", "Tipo de familia: archivos familiares."),
-    "A30": ("B", "Tipo de ocupación de los agentes: falta el vocabulario."),
-    "A33": ("B", "Técnica de producción (manuscrito, mecanografiado, impreso): falta el campo."),
-    "R004": ("B", "Componentes de una instanciación (correo y adjuntos)."),
-    "R006": ("B", "Subevento general: se usa la sub-actividad directa (hasDirectSubevent)."),
-    "R009": ("B", "Precede en el tiempo sin secuencia archivística."),
-    "R010": ("C", "Original y copia como dos documentos: el original físico es una instanciación (CM-04)."),
-    "R012": ("C", "Copia como otro documento: mismo motivo que R010."),
-    "R017": ("B", "Descendencia: genealogías de archivos familiares."),
-    "R020": ("B", "Materia principal frente a las secundarias del tesauro."),
     "R026": ("especializada", "Procedencia orgánica: el sistema escribe hasCreator (R027) y hasAccumulator (R028), "
                               "subpropiedades de hasOrganicProvenance; RiC-O pide usar la general solo si no cabe "
                               "una más específica."),
-    "R029": ("C", "Receptor: se cubre con el destinatario (R032)."),
-    "R030": ("C", "Coleccionista: el fondo no tiene colecciones facticias de un coleccionista identificado."),
-    "R034": ("B", "Instanciaciones asociadas entre sí."),
-    "R035": ("C", "Equivalencia funcional entre entidades: no la pide la TRD."),
-    "R036": ("B", "Autoridad sobre (adscripción o vinculación de una entidad)."),
-    "R037": ("C", "Propietario: la custodia se registra con hasOrHadHolder."),
-    "R038": ("C", "Gestor: sin caso en el fondo."),
-    "R040": ("B", "Titular de derechos de autor (Ley 23 de 1982)."),
-    "R041": ("C", "Control entre agentes: se cubre con la subordinación (R045)."),
-    "R046": ("C", "Relación laboral: la cubren el cargo y la membresía en archivos institucionales."),
-    "R050": ("C", "Conoce de: archivos personales."),
-    "R051": ("C", "Conoce a: archivos personales."),
-    "R052": ("C", "Correspondiente: lo cubren el remitente y el destinatario."),
-    "R053": ("C", "Maestro y alumno: archivos personales."),
-    "R058": ("B", "Participante de un evento o de un comité."),
-    "R066": ("B", "Quién vigila la regla (el AGN o el consejo departamental sobre la TRD)."),
-    "R070": ("B", "Fecha de nacimiento: hoy la existencia sale como fechas de inicio y fin."),
-    "R072": ("B", "Fecha de muerte: mismo motivo que R070."),
-    "R073": ("C", "Fecha de modificación de un documento histórico: el sistema no la registra."),
-    "R076": ("C", "Jurisdicción: el lugar de actuación usa isOrWasLocationOf (R075)."),
-    "R077": ("C", "Lugares adyacentes: sin uso en la descripción institucional."),
-    "R078": ("C", "Lugares superpuestos: sin uso en la descripción institucional."),
-    "R082": ("B", "Fechas de creación de algunos miembros (fechas predominantes del FUID)."),
-    "R083": ("B", "Fechas de creación de la mayoría de los miembros (fechas predominantes)."),
-    "R084": ("B", "Fecha en que ocurrió un evento."),
-    "R085": ("C", "Fecha dentro de otra: EDTF ya expresa intervalos e incertidumbre."),
-    "R086": ("C", "Fechas que se cruzan: mismo motivo que R085."),
 }
 
 # Clases y propiedades que la exportación escribe sin pasar por un diccionario

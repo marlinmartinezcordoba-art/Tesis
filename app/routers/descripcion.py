@@ -332,6 +332,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
+            copia_de_id=datos.copia_de_id, tipo_contenido=datos.tipo_contenido,
+            fechas_predominantes=datos.fechas_predominantes,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
@@ -600,6 +602,9 @@ class DatosFisicosAgn(BaseModel):
     deposito: str | None = Field(default=None, max_length=40)
     estante: str | None = Field(default=None, max_length=40)
     entrepano: str | None = Field(default=None, max_length=40)
+    # RiC-A33: cómo se produjo el original.
+    tecnica_produccion: Literal["manuscrito", "mecanografiado", "impreso", "fotocopia", "fotografia", "dibujo",
+                                "impresion_digital"] | None = None
 
 
 class OriginalFisicoIn(DatosFisicosAgn):
@@ -663,6 +668,27 @@ def editar_original_fisico(recurso_id: uuid.UUID, instanciacion_id: uuid.UUID, d
     return descripcion.detalle(db, recurso)
 
 
+class ComponenteIn(BaseModel):
+    todo_id: uuid.UUID  # el archivo compuesto (un correo, un expediente electrónico)
+    componente_id: uuid.UUID  # el archivo que lo compone (un adjunto)
+
+
+@router.post("/registros/{recurso_id}/componentes", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": DetalleDescripcionOut, "description": "La descripción con el componente"}},
+             summary="Un archivo de la descripción es componente de otro (RiC-R004)")
+def componente(recurso_id: uuid.UUID, datos: ComponenteIn, actor: Actor = Depends(acceso_modulo("descripcion")),
+               db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        descripcion.componente(db, recurso, datos.todo_id, datos.componente_id, actor.id)
+        _asentar(db, recurso)
+        db.commit()
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    return descripcion.detalle(db, recurso)
+
+
 class CustodioIn(BaseModel):
     agente_id: uuid.UUID
     fecha_edtf: str | None = Field(default=None, max_length=200)
@@ -719,6 +745,8 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
+            copia_de_id=datos.copia_de_id, tipo_contenido=datos.tipo_contenido,
+            fechas_predominantes=datos.fechas_predominantes,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
