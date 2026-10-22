@@ -2,7 +2,7 @@
 Instrumentos de descripción aprobados: el FUID, la guía y el índice como
 documentos fijos (modelo en app/models/instrumento_aprobado.py).
 
-- Aprobar arma el archivo con las mismas funciones que la descarga, lo guarda
+- Aprobar arma el archivo con las mismas funciones que la descarga (desde el grafo), lo guarda
   en el almacenamiento con su huella SHA-256 y deja constancia de quién, cuándo
   y con qué acta. La versión vigente anterior del mismo instrumento y nivel
   queda «reemplazada», no se borra.
@@ -98,7 +98,12 @@ def aprobar(db: Session, *, tipo: str, recurso: RecursoDocumental, usuario_id: u
     fondo = db.get(RecursoDocumental, recurso.fondo_id or recurso.id)
     if tipo != "inventario" and recurso.id != fondo.id:
         raise ErrorAprobacion("La guía y el índice se aprueban para el fondo completo.")
-    contenido, mime, extension, titulo = _contenido(db, tipo, recurso, fondo, texto, encabezado)
+    # Lo aprobado se arma con lo que dice el grafo RiC-O (app/servicios/lectura.py).
+    from app.servicios import lectura
+
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        contenido, mime, extension, titulo = _contenido(ldb, tipo, lectura.en(ldb, recurso), lectura.en(ldb, fondo),
+                                                        texto, encabezado)
     anterior = db.scalar(select(InstrumentoAprobado).where(
         InstrumentoAprobado.tipo == tipo, InstrumentoAprobado.recurso_id == recurso.id,
         InstrumentoAprobado.estado == "vigente").with_for_update())

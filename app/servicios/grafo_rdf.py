@@ -407,6 +407,13 @@ def sincronizar_pendientes(db: Session, limite: int = 4) -> int:
         try:
             sincronizar(db, fondo, fila.alcance)
             hechos += 1
+            if fila.alcance == "completo":
+                # La consulta lee la proyección rehecha desde este grafo: se deja lista
+                # ya, para que nadie espere a rehacerla al abrir el catálogo.
+                from app.servicios import lectura
+
+                db.commit()
+                lectura.preparar(db, fondo)
         except ErrorGrafo:
             # Que el trabajador no insista en cada vuelta: espera al próximo cambio.
             db.execute(update(GrafoRdf).where(GrafoRdf.id == fila.id).values(

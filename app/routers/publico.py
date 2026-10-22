@@ -45,7 +45,10 @@ def acceso_publico(request: Request, db: Session = Depends(get_db),
 def _visibles(db: Session, fondo: RecursoDocumental):
     from app.servicios import instrumentos
 
-    return instrumentos.arbol(db, fondo, ver_restringidos=False)
+    from app.servicios import lectura
+
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        return instrumentos.arbol(ldb, lectura.en(ldb, fondo), ver_restringidos=False)
 
 
 @router.get("/rdf", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},

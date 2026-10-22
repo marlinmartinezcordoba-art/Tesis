@@ -13,14 +13,15 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.permisos import Actor, lectura_catalogo
 from app.db.session import get_db
-from app.models.recurso_documental import NIVEL_DESCRIPCION
+from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.routers.instrumentos import ve_restringidos
 from app.schemas.respuestas_sistema import ResultadoBusquedaOut
-from app.servicios import busqueda
+from app.servicios import busqueda, lectura
 
 router = APIRouter(prefix="/api/buscar", tags=["Búsqueda"])
 
@@ -35,8 +36,13 @@ def buscar(q: str = Query(..., min_length=2, max_length=busqueda.LARGO_MAXIMO),
            agente_id: uuid.UUID | None = None,
            pagina: int = Query(1, ge=1, le=500),
            actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    # Se busca en lo que dice el grafo RiC-O de cada fondo (app/servicios/lectura.py).
+    consulta_fondos = select(RecursoDocumental).where(RecursoDocumental.nivel == "fondo")
+    if fondo_id:
+        consulta_fondos = consulta_fondos.where(RecursoDocumental.id == fondo_id)
     try:
-        return busqueda.buscar(db, q, ver_restringidos=ve_restringidos(actor), fondo_id=fondo_id, alcance=alcance,
-                               nivel=nivel, desde=desde, hasta=hasta, agente_id=agente_id, pagina=pagina)
+        with lectura.de_los_fondos(db, list(db.scalars(consulta_fondos))) as ldb:
+            return busqueda.buscar(ldb, q, ver_restringidos=ve_restringidos(actor), fondo_id=fondo_id, alcance=alcance,
+                                   nivel=nivel, desde=desde, hasta=hasta, agente_id=agente_id, pagina=pagina)
     except busqueda.ErrorBusqueda as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

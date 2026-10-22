@@ -26,7 +26,7 @@ from app.routers.fondos import fondo_o_404
 from app.schemas.respuestas_ingesta import VistaPreviaDocumento
 from app.schemas.respuestas_instrumentos import (BorradorGuia, FichaConsulta, IndiceTerminos, InstrumentoAprobadoOut,
                                                  NivelCatalogo, ResumenFondo, SubgrafoFondo, VistaPreviaInventario)
-from app.servicios import instrumentos, instrumentos_aprobados
+from app.servicios import instrumentos, instrumentos_aprobados, lectura
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/instrumentos", tags=["Módulo 4 · Instrumentos"])
@@ -109,8 +109,10 @@ def ve_restringidos(actor: Actor) -> bool:
             summary="Un nivel del árbol del fondo, para navegar por migas de pan")
 def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, actor: Actor = Depends(lectura_catalogo),
              db: Session = Depends(get_db)):
+    fondo = fondo_o_404(db, fondo_id)
     try:
-        return instrumentos.nivel(db, fondo_o_404(db, fondo_id), nodo_id, ve_restringidos(actor))
+        with lectura.desde_el_grafo(db, fondo) as ldb:
+            return instrumentos.nivel(ldb, lectura.en(ldb, fondo), nodo_id, ve_restringidos(actor))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
 
@@ -118,8 +120,11 @@ def catalogo(fondo_id: uuid.UUID, nodo_id: uuid.UUID | None = None, actor: Actor
 @router.get("/catalogo/{recurso_id}", responses={200: {"model": FichaConsulta, "description": "Ficha de consulta."}},
             summary="Ficha de consulta: descripción, entidades y preservación")
 def ficha(recurso_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    recurso = _recurso_o_404(db, recurso_id)
+    fondo = db.get(RecursoDocumental, recurso.fondo_id or recurso.id)
     try:
-        return instrumentos.ficha(db, _recurso_o_404(db, recurso_id), ve_restringidos(actor))
+        with lectura.desde_el_grafo(db, fondo) as ldb:
+            return instrumentos.ficha(ldb, lectura.en(ldb, recurso), ve_restringidos(actor))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
 
@@ -187,23 +192,29 @@ def _documento_publicado(db: Session, instanciacion_id: uuid.UUID) -> None:
 def resumen(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     from app.servicios import resumen_fondo
 
-    return resumen_fondo.resumen(db, fondo_o_404(db, fondo_id),
-                                 actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
+    fondo = fondo_o_404(db, fondo_id)
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        return resumen_fondo.resumen(ldb, lectura.en(ldb, fondo),
+                                     actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
 
 
 @router.get("/indice", responses={200: {"model": IndiceTerminos, "description": "Índice de términos del fondo."}},
             summary="Índice de términos: vocabulario del fondo por tipo y en orden alfabético")
 def indice(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
-    return instrumentos.indice(db, fondo_o_404(db, fondo_id),
-                               actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
+    fondo = fondo_o_404(db, fondo_id)
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        return instrumentos.indice(ldb, lectura.en(ldb, fondo),
+                                   actor.puede("descripcion", "escribir") or actor.puede("catalogo", "escribir"))
 
 
 # --- Inventario --------------------------------------------------------------------------------
 
 
 def _inventario(db: Session, recurso_id: uuid.UUID) -> tuple[dict, dict | None]:
+    recurso = _recurso_o_404(db, recurso_id)
     try:
-        datos = instrumentos.filas_inventario(db, _recurso_o_404(db, recurso_id))
+        with lectura.desde_el_grafo(db, db.get(RecursoDocumental, recurso.fondo_id or recurso.id)) as ldb:
+            datos = instrumentos.filas_inventario(ldb, lectura.en(ldb, recurso))
     except instrumentos.ErrorInstrumento as exc:
         raise _error(exc) from exc
     alerta = instrumentos.alerta_pendientes(db, datos)
@@ -240,7 +251,9 @@ def inventario(datos: InventarioIn, request: Request, actor: Actor = Depends(acc
 @router.post("/guia", responses={200: {"model": BorradorGuia, "description": "Borrador de la nota de presentación."}},
              summary="Borrador de la nota de presentación, redactado por el motor")
 def guia(datos: GuiaIn, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
-    return instrumentos.redactar_guia(db, fondo_o_404(db, datos.fondo_id))
+    fondo = fondo_o_404(db, datos.fondo_id)
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        return instrumentos.redactar_guia(ldb, lectura.en(ldb, fondo))
 
 
 @router.post("/guia/exportar", responses={200: {"content": {DOCX: {}}, "description": "Guía del fondo en documento de texto."}},
@@ -250,7 +263,8 @@ def guia_exportar(datos: GuiaExportarIn, request: Request, actor: Actor = Depend
     fondo = fondo_o_404(db, datos.fondo_id)
     if not datos.texto.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La nota de presentación está vacía.")
-    contenido = instrumentos.guia_docx(db, fondo, datos.texto)
+    with lectura.desde_el_grafo(db, fondo) as ldb:
+        contenido = instrumentos.guia_docx(ldb, lectura.en(ldb, fondo), datos.texto)
     registrar(db, modulo="instrumentos", accion="guia_exportada", usuario_id=actor.id, entidad_tipo="recurso_documental",
               entidad_id=fondo.id, request=request, nuevo={"caracteres": len(datos.texto)},
               detalle=f"Guía del fondo «{fondo.titulo}»")
