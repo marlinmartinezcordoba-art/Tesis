@@ -6,7 +6,7 @@ import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
 import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/components/Versiones";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
-  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, IDIOMAS, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
   proteccionParaEnviar,
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
@@ -89,6 +89,9 @@ interface Registro {
   tambien_en?: { id: string; titulo: string; nivel: string; relacion_id: string }[];
   miembros_adicionales?: { id: string; titulo: string; nivel: string; relacion_id: string }[];
   secuencia: { relacion_id: string; id: string; titulo: string; posicion: "precede_a" | "sigue_a"; uri_rico: string }[];
+  vinculos?: { relacion_id: string; id: string; titulo: string; tipo: string; uri_rico: string | null }[];
+  estado_documento?: string | null;
+  nota_integridad?: string | null;
 }
 
 // Datos de control del inventario (FUID); los usa el módulo de instrumentos.
@@ -154,6 +157,8 @@ export function RegistroDescripcion() {
     setPartes([]);
     setCampos({ idiomas: r.idiomas, clasificacion: clasificacionInicial(r.clasificacion), condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
+                respondeA: null, borradorDe: null, estadoDocumento: r.estado_documento || "",
+                notaIntegridad: r.nota_integridad || "",
                 isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [],
                 datosPersonales: r.proteccion?.datos_personales || "", notaAccesibilidad: r.proteccion?.nota_accesibilidad || "" });
@@ -221,6 +226,8 @@ export function RegistroDescripcion() {
           isadg: campos.isadg, escrituras: campos.escrituras,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
+          responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
+          estado_documento: campos.estadoDocumento, nota_integridad: campos.notaIntegridad,
           agregar_partes: partes.map(parteParaEnviar),
           control: {
             codigo_referencia: control.codigo_referencia.trim() || null, caja: control.caja.trim() || null,
@@ -308,7 +315,7 @@ export function RegistroDescripcion() {
 
       {editando ? (
         <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null}
-                        heredada={registro.clasificacion_heredada} />
+                        heredada={registro.clasificacion_heredada} nivel={registro.nivel} />
       ) : (
         <div className="tarjeta">
           <div className="tarjeta-cab">Idioma, condiciones y secuencia</div>
@@ -331,11 +338,32 @@ export function RegistroDescripcion() {
                   <code className="rico">{x.uri_rico}</code>
                 </div>
               ))}</dd>
+              <dt>Respuesta y borrador</dt>
+              <dd>{!registro.vinculos?.length ? "—" : registro.vinculos.map((x) => (
+                <div key={x.relacion_id}>
+                  {VINCULO_NOMBRE[x.tipo] ?? x.tipo} <Link to={`/descripcion/registro/${x.id}`}>{x.titulo}</Link>{" "}
+                  {x.uri_rico && <code className="rico">{x.uri_rico}</code>}
+                </div>
+              ))}</dd>
+              {(registro.nivel === "unidad_documental" || registro.nivel === "parte_documental") && (<>
+                <dt>Estado del documento</dt>
+                <dd>{ESTADO_DOCUMENTO.find(([k]) => k === registro.estado_documento)?.[1] ?? "—"}</dd>
+              </>)}
+              <dt>Completitud</dt><dd>{registro.nota_integridad || "—"}</dd>
             </dl>
           </div>
         </div>
       )}
       {!editando && <FichaIsadg recursoId={registro.id} actualizado={registro.actualizado_en} />}
+      {editando && (registro.vinculos ?? []).map((x) => (
+        <div key={x.relacion_id} className={`fila${quitar.includes(x.relacion_id) ? " tachada" : ""}`}>
+          <div className="fila-principal">{VINCULO_NOMBRE[x.tipo] ?? x.tipo} {x.titulo}</div>
+          <button type="button" className="boton chico"
+                  onClick={() => setQuitar((q) => (q.includes(x.relacion_id) ? q.filter((y) => y !== x.relacion_id) : [...q, x.relacion_id]))}>
+            {quitar.includes(x.relacion_id) ? "Deshacer" : "Quitar"}
+          </button>
+        </div>
+      ))}
       {editando && registro.secuencia.map((x) => (
         <div key={x.relacion_id} className={`fila${quitar.includes(x.relacion_id) ? " tachada" : ""}`}>
           <div className="fila-principal">{x.posicion === "precede_a" ? "Precede a" : "Sigue a"} {x.titulo}</div>

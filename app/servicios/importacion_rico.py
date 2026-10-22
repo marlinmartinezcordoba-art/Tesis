@@ -180,6 +180,11 @@ def analizar(g: Graph, seccion: dict | None = None) -> Analisis:
     for s in set(g.subjects(RDF.type, RICO.RecordSet)):
         recursos[s] = Nodo(s, "RecordSet", _nivel_declarado(g, s), _nombre(g, s) or "")
     for s in set(g.subjects(RDF.type, RICO.Record)):
+        if (s, RICO.describesOrDescribed, None) in g and (None, RICO.includesOrIncluded, s) not in g \
+                and (s, RICO.isOrWasIncludedIn, None) not in g:
+            # El cuadro o la TRD como documento (RiC-R021): aquí nacen de aplicar la TRD importada.
+            omitidas["instrumentos archivísticos que describen el fondo (se regeneran al aplicar la TRD)"] += 1
+            continue
         recursos[s] = Nodo(s, "Record", "unidad_documental", _nombre(g, s) or "")
     omitidas["partes documentales (rico:RecordPart)"] += len(set(g.subjects(RDF.type, RICO.RecordPart)))
     for padre, hijo in list(g.subject_objects(RICO.includesOrIncluded)) + \

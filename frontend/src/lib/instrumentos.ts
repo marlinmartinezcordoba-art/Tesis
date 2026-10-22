@@ -73,6 +73,10 @@ export interface Ficha {
   partes: { id: string; titulo: string; tipo_parte: string | null; alcance_contenido: string | null; instanciaciones: { id: string; nombre: string }[] }[];
   parte_de: Miga | null;
   secuencia: { id: string; titulo: string; posicion: "precede_a" | "sigue_a"; uri_rico: string }[];
+  // RiC completo, fase 1: respuesta y borrador, estado del documento y completitud.
+  vinculos?: { id: string; titulo: string; tipo: string; uri_rico: string | null }[];
+  estado_documento?: string | null;
+  nota_integridad?: string | null;
 }
 
 export interface Inventario {

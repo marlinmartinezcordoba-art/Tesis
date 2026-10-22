@@ -163,6 +163,11 @@ PROPIEDADES: dict[str, Propiedad] = {
                                         "isOrWasConstituentOf"),
     # Secuencia entre documentos del mismo nivel (el origen precede al destino).
     "precedes_or_preceded": Propiedad("precedesOrPreceded", "RiC-R008", RECURSOS, RECURSOS, "followsOrFollowed"),
+    # Fase 1 de RiC completo. Respuesta de una comunicación (el origen es la
+    # comunicación; el destino, su respuesta) y borrador de un documento (el
+    # origen es el borrador; el destino, la versión definitiva).
+    "has_reply": Propiedad("hasReply", "RiC-R013", RECURSOS, RECURSOS, "isReplyTo"),
+    "is_draft_of": Propiedad("isDraftOf", "RiC-R011", REGISTROS, REGISTROS, "hasDraft"),
     "has_or_had_instantiation": Propiedad("hasOrHadInstantiation", "RiC-R025", RECURSOS, ("Instantiation",),
                                           "isOrWasInstantiationOf"),
     "migrated_into": Propiedad("migratedInto", "RiC-R015", ("Instantiation",), ("Instantiation",), "migratedFrom"),
@@ -245,7 +250,9 @@ CODIGOS_RESERVADOS = {
     "is_original_of": "R010 relaciona dos Records (original y copia como documentos); el original físico de un mismo "
                       "documento se modela como Instantiation con hasOrHadDerivedInstantiation (R014).",
     "has_copy": "R012 relaciona dos Record Resources; mismo motivo que is_original_of.",
-    "is_or_was_expressed_by": "Regla expresada en un documento (R064): sin pantalla para declararlo todavía.",
+    "is_or_was_expressed_by": "Regla expresada en un documento (R064): no es una fila que declare el archivista; se "
+                              "escribe al exportar, de cada versión aplicada de la TRD a su documento (APOYO "
+                              "«expresada_en»).",
     "is_beginning_date_of": "Se exporta en sentido inverso (hasBeginningDate) desde la fecha guardada como dato.",
     "is_end_date_of": "Se exporta en sentido inverso (hasEndDate) desde la fecha guardada como dato.",
     "is_modification_date_of": "El sistema no registra fechas de modificación de un documento histórico.",
@@ -327,6 +334,11 @@ ATRIBUTOS = {
     "certeza_relacion": ("relationCertainty", None),
     "fuente_relacion": ("relationSource", None),
     "estado_relacion": ("relationState", None),
+    # Fase 1 de RiC completo.
+    "clasificacion": ("classification", "RiC-A07"),  # código del CCD, no el identificador
+    "integridad": ("integrityNote", "RiC-A24"),  # completitud intelectual
+    "extension_soporte": ("carrierExtent", "RiC-A04"),
+    "localizacion": ("location", "RiC-A27"),
 }
 
 # Relaciones entre agentes y de los mandatos como nodo de relación de RiC-O
@@ -361,6 +373,8 @@ RELACION_NARIA = {
     ("has_direct_subevent", None): "WholePartRelation",
     ("contains_or_contained", None): "WholePartRelation",
     ("precedes_or_preceded", None): "SequentialRelation",
+    ("has_reply", None): "RecordResourceToRecordResourceRelation",
+    ("is_draft_of", None): "RecordResourceGeneticRelation",
     ("has_or_had_instantiation", None): "RecordResourceToInstantiationRelation",
     ("migrated_into", None): "MigrationRelation",
     ("has_or_had_derived_instantiation", None): "DerivationRelation",
@@ -432,6 +446,27 @@ APOYO = {
     # La más específica: RiC-O 1.1 tiene MandateType (subclase de RuleType).
     "tipo_mandato": ("hasOrHadMandateType", ("Mandate",), "MandateType"),
     "inicio": ("hasBeginningDate", ("Thing",), "Date"),
+    # --- Fase 1 de RiC completo ---
+    # Tipos documentales que la TRD asigna a una serie o subserie: RiC-AG pide
+    # «some members» en un Record Set, porque hasDocumentaryFormType es solo de
+    # Record y Record Part (RiC-A17).
+    "formas_miembros": ("hasOrHadSomeMembersWithDocumentaryFormType", ("RecordSet",), "DocumentaryFormType"),
+    # Expediente eliminado por disposición final: su fecha de destrucción (subpropiedad de hasEndDate).
+    "fecha_destruccion": ("hasDestructionDate", RECURSOS + ("Instantiation",), "Date"),
+    # Lo que produjo una actividad (RiC-R061): la copia que salió de digitalizar o migrar.
+    "resultado": ("resultsOrResultedIn", ("Event",), "Thing"),
+    # Original en papel y copia digital (RiC-AG: refinan hasOrHadInstantiation).
+    "instanciacion_analogica": ("hasOrHadAnalogueInstantiation", RECURSOS, "Instantiation"),
+    "instanciacion_digital": ("hasOrHadDigitalInstantiation", RECURSOS, "Instantiation"),
+    "extension_soporte": ("hasExtent", ("Instantiation",), "CarrierExtent"),
+    "tipo_representacion": ("hasRepresentationType", ("Instantiation",), "RepresentationType"),
+    # Signatura topográfica del original: un lugar (el sitio en el depósito) con su localización textual.
+    "ubicacion": ("hasOrHadLocation", ("Instantiation",), "Place"),
+    "estado_documento": ("hasRecordState", REGISTROS, "RecordState"),
+    # Instrumentos archivísticos como documentos: el CCD y la TRD describen el
+    # fondo (RiC-R021) y la TRD aplicada (rico:Rule) se expresa en su documento (RiC-R064).
+    "describe": ("describesOrDescribed", RECURSOS, "Thing"),
+    "expresada_en": ("isOrWasExpressedBy", ("Rule",), "RecordResource"),
     "fin": ("hasEndDate", ("Thing",), "Date"),
 }
 
@@ -479,6 +514,8 @@ CAMPO_RICO = {
     "skos:broader": "skos:broader",
     "nuevos_ingresos": ATRIBUTOS["nuevos_ingresos"][0], "organizacion": ATRIBUTOS["organizacion"][0],
     "caracteristicas_fisicas": ATRIBUTOS["caracteristicas_fisicas"][0], "nota": ATRIBUTOS["descripcion_general"][0],
+    "nota_integridad": ATRIBUTOS["integridad"][0], "estado_documento": APOYO["estado_documento"][0],
+    "formas_miembros": APOYO["formas_miembros"][0],
 }
 # Campos de procedencia o de control que no son descripción: sin columna.
 CAMPOS_SIN_RICO = {"origen", "confianza", "motor", "estado", "estado_revision", "id", "relacion_id", "vinculo",
@@ -624,7 +661,8 @@ def verificar_contra_owl() -> list[str]:
     clases = set(CLASE_NIVEL.values()) | set(CLASE_AGENTE.values()) | set(CLASE_VOCABULARIO.values()) \
         | set(CLASE_NODO.values()) | {"Language", "PlaceType", "PlaceName", "AgentName", "Identifier",
                                       "IdentifierType", "LegalStatus", "RecordSetType", "RuleType", "MandateType",
-                                      "CarrierType", "RecordResourceExtent", "InstantiationExtent", "DateType"}
+                                      "CarrierType", "RecordResourceExtent", "InstantiationExtent", "DateType",
+                                      "CarrierExtent", "RepresentationType", "RecordState"}
     for c in sorted(clases):
         if not existe(c, OWL.Class):
             problemas.append(f"La clase rico:{c} no existe en RiC-O 1.1.")

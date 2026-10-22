@@ -118,6 +118,9 @@ class FichaConsulta(BaseModel):
     partes: list[dict]
     parte_de: dict | None
     secuencia: list[dict]
+    vinculos: list[dict] = []  # respuesta y borrador (RiC-R013, R011)
+    estado_documento: str | None = None  # RiC-A39
+    nota_integridad: str | None = None  # RiC-A24
     publicado_en: Any = None
     forma_documental: FormaDocumentalFicha | None
     migas: list[Miga]

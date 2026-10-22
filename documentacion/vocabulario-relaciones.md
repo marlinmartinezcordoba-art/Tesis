@@ -21,6 +21,8 @@ mapeo verificado contra RiC-O 1.1 (`app/servicios/ric_o.py`).
 | Inclusión | — | incluye | está incluido en | rico:includesOrIncluded | RiC-R024 | incluye o incluía |
 | Parte documental | — | tiene la parte | es parte de | rico:hasOrHadConstituent | RiC-R003 | tiene o tenía como elemento constitutivo |
 | Secuencia | — | precede a | sigue a | rico:precedesOrPreceded | RiC-R008 | precede o precedía secuencialmente a |
+| Respuesta | — | tiene por respuesta | responde a | rico:hasReply | RiC-R013 | tiene como contestación |
+| Borrador | — | es borrador de | tiene por borrador | rico:isDraftOf | RiC-R011 | es borrador de |
 | Instanciación | — | tiene la instanciación | es instanciación de | rico:hasOrHadInstantiation | RiC-R025 | tiene o tenía como instanciación |
 | Migración | — | migrada a | migrada desde | rico:migratedInto | RiC-R015 | migrado a |
 | Instanciación derivada | — | tiene como derivada a | deriva de | rico:hasOrHadDerivedInstantiation | RiC-R014 | tiene o tenía como instanciación derivada |

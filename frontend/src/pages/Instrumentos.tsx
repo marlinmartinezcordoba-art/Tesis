@@ -10,7 +10,7 @@ import {
 import { useSesion } from "@/lib/sesion";
 import { PestanaGrafo } from "@/pages/GrafoFondo";
 import { CadenaActividad } from "@/components/ContextoActividad";
-import { IDIOMAS } from "@/components/DescripcionV3";
+import { ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 import { ExportacionRico } from "@/components/ExportacionRico";
 import { useVista } from "@/components/Marco";
@@ -119,6 +119,12 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
               {ficha.secuencia.map((x) => (
                 <FilaEntidad key={x.id} etiqueta={x.posicion === "precede_a" ? "Precede a" : "Sigue a"}>{x.titulo}</FilaEntidad>
               ))}
+              {(ficha.vinculos ?? []).map((x) => (
+                <FilaEntidad key={`${x.tipo}-${x.id}`} etiqueta={VINCULO_NOMBRE[x.tipo] ?? x.tipo}>{x.titulo}</FilaEntidad>
+              ))}
+              {ficha.estado_documento && <><dt>Estado del documento</dt>
+                <dd>{ESTADO_DOCUMENTO.find(([k]) => k === ficha.estado_documento)?.[1] ?? ficha.estado_documento}</dd></>}
+              {ficha.nota_integridad && <><dt>Completitud</dt><dd>{ficha.nota_integridad}</dd></>}
               {ficha.partes.length > 0 && (
                 <>
                   <dt>Partes documentales</dt>

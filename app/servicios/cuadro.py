@@ -589,9 +589,15 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
                             alcance=None if f.subserie else tipos)
         hoja = _agrupacion(db, fondo, "subserie", f.subserie, c["subserie"], serie, usuario_id, informe, alcance=tipos) \
             if f.subserie else serie
+        formas = []
         for t in f.tipos:
-            _, creado = _de_vocabulario(db, fondo.id, "forma_documental", t, usuario_id)
+            forma, creado = _de_vocabulario(db, fondo.id, "forma_documental", t, usuario_id)
+            formas.append(forma.id)
             informe["tipos_documentales"] += int(creado)
+        # Los tipos de la TRD quedan unidos a la serie o subserie (RiC-A17 en un Record
+        # Set); una versión nueva los reemplaza. Ordenados: así el grafo los dice exactos.
+        if sorted(set(formas)) != list(hoja.formas_miembros or []):
+            hoja.formas_miembros = sorted(set(formas))
         if f.disposicion:
             _regla(db, fondo, hoja, f, usuario_id, informe, version)
         if f.funcion:

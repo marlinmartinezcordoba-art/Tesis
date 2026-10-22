@@ -271,6 +271,8 @@ export function EspacioTrabajo() {
           isadg: campos.isadg, escrituras: campos.escrituras,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
+          responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
+          estado_documento: campos.estadoDocumento || null, nota_integridad: campos.notaIntegridad.trim() || null,
           partes: partes.map(parteParaEnviar),
         }),
       });
@@ -385,7 +387,7 @@ export function EspacioTrabajo() {
             </div>
           </div>
 
-          <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id}
+          <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
                           propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null} />
 
           {espacio.nivel === "unidad_documental" && (

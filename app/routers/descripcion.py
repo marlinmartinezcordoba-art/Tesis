@@ -330,6 +330,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             entidades=[descripcion.EntidadConfirmada(**e.model_dump()) for e in datos.entidades],
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
+            responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
+            estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
@@ -715,6 +717,8 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             control=datos.control.model_dump() if datos.control else None,
             idiomas=datos.idiomas, condiciones_acceso=datos.condiciones_acceso, condiciones_uso=datos.condiciones_uso,
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
+            responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
+            estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:

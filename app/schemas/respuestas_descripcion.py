@@ -282,6 +282,15 @@ class SecuenciaDetalle(BaseModel):
     uri_rico: str
 
 
+class VinculoDetalle(BaseModel):
+    """Respuesta o borrador (RiC-R013, RiC-R011): tipo es responde_a, tiene_respuesta, borrador_de o tiene_borrador."""
+    relacion_id: str
+    id: str
+    titulo: str
+    tipo: str
+    uri_rico: str | None
+
+
 class DetalleDescripcionOut(BaseModel):
     """Descripción publicada, vista interna: cada dato con su origen y confianza."""
     model_config = ConfigDict(extra="allow")
@@ -316,6 +325,9 @@ class DetalleDescripcionOut(BaseModel):
     tambien_en: list[ParteDeOut] = []
     miembros_adicionales: list[ParteDeOut] = []
     secuencia: list[SecuenciaDetalle]
+    vinculos: list[VinculoDetalle] = []
+    estado_documento: str | None = None
+    nota_integridad: str | None = None
     origen_titulo: str | None
     origen_alcance: str | None
     confianza_alcance: float | None
@@ -458,6 +470,14 @@ class SecuenciaPublica(BaseModel):
     uri_rico: str
 
 
+class VinculoPublico(BaseModel):
+    """Respuesta o borrador visible para quien consulta (sin el identificador interno de la relación)."""
+    id: str
+    titulo: str
+    tipo: str
+    uri_rico: str | None
+
+
 class FichaPublicaOut(BaseModel):
     """Ficha de consulta de una descripción publicada, sin lo reservado."""
     model_config = ConfigDict(extra="allow")
@@ -479,6 +499,9 @@ class FichaPublicaOut(BaseModel):
     partes: list[PartePublica]
     parte_de: ReferenciaBreve | None
     secuencia: list[SecuenciaPublica]
+    vinculos: list[VinculoPublico] = []
+    estado_documento: str | None = None
+    nota_integridad: str | None = None
     publicado_en: str | None
 
 

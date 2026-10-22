@@ -21,6 +21,12 @@ NIVEL_DESCRIPCION = ("fondo", "coleccion", "seccion", "subseccion", "serie", "su
 # Categoría de datos personales (Ley 1581 de 2012, arts. 3, 5 y 7).
 DATOS_PERSONALES = ("no_contiene", "personales", "sensibles", "menores")
 
+# Estado del documento (RiC-A39 State, rico:RecordState): su etapa de
+# producción (borrador, definitivo) o su forma de transmisión (original,
+# copia). Solo de una unidad o parte documental (dominio de hasRecordState).
+ESTADO_DOCUMENTO = {"borrador": "Borrador", "definitivo": "Definitivo", "original": "Original", "copia": "Copia",
+                    "copia_autentica": "Copia auténtica"}
+
 
 class RecursoDocumental(Base):
     """RiC-CM: Record Resource (RiC-E02) — Record Set en los niveles de
@@ -116,3 +122,13 @@ class RecursoDocumental(Base):
     # Accesibilidad (Ley 1680 de 2013; AGN, principio 3): si hay una versión
     # accesible, en qué formato y con qué ayudas (texto alternativo, lectura).
     nota_accesibilidad = Column(Text, nullable=True)
+
+    # --- RiC completo, fase 1 (documentacion/brechas-ric-lineamiento-completo.md) ---
+    # Tipos documentales de una serie o subserie según la TRD aplicada (RiC-A17
+    # en un Record Set: rico:hasOrHadSomeMembersWithDocumentaryFormType). Ids de
+    # formas documentales del vocabulario del fondo, ordenados.
+    formas_miembros = Column(ARRAY(UUID(as_uuid=True)), nullable=False, default=list, server_default="{}")
+    estado_documento = Column(String(20), nullable=True)  # ESTADO_DOCUMENTO; RiC-A39
+    # Completitud intelectual (RiC-A24 Integrity Note): si al expediente o al
+    # documento le falta algo. No es la fijeza del archivo (eso es autenticidad).
+    nota_integridad = Column(Text, nullable=True)

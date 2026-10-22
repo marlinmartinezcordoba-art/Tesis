@@ -767,6 +767,53 @@ def _secuencia(db: Session, recurso: RecursoDocumental, otro_id: uuid.UUID, posi
                 "temporal", usuario_id, ("persona", None, None))
 
 
+# Vínculos documentales de la fase 1 de RiC completo (RiC-R013 y RiC-R011).
+VINCULOS = {
+    # campo → (código, ¿esta descripción es el destino?, niveles admitidos, nombre)
+    "responde_a": ("has_reply", True, ("expediente", "unidad_documental", "parte_documental"), "respuesta"),
+    "borrador_de": ("is_draft_of", False, ("unidad_documental", "parte_documental"), "borrador"),
+}
+
+
+def _vinculo(db: Session, recurso: RecursoDocumental, otro_id: uuid.UUID, campo: str, usuario_id: uuid.UUID) -> None:
+    """Esta descripción responde a otra (la comunicación recibida tiene esta
+    respuesta: hasReply) o es el borrador de otra (isDraftOf, hacia su versión
+    definitiva). La respuesta puede estar en otra serie: la correspondencia
+    recibida y la enviada suelen ser series distintas."""
+    codigo, soy_destino, niveles, nombre = VINCULOS[campo]
+    otro = db.get(RecursoDocumental, otro_id)
+    if otro is None or otro.publicado_en is None or otro.fondo_id != recurso.fondo_id or otro.id == recurso.id:
+        raise ErrorDescripcion(f"La {nombre} se declara frente a otra descripción publicada del mismo fondo.")
+    if recurso.nivel not in niveles or otro.nivel not in niveles:
+        raise ErrorDescripcion("La respuesta une comunicaciones (documentos o expedientes)." if campo == "responde_a"
+                               else "Un borrador y su versión definitiva son documentos (o partes de un documento).")
+    origen, destino = (otro, recurso) if soy_destino else (recurso, otro)
+    existente = db.scalar(select(Relacion.id).where(
+        Relacion.codigo_ric == codigo, Relacion.estado == "vigente",
+        ((Relacion.origen_id == origen.id) & (Relacion.destino_id == destino.id))
+        | ((Relacion.origen_id == destino.id) & (Relacion.destino_id == origen.id))))
+    if existente:
+        raise ErrorDescripcion(f"Ese vínculo de {nombre} ya está registrado.", 409)
+    _relacionar(db, ("recurso_documental", origen.id), ("recurso_documental", destino.id), codigo, "temporal",
+                usuario_id, ("persona", None, None))
+
+
+def _estado_y_completitud(recurso: RecursoDocumental, estado_documento: str | None,
+                          nota_integridad: str | None) -> None:
+    """Estado del documento (RiC-A39) y completitud (RiC-A24). None: no cambia; vacío: se quita."""
+    from app.models.recurso_documental import ESTADO_DOCUMENTO
+
+    if estado_documento is not None:
+        estado = estado_documento.strip() or None
+        if estado and estado not in ESTADO_DOCUMENTO:
+            raise ErrorDescripcion("Estado del documento: " + ", ".join(ESTADO_DOCUMENTO.values()).lower() + ".")
+        if estado and recurso.nivel not in ("unidad_documental", "parte_documental"):
+            raise ErrorDescripcion("El estado (borrador, original, copia…) es de un documento, no de una agrupación.")
+        recurso.estado_documento = estado
+    if nota_integridad is not None:
+        recurso.nota_integridad = nota_integridad.strip()[:5000] or None
+
+
 @dataclass
 class ParteConfirmada:
     titulo: str
@@ -860,7 +907,9 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              precede_a_id: uuid.UUID | None = None, sigue_a_id: uuid.UUID | None = None,
              partes: list[ParteConfirmada] | None = None,
              historia_archivistica: str | None = None, isadg_textos: dict | None = None,
-             escrituras: list[str] | None = None) -> RecursoDocumental:
+             escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
+             borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
+             nota_integridad: str | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -892,6 +941,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     _aplicar_campos(recurso, propuesta, idiomas if idiomas is not None else [], condiciones_acceso, condiciones_uso)
     _historia(recurso, historia_archivistica)
     _isadg(recurso, isadg_textos, escrituras)
+    _estado_y_completitud(recurso, estado_documento, nota_integridad)
     db.add(recurso)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
@@ -901,6 +951,9 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
         _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
     if sigue_a_id:
         _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
+    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id)):
+        if otro_id:
+            _vinculo(db, recurso, otro_id, campo, usuario_id)
     for d in documentos + _derivadas(db, [d.id for d in documentos]):
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="instanciacion",
                         destino_id=d.id, tipo_relacion="asociacion", codigo_ric="has_or_had_instantiation",
@@ -964,7 +1017,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         Relacion.estado == "vigente",
         ((Relacion.origen_id == recurso.id) | (Relacion.destino_id == recurso.id)))
         .order_by(Relacion.creado_en)).all()
-    partes, parte_de, secuencia = [], None, []
+    partes, parte_de, secuencia, vinculos = [], None, [], []
     tambien_en, miembros = [], []
     for r in relaciones:
         if r.codigo_ric == "includes_or_included":
@@ -998,6 +1051,16 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
                                   "posicion": "precede_a" if r.origen_id == recurso.id else "sigue_a",
                                   "uri_rico": "rico:precedesOrPreceded" if r.origen_id == recurso.id
                                   else "rico:followsOrFollowed"})
+            continue
+        if r.codigo_ric in ("has_reply", "is_draft_of"):
+            otro = db.get(RecursoDocumental, r.destino_id if r.origen_id == recurso.id else r.origen_id)
+            if otro is not None:
+                soy_origen = r.origen_id == recurso.id
+                tipo = {("has_reply", True): "tiene_respuesta", ("has_reply", False): "responde_a",
+                        ("is_draft_of", True): "borrador_de", ("is_draft_of", False): "tiene_borrador"}[
+                    (r.codigo_ric, soy_origen)]
+                vinculos.append({"relacion_id": str(r.id), "id": str(otro.id), "titulo": otro.titulo, "tipo": tipo,
+                                 "uri_rico": ric_o.uri(r.codigo_ric) if soy_origen else ric_o.uri_inversa(r.codigo_ric)})
             continue
         if r.codigo_ric == "has_or_had_instantiation":
             inst = db.get(Instanciacion, r.destino_id)
@@ -1057,9 +1120,10 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "condiciones_acceso": recurso.condiciones_acceso, "condiciones_uso": recurso.condiciones_uso,
         "historia_archivistica": recurso.historia_archivistica,
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
+        "estado_documento": recurso.estado_documento, "nota_integridad": recurso.nota_integridad,
         "isadg": _isadg_valores(recurso),
         "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
-        "partes": partes, "parte_de": parte_de, "secuencia": secuencia, "tambien_en": tambien_en, "miembros_adicionales": miembros,
+        "partes": partes, "parte_de": parte_de, "secuencia": secuencia, "vinculos": vinculos, "tambien_en": tambien_en, "miembros_adicionales": miembros,
         "origen_titulo": recurso.origen_titulo, "origen_alcance": recurso.origen_alcance,
         "confianza_alcance": recurso.confianza_alcance, "motor": recurso.motor,
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
@@ -1140,6 +1204,8 @@ def resumen(db: Session, recurso: RecursoDocumental) -> dict:
         "idiomas": d["idiomas"], "condiciones_acceso": d["condiciones_acceso"], "condiciones_uso": d["condiciones_uso"],
         "partes": sorted(f"{p['titulo']} [{p['tipo_parte'] or ''}]" for p in d["partes"]),
         "secuencia": sorted(f"{x['posicion']}:{x['titulo']}" for x in d["secuencia"]),
+        "vinculos": sorted(f"{x['tipo']}:{x['titulo']}" for x in d["vinculos"]),
+        "estado_documento": d["estado_documento"], "nota_integridad": d["nota_integridad"],
         "historia_archivistica": d["historia_archivistica"], **d["isadg"],
         **control_de(recurso),
     }
@@ -1169,7 +1235,9 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            condiciones_uso: str | None = None, precede_a_id: uuid.UUID | None = None,
            sigue_a_id: uuid.UUID | None = None, agregar_partes: list[ParteConfirmada] | None = None,
            historia_archivistica: str | None = None, isadg_textos: dict | None = None,
-           escrituras: list[str] | None = None) -> bool:
+           escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
+           borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
+           nota_integridad: str | None = None) -> bool:
     """Aplica la corrección. Devuelve si algo cambió."""
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
@@ -1222,6 +1290,10 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
     if sigue_a_id:
         _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
+    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id)):
+        if otro_id:
+            _vinculo(db, recurso, otro_id, campo, usuario_id)
+    _estado_y_completitud(recurso, estado_documento, nota_integridad)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(

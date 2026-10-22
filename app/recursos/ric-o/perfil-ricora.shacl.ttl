@@ -34,9 +34,12 @@ pr:RecordSet a sh:NodeShape ;
 
 pr:Record a sh:NodeShape ;
     sh:targetClass rico:Record ;
-    sh:property [
-        sh:path [ sh:inversePath rico:includesOrIncluded ] ; sh:minCount 1 ;
-        sh:message "Una unidad documental está incluida en una agrupación (no queda suelta del árbol)." ] ;
+    # Está incluida en una agrupación (no queda suelta del árbol), salvo un
+    # instrumento archivístico del sistema (el cuadro de clasificación, la TRD),
+    # que no es parte del fondo sino que lo describe (RiC-R021).
+    sh:or ( [ sh:path [ sh:inversePath rico:includesOrIncluded ] ; sh:minCount 1 ]
+            [ sh:path rico:describesOrDescribed ; sh:minCount 1 ] ) ;
+    sh:message "Una unidad documental está incluida en una agrupación, o es un instrumento que describe el fondo." ;
     sh:property [
         sh:path rico:hasDocumentaryFormType ; sh:maxCount 1 ; sh:class rico:DocumentaryFormType ] ;
     sh:property [

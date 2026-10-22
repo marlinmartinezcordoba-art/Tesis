@@ -15,6 +15,8 @@ export const TERMINOS: Record<string, Termino> = {
   "includes_or_included": { nombre: "Inclusión", directa: "incluye", inversa: "está incluido en", rico: "rico:includesOrIncluded", codigo_cm: "RiC-R024", etiqueta_oficial: "incluye o incluía" },
   "has_or_had_constituent": { nombre: "Parte documental", directa: "tiene la parte", inversa: "es parte de", rico: "rico:hasOrHadConstituent", codigo_cm: "RiC-R003", etiqueta_oficial: "tiene o tenía como elemento constitutivo" },
   "precedes_or_preceded": { nombre: "Secuencia", directa: "precede a", inversa: "sigue a", rico: "rico:precedesOrPreceded", codigo_cm: "RiC-R008", etiqueta_oficial: "precede o precedía secuencialmente a" },
+  "has_reply": { nombre: "Respuesta", directa: "tiene por respuesta", inversa: "responde a", rico: "rico:hasReply", codigo_cm: "RiC-R013", etiqueta_oficial: "tiene como contestación" },
+  "is_draft_of": { nombre: "Borrador", directa: "es borrador de", inversa: "tiene por borrador", rico: "rico:isDraftOf", codigo_cm: "RiC-R011", etiqueta_oficial: "es borrador de" },
   "has_or_had_instantiation": { nombre: "Instanciación", directa: "tiene la instanciación", inversa: "es instanciación de", rico: "rico:hasOrHadInstantiation", codigo_cm: "RiC-R025", etiqueta_oficial: "tiene o tenía como instanciación" },
   "migrated_into": { nombre: "Migración", directa: "migrada a", inversa: "migrada desde", rico: "rico:migratedInto", codigo_cm: "RiC-R015", etiqueta_oficial: "migrado a" },
   "has_or_had_derived_instantiation": { nombre: "Instanciación derivada", directa: "tiene como derivada a", inversa: "deriva de", rico: "rico:hasOrHadDerivedInstantiation", codigo_cm: "RiC-R014", etiqueta_oficial: "tiene o tenía como instanciación derivada" },

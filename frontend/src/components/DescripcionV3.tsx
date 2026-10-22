@@ -34,6 +34,11 @@ export interface CamposRegistroValor {
   condicionesUso: string;
   historiaArchivistica: string;
   secuencia: { posicion: "precede" | "sigue"; id: string; titulo: string } | null;
+  // RiC completo, fase 1: respuesta (RiC-R013) y borrador (RiC-R011), estado (RiC-A39) y completitud (RiC-A24).
+  respondeA: { id: string; titulo: string } | null;
+  borradorDe: { id: string; titulo: string } | null;
+  estadoDocumento: string;
+  notaIntegridad: string;
   // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
   isadg: Record<string, string>;
   escrituras: string[];
@@ -68,8 +73,23 @@ export const ESCRITURAS: Record<string, string> = {
 
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
+           respondeA: null, borradorDe: null, estadoDocumento: "", notaIntegridad: "",
            isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
 }
+
+// Estado del documento (RiC-A39): su etapa de producción o su forma de transmisión.
+export const ESTADO_DOCUMENTO: [string, string][] = [
+  ["borrador", "Borrador"], ["definitivo", "Definitivo"], ["original", "Original"], ["copia", "Copia"],
+  ["copia_autentica", "Copia auténtica"],
+];
+
+const ES_DOCUMENTO = (nivel?: string) => !nivel || nivel === "unidad_documental" || nivel === "parte_documental";
+
+/** Lo que RiC añade a una respuesta o un borrador, en palabras de la ficha. */
+export const VINCULO_NOMBRE: Record<string, string> = {
+  responde_a: "Responde a", tiene_respuesta: "Tiene por respuesta", borrador_de: "Es borrador de",
+  tiene_borrador: "Tiene por borrador",
+};
 
 export const DATOS_PERSONALES: [string, string][] = [
   ["no_contiene", "No contiene datos personales"],
@@ -217,13 +237,16 @@ function BuscarPublicada({ fondoId, alElegir }: { fondoId: string; alElegir: (id
   );
 }
 
-export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada }: {
+export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel }: {
   valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; fondoId: string;
   propuestos: string[]; confianza: number | null;
   heredada?: { acceso: string; de: string | null } | null;
+  nivel?: string;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
+  const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | null>(null);
+  const documento = ES_DOCUMENTO(nivel);
   const agregar = (c: string) => {
     const codigo = c.trim().toLowerCase();
     if (/^[a-z]{3}$/.test(codigo) && !valor.idiomas.includes(codigo)) alCambiar({ ...valor, idiomas: [...valor.idiomas, codigo] });
@@ -322,6 +345,45 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
             <button type="button" className="boton chico" onClick={() => setBuscando("precede")}>Precede a…</button>
           </div>
         )}
+      </div>
+      <div className="campo" style={{ marginTop: 12 }}>
+        <label>Respuesta y borrador <span className="meta">(opcional · rico:hasReply, rico:isDraftOf)</span></label>
+        {valor.respondeA && (
+          <p style={{ margin: "4px 0" }}>Responde a <b>{valor.respondeA.titulo}</b>{" "}
+            <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, respondeA: null })}>Quitar</button></p>
+        )}
+        {valor.borradorDe && (
+          <p style={{ margin: "4px 0" }}>Es borrador de <b>{valor.borradorDe.titulo}</b>{" "}
+            <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, borradorDe: null })}>Quitar</button></p>
+        )}
+        {vinculando ? (
+          <>
+            <BuscarPublicada fondoId={fondoId} alElegir={(id, titulo) => { alCambiar({ ...valor, [vinculando]: { id, titulo } }); setVinculando(null); }} />
+            <button type="button" className="enlace" onClick={() => setVinculando(null)}>Cancelar</button>
+          </>
+        ) : (
+          <div className="acciones">
+            {!valor.respondeA && <button type="button" className="boton chico" onClick={() => setVinculando("respondeA")}>Responde a…</button>}
+            {documento && !valor.borradorDe && <button type="button" className="boton chico" onClick={() => setVinculando("borradorDe")}>Es borrador de…</button>}
+          </div>
+        )}
+        <p className="meta" style={{ margin: "4px 0 0" }}>La respuesta puede estar en otra serie (comunicaciones recibidas y enviadas).</p>
+      </div>
+      {documento && (
+        <div className="campo">
+          <label htmlFor="estado-doc">Estado del documento <span className="meta">(opcional · rico:hasRecordState)</span></label>
+          <select id="estado-doc" className="selector" value={valor.estadoDocumento}
+                  onChange={(e) => alCambiar({ ...valor, estadoDocumento: e.target.value })}>
+            <option value="">Sin indicar</option>
+            {ESTADO_DOCUMENTO.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="campo" style={{ marginBottom: 0 }}>
+        <label htmlFor="integridad">Completitud <span className="meta">(opcional · rico:integrityNote · ¿le falta algo?)</span></label>
+        <textarea id="integridad" className="entrada" rows={2} value={valor.notaIntegridad} maxLength={5000}
+                  placeholder="Ej.: «Completo» o «Falta el oficio del folio 12»"
+                  onChange={(e) => alCambiar({ ...valor, notaIntegridad: e.target.value })} />
       </div>
     </div>
   );

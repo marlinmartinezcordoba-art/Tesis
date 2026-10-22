@@ -50,6 +50,8 @@ TERMINOS: dict[tuple[str, str | None], Termino] = {
     ("includes_or_included", None): Termino("Inclusión", "incluye", "está incluido en"),
     ("has_or_had_constituent", None): Termino("Parte documental", "tiene la parte", "es parte de"),
     ("precedes_or_preceded", None): Termino("Secuencia", "precede a", "sigue a"),
+    ("has_reply", None): Termino("Respuesta", "tiene por respuesta", "responde a"),
+    ("is_draft_of", None): Termino("Borrador", "es borrador de", "tiene por borrador"),
     ("has_or_had_instantiation", None): Termino("Instanciación", "tiene la instanciación", "es instanciación de"),
     ("migrated_into", None): Termino("Migración", "migrada a", "migrada desde"),
     ("has_or_had_derived_instantiation", None): Termino("Instanciación derivada", "tiene como derivada a",

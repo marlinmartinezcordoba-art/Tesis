@@ -123,6 +123,10 @@ def _lectores(base: str) -> dict[str, dict]:
         v = g.value(URIRef(f"{u(f)}/extension/folios"), RICO[ric_o.ATRIBUTOS["cantidad"][0]])
         return int(Decimal(str(v))) if v is not None else None
 
+    def formas_miembros(g, f):
+        return sorted(i for i in (_id_de(o, base) for o in g.objects(u(f), RICO[ric_o.APOYO["formas_miembros"][0]]))
+                      if i is not None)
+
     def nombre_entidad(g, f):
         return _valor(g, u(f), RICO.name) or _valor(g, u(f), RICO.title)
 
@@ -153,6 +157,7 @@ def _lectores(base: str) -> dict[str, dict]:
             "nota": texto(a["descripcion_general"][0]), "incluido_en_id": padre, "forma_documental_id": forma,
             "tipo_parte_id": forma, "fechas_extremas": fecha_libre("fechas-extremas", a["fecha_expresada"][0]),
             "fechas_extremas_edtf": fecha_libre("fechas-extremas", a["fecha_normalizada"][0]), "folios": folios,
+            "formas_miembros": formas_miembros, "nota_integridad": texto(a["integridad"][0]),
         },
         "entidades_vocabulario": {
             "nombre": nombre_entidad, "historia": texto(a["historia"][0]),
@@ -185,7 +190,7 @@ def _literal(valor) -> Literal:
     if isinstance(valor, uuid.UUID):
         return Literal(str(valor))
     if isinstance(valor, (list, dict)):
-        return Literal(json.dumps(valor, ensure_ascii=False, sort_keys=True), datatype=RDF.JSON)
+        return Literal(json.dumps(valor, ensure_ascii=False, sort_keys=True, default=str), datatype=RDF.JSON)
     return Literal(str(valor))
 
 
@@ -205,6 +210,8 @@ def _desde_literal(columna, lit) -> object:
         return datetime.fromisoformat(texto.replace("Z", "+00:00"))
     if isinstance(tipo, Date):
         return date.fromisoformat(texto)
+    if isinstance(tipo, ARRAY) and isinstance(tipo.item_type, UUID):
+        return [uuid.UUID(x) for x in json.loads(texto)]
     if isinstance(tipo, (ARRAY, JSONB)):
         return json.loads(texto)
     return texto

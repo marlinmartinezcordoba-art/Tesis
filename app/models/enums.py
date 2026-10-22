@@ -90,6 +90,9 @@ CODIGO_RELACION_RIC = (
     "affects_or_affected",  # RiC-R059 — hito institucional (Event) → agente cuya historia marca
     "is_related_to",  # RiC-R001 — tipo de actividad (función) ↔ serie que produce (sin propiedad dedicada)
     "issued_by",  # RiC-R065 — mandato → entidad que lo expidió
+    # -- RiC completo, fase 1 --
+    "has_reply",  # RiC-R013 — comunicación → su respuesta
+    "is_draft_of",  # RiC-R011 — borrador → versión definitiva del documento
 )
 
 # Los nombres de RiC-O de cada código (y su inversa) viven solo en

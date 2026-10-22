@@ -54,7 +54,7 @@ from app.db.base import ahora
 from app.models.descripcion import EntidadVocabulario, Fecha, Hito, IdentificadorEntidad, NombreEntidad, Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.preservacion import DeclaracionDerechos, Migracion
-from app.models.recurso_documental import RecursoDocumental
+from app.models.recurso_documental import ESTADO_DOCUMENTO, RecursoDocumental
 from app.servicios import derechos, fechas, ric_o, vocabulario
 
 RICO = Namespace(ric_o.RICO)
@@ -205,10 +205,12 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
 
     # Formas documentales y tipos de parte citados por la propia descripción
     # (no por una fila de relación).
-    for ident in {r.tipo_parte_id if r.nivel == "parte_documental" else r.forma_documental_id
-                  for r in recursos.values()} - {None}:
+    citadas = {r.tipo_parte_id if r.nivel == "parte_documental" else r.forma_documental_id for r in recursos.values()}
+    citadas |= {f for r in recursos.values() for f in (r.formas_miembros or [])}  # tipos de la TRD en cada serie
+    for ident in citadas - {None}:
         if _cargar(db, "entidad_vocabulario", ident, recursos, entidades, fechas_, instancias) is None:
-            g.remove((None, _apoyo("forma_documental")[0], uri(ident)))
+            for clave in ("forma_documental", "formas_miembros"):
+                g.remove((None, _apoyo(clave)[0], uri(ident)))
             ex.omitidas["formas documentales no exportables"] += 1
     # Tipos de actividad: también sus conceptos más amplios (SKOS broader).
     pendientes = [e for e in entidades.values() if e.concepto_superior_id]
@@ -257,7 +259,29 @@ def _trd(db: Session, ex: Exportacion, entidades: dict) -> None:
         Relacion.origen_id.in_([i for i, e in entidades.items() if e.clase == "regla"]))).all()
     prop_tipo, clase_tipo = _apoyo("tipo_regla")
     tipo_trd = _concepto(ex, "tipo-de-regla", "tabla-de-retencion", clase_tipo, "Tabla de retención documental")
+    # Los instrumentos archivísticos también son documentos (fase 1 de RiC
+    # completo, RiC-R021 y R064): el cuadro de clasificación y el documento de
+    # cada versión de la TRD describen el fondo, y la regla se expresa en su documento.
+    prop_forma, clase_forma = _apoyo("forma_documental")
+    describe = _apoyo("describe")[0]
+
+    def instrumento(nodo, titulo, clave_forma, nombre_forma, fecha):
+        g.add((nodo, RDF.type, RICO[ric_o.CLASE_NIVEL["unidad_documental"]]))
+        g.add((nodo, _a("titulo"), Literal(titulo)))
+        g.add((nodo, RDFS.label, Literal(titulo)))
+        g.add((nodo, prop_forma, _concepto(ex, "forma-documental-instrumento", clave_forma, clase_forma, nombre_forma)))
+        g.add((nodo, describe, uri(ex.fondo.id)))
+        if fecha:
+            _fecha_libre(ex, nodo, _apoyo("fecha_creacion")[0], URIRef(f"{nodo}/fecha"), None, fecha.isoformat())
+
+    primera = next((v.vigente_desde for v in versiones if v.vigente_desde), None)
+    instrumento(uri(ex.fondo.id, "cuadro-de-clasificacion"), f"Cuadro de clasificación documental · {ex.fondo.titulo}",
+                "cuadro-de-clasificacion", "Cuadro de clasificación documental", primera)
     for v in versiones:
+        documento = uri(v.id, "documento")
+        instrumento(documento, f"{v.nombre} · {ex.fondo.titulo}", "tabla-de-retencion-documental",
+                    "Tabla de retención documental", v.fecha_aprobacion or v.vigente_desde)
+        g.add((uri(v.id), _apoyo("expresada_en")[0], documento))
         nodo = uri(v.id)
         g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["regla"]]))
         g.add((nodo, _a("nombre"), Literal(v.nombre)))
@@ -312,20 +336,9 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
     tipo = RICO[ric_o.PROPIEDADES["has_activity_type"].rico]
     documenta = RICO[ric_o.PROPIEDADES["documents"].rico]
 
-    def tipo_tecnico(clave, nombre):
-        """Tipo de la acción técnica, en el mismo esquema SKOS de los tipos de actividad del fondo."""
-        concepto = _concepto(ex, "tipo-de-accion-tecnica", clave, RICO[ric_o.CLASE_VOCABULARIO["tipo_actividad"]], nombre)
-        esquema = uri(ex.fondo.id, "tipos-de-actividad")
-        g.add((esquema, RDF.type, SKOS.ConceptScheme))
-        g.add((esquema, SKOS.prefLabel, Literal(f"Tipos de actividad (funciones) · {ex.fondo.titulo}")))
-        g.add((concepto, RDF.type, SKOS.Concept))
-        g.add((concepto, SKOS.prefLabel, Literal(nombre)))
-        g.add((concepto, SKOS.inScheme, esquema))
-        return concepto
-
     def accion(nodo, nombre, quien, archivo, cuando, clave_tipo, nombre_tipo):
         g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["actividad"]]))
-        g.add((nodo, tipo, tipo_tecnico(clave_tipo, nombre_tipo)))
+        g.add((nodo, tipo, _tipo_tecnico(ex, clave_tipo, nombre_tipo)))
         g.add((nodo, RDFS.label, Literal(nombre)))
         g.add((nodo, _a("nombre"), Literal(nombre)))
         g.add((nodo, afecta, uri(archivo)))
@@ -349,6 +362,7 @@ def _acciones_tecnicas(db: Session, ex: Exportacion, instancias: dict, entidades
         # La instanciación que resultó documenta la migración (hallazgo CM-22).
         if m.instanciacion_resultado_id in instancias:
             g.add((uri(m.instanciacion_resultado_id), documenta, nodo))
+            g.add((nodo, _apoyo("resultado")[0], uri(m.instanciacion_resultado_id)))  # RiC-R061
 
 
 def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) -> set[uuid.UUID]:
@@ -425,10 +439,65 @@ def _relacion(db: Session, ex: Exportacion, rel: Relacion, extremos, incluir_res
     if descripcion:
         g.add((nodo, _a("descripcion_general"), Literal(descripcion)))
     _procedencia_relacion(db, ex, nodo, rel, incluir_restringidos)
+    _derivadas_de_relacion(ex, rel, n_o, n_d)
     if rel.codigo_ric == "has_or_had_holder" and rel.fecha_edtf:
         # RiC-O no reifica la custodia en una clase de relación con fechas: el
         # tramo queda en el sistema y la exportación lo cuenta (DES-05).
         ex.omitidas["periodo de un tramo de custodia (RiC-O no reifica la custodia)"] += 1
+
+
+def _fisica(i: Instanciacion) -> bool:
+    """Un original físico registrado (papel, plano…): no tiene archivo."""
+    return i.estado == "registro_fisico" or not i.ruta
+
+
+def _derivadas_de_relacion(ex: Exportacion, rel: Relacion, n_o, n_d) -> None:
+    """Lo que una fila dice además en RiC-O 1.1 con propiedades más precisas
+    (fase 1 de RiC completo), sin otra fuente que la fila y sus extremos."""
+    g = ex.grafo
+    if rel.codigo_ric == "has_or_had_instantiation" and isinstance(n_d, Instanciacion):
+        # El original en papel y la copia digital (refinan hasOrHadInstantiation, RiC-AG).
+        clave = "instanciacion_analogica" if _fisica(n_d) else "instanciacion_digital"
+        g.add((uri(rel.origen_id), _apoyo(clave)[0], uri(rel.destino_id)))
+        if _fisica(n_d) and getattr(n_o, "folios", None):
+            # Extensión del soporte (RiC-A04): los folios del original, no del archivo digital.
+            s = uri(rel.destino_id)
+            g.add((s, _a("extension_soporte"), Literal(f"{n_o.folios} folios", lang="es")))
+            _extension(ex, s, "extension_soporte", "folios", n_o.folios, "folios")
+    elif rel.codigo_ric == "has_or_had_derived_instantiation" and isinstance(n_o, Instanciacion) \
+            and isinstance(n_d, Instanciacion) and _fisica(n_o) and not _fisica(n_d):
+        # Digitalización del original físico, como la modela RiC-AG: una actividad
+        # que afecta al original y resulta en la copia digital.
+        nodo = uri(rel.id, "digitalizacion")
+        nombre = f"Digitalización de «{n_o.nombre_original}»"
+        g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["actividad"]]))
+        g.add((nodo, RDFS.label, Literal(nombre)))
+        g.add((nodo, _a("nombre"), Literal(nombre)))
+        g.add((nodo, RICO[ric_o.PROPIEDADES["has_activity_type"].rico], _tipo_tecnico(ex, "digitalizacion",
+                                                                                         "Digitalización")))
+        g.add((nodo, RICO[ric_o.ACCION_TECNICA["afecta"].rico], uri(n_o.id)))
+        g.add((nodo, _apoyo("resultado")[0], uri(n_d.id)))
+        if n_d.cargado_en is not None:
+            _fecha_libre(ex, nodo, _apoyo("inicio")[0], URIRef(f"{nodo}/fecha"), None, n_d.cargado_en.date().isoformat())
+    elif rel.codigo_ric == "affects_or_affected" and rel.rol == "disposicion" and rel.destino_tipo == "recurso_documental" \
+            and getattr(n_o, "subtipo", None) == "eliminacion" and n_o.existencia_edtf:
+        # Expediente eliminado: su fecha de destrucción, la del acta (RiC-AG).
+        s = uri(rel.destino_id)
+        _fecha_libre(ex, s, _apoyo("fecha_destruccion")[0], URIRef(f"{s}/destruccion"),
+                     fechas.legible(n_o.existencia_edtf), n_o.existencia_edtf)
+
+
+def _tipo_tecnico(ex: Exportacion, clave: str, nombre: str) -> URIRef:
+    """Tipo de una acción técnica, en el esquema SKOS de los tipos de actividad del fondo."""
+    g = ex.grafo
+    concepto = _concepto(ex, "tipo-de-accion-tecnica", clave, RICO[ric_o.CLASE_VOCABULARIO["tipo_actividad"]], nombre)
+    esquema = uri(ex.fondo.id, "tipos-de-actividad")
+    g.add((esquema, RDF.type, SKOS.ConceptScheme))
+    g.add((esquema, SKOS.prefLabel, Literal(f"Tipos de actividad (funciones) · {ex.fondo.titulo}")))
+    g.add((concepto, RDF.type, SKOS.Concept))
+    g.add((concepto, SKOS.prefLabel, Literal(nombre)))
+    g.add((concepto, SKOS.inScheme, esquema))
+    return concepto
 
 
 def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relacion, incluir_restringidos: bool) -> None:
@@ -571,6 +640,24 @@ def _tipo_agrupacion(ex: Exportacion, nivel: str) -> URIRef:
 
 
 
+NIVELES_CCD = ("seccion", "subseccion", "serie", "subserie")
+
+
+def _codigo_ccd(r: RecursoDocumental, recursos: dict) -> str | None:
+    """El código del cuadro de clasificación que califica la descripción: el
+    propio en una sección, subsección, serie o subserie; el de la serie o
+    subserie más cercana en un expediente, un documento o una parte."""
+    actual, vistos = r, set()
+    while actual is not None and actual.id not in vistos:
+        vistos.add(actual.id)
+        if actual.nivel in NIVELES_CCD:
+            return actual.codigo_referencia
+        if actual.nivel in ("fondo", "coleccion"):
+            return None
+        actual = recursos.get(actual.incluido_en_id)
+    return None
+
+
 def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
     g = ex.grafo
     s = uri(r.id)
@@ -597,6 +684,21 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
         g.add((s, _a("organizacion"), Literal(r.organizacion)))
     if r.nota:
         g.add((s, _a("descripcion_general"), Literal(r.nota)))
+    # Fase 1 de RiC completo. Clasificación (RiC-A07): el código del cuadro de
+    # clasificación; un expediente o documento lleva el de su serie o subserie.
+    codigo = _codigo_ccd(r, recursos)
+    if codigo:
+        g.add((s, _a("clasificacion"), Literal(codigo)))
+    if r.nota_integridad:  # RiC-A24: completitud intelectual
+        g.add((s, _a("integridad"), Literal(r.nota_integridad, lang="es")))
+    if clase == "RecordSet":
+        for forma_id in r.formas_miembros or []:  # tipos documentales de la TRD
+            g.add((s, _apoyo("formas_miembros")[0], uri(forma_id)))
+            ex.nodos.setdefault(forma_id, ("entidad_vocabulario", None))
+    elif r.estado_documento in ESTADO_DOCUMENTO:  # RiC-A39
+        prop, clase_ap = _apoyo("estado_documento")
+        g.add((s, prop, _concepto(ex, "estado-del-documento", r.estado_documento, clase_ap,
+                                  ESTADO_DOCUMENTO[r.estado_documento])))
     if r.folios:  # ISAD-G 3.1.5, RiC-A35: el texto y el nodo con cantidad y unidad (brecha 2)
         g.add((s, _a("extension"), Literal(f"{r.folios} folios", lang="es")))
         _extension(ex, s, "extension_recurso", "folios", r.folios, "folios")
@@ -814,6 +916,47 @@ def _notas_de_preservacion(db: Session, ex: Exportacion, i: Instanciacion, s: UR
         g.add((s, _a("fecha_derivacion"), Literal(derivada_en.date().isoformat(), datatype=XSD.date)))
 
 
+def _representacion(i: Instanciacion) -> tuple[str, str]:
+    """Tipo de representación (RiC-A37): cómo se registra el contenido. Un
+    original en papel no necesita un aparato para leerse; un archivo digital sí,
+    y se distingue la imagen (también un escaneo con OCR) del texto codificado."""
+    if _fisica(i):
+        return "analogica", "Analógica (se lee sin un aparato)"
+    mime = (i.formato_mime or "").lower()
+    if mime == "image/svg+xml":
+        return "digital-vectorial", "Digital: imagen vectorial"
+    if mime.startswith("image/") or i.origen_texto == "ocr":
+        return "digital-mapa-de-bits", "Digital: imagen de mapa de bits"
+    if mime.startswith("audio/"):
+        return "digital-audio", "Digital: audio"
+    if mime.startswith("video/"):
+        return "digital-video", "Digital: video"
+    if i.origen_texto == "capa_de_texto" or mime.startswith("text/"):
+        return "digital-texto", "Digital: texto codificado"
+    return "digital", "Digital"
+
+
+def _ubicacion(ex: Exportacion, i: Instanciacion, s: URIRef) -> None:
+    """La signatura topográfica del original (depósito, estante, entrepaño y la
+    ubicación escrita) como un lugar con su localización textual (RiC-A27): la
+    instanciación tiene o tuvo esa ubicación (rico:hasOrHadLocation)."""
+    from app.servicios.descripcion import signatura_topografica
+
+    texto = "; ".join(x for x in (signatura_topografica(i), i.ubicacion_fisica) if x)
+    if not texto:
+        return
+    g, nodo = ex.grafo, URIRef(f"{s}/ubicacion")
+    prop, clase = _apoyo("ubicacion")
+    g.add((nodo, RDF.type, clase))
+    g.add((nodo, _a("nombre"), Literal(f"Ubicación de «{i.nombre_original}»")))
+    g.add((nodo, RDFS.label, Literal(f"Ubicación de «{i.nombre_original}»")))
+    g.add((nodo, _a("localizacion"), Literal(texto, lang="es")))
+    prop_tipo, clase_tipo = _apoyo("tipo_lugar")
+    g.add((nodo, prop_tipo, _concepto(ex, "tipo-de-lugar", "ubicacion-topografica", clase_tipo,
+                                      "Ubicación topográfica en el depósito de archivo")))
+    g.add((s, prop, nodo))
+
+
 def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
     g = ex.grafo
     s = uri(i.id)
@@ -838,8 +981,10 @@ def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
         i.caracteristicas_fisicas) if x)
     if nota_fisica:
         g.add((s, _a("caracteristicas_fisicas"), Literal(nota_fisica)))
-    if i.ubicacion_fisica or i.deposito or i.estante or i.entrepano:
-        ex.omitidas["ubicación física de un original (sin propiedad de dato en RiC-O para una Instantiation)"] += 1
+    _ubicacion(ex, i, s)
+    clave, nombre = _representacion(i)  # RiC-A37
+    prop, clase_ap = _apoyo("tipo_representacion")
+    g.add((s, prop, _concepto(ex, "tipo-de-representacion", clave, clase_ap, nombre)))
     if i.formato_puid:
         # El formato identificado, con su ficha en el registro PRONOM.
         g.add((s, RDFS.seeAlso, URIRef(f"https://www.nationalarchives.gov.uk/PRONOM/{i.formato_puid}")))

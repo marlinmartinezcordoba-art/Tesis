@@ -40,6 +40,7 @@ def ficha_publica(db: Session, recurso: RecursoDocumental, visibles: set[uuid.UU
     d["partes"] = [{**p, "instanciaciones": [i for i in p["instanciaciones"] if archivo_visible(i)]}
                    for p in d["partes"] if uuid.UUID(p["id"]) in visibles]
     d["secuencia"] = [x for x in d["secuencia"] if uuid.UUID(x["id"]) in visibles]
+    d["vinculos"] = [x for x in d["vinculos"] if uuid.UUID(x["id"]) in visibles]
     if d["parte_de"] and uuid.UUID(d["parte_de"]["id"]) not in visibles:
         d["parte_de"] = None
     return {
@@ -73,5 +74,8 @@ def ficha_publica(db: Session, recurso: RecursoDocumental, visibles: set[uuid.UU
         "parte_de": {k: d["parte_de"][k] for k in ("id", "titulo", "nivel")} if d["parte_de"] else None,
         "secuencia": [{"id": x["id"], "titulo": x["titulo"], "posicion": x["posicion"], "uri_rico": x["uri_rico"]}
                       for x in d["secuencia"]],
+        # RiC completo, fase 1: respuesta y borrador (RiC-R013, R011), estado (A39) y completitud (A24).
+        "vinculos": [{k: x[k] for k in ("id", "titulo", "tipo", "uri_rico")} for x in d["vinculos"]],
+        "estado_documento": d["estado_documento"], "nota_integridad": d["nota_integridad"],
         "publicado_en": d["publicado_en"],
     }

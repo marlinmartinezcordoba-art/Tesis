@@ -102,6 +102,12 @@ class CamposRegistro(BaseModel):
     escrituras: list[str] | None = Field(default=None, max_length=50)
     precede_a_id: uuid.UUID | None = None
     sigue_a_id: uuid.UUID | None = None
+    # RiC completo, fase 1: esta comunicación responde a otra (RiC-R013); este
+    # documento es el borrador de otro (RiC-R011); estado (RiC-A39) y completitud (RiC-A24).
+    responde_a_id: uuid.UUID | None = None
+    borrador_de_id: uuid.UUID | None = None
+    estado_documento: str | None = Field(default=None, max_length=20)  # vacío: se quita
+    nota_integridad: str | None = Field(default=None, max_length=5000)
 
 
 class ClasificacionIn(BaseModel):
