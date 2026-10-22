@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
@@ -228,7 +229,7 @@ export function VersionesTrd({ fondoId }: { fondoId: string }) {
   }
 
   async function anular(v: VersionTrd) {
-    if (!window.confirm(`¿Anular la ${v.nombre}? Queda registrada como anulada; no se borra.`)) return;
+    if (!await confirmar(`¿Anular la ${v.nombre}? Queda registrada como anulada; no se borra.`)) return;
     try {
       await pedir(`/api/trd/versiones/${v.id}/anular`, { method: "POST", body: JSON.stringify({ motivo: null }) });
       setResultado(null);
@@ -404,7 +405,7 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
   const secciones = (datos || []).filter((d) => d.nivel === "seccion");
 
   async function anular(d: Dependencia) {
-    if (!window.confirm(`¿Anular ${d.codigo} ${d.nombre}? Queda registrada como anulada; no se borra.`)) return;
+    if (!await confirmar(`¿Anular ${d.codigo} ${d.nombre}? Queda registrada como anulada; no se borra.`)) return;
     setFallo("");
     try {
       await pedir(`/api/trd/dependencias/${d.id}/anular`, { method: "POST" });
@@ -523,7 +524,7 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
   const tipos = (datos || []).filter((t) => t.clase === "tipo_documental");
 
   async function anular(t: Termino) {
-    if (!window.confirm(`¿Anular «${t.nombre}»? Queda registrado como anulado; no se borra.`)) return;
+    if (!await confirmar(`¿Anular «${t.nombre}»? Queda registrado como anulado; no se borra.`)) return;
     setFallo("");
     try {
       await pedir(`/api/trd/banco/${t.id}/anular`, { method: "POST" });
@@ -743,7 +744,7 @@ export function MatrizTrd({ fondoId }: { fondoId: string }) {
   const editable = esAdmin && !!version?.editable;
 
   async function quitar(f: FilaTrd) {
-    if (!window.confirm(`¿Quitar ${f.codigo} ${f.subserie || f.serie} de la matriz del borrador?`)) return;
+    if (!await confirmar(`¿Quitar ${f.codigo} ${f.subserie || f.serie} de la matriz del borrador?`)) return;
     setFallo("");
     try {
       await pedir(`/api/trd/filas/${f.id}/anular`, { method: "POST" });

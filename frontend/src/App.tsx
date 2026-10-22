@@ -1,3 +1,5 @@
+import { Inicio } from "@/pages/Inicio";
+import { Dialogos } from "@/lib/dialogos";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Marco, inicioDe, veAlertas } from "@/components/Marco";
@@ -52,10 +54,13 @@ export default function App() {
   const { usuario, cargando } = useSesion();
   if (cargando) return <div className="cargando">Cargando RICORA…</div>;
   return (
+    <>
+    <Dialogos />
     <Routes>
       <Route path="/ingresar" element={<SoloSinSesion><Ingreso /></SoloSinSesion>} />
       <Route path="/recuperar" element={<SoloSinSesion><Recuperar /></SoloSinSesion>} />
       <Route path="/acceso/:token" element={<DefinirContrasena />} />
+      <Route path="/inicio" element={<Protegida modulo="catalogo"><Inicio /></Protegida>} />
       <Route path="/fondos" element={<Protegida modulo="catalogo"><Fondos /></Protegida>} />
       <Route path="/ingesta" element={<Protegida modulo="ingesta"><Ingesta /></Protegida>} />
       <Route path="/descripcion" element={<Protegida modulo="descripcion"><Descripcion /></Protegida>} />
@@ -76,5 +81,6 @@ export default function App() {
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />
       <Route path="*" element={<Navigate to={usuario ? inicioDe(usuario) : "/ingresar"} replace />} />
     </Routes>
+    </>
   );
 }

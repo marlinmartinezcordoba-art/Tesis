@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CompletitudFondo } from "@/components/PerfilAgn";
@@ -499,7 +500,7 @@ function Guia({ fondo, puede }: { fondo: { id: string; titulo: string }; puede: 
                       onChange={(e) => setTexto(e.target.value)} rows={16} />
             <div className="acciones" style={{ marginTop: 10 }}>
               <button type="button" className="boton chico" disabled={ocupado}
-                      onClick={() => window.confirm("¿Reemplazar su texto por un borrador nuevo?") && redactar()}>
+                      onClick={async () => (await confirmar("¿Reemplazar su texto por un borrador nuevo?")) && redactar()}>
                 Redactar de nuevo
               </button>
               <AprobarInstrumento tipo="guia" recursoId={fondo.id} extra={{ texto }}

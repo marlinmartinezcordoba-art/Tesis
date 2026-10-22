@@ -1,3 +1,4 @@
+import { pedirTexto } from "@/lib/dialogos";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
@@ -143,8 +144,9 @@ export function Descripcion() {
   // Solo la administración elimina un documento cargado por error, y solo si nunca
   // se describió: el archivo se borra y queda constancia (quién, cuándo, por qué, huella).
   async function eliminar(d: PorDescribir) {
-    const motivo = window.prompt(`Eliminar «${d.nombre}» por haberse cargado por error.\n\nEl archivo se borra de forma `
-      + "definitiva; en la auditoría quedan su nombre, su huella SHA-256, quién lo eliminó y por qué.\n\nMotivo:");
+    const motivo = await pedirTexto(`«${d.nombre}» se borra de forma definitiva por haberse cargado por error. En la `
+      + "auditoría quedan su nombre, su huella SHA-256, quién lo eliminó y por qué.",
+    { titulo: "Eliminar un documento cargado por error", aceptar: "Eliminar definitivamente", minimo: 5 });
     if (!motivo || motivo.trim().length < 5) return;
     setError("");
     try {

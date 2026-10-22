@@ -6,10 +6,12 @@ import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { Ayuda } from "@/components/Ayuda";
+import { Ventana } from "@/components/Ventana";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 export const ICONOS: Record<string, ReactNode> = {
+  inicio: <svg viewBox="0 0 24 24" {...trazo}><path d="M4 11l8-7 8 7" /><path d="M6 10v10h12V10" /><path d="M10 20v-5h4v5" /></svg>,
   fondos: <svg viewBox="0 0 24 24" {...trazo}><path d="M3 7h18v12H3z" /><path d="M3 7l2-3h14l2 3" /><path d="M10 11h4" /></svg>,
   ingesta: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5M5 16v2a2 2 0 002 2h10a2 2 0 002-2v-2" /></svg>,
   descripcion: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="6" r="2.2" /><circle cx="6" cy="17" r="2.2" /><circle cx="18" cy="17" r="2.2" /><path d="M10.5 7.5L7.5 15M13.5 7.5l3 7.5M8.2 17h7.6" /></svg>,
@@ -51,6 +53,8 @@ interface Entrada {
 // Un módulo es un proceso archivístico. En el menú solo hay módulos y, en los
 // dos más amplios, submódulos; los pasos y las pestañas van dentro de la pantalla.
 const ENTRADAS: Entrada[] = [
+  // Inicio guiado: dónde va el fondo y cuál es el siguiente paso.
+  { ruta: "/inicio", nombre: "Inicio", icono: "inicio", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/fondos", nombre: "Instrumentos archivísticos", icono: "fondos", grupo: "trabajo", modulo: "catalogo",
     submodulos: ["TRD y CCD", "TVD", "Disposición final"],
     alias: { fondos: "cargar", dependencias: "ajustar", series: "ajustar", matriz: "ajustar", cuadro: "versiones" },
@@ -235,6 +239,99 @@ export function PestanasModulo() {
   );
 }
 
+// Lanzador «¿Qué quiere hacer?» (Ctrl+K): cualquier pantalla o acción del
+// sistema, escrita con sus palabras, sin saber en qué módulo está.
+interface Destino { nombre: string; donde: string; ruta: string }
+
+const ACCIONES: { nombre: string; ruta: string; modulo: Modulo | "usuarios"; tipo?: "leer" | "escribir" }[] = [
+  { nombre: "Cargar el CCD y la TRD", ruta: "/fondos?vista=cargar", modulo: "usuarios" },
+  { nombre: "Aplicar una versión de la TRD", ruta: "/fondos?vista=versiones", modulo: "usuarios" },
+  { nombre: "Cargar documentos", ruta: "/ingesta", modulo: "ingesta", tipo: "escribir" },
+  { nombre: "Describir el siguiente documento", ruta: "/descripcion", modulo: "descripcion", tipo: "escribir" },
+  { nombre: "Revisar posibles duplicados", ruta: "/vocabularios?vista=sugerencias", modulo: "vocabularios" },
+  { nombre: "Generar o aprobar el inventario (FUID)", ruta: "/instrumentos?vista=inventario", modulo: "instrumentos", tipo: "escribir" },
+  { nombre: "Ver el grafo de contexto", ruta: "/instrumentos?vista=grafo", modulo: "catalogo" },
+  { nombre: "Descargar el fondo en RiC-O", ruta: "/instrumentos?vista=rico", modulo: "catalogo" },
+  { nombre: "Buscar en todo el archivo", ruta: "/buscar", modulo: "catalogo" },
+  { nombre: "Ver alertas pendientes", ruta: "/alertas", modulo: "ingesta" },
+  { nombre: "Mi perfil y segundo factor", ruta: "/perfil", modulo: "catalogo" },
+];
+
+function normal(t: string): string {
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+export function destinosDe(u: UsuarioBreve | null): Destino[] {
+  const salida: Destino[] = [];
+  for (const e of ENTRADAS.filter((x) => puede(u, x.modulo, x.tipo))) {
+    const vistas = vistasDe(e.ruta, u);
+    if (!vistas.length) salida.push({ nombre: e.nombre, donde: "Módulo", ruta: e.ruta });
+    vistas.forEach((v, i) => salida.push({ nombre: v.nombre, donde: [e.nombre, v.submodulo].filter(Boolean).join(" › "),
+      ruta: hrefDe(e, v, i === 0) }));
+  }
+  for (const a of ACCIONES.filter((x) => puede(u, x.modulo, x.tipo))) salida.push({ nombre: a.nombre, donde: "Acción", ruta: a.ruta });
+  return salida;
+}
+
+function Lanzador() {
+  const { usuario } = useSesion();
+  const navegar = useNavigate();
+  const [abierto, setAbierto] = useState(false);
+  const [q, setQ] = useState("");
+  const [marcado, setMarcado] = useState(0);
+
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setAbierto(true);
+      }
+    };
+    document.addEventListener("keydown", tecla);
+    return () => document.removeEventListener("keydown", tecla);
+  }, []);
+
+  const palabras = normal(q).split(/\s+/).filter(Boolean);
+  const lista = destinosDe(usuario).filter((d) => palabras.every((p) => normal(`${d.nombre} ${d.donde}`).includes(p))).slice(0, 12);
+  const ir = (d: Destino | undefined) => {
+    if (!d) return;
+    setAbierto(false);
+    setQ("");
+    navegar(d.ruta);
+  };
+
+  return (
+    <>
+      <button type="button" className="pastilla lanzador-boton" onClick={() => setAbierto(true)} title="Ir a cualquier pantalla (Ctrl+K)">
+        ¿Qué quiere hacer? <kbd>Ctrl K</kbd>
+      </button>
+      {abierto && (
+        <Ventana titulo="¿Qué quiere hacer?" alCerrar={() => { setAbierto(false); setQ(""); }}>
+          <input className="entrada lanzador-entrada" autoFocus placeholder="Escriba: describir, inventario, TRD, grafo…"
+                 aria-label="Buscar una pantalla o acción" value={q}
+                 onChange={(e) => { setQ(e.target.value); setMarcado(0); }}
+                 onKeyDown={(e) => {
+                   if (e.key === "ArrowDown") { e.preventDefault(); setMarcado((m) => Math.min(m + 1, lista.length - 1)); }
+                   if (e.key === "ArrowUp") { e.preventDefault(); setMarcado((m) => Math.max(m - 1, 0)); }
+                   if (e.key === "Enter") { e.preventDefault(); ir(lista[marcado]); }
+                 }} />
+          <ul className="lanzador-lista" role="listbox" aria-label="Resultados">
+            {lista.map((d, i) => (
+              <li key={`${d.ruta}-${d.nombre}`} role="option" aria-selected={i === marcado}>
+                <button type="button" className={i === marcado ? "marcado" : undefined} onMouseEnter={() => setMarcado(i)}
+                        onClick={() => ir(d)}>
+                  <span>{d.nombre}</span><span className="meta">{d.donde}</span>
+                </button>
+              </li>
+            ))}
+            {!lista.length && <li className="meta">Nada coincide. Pruebe con otra palabra.</li>}
+          </ul>
+        </Ventana>
+      )}
+    </>
+  );
+}
+
 export function Marca() {
   return (
     <div className="marca">
@@ -361,6 +458,7 @@ export function Marco({ children }: { children: ReactNode }) {
         <div className="superior">
           <SelectorFondo />
           <CajaBusqueda />
+          <Lanzador />
           <div className="superior-derecha">
             <Ayuda />
             <AvisoAlertas />

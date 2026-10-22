@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useState, type FormEvent } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
@@ -135,7 +136,7 @@ export function PanelRoles({ roles, alCambiar }: { roles: RolInfo[] | null; alCa
   async function exigir(r: RolInfo) {
     setError("");
     const exigirlo = !r.doble_factor;
-    if (exigirlo && !window.confirm(`Las ${r.usuarios} persona(s) con el rol «${r.nombre}» deberán configurar el segundo factor `
+    if (exigirlo && !await confirmar(`Las ${r.usuarios} persona(s) con el rol «${r.nombre}» deberán configurar el segundo factor `
         + "la próxima vez que entren, antes de poder trabajar. ¿Continuar?")) return;
     try {
       await pedir(`/api/auth/roles/${r.clave}/doble-factor`, { method: "PUT", body: JSON.stringify({ exigir: exigirlo }) });

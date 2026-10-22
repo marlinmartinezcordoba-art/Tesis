@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ICONOS, useVista } from "@/components/Marco";
@@ -426,7 +427,7 @@ function FilaCola({ e, puedeDecidir, alCambiar }: { e: ElementoCola; puedeDecidi
         {puedeDecidir && (
           <div className="acciones">
             <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={() => window.confirm(`¿Cancelar la carga de «${e.nombre}»? El archivo se elimina porque ya existe en el fondo.`)
+                    onClick={async () => (await confirmar(`¿Cancelar la carga de «${e.nombre}»? El archivo se elimina porque ya existe en el fondo.`))
                       && accion("DELETE", `/api/ingesta/${e.id}`, `Se canceló la carga de «${e.nombre}».`)}>
               Cancelar carga
             </button>
@@ -453,7 +454,7 @@ function FilaCola({ e, puedeDecidir, alCambiar }: { e: ElementoCola; puedeDecidi
       {puedeDecidir && (
         <div className="acciones">
           <button type="button" className="boton chico" disabled={ocupado}
-                  onClick={() => window.confirm(`¿Descartar «${e.nombre}»? El archivo se elimina.`)
+                  onClick={async () => (await confirmar(`¿Descartar «${e.nombre}»? El archivo se elimina.`))
                     && accion("DELETE", `/api/ingesta/${e.id}`, `Se descartó «${e.nombre}».`)}>
             Descartar
           </button>

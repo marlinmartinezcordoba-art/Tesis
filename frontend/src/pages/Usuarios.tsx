@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { EnlaceHistoria } from "@/components/Historia";
 import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
@@ -208,8 +209,8 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
           )}
           {u.doble_factor && !propio && (
             <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={() => {
-                      if (window.confirm(`¿Quitar el segundo factor de ${u.nombre}? Úselo si perdió el teléfono: se cierran sus `
+                    onClick={async () => {
+                      if (await confirmar(`¿Quitar el segundo factor de ${u.nombre}? Úselo si perdió el teléfono: se cierran sus `
                           + "sesiones y deberá configurarlo de nuevo.")) {
                         accion(async () => {
                           const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/doble-factor/restablecer`, { method: "POST" });
@@ -222,8 +223,8 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
           )}
           {!propio && (u.activo ? (
             <button type="button" className="boton chico peligro" disabled={ocupado}
-                    onClick={() => {
-                      if (window.confirm(`¿Desactivar la cuenta de ${u.nombre}? No podrá ingresar; sus datos y su trazabilidad se conservan.`)) {
+                    onClick={async () => {
+                      if (await confirmar(`¿Desactivar la cuenta de ${u.nombre}? No podrá ingresar; sus datos y su trazabilidad se conservan.`)) {
                         editar({ activo: false }, `Se desactivó la cuenta de ${u.nombre}.`);
                       }
                     }}>

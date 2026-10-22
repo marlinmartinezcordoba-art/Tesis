@@ -1,3 +1,4 @@
+import { pedirTexto } from "@/lib/dialogos";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorAPI, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
@@ -156,7 +157,8 @@ export function Tesauros() {
   useEffect(cargar, [cargar]);
 
   async function anular(t: Tesauro) {
-    const motivo = window.prompt(`¿Por qué se anula «${t.nombre}»? Las materias ya normalizadas con él no cambian.`);
+    const motivo = await pedirTexto(`Las materias ya normalizadas con «${t.nombre}» no cambian.`,
+      { titulo: "Anular el tesauro", aceptar: "Anular", minimo: 5 });
     if (!motivo) return;
     try {
       await pedir(`/api/tesauros/${t.id}/anular`, { method: "POST", body: JSON.stringify({ motivo }) });

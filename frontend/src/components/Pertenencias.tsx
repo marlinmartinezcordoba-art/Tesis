@@ -1,3 +1,4 @@
+import { avisar, confirmar } from "@/lib/dialogos";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Ventana } from "@/components/Ventana";
@@ -22,12 +23,12 @@ export function Pertenencias<R extends { id: string; fondo_id: string; nivel: st
   const miembros = registro.miembros_adicionales || [];
 
   async function quitar(b: Breve) {
-    if (!window.confirm(`¿Quitar esta descripción de «${b.titulo}»? Su lugar en el cuadro no cambia.`)) return;
+    if (!await confirmar(`¿Quitar esta descripción de «${b.titulo}»? Su lugar en el cuadro no cambia.`)) return;
     try {
       alCambiar(await pedir<R>(`/api/descripcion/registros/${registro.id}/inclusiones/${b.relacion_id}/anular`,
         { method: "POST" }));
     } catch (err) {
-      window.alert(err instanceof ErrorAPI ? err.message : "No se pudo quitar.");
+      avisar(err instanceof ErrorAPI ? err.message : "No se pudo quitar.");
     }
   }
 

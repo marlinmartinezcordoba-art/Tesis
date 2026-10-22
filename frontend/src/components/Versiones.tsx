@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 // Versiones de una descripción (RF-RIC-001) y atributos con su fuente
 // (RF-RIC-002). Cada corrección deja una versión numerada que no se borra;
 // restaurar una anterior crea una versión nueva.
@@ -62,7 +63,7 @@ export function VersionesDescripcion({ recursoId, puede, editando, alRestaurar, 
   useEffect(cargar, [cargar, marca]);
 
   async function restaurar(n: number) {
-    if (!window.confirm(`¿Volver a los datos de la versión ${n}? Se crea una versión nueva; ninguna se pierde.`)) return;
+    if (!await confirmar(`¿Volver a los datos de la versión ${n}? Se crea una versión nueva; ninguna se pierde.`)) return;
     setError("");
     try {
       alRestaurar(await pedir(`/api/descripcion/registros/${recursoId}/versiones/${n}/restaurar`, { method: "POST" }));

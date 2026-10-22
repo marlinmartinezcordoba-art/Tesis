@@ -96,3 +96,28 @@ class FondoConfigurado(BaseModel):
     # Lo que la carga configuró en la parametrización: dependencias, series, subseries, tipos y filas de la matriz.
     parametrizacion: dict[str, int] | None = None
     version: dict[str, str] | None = None  # la TRD versión 1 del fondo creado: vigente o en borrador
+
+
+# --- Avance del fondo (Inicio) --------------------------------------------------------------------
+
+
+class PasoAvance(BaseModel):
+    """Un paso del recorrido archivístico del fondo y su siguiente acción."""
+
+    clave: str
+    titulo: str
+    estado: str  # hecho | en_curso | pendiente
+    resumen: str
+    accion: str | None
+    ruta: str | None
+    modulo: str
+
+
+class AvanceFondo(BaseModel):
+    """Dónde va el fondo en el recorrido archivístico y qué sigue."""
+
+    fondo: dict
+    pasos: list[PasoAvance]
+    siguiente: str | None
+    hechos: int
+    total: int

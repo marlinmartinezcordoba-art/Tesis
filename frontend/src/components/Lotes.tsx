@@ -1,3 +1,4 @@
+import { pedirTexto } from "@/lib/dialogos";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { fecha } from "@/lib/formato";
@@ -211,8 +212,9 @@ export function LotesDelFondo({ fondoId, version, puedeEscribir }: { fondoId: st
                       title={l.listos < l.archivos.length ? "Hay archivos sin terminar la ingesta" : undefined}
                       onClick={() => accion(`/api/ingesta/lotes/${l.id}/confirmar`, {},
                         `Lote ${l.numero} recibido: se armó el paquete de envío y quedó el acuse.`)}>Confirmar</button>
-              <button type="button" className="boton chico" onClick={() => {
-                const motivo = window.prompt("Motivo de la anulación:");
+              <button type="button" className="boton chico" onClick={async () => {
+                const motivo = await pedirTexto(`Lote ${l.numero}: escriba por qué se anula. Queda en la trazabilidad; no se borra nada.`,
+                  { titulo: "Anular el lote", aceptar: "Anular", minimo: 5 });
                 if (motivo) accion(`/api/ingesta/lotes/${l.id}/anular`, { motivo }, `Lote ${l.numero} anulado.`);
               }}>Anular</button>
             </>

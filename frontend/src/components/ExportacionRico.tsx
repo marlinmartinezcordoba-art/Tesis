@@ -1,3 +1,4 @@
+import { confirmar } from "@/lib/dialogos";
 import { useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir, puede as tienePermiso } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
@@ -56,7 +57,7 @@ function GrafoPersistente({ fondoId }: { fondoId: string }) {
   }
 
   async function reconstruir() {
-    if (!window.confirm("Las tablas del fondo se rehacen con lo que dice el grafo RiC-O guardado (la fuente de verdad). ¿Continuar?")) return;
+    if (!await confirmar("Las tablas del fondo se rehacen con lo que dice el grafo RiC-O guardado (la fuente de verdad). ¿Continuar?")) return;
     setOcupado(true);
     setError("");
     try {

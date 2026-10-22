@@ -1,3 +1,4 @@
+import { confirmar as confirmarDialogo } from "@/lib/dialogos";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SelectorFecha } from "@/components/SelectorFecha";
@@ -402,7 +403,7 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
   }
 
   async function anular(v: Vinculo) {
-    if (!window.confirm(`¿Anular «${v.etiqueta} ${v.con?.nombre}»? El vínculo no se borra: queda anulado en el historial.`)) return;
+    if (!await confirmarDialogo(`¿Anular «${v.etiqueta} ${v.con?.nombre}»? El vínculo no se borra: queda anulado en el historial.`)) return;
     try {
       await enviar(`/api/vocabulario/${entidad.id}/vinculos/${v.relacion_id}/anular`, "POST");
       alCambiar("Vínculo anulado.");
@@ -503,7 +504,7 @@ function FormasDelNombre({ ficha, entidad, puede, alCambiar, historicos }: {
   }
 
   async function anular(n: Nombre) {
-    if (!window.confirm(`¿Anular «${n.nombre}»? No se borra: queda en el historial.`)) return;
+    if (!await confirmarDialogo(`¿Anular «${n.nombre}»? No se borra: queda en el historial.`)) return;
     await enviar(`/api/vocabulario/${entidad.id}/registros/nombre/${n.id}/anular`, "POST").catch(() => undefined);
     alCambiar();
   }
@@ -576,7 +577,7 @@ function Identificadores({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; e
   }
 
   async function anular(id: string) {
-    if (!window.confirm("¿Anular este identificador? No se borra: queda en el historial.")) return;
+    if (!await confirmarDialogo("¿Anular este identificador? No se borra: queda en el historial.")) return;
     await enviar(`/api/vocabulario/${entidad.id}/registros/identificador/${id}/anular`, "POST").catch(() => undefined);
     alCambiar();
   }
@@ -640,7 +641,7 @@ function LineaDeTiempo({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; ent
   }
 
   async function anular(id: string) {
-    if (!window.confirm("¿Anular este hito? No se borra: queda en el historial.")) return;
+    if (!await confirmarDialogo("¿Anular este hito? No se borra: queda en el historial.")) return;
     await enviar(`/api/vocabulario/${entidad.id}/registros/hito/${id}/anular`, "POST").catch(() => undefined);
     alCambiar();
   }

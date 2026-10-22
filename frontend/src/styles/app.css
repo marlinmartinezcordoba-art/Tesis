@@ -7,11 +7,14 @@
  */
 
 :root {
-  --bg: #e6eaf0;
-  --surface: #f7f8fa;
-  --ink: #1c2333;
-  --muted: #5b6477;
-  --line: #cfd6e1;
+  /* Rediseño fase 1: misma identidad (azul marino y azul RICORA), fondos más
+     limpios, bordes más suaves y sombras discretas para separar las tarjetas. */
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #1a2233;
+  --muted: #5a6478;
+  --line: #dbe1ea;
+  --sombra: 0 1px 2px rgb(16 24 40 / .05), 0 2px 8px rgb(16 24 40 / .05);
   --accent: #2f5fd0;
   --accent-ink: #ffffff;
   --accent-bg: #dde6fa;
@@ -152,8 +155,8 @@ h1 { font-size: 1.35rem; margin: 0 0 4px; }
 .sub { color: var(--muted); font-size: .87rem; margin: 0 0 20px; max-width: 64ch; }
 
 /* ---- tarjetas, filas, insignias ---- */
-.tarjeta { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 14px; }
-.tarjeta-cab { padding: 11px 16px; font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tarjeta { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 14px; box-shadow: var(--sombra, none); }
+.tarjeta-cab { padding: 11px 16px; font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tarjeta-cuerpo { padding: 16px; }
 .fila { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: .86rem; flex-wrap: wrap; }
 .fila.resaltada { background: var(--warn-bg, rgba(214, 158, 46, .12)); box-shadow: inset 3px 0 0 var(--warn, #b7791f); }
@@ -797,3 +800,50 @@ code.rico { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-si
 /* Alcance del recorrido del grafo, en palabras. */
 .alcance-grafo { display: inline-flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--muted); }
 .alcance-grafo select { min-width: 260px; }
+
+
+/* --- Rediseño fase 1 ------------------------------------------------------------------------- */
+kbd { font: 600 .7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 6px; border: 1px solid var(--line);
+  border-bottom-width: 2px; border-radius: 5px; background: var(--surface); color: var(--muted); }
+/* Lanzador «¿Qué quiere hacer?» (Ctrl+K). */
+.lanzador-boton { cursor: pointer; gap: 10px; color: var(--muted); }
+.lanzador-boton:hover { color: var(--ink); }
+.lanzador-entrada { width: 100%; font-size: 1rem; padding: 10px 12px; }
+.lanzador-lista { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow: auto; }
+.lanzador-lista button { width: 100%; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 9px 12px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.lanzador-lista button.marcado { background: var(--accent-bg); }
+/* Diálogos propios (confirmar, pedir un motivo, avisar). */
+.dialogo-texto { margin: 0 0 12px; line-height: 1.5; white-space: pre-line; }
+.dialogo textarea { width: 100%; resize: vertical; }
+.dialogo-acciones { justify-content: flex-end; margin-top: 14px; }
+.boton.primario.peligro { background: var(--danger); border-color: var(--danger); color: #fff; }
+/* Inicio guiado. */
+.inicio { max-width: 980px; }
+.inicio-bienvenida { padding: 20px 22px; }
+.inicio-bienvenida h2 { margin-top: 0; }
+.siguiente-paso { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 18px 22px;
+  border-left: 4px solid var(--accent); background: linear-gradient(90deg, var(--accent-bg), var(--surface) 70%); }
+.siguiente-paso h2 { margin: 4px 0 2px; font-size: 1.25rem; }
+.siguiente-paso p { margin: 0; color: var(--muted); }
+.etiqueta-siguiente { font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
+.barra-avance { height: 6px; background: var(--line); }
+.barra-avance span { display: block; height: 100%; background: var(--ok); transition: width .3s; }
+.recorrido { list-style: none; margin: 0; padding: 6px 0; }
+.paso-recorrido { display: grid; grid-template-columns: 34px 1fr auto; gap: 14px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); }
+.paso-recorrido:first-child { border-top: 0; }
+.paso-recorrido.es-siguiente { background: color-mix(in srgb, var(--accent-bg) 45%, transparent); }
+.marca-paso { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .85rem;
+  border: 2px solid var(--line); color: var(--muted); background: var(--surface); }
+.paso-recorrido.hecho .marca-paso { background: var(--ok); border-color: var(--ok); color: #fff; }
+.paso-recorrido.en-curso .marca-paso { border-color: var(--accent); color: var(--accent); }
+.titulo-paso { font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.insignia.estado-hecho { background: var(--ok-bg); color: var(--ok); }
+.insignia.estado-en-curso { background: var(--accent-bg); color: var(--accent); }
+.insignia.estado-pendiente { background: var(--bg); color: var(--muted); }
+.consejo { margin-top: 6px; }
+@media (max-width: 640px) {
+  .paso-recorrido { grid-template-columns: 30px 1fr; }
+  .paso-recorrido .boton { grid-column: 2; justify-self: start; }
+  .lanzador-boton kbd { display: none; }
+}

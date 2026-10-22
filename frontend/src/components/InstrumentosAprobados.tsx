@@ -1,3 +1,4 @@
+import { pedirTexto } from "@/lib/dialogos";
 import { useCallback, useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 
@@ -108,7 +109,8 @@ export function ListaAprobados({ fondoId, tipo, recursoId, puede, recargar }: {
   }
 
   async function anular(i: InstrumentoAprobado) {
-    const motivo = window.prompt(`Motivo para anular «${i.titulo}» (queda constancia; el archivo no se borra):`);
+    const motivo = await pedirTexto(`«${i.titulo}» queda anulado con su motivo; el archivo no se borra y, si había una `
+      + "versión anterior, vuelve a regir.", { titulo: "Anular un instrumento aprobado", aceptar: "Anular", minimo: 10 });
     if (!motivo) return;
     setError("");
     try {

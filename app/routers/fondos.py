@@ -121,3 +121,11 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
                        .order_by(RecursoDocumental.titulo)).all()
     return [ExpedienteOut(id=e.id, titulo=e.titulo, fechas_extremas=e.fechas_extremas, incluido_en_id=e.incluido_en_id)
             for e in filas]
+
+
+@router.get("/{fondo_id}/avance", response_model=rc.AvanceFondo,
+            summary="Avance del fondo por el recorrido archivístico y la siguiente acción recomendada")
+def avance(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import avance as servicio
+
+    return servicio.avance(db, fondo_o_404(db, fondo_id))

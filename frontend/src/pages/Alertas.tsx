@@ -1,3 +1,4 @@
+import { pedirTexto } from "@/lib/dialogos";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
@@ -51,7 +52,8 @@ export function Alertas() {
   }, [cargar]);
 
   async function atender(a: Alerta) {
-    const nota = window.prompt("Nota breve de lo que se hizo (opcional):", "");
+    const nota = await pedirTexto("Nota breve de lo que se hizo. Es opcional y queda con la alerta.",
+      { titulo: "Atender la alerta", aceptar: "Marcar como atendida", opcional: true });
     if (nota === null) return;
     setError("");
     try {
