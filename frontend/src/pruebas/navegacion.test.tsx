@@ -52,14 +52,19 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
     }
   });
 
-  it("un paso de la TRD abre su submódulo y sus pasos son pestañas de la pantalla", () => {
+  it("la TRD y el CCD son tres pestañas; las direcciones de antes llevan a la pestaña donde quedó cada paso", () => {
     montar("/fondos?vista=matriz");
     expect(rama("Instrumentos archivísticos").getAttribute("aria-expanded")).toBe("true");
     expect(submodulosVisibles("Instrumentos archivísticos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
     expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
-    expect(pestanas()).toEqual(["1. Cargar CCD y TRD", "2. Dependencias", "3. Series y tipos", "4. Matriz",
-      "5. Aplicar y versiones", "Cuadro de clasificación", "Fondos del archivo"]);
-    expect(pestanaActual()).toBe("4. Matriz");
+    expect(pestanas()).toEqual(["Cargar", "Ajustar", "Aplicar y cuadro"]);
+    expect(pestanaActual()).toBe("Ajustar");
+    cleanup();
+    montar("/fondos?vista=cuadro");
+    expect(pestanaActual()).toBe("Aplicar y cuadro");
+    cleanup();
+    montar("/fondos?vista=fondos");
+    expect(pestanaActual()).toBe("Cargar");
   });
 
   it("un módulo sin submódulos muestra sus vistas como pestañas", () => {

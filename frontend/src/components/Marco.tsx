@@ -43,6 +43,8 @@ interface Entrada {
   // un módulo es un proceso archivístico; sus pasos y pestañas van adentro).
   vistas?: Vista[];
   submodulos?: string[];
+  // Direcciones de antes que siguen sirviendo: vista vieja → vista donde quedó.
+  alias?: Record<string, string>;
 }
 
 
@@ -50,14 +52,13 @@ interface Entrada {
 // dos más amplios, submódulos; los pasos y las pestañas van dentro de la pantalla.
 const ENTRADAS: Entrada[] = [
   { ruta: "/fondos", nombre: "Instrumentos archivísticos", icono: "fondos", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["TRD y CCD", "TVD", "Disposición final"], vistas: [
-      { vista: "cargar", nombre: "1. Cargar CCD y TRD", submodulo: "TRD y CCD" },
-      { vista: "dependencias", nombre: "2. Dependencias", submodulo: "TRD y CCD" },
-      { vista: "series", nombre: "3. Series y tipos", submodulo: "TRD y CCD" },
-      { vista: "matriz", nombre: "4. Matriz", submodulo: "TRD y CCD" },
-      { vista: "versiones", nombre: "5. Aplicar y versiones", submodulo: "TRD y CCD" },
-      { vista: "cuadro", nombre: "Cuadro de clasificación", submodulo: "TRD y CCD" },
-      { vista: "fondos", nombre: "Fondos del archivo", submodulo: "TRD y CCD" },
+    submodulos: ["TRD y CCD", "TVD", "Disposición final"],
+    alias: { fondos: "cargar", dependencias: "ajustar", series: "ajustar", matriz: "ajustar", cuadro: "versiones" },
+    vistas: [
+      // Tres pestañas (decisión de la autora): lo de todos los días a un clic y los ajustes juntos.
+      { vista: "cargar", nombre: "Cargar", submodulo: "TRD y CCD" },
+      { vista: "ajustar", nombre: "Ajustar", submodulo: "TRD y CCD" },
+      { vista: "versiones", nombre: "Aplicar y cuadro", submodulo: "TRD y CCD" },
       { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD" },
       { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
@@ -102,6 +103,12 @@ export function vistasDe(ruta: string, u: UsuarioBreve | null): Vista[] {
   return (e?.vistas || []).filter((v) => !v.permitir || (u && v.permitir(u)));
 }
 
+/** La vista pedida en ?vista=, traducida si es una dirección de antes. */
+function pedidaDe(ruta: string, valor: string | null): string | null {
+  const e = ENTRADAS.find((x) => x.ruta === ruta);
+  return (valor && e?.alias?.[valor]) || valor;
+}
+
 /** Submódulos visibles de un módulo, cada uno con sus vistas (pestañas). */
 export function submodulosDe(ruta: string, u: UsuarioBreve | null): { nombre: string; vistas: Vista[] }[] {
   const e = ENTRADAS.find((x) => x.ruta === ruta);
@@ -115,7 +122,7 @@ export function useVista<T extends string>(ruta: string): T {
   const { usuario } = useSesion();
   const [parametros] = useSearchParams();
   const vistas = vistasDe(ruta, usuario).filter((v) => !v.ruta);
-  const pedida = parametros.get("vista");
+  const pedida = pedidaDe(ruta, parametros.get("vista"));
   return (vistas.find((v) => v.vista === pedida) || vistas[0])?.vista as T;
 }
 
@@ -165,7 +172,7 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
               }
               const abierto = abiertos.has(e.ruta);
               const internas = vistas.filter((v) => !v.ruta);
-              const pedida = parametros.get("vista");
+              const pedida = pedidaDe(e.ruta, parametros.get("vista"));
               const activaInterna = internas.find((v) => v.vista === pedida) || internas[0];
               const idLista = `submodulos-${e.ruta.slice(1)}`;
               return (
@@ -210,7 +217,8 @@ export function PestanasModulo() {
   const vistas = vistasDe(e.ruta, usuario);
   const internas = vistas.filter((v) => !v.ruta);
   const activa = vistas.find((v) => v.ruta === pathname)
-    || (pathname === e.ruta ? internas.find((v) => v.vista === parametros.get("vista")) || internas[0] : undefined);
+    || (pathname === e.ruta ? internas.find((v) => v.vista === pedidaDe(e.ruta, parametros.get("vista"))) || internas[0]
+      : undefined);
   if (!activa) return null;
   const grupo = e.submodulos ? vistas.filter((v) => v.submodulo === activa.submodulo) : vistas;
   if (grupo.length < 2) return null;

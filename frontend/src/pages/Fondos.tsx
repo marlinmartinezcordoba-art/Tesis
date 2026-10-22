@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useVista } from "@/components/Marco";
 import { CargarInstrumentos } from "@/components/CargarInstrumentos";
 import { CuadroClasificacion } from "@/components/CuadroClasificacion";
@@ -10,19 +10,20 @@ import { useSesion } from "@/lib/sesion";
 // Fondos: el punto de partida del archivo. Todo nace de cargar el cuadro de
 // clasificación (CCD) y la tabla de retención (TRD): el fondo, sus dependencias,
 // series, subseries, tipos y matriz. Lo demás es ajuste manual, aplicación y consulta.
-type VistaFondos = "cargar" | "fondos" | "versiones" | "dependencias" | "series" | "matriz" | "cuadro" | "disposicion" | "tvd";
+type VistaFondos = "cargar" | "ajustar" | "versiones" | "disposicion" | "tvd";
 
-function ListaFondos() {
+function ListaFondos({ seccion = false }: { seccion?: boolean }) {
   const { usuario } = useSesion();
   const { fondos, fondo, elegir } = useFondo();
+  const Titulo = seccion ? "h2" : "h1";
   return (
     <>
-      <h1>Fondos</h1>
+      <Titulo>Fondos del archivo</Titulo>
       <p className="sub">
         Los fondos del archivo. Elija con cuál trabajar: la carga, la descripción y la consulta se hacen sobre el fondo
         activo (también se cambia arriba, en el selector). Cada fondo nace de cargar su CCD y su TRD.
       </p>
-      {usuario?.es_administrador && (
+      {usuario?.es_administrador && !seccion && (
         <div className="acciones">
           <Link className="boton primario" to="/fondos?vista=cargar">+ Registrar un fondo desde su CCD y TRD</Link>
         </div>
@@ -68,15 +69,54 @@ function TvdEnConstruccion() {
   );
 }
 
+// Ajustar: lo que la carga ya configuró, en tres secciones que se abren. Se abre
+// la que pidió la dirección (las de antes: ?vista=dependencias, series o matriz).
+const AJUSTES: [string, string, string][] = [
+  ["dependencias", "Dependencias", "Secciones y subsecciones productoras, con su código."],
+  ["series", "Series, subseries y tipos documentales", "El banco terminológico del fondo."],
+  ["matriz", "Matriz de la TRD", "Por dependencia: series, tipos, retención, disposición, soporte y procedimiento."],
+];
+
+function Ajustar({ fondoId }: { fondoId: string }) {
+  const [parametros] = useSearchParams();
+  const pedida = parametros.get("vista");
+  const pantallas = { dependencias: DependenciasTrd, series: BancoTrd, matriz: MatrizTrd };
+  return (
+    <>
+      <h1>Ajustar la TRD y el CCD</h1>
+      <p className="sub">Lo que dejó la carga, para revisarlo y corregirlo a mano. Los cambios valen al aplicar la versión.</p>
+      {AJUSTES.map(([clave, titulo, ayuda]) => {
+        const Pantalla = pantallas[clave as keyof typeof pantallas];
+        return (
+          <details key={clave} className="seccion-ajuste tarjeta" open={pedida === clave}>
+            <summary><strong>{titulo}</strong> <span className="meta">{ayuda}</span></summary>
+            <div className="seccion-ajuste-cuerpo"><Pantalla fondoId={fondoId} /></div>
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
 export function Fondos() {
   const vista = useVista<VistaFondos>("/fondos");
   const { fondo } = useFondo();
-  if (vista === "fondos") return <ListaFondos />;
-  if (vista === "cargar") return <CargarInstrumentos />;
+  if (vista === "cargar") {
+    return (
+      <>
+        <CargarInstrumentos />
+        <div className="bloque-secundario"><ListaFondos seccion /></div>
+      </>
+    );
+  }
   if (vista === "tvd") return <TvdEnConstruccion />;
-  if (!fondo) return <div className="vacio">Registre un fondo primero (Fondos del archivo).</div>;
-  const pantallas = { versiones: VersionesTrd, dependencias: DependenciasTrd, series: BancoTrd, matriz: MatrizTrd,
-    cuadro: CuadroClasificacion, disposicion: DisposicionFinal };
-  const Pantalla = pantallas[vista] || ListaFondos;
-  return <Pantalla key={fondo.id} fondoId={fondo.id} />;
+  if (!fondo) return <div className="vacio">Registre un fondo primero (Cargar el CCD y la TRD).</div>;
+  if (vista === "ajustar") return <Ajustar key={fondo.id} fondoId={fondo.id} />;
+  if (vista === "disposicion") return <DisposicionFinal key={fondo.id} fondoId={fondo.id} />;
+  return (
+    <>
+      <VersionesTrd key={fondo.id} fondoId={fondo.id} />
+      <div className="bloque-secundario"><CuadroClasificacion key={`c-${fondo.id}`} fondoId={fondo.id} /></div>
+    </>
+  );
 }

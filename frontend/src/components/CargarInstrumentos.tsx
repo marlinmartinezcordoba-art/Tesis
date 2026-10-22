@@ -50,12 +50,12 @@ function Resumen({ c }: { c: Configurado }) {
         )}
         <p className="meta" style={{ marginBottom: 6 }}>Revise y, si hace falta, ajuste a mano:</p>
         <div className="acciones">
-          <Link className="boton chico" to="/fondos?vista=dependencias">2. Dependencias</Link>
-          <Link className="boton chico" to="/fondos?vista=series">3. Series, subseries y tipos</Link>
-          <Link className="boton chico" to="/fondos?vista=matriz">4. Matriz de la TRD</Link>
+          <Link className="boton chico" to="/fondos?vista=dependencias">Ajustar dependencias</Link>
+          <Link className="boton chico" to="/fondos?vista=series">Ajustar series y tipos</Link>
+          <Link className="boton chico" to="/fondos?vista=matriz">Ajustar la matriz</Link>
           {c.version?.estado === "vigente"
             ? <Link className="boton chico primario" to="/fondos?vista=cuadro">Ver el cuadro de clasificación</Link>
-            : <Link className="boton chico primario" to="/fondos?vista=versiones">5. Aplicar la versión</Link>}
+            : <Link className="boton chico primario" to="/fondos?vista=versiones">Aplicar la versión</Link>}
           {c.cuadroCreado && c.version?.estado !== "vigente" && (
             <Link className="boton chico" to="/fondos?vista=cuadro">Ver el cuadro de clasificación</Link>)}
         </div>
