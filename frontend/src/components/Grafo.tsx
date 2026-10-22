@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero, type ReactNode } from "react";
-import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 
 export type Familia =
   | "RecordSet" | "Record" | "RecordPart" | "Agent" | "Place" | "Activity" | "Date" | "Instantiation"
@@ -73,7 +73,7 @@ export const FAMILIAS: { clave: Familia; nombre: string; ric: string; principal:
   { clave: "RecordPart", nombre: "Parte documental", ric: "Record Part", principal: false },
   { clave: "DocumentaryFormType", nombre: "Forma documental", ric: "Documentary Form Type", principal: false },
   { clave: "ActivityType", nombre: "Tipo de actividad", ric: "Activity Type", principal: false },
-  { clave: "Mandate", nombre: "Mandato o norma", ric: "Mandate", principal: false },
+  { clave: "Mandate", nombre: "Mandato, norma o regla", ric: "Mandate · Rule", principal: false },
   { clave: "Event", nombre: "Hito institucional", ric: "Event", principal: false },
   { clave: "Concept", nombre: "Materia", ric: "Concept", principal: false },
 ];
@@ -150,7 +150,9 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
     const ys = lista.map((p) => p.y || 0);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const { ancho, alto } = tamanoRef.current;
-    const k = Math.min(1.4, Math.max(0.2, Math.min(ancho / (x1 - x0 + 180), alto / (y1 - y0 + 140))));
+    // Que el grafo ocupe el lienzo: margen justo para las etiquetas y sin tope bajo de acercamiento.
+    const tope = lista.length < 8 ? 1.1 : 1.8;  // pocos nodos: no se agrandan hasta tapar el lienzo
+    const k = Math.min(tope, Math.max(0.2, Math.min(ancho / (x1 - x0 + 130), alto / (y1 - y0 + 70))));
     setVista({ k, x: -((x0 + x1) / 2) * k, y: -((y0 + y1) / 2) * k });
   }
 
@@ -186,6 +188,9 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       .force("carga", forceManyBody().strength(-380))
       .force("choque", forceCollide<Punto>().radius((n) => radio(porClave.get(n.clave)!, n.clave === datos.centro) + 24))
       .force("centro", forceCenter(0, 0).strength(0.04))
+      // El lienzo es más ancho que alto: los nodos se extienden a lo ancho para aprovecharlo.
+      .force("ancho", forceX<Punto>(0).strength(0.015))
+      .force("alto", forceY<Punto>(0).strength(0.015 * Math.max(1, tamanoRef.current.ancho / tamanoRef.current.alto)))
       .alpha(anteriores.size ? 0.6 : 1)
       .on("end", () => encuadrar())
       .on("tick", () => {
@@ -220,8 +225,10 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
     const el = lienzo.current;
     if (!el) return;
     const medir = () => {
+      const antes = tamanoRef.current;
       tamanoRef.current = { ancho: el.clientWidth || 800, alto: el.clientHeight || 560 };
       setTamano(tamanoRef.current);
+      if (Math.abs(antes.ancho - tamanoRef.current.ancho) > 40 || Math.abs(antes.alto - tamanoRef.current.alto) > 40) encuadrar();
     };
     medir();
     const obs = new ResizeObserver(medir);

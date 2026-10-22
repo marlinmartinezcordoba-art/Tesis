@@ -52,12 +52,14 @@ FAMILIAS = {
     "Instantiation": "Archivo (Instantiation)",
     "DocumentaryFormType": "Forma documental (Documentary Form Type)",
     "ActivityType": "Tipo de actividad (Activity Type)",
-    "Mandate": "Mandato o norma (Mandate)",
+    "Mandate": "Mandato, norma o regla (Mandate, Rule)",
     "Concept": "Materia (Concept)",
 }
 _FAMILIA_CLASE = {"agente": "Agent", "lugar": "Place", "actividad": "Activity", "tipo_actividad": "ActivityType",
                   "mandato": "Mandate", "forma_documental": "DocumentaryFormType", "tipo_parte": "DocumentaryFormType",
-                  "materia": "Concept"}
+                  "materia": "Concept",
+                  # La regla de retención de la TRD o la TVD: rico:Rule (rico:Mandate es una de sus subclases).
+                  "regla": "Mandate"}
 _FAMILIA_NIVEL = {"unidad_documental": "Record", "parte_documental": "RecordPart"}
 # Estado de la descripción de un Record Resource visible en el grafo. Los
 # borradores nunca se dibujan (ver documentación), así que no son opción.
@@ -201,7 +203,7 @@ class _Contexto:
             if e is None or e.fondo_id != fid or e.estado != "activa" or e.subtipo == "mecanismo" \
                     or not self.entidad_consultable(e.id):
                 return None
-            return {"tipo": tipo, "clase": e.clase, "familia": _FAMILIA_CLASE[e.clase], "etiqueta": e.nombre,
+            return {"tipo": tipo, "clase": e.clase, "familia": _FAMILIA_CLASE.get(e.clase, "Concept"), "etiqueta": e.nombre,
                     "subtitulo": e.subtipo, "estado": None,
                     "fecha_inicio": e.existencia_inicio, "fecha_fin": e.existencia_fin}
         if tipo == "fecha":

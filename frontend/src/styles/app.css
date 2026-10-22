@@ -447,7 +447,7 @@ mark.hl { background: var(--accent); color: var(--accent-ink); }
 .contenedor-lienzo { position: relative; }
 .lienzo-grafo { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 /* El lienzo se ajusta al alto de la ventana: en una pantalla baja no se corta. */
-.svg-grafo { display: block; width: 100%; height: max(380px, calc(100vh - 290px)); cursor: grab; touch-action: none; user-select: none; transition: opacity .2s; }
+.svg-grafo { display: block; width: 100%; height: max(420px, calc(100vh - 300px)); cursor: grab; touch-action: none; user-select: none; transition: opacity .2s; }
 .svg-grafo:active, .lienzo-grafo.paneando .svg-grafo { cursor: grabbing; }
 .punto-lienzo { fill: var(--line); }
 .fondo-lienzo { pointer-events: all; }

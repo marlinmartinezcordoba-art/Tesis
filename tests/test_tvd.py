@@ -81,6 +81,11 @@ def test_la_tvd_valora_su_periodo_y_la_trd_lo_que_sigue(cliente, db, fondo, cabe
     assert (nuevo["central_anios"], nuevo["disposicion_final"]) == (10, "seleccion")
     correspondencia = _expediente(db, fondo, _serie(db, fondo, "100.7"), "2009-05-05/2009-12-31")
     assert (correspondencia["central_anios"], correspondencia["disposicion_final"]) == (5, "eliminacion")
+    # El grafo de contexto dibuja las reglas de retención (rico:Rule) a 3 niveles sin caerse.
+    g = cliente.get(f"/api/grafo/recurso_documental/{fondo.id}", headers=cab,
+                    params={"fondo_id": str(fondo.id), "saltos": 3})
+    assert g.status_code == 200, g.text
+    assert any(n["clase"] == "regla" and n["familia"] == "Mandate" for n in g.json()["nodos"])
     # En RiC-O: una rico:Rule por TVD, de tipo «Tabla de valoración documental», con su periodo.
     ex = exportar_conforme(db, fondo)
     assert (None, None, Literal("Tabla de valoración documental")) in ex.grafo
