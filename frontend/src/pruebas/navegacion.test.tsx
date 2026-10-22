@@ -54,7 +54,7 @@ describe("árbol de submódulos", () => {
     // Sin ?vista, la primera vista del módulo es la activa.
     expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Agentes, lugares y más");
     fireEvent.click(rama("Consulta y difusión"));
-    expect(vistasVisibles("Consulta y difusión")).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Datos enlazados (RiC-O)"]);
+    expect(vistasVisibles("Consulta y difusión")).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Índice", "Datos enlazados (RiC-O)"]);
     expect(rama("Autoridades y términos").getAttribute("aria-expanded")).toBe("false");
     expect(vistasVisibles("Autoridades y términos")).toEqual([]);
     // Tocar el módulo abierto lo cierra: no queda ninguno abierto.
@@ -101,10 +101,10 @@ describe("árbol de submódulos", () => {
     expect(screen.getByRole("link", { name: "Evaluación" })).toBeTruthy();
   });
 
-  it("el perfil de consulta ve el índice y no lo que no puede usar; el equipo interno usa Vocabularios", () => {
+  it("el perfil de consulta ve el índice y no lo que no puede usar; quien genera instrumentos también lo ve para aprobarlo", () => {
     // Consulta: catálogo, grafo, índice y RiC-O; sin inventario ni guía (se generan) y sin Vocabularios.
     expect(vistasDe("/instrumentos", CONSULTA).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Índice", "Datos enlazados (RiC-O)"]);
-    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Datos enlazados (RiC-O)"]);
+    expect(vistasDe("/instrumentos", ADMIN).map((v) => v.nombre)).toEqual(["Catálogo", "Grafo de contexto", "Inventario (FUID)", "Guía del fondo", "Índice", "Datos enlazados (RiC-O)"]);
     montar("/instrumentos?vista=indice", CONSULTA);
     expect(screen.queryByRole("link", { name: "Agentes, lugares y más" })).toBeNull();
     // El menú no lleva títulos de grupo (decisión de la autora).
