@@ -266,7 +266,8 @@ def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, 
     anteriores = db.scalars(select(TrabajoDescripcion).where(
         TrabajoDescripcion.id != trabajo.id,
         TrabajoDescripcion.estado.in_(("expirado", "cancelado")), TrabajoDescripcion.recurso_id.is_(None),
-        TrabajoDescripcion.propuesta.is_not(None), TrabajoDescripcion.ultima_actividad >= limite)
+        (TrabajoDescripcion.propuesta.is_not(None)) | (TrabajoDescripcion.borrador.is_not(None)),
+        TrabajoDescripcion.ultima_actividad >= limite)
         .order_by(TrabajoDescripcion.ultima_actividad.desc()).limit(20)).all()
     buscados = set(ids)
     for anterior in anteriores:
@@ -274,11 +275,13 @@ def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, 
                                .where(TrabajoInstanciacion.trabajo_id == anterior.id)))
         if suyos != buscados or anterior.nivel != trabajo.nivel:
             continue
-        trabajo.propuesta, trabajo.propuesta_id = anterior.propuesta, anterior.propuesta_id
+        # Una propuesta que no llegó (el motor no respondió) no se hereda: se vuelve a consultar.
+        if _propuesta_util(anterior.propuesta):
+            trabajo.propuesta, trabajo.propuesta_id = anterior.propuesta, anterior.propuesta_id
         trabajo.borrador, trabajo.borrador_guardado_en = anterior.borrador, anterior.borrador_guardado_en
         trabajo.recuperado_de_id = anterior.id
-        if anterior.propuesta_id:
-            p = db.get(PropuestaIA, anterior.propuesta_id)
+        if trabajo.propuesta_id:
+            p = db.get(PropuestaIA, trabajo.propuesta_id)
             if p is not None and p.estado != "generada":
                 p.estado, p.estado_en = "generada", ahora()  # vuelve a estar en uso; su contenido no cambia
         otra = anterior.usuario_id != usuario_id
@@ -291,6 +294,15 @@ def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, 
                   nuevo={"recuperado_de": str(anterior.id), "empezada_por": str(anterior.usuario_id),
                          "guardado_en": anterior.borrador_guardado_en.isoformat() if anterior.borrador_guardado_en else None})
         return
+
+
+def _propuesta_util(propuesta: str | None) -> bool:
+    import json
+
+    try:
+        return bool(propuesta) and bool(json.loads(propuesta).get("disponible"))
+    except (ValueError, AttributeError):
+        return False
 
 
 def guardar_borrador(db: Session, trabajo: TrabajoDescripcion, borrador: dict) -> None:

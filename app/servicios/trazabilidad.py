@@ -75,6 +75,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "descripcion_cancelada": ("Salió sin publicar", None),
     "edicion_liberada": ("Liberó una edición", None),
     "descripcion_recuperada": ("Continuó una descripción sin publicar", None),
+    "propuesta_repetida": ("Volvió a consultar el motor de análisis", None),
     "descripcion_publicada": ("Publicó una descripción", "Descripciones validadas"),
     "descripcion_editada": ("Corrigió una descripción", "Descripciones validadas"),
     "descripcion_restaurada": ("Restauró una versión anterior de una descripción", "Descripciones validadas"),

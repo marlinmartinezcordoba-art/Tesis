@@ -249,11 +249,19 @@ function BuscarPublicada({ fondoId, alElegir }: { fondoId: string; alElegir: (id
   );
 }
 
-export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel }: {
+// Lo que el sistema revisó de la completitud (RiC-A24), página por página.
+export interface RevisionCompletitud {
+  nota_propuesta: string | null; con_hallazgos: number;
+  documentos: { nombre: string; paginas: number; revisable: boolean; explicacion: string;
+    hallazgos: { tipo: string; paginas: number[]; detalle: string; confianza: string }[] }[];
+}
+
+export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel, completitud }: {
   valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; fondoId: string;
   propuestos: string[]; confianza: number | null;
   heredada?: { acceso: string; de: string | null } | null;
   nivel?: string;
+  completitud?: RevisionCompletitud | null;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
@@ -418,6 +426,26 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         <textarea id="integridad" className="entrada" rows={2} value={valor.notaIntegridad} maxLength={5000}
                   placeholder="Ej.: «Completo» o «Falta el oficio del folio 12»"
                   onChange={(e) => alCambiar({ ...valor, notaIntegridad: e.target.value })} />
+        {completitud && (
+          <div className={`aviso ${completitud.con_hallazgos ? "alerta" : "bien"} revision-completitud`} role="note">
+            <strong>{completitud.con_hallazgos
+              ? `El sistema encontró ${completitud.con_hallazgos} señal(es) de que le falta o le sobra algo`
+              : "El sistema no encontró faltantes"}</strong>
+            <span className="meta"> · revisión por reglas sobre el texto de cada página, no IA: confírmela.</span>
+            {completitud.documentos.map((d) => (
+              <div key={d.nombre}>
+                {completitud.documentos.length > 1 && <div className="meta">{d.nombre} · {d.paginas} página(s)</div>}
+                {!d.revisable && <div className="meta">{d.explicacion}</div>}
+                <ul>{d.hallazgos.map((h, i) => <li key={i}>{h.detalle}</li>)}</ul>
+              </div>
+            ))}
+            {completitud.nota_propuesta && valor.notaIntegridad !== completitud.nota_propuesta && (
+              <button type="button" className="boton chico"
+                      onClick={() => alCambiar({ ...valor, notaIntegridad: completitud.nota_propuesta! })}>
+                Usar la nota del sistema</button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

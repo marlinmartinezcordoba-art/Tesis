@@ -263,12 +263,28 @@ class MotorGemini:
 
     def _llamar(self, cuerpo: dict) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.modelo}:generateContent"
-        try:
-            r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": self.clave}, timeout=settings.segundos_motor)
-        except httpx.HTTPError as exc:
-            raise MotorError("No hubo respuesta del motor de análisis.") from exc
+        # Un fallo pasajero (conexión, servicio saturado) se reintenta una vez; una espera
+        # agotada no, para no duplicar el tiempo que la persona mira la pantalla.
+        for intento in (1, 2):
+            try:
+                r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": self.clave}, timeout=settings.segundos_motor)
+            except httpx.TimeoutException as exc:
+                raise MotorError(f"El motor de análisis tardó más de {settings.segundos_motor} segundos (el documento "
+                                 "puede ser muy largo o el servicio estar lento).") from exc
+            except httpx.HTTPError as exc:
+                if intento == 1:
+                    time.sleep(3)
+                    continue
+                raise MotorError("No hubo conexión con el motor de análisis.") from exc
+            if r.status_code in (429, 500, 502, 503, 504) and intento == 1:
+                log.warning("Gemini respondió %s; se reintenta una vez.", r.status_code)
+                time.sleep(3)
+                continue
+            break
         if r.status_code != 200:
             log.warning("Gemini respondió %s: %s", r.status_code, r.text[:300])
+            if r.status_code == 429:
+                raise MotorError("El motor de análisis alcanzó su límite de uso por ahora.")
             raise MotorError(f"El motor de análisis respondió con un error ({r.status_code}).")
         try:
             datos = r.json()
@@ -482,7 +498,8 @@ def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaCont
         propuesta.respuesta = crudo
     except MotorError as exc:
         propuesta = Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT,
-                              aviso=f"{exc} Puede describir a mano o volver a intentarlo más tarde.")
+                              aviso=f"{exc} Puede volver a consultarlo con el botón «Volver a consultar el motor» o "
+                                    "describir a mano: su avance se guarda.")
     ultima = getattr(motor, "ultima", None) or {}
     propuesta.generada_en, propuesta.parametros, propuesta.entrada = momento, comun["parametros"], comun["entrada"]
     propuesta.duracion_ms = int((time.monotonic() - inicio) * 1000)

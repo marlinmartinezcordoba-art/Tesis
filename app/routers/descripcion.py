@@ -36,7 +36,7 @@ from app.schemas.respuestas_descripcion import (
     PaginasOut,
     PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut, ReferenciaBreve, VersionCompleta, VersionResumen,
 )
-from app.servicios import consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
+from app.servicios import completitud, consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -79,6 +79,8 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "borrador_guardado_en": trabajo.borrador_guardado_en.isoformat() if trabajo.borrador_guardado_en else None,
         "recuperado": trabajo.recuperado_de_id is not None,
         "empezada_por": _empezada_por(db, trabajo),
+        # Completitud revisada por el sistema (RiC-A24): hallazgos con su página y la nota propuesta.
+        "completitud": completitud.revisar_todos(db, documentos),
         "umbral_confianza": settings.umbral_confianza,
     }
 
@@ -161,6 +163,12 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
         descripcion.latido(db, trabajo)
         db.commit()
         return _espacio(db, trabajo)
+    await _consultar_motor(db, trabajo, actor.id)
+    db.commit()
+    return _espacio(db, trabajo)
+
+
+async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID) -> None:
     # El motor se consulta con la marca ya tomada (puede tardar unos segundos).
     documentos = [motor.Documento(id=d.id, nombre=d.nombre_original, texto=d.texto_extraido or "")
                   for d in descripcion.documentos_de(db, trabajo)]
@@ -173,13 +181,32 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
     propuestas_ia.ubicar_fragmentos(db, propuesta)
     registro = propuestas_ia.registrar(db, propuesta, origen="descripcion", fondo_id=trabajo.fondo_id,
                                        nivel=trabajo.nivel, instanciaciones=[d.id for d in documentos],
-                                       solicitada_por_id=actor.id, trabajo_id=trabajo.id)
+                                       solicitada_por_id=usuario_id, trabajo_id=trabajo.id)
     datos = propuesta.a_dict()
     if registro is not None:
         trabajo.propuesta_id = registro.id
         datos["propuesta_id"] = str(registro.id)
     trabajo.propuesta = json.dumps(datos, ensure_ascii=False)
     descripcion.latido(db, trabajo)
+
+
+@router.post("/trabajos/{trabajo_id}/reproponer",
+             responses={200: {"model": EspacioTrabajoOut, "description": "El espacio con la nueva propuesta"}},
+             summary="Volver a consultar el motor (si no respondió); el avance guardado se conserva")
+async def reproponer(trabajo_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("descripcion")),
+                     db: Session = Depends(get_db)):
+    try:
+        trabajo = descripcion.trabajo_propio(db, trabajo_id, actor.id)
+    except descripcion.ErrorDescripcion as exc:
+        db.commit()
+        return _error(exc)
+    anterior = trabajo.propuesta_id
+    await _consultar_motor(db, trabajo, actor.id)
+    registrar(db, modulo="descripcion", accion="propuesta_repetida", usuario_id=actor.id,
+              entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
+              detalle="Se volvió a consultar el motor de análisis.",
+              nuevo={"anterior": str(anterior) if anterior else None,
+                     "nueva": str(trabajo.propuesta_id) if trabajo.propuesta_id else None}, request=request)
     db.commit()
     return _espacio(db, trabajo)
 

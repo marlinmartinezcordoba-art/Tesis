@@ -6,7 +6,7 @@ import {
   CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, clasificacionParaEnviar, parteParaEnviar,
   proteccionParaEnviar,
   partePendiente,
-  type CamposRegistroValor, type ParteBorrador,
+  type CamposRegistroValor, type ParteBorrador, type RevisionCompletitud,
 } from "@/components/DescripcionV3";
 import { SelectorFecha } from "@/components/SelectorFecha";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
@@ -75,6 +75,7 @@ interface Espacio {
   borrador_guardado_en?: string | null;
   recuperado?: boolean;
   empezada_por?: string | null;  // si se continúa la descripción que empezó otra persona
+  completitud?: RevisionCompletitud | null;
 }
 
 // Lo que se guarda del formulario mientras se trabaja.
@@ -184,7 +185,8 @@ export function EspacioTrabajo() {
       setTitulo(p?.titulo || "");
       setAlcance(p?.alcance || "");
       setItems((p?.entidades || []).map((e) => nuevoItem(e)));
-      setCampos(camposVacios(p?.idiomas || []));
+      // La completitud llega propuesta por el sistema; el archivista la confirma o la corrige.
+      setCampos({ ...camposVacios(p?.idiomas || []), notaIntegridad: espacio.completitud?.nota_propuesta || "" });
     }
     nivelesSuperiores(espacio.fondo.id, espacio.nivel).then((opciones) => {
       setSuperiores(opciones);
@@ -193,6 +195,26 @@ export function EspacioTrabajo() {
       setIncluidoEn(elegido || (opciones.some((o) => o.id === destino) ? destino! : espacio.fondo.id));
     }).catch(() => undefined).finally(() => { listo.current = true; });
   }, [espacio]);
+
+  // El motor no respondió: se le pregunta de nuevo sin perder lo hecho. Lo que el motor
+  // propone ahora entra a la lista; lo escrito a mano (título, alcance, campos) se respeta.
+  const [reconsultando, setReconsultando] = useState(false);
+  async function reconsultar() {
+    if (!espacio) return;
+    setReconsultando(true);
+    setError("");
+    try {
+      const r = await pedir<Espacio>(`/api/descripcion/trabajos/${espacio.trabajo_id}/reproponer`, { method: "POST" });
+      const p = r.propuesta;
+      setEspacio({ ...r, borrador: { titulo: titulo || p?.titulo || "", alcance: alcance || p?.alcance || "",
+        items: [...(p?.entidades || []).map((e) => nuevoItem(e)), ...items.filter((i) => i.manual)],
+        campos, partes, incluidoEn } });
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo consultar el motor.");
+    } finally {
+      setReconsultando(false);
+    }
+  }
 
   // Guardado automático: dos segundos después del último cambio, el avance va al servidor.
   // Así se puede cerrar la pestaña, recargar o salir y continuar después donde se dejó.
@@ -400,7 +422,17 @@ export function EspacioTrabajo() {
           : guardado?.estado === "guardado" ? `Avance guardado a las ${guardado.en!.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}. Puede salir y continuar después.`
           : guardado?.estado === "error" ? "No se pudo guardar el avance: revise la conexión." : "El avance se guarda solo mientras trabaja."}
       </p>
-      {propuesta?.aviso && <div className="aviso alerta">{propuesta.aviso}</div>}
+      {propuesta?.aviso && (
+        <div className="aviso alerta">
+          {propuesta.aviso}
+          {propuesta.motor && !propuesta.disponible && (
+            <div className="acciones" style={{ marginTop: 8 }}>
+              <button type="button" className="boton chico primario" disabled={reconsultando} onClick={reconsultar}>
+                {reconsultando ? "Consultando el motor…" : "Volver a consultar el motor"}</button>
+            </div>
+          )}
+        </div>
+      )}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
       <div className="espacio">
@@ -446,6 +478,7 @@ export function EspacioTrabajo() {
           </div>
 
           <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
+                          completitud={espacio.completitud}
                           propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null} />
 
           {espacio.nivel === "unidad_documental" && (
