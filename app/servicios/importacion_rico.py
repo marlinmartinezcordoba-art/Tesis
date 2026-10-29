@@ -90,9 +90,25 @@ def leer(contenido: bytes, archivo: str) -> Graph:
     if len(contenido) > MAX_BYTES:
         raise ErrorImportacion("El archivo supera los 50 MB.", 413)
     extension = ("." + archivo.rsplit(".", 1)[-1].lower()) if "." in archivo else ""
+    if extension in (".xml", ".ead", ""):
+        # Un inventario en EAD (EAD3 o EAD 2002) se convierte a RiC-O y sigue el mismo camino.
+        from app.servicios import importacion_ead
+
+        raiz = importacion_ead.raiz_xml(contenido)
+        if importacion_ead.es_eac(raiz):
+            raise ErrorImportacion("Es un EAC-CPF (una autoridad, no un fondo): impórtelo en Autoridades y términos.")
+        if importacion_ead.es_ead(raiz):
+            try:
+                g, omitidas = importacion_ead.a_rico(raiz)
+            except importacion_ead.ErrorEad as exc:
+                raise ErrorImportacion(str(exc)) from exc
+            g.ricora_omitidas = omitidas  # lo que el EAD trae y no se convierte, para la vista previa
+            g.ricora_origen = "EAD"
+            return g
     formato = FORMATOS.get(extension)
     if formato is None:
-        raise ErrorImportacion("Use un archivo RiC-O en Turtle (.ttl), RDF/XML (.rdf), JSON-LD (.jsonld) o N-Triples (.nt).")
+        raise ErrorImportacion("Use un archivo RiC-O en Turtle (.ttl), RDF/XML (.rdf), JSON-LD (.jsonld) o N-Triples "
+                               "(.nt), o un inventario en EAD (.xml).")
     g = Graph()
     try:
         g.parse(io.BytesIO(contenido), format=formato)
@@ -232,6 +248,7 @@ def analizar(g: Graph, seccion: dict | None = None) -> Analisis:
     filas = _filas_cuadro(g, fondo, recursos, seccion) if fondo else []
     if fondo is not None and not filas:
         problemas.append("El fondo no trae series: sin cuadro de clasificación no se registra.")
+    omitidas.update(getattr(g, "ricora_omitidas", Counter()))
     return Analisis(g, fondo, recursos, entidades, filas, +omitidas, problemas, trd)
 
 
@@ -352,7 +369,8 @@ def _filas_cuadro(g: Graph, fondo: Nodo, recursos: dict, seccion: dict | None = 
 
 def vista_previa(contenido: bytes, archivo: str, seccion: dict | None = None) -> dict:
     a = analizar(leer(contenido, archivo), seccion)
-    return a.resumen() | {"filas": a.filas, "huella": hashlib.sha256(contenido).hexdigest()}
+    return a.resumen() | {"filas": a.filas, "huella": hashlib.sha256(contenido).hexdigest(),
+                          "formato": getattr(a.grafo, "ricora_origen", "RiC-O")}
 
 
 # --- Aplicar -------------------------------------------------------------------------------------------
@@ -376,7 +394,7 @@ def importar(db: Session, contenido: bytes, archivo: str, usuario_id: uuid.UUID,
     punto = db.begin_nested()
     try:
         fondo = fondos.crear(db, titulo=titulo or raiz.titulo, nota=_texto(g, raiz.uri, RICO.generalDescription),
-                             fechas_extremas=_fechas(g, raiz.uri)[0], usuario_id=usuario_id, origen=f"RiC-O: {archivo}")
+                             fechas_extremas=_fechas(g, raiz.uri)[0], usuario_id=usuario_id, origen=f"{getattr(g, 'ricora_origen', 'RiC-O')}: {archivo}")
         _campos(g, raiz.uri, fondo)
         informe, validacion, parametrizado, completa = parametrizacion_trd.configurar_cuadro_nuevo(
             db, fondo, a.filas, usuario_id, version)

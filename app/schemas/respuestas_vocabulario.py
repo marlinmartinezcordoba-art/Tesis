@@ -208,3 +208,22 @@ class SugerenciaDescartada(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     estado: str
+
+
+class VistaPreviaEac(BaseModel):
+    """Las autoridades leídas del EAC-CPF: qué se crearía y qué se completaría, sin crear nada."""
+    model_config = ConfigDict(extra="allow")
+
+    autoridades: list[dict]
+    huella: str
+    resumen: dict[str, int]
+
+
+class ImportacionEac(BaseModel):
+    """Lo creado y completado, los avisos (lo que ya tenía otro valor) y lo que no se importa."""
+    model_config = ConfigDict(extra="allow")
+
+    creadas: int
+    completadas: int
+    avisos: list[str]
+    omitidas: dict[str, int]

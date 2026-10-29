@@ -499,3 +499,59 @@ def fusionar(datos: FusionarIn, request: Request, actor: Actor = Depends(acceso_
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     db.commit()
     return {"definitiva": str(definitiva.id), "absorbida": str(absorbida.id), "relaciones_movidas": movidas}
+
+
+# --- Importar autoridades en EAC-CPF ------------------------------------------------------------
+
+
+async def _archivo_eac(request: Request) -> tuple[bytes, str, dict]:
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    from app.servicios import importacion_eac
+
+    formulario = await request.form(max_files=1)
+    try:
+        archivo = formulario.get("archivo")
+        if not isinstance(archivo, StarletteUploadFile):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Adjunte el EAC-CPF (.xml) o un .zip.")
+        contenido = await archivo.read(importacion_eac.MAX_BYTES + 1)
+        datos = {k: v for k, v in formulario.items() if isinstance(v, str)}
+        return contenido, archivo.filename or "autoridad.xml", datos
+    finally:
+        await formulario.close()
+
+
+@router.post("/eac/vista-previa", responses={200: {"model": rv.VistaPreviaEac, "description": "Lo que se leyó"}},
+             summary="Leer autoridades en EAC-CPF (un .xml o un .zip) y decir qué se crearía o "
+             "completaría, sin crear nada")
+async def eac_vista_previa(request: Request, _: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import importacion_eac
+
+    contenido, nombre, datos = await _archivo_eac(request)
+    try:
+        fondo = fondo_o_404(db, uuid.UUID(datos.get("fondo_id", "")))
+    except ValueError as exc:
+        raise HTTPException(422, detail="Indique el fondo.") from exc
+    try:
+        return importacion_eac.vista_previa(db, fondo.id, contenido, nombre)
+    except importacion_eac.ErrorEac as exc:
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+
+
+@router.post("/eac", responses={200: {"model": rv.ImportacionEac, "description": "Lo creado y completado"}},
+             summary="Importar autoridades en EAC-CPF a la ficha ISAAR del fondo (crea o completa; todo o nada)")
+async def eac_importar(request: Request, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import importacion_eac
+
+    contenido, nombre, datos = await _archivo_eac(request)
+    try:
+        fondo = fondo_o_404(db, uuid.UUID(datos.get("fondo_id", "")))
+    except ValueError as exc:
+        raise HTTPException(422, detail="Indique el fondo.") from exc
+    try:
+        informe = importacion_eac.importar(db, fondo.id, contenido, nombre, actor.id)
+    except importacion_eac.ErrorEac as exc:
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    db.commit()
+    return informe

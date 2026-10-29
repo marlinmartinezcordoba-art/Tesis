@@ -8,6 +8,7 @@ import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { Tesauros } from "@/components/Tesauros";
+import { ImportarEac } from "@/components/ImportarEac";
 import { NIVEL_FICHA } from "@/components/FichaAutoridad";
 import {
   CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, accionesTexto, claseRicDe, conexionesTexto, esMecanismo,
@@ -278,6 +279,12 @@ export function Vocabularios() {
             mencionan y se enriquece aquí: la ficha de autoridad de un agente, la ficha ampliada de un lugar, el árbol de
             funciones.
           </p>
+          {usuario?.es_administrador && (
+            <details className="caja" style={{ marginBottom: 12 }}>
+              <summary><strong>Importar autoridades en EAC-CPF</strong></summary>
+              <ImportarEac fondoId={fondo.id} alTerminar={cargarEntidades} />
+            </details>
+          )}
           <div className="opciones" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 10 }}>
             {(["", ...CLASES] as (ClaseVocabulario | "")[]).map((c) => (
               <label key={c || "todos"} className={!mecanismos && clase === c ? "elegida" : ""}>

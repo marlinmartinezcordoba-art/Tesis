@@ -172,7 +172,7 @@ export function CargarInstrumentos() {
               <input type="radio" disabled={!fondo} checked={modo === "version"} onChange={() => setModo("version")} />
               {" "}Una versión nueva de la TRD de {fondo ? `«${fondo.titulo}»` : "un fondo existente"}</label>
             <label className="boton chico"><input type="radio" checked={modo === "rico"} onChange={() => setModo("rico")} />
-              {" "}Un fondo en RiC-O de otro sistema</label>
+              {" "}Un fondo de otro sistema (RiC-O o EAD)</label>
           </div>
           <div className="tarjeta">
             <div className="tarjeta-cuerpo">

@@ -10,7 +10,7 @@ import { ResultadoValidacion, TablaVistaPrevia, type Validacion, type Vista } fr
 interface Previa {
   fondo: string | null; niveles: Record<string, number>; entidades: Record<string, number>; filas_cuadro: number;
   filas_con_problemas: number; series_sin_seccion: number; productor_sugerido: string | null;
-  omitidas: Record<string, number>; problemas: string[]; filas: Vista["filas"];
+  omitidas: Record<string, number>; problemas: string[]; filas: Vista["filas"]; formato?: "RiC-O" | "EAD";
   trd: { nombre: string | null; acto_aprobacion: string | null; fecha_aprobacion: string | null;
     vigente_desde: string | null } | null;
 }
@@ -93,13 +93,14 @@ export function ImportarRico({ alImportar }: { alImportar: (r: Importado) => voi
     <>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <p className="meta" style={{ marginTop: 0 }}>
-        Un fondo descrito en RiC-O 1.1 por otro sistema (Turtle, RDF/XML, JSON-LD o N-Triples). Las secciones, series y
+        Un fondo descrito por otro sistema: en RiC-O 1.1 (Turtle, RDF/XML, JSON-LD o N-Triples) o en EAD (EAD3 o EAD 2002,
+        el que exportan AtoM o ArchivesSpace; se convierte a RiC-O antes de leerlo). Las secciones, series y
         subseries se convierten en el CCD y la TRD del fondo, y entran por la parametrización como cualquier otro; los
         agentes, lugares, expedientes, documentos y relaciones se llevan a sus tablas. Antes de crear se valida en RiC-O.
       </p>
       <label className="boton chico primario">
-        {ocupado && !previa ? "Leyendo…" : previa ? "Leer otro archivo" : "Leer el archivo RiC-O"}
-        <input type="file" accept=".ttl,.rdf,.xml,.owl,.jsonld,.json,.nt" hidden disabled={ocupado}
+        {ocupado && !previa ? "Leyendo…" : previa ? "Leer otro archivo" : "Leer el archivo (RiC-O o EAD)"}
+        <input type="file" accept=".ttl,.rdf,.xml,.ead,.owl,.jsonld,.json,.nt" hidden disabled={ocupado}
                onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
       </label>
       {previa && (
@@ -108,6 +109,7 @@ export function ImportarRico({ alImportar }: { alImportar: (r: Importado) => voi
             <div className="tarjeta-cab">Lo que trae el archivo</div>
             <div className="tarjeta-cuerpo">
               <ul>
+                {previa.formato === "EAD" && <li><strong>Formato:</strong> EAD, convertido a RiC-O 1.1 para leerlo</li>}
                 <li><strong>Niveles:</strong> {lista(previa.niveles, NIVEL)}</li>
                 <li><strong>Vocabulario:</strong> {lista(previa.entidades, CLASE)}</li>
                 <li><strong>Cuadro:</strong> {previa.filas_cuadro} serie(s) o subserie(s) para la TRD
