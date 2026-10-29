@@ -1,6 +1,6 @@
 import { confianzaTexto } from "@/lib/formato";
 import { GuiaCampo } from "@/components/GuiaCampo";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CamposRegistro, ElegirActividadMayor, PartesDocumentales, camposVacios, clasificacionParaEnviar, parteParaEnviar,
@@ -70,6 +70,16 @@ interface Espacio {
     generada_en?: string | null;
   } | null;
   umbral_confianza: number;
+  // El avance guardado (para continuar donde se dejó) y si este trabajo continúa uno anterior.
+  borrador?: Borrador | null;
+  borrador_guardado_en?: string | null;
+  recuperado?: boolean;
+}
+
+// Lo que se guarda del formulario mientras se trabaja.
+interface Borrador {
+  titulo: string; alcance: string; items: Item[]; campos: CamposRegistroValor; partes: ParteBorrador[];
+  incluidoEn: string;
 }
 
 interface Item extends EntidadPropuesta {
@@ -143,6 +153,9 @@ export function EspacioTrabajo() {
   const [vencido, setVencido] = useState(false);
   const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
+  // Guardado automático del avance: listo tras cargar (o restaurar) el formulario.
+  const listo = useRef(false);
+  const [guardado, setGuardado] = useState<{ estado: "guardando" | "guardado" | "error"; en?: Date } | null>(null);
 
   // Cargar (o recargar) el espacio de trabajo.
   useEffect(() => {
@@ -155,17 +168,47 @@ export function EspacioTrabajo() {
 
   useEffect(() => {
     if (!espacio) return;
+    listo.current = false;
     const p = espacio.propuesta;
-    setTitulo(p?.titulo || "");
-    setAlcance(p?.alcance || "");
-    setItems((p?.entidades || []).map((e) => nuevoItem(e)));
-    setCampos(camposVacios(p?.idiomas || []));
+    const b = espacio.borrador;
+    if (b) {
+      // Continúa donde iba: lo revisado y escrito vuelve tal cual. Una verificación que quedó a medias se repite.
+      setTitulo(b.titulo ?? "");
+      setAlcance(b.alcance ?? "");
+      setItems((b.items || []).map((i) => ({ ...i, editando: false,
+        verif: i.verif?.estado === "verificando" ? { ...i.verif, estado: "sin_verificar" } : i.verif })));
+      setCampos(b.campos || camposVacios(p?.idiomas || []));
+      setPartes(b.partes || []);
+    } else {
+      setTitulo(p?.titulo || "");
+      setAlcance(p?.alcance || "");
+      setItems((p?.entidades || []).map((e) => nuevoItem(e)));
+      setCampos(camposVacios(p?.idiomas || []));
+    }
     nivelesSuperiores(espacio.fondo.id, espacio.nivel).then((opciones) => {
       setSuperiores(opciones);
       const destino = espacio.documentos.length === 1 ? espacio.documentos[0].expediente_destino_id : null;
-      setIncluidoEn(opciones.some((o) => o.id === destino) ? destino! : espacio.fondo.id);
-    }).catch(() => undefined);
+      const elegido = b?.incluidoEn && opciones.some((o) => o.id === b.incluidoEn) ? b.incluidoEn : null;
+      setIncluidoEn(elegido || (opciones.some((o) => o.id === destino) ? destino! : espacio.fondo.id));
+    }).catch(() => undefined).finally(() => { listo.current = true; });
   }, [espacio]);
+
+  // Guardado automático: dos segundos después del último cambio, el avance va al servidor.
+  // Así se puede cerrar la pestaña, recargar o salir y continuar después donde se dejó.
+  useEffect(() => {
+    if (!espacio || vencido || !listo.current) return;
+    const t = setTimeout(() => {
+      const borrador: Borrador = { titulo, alcance, items, campos, partes, incluidoEn };
+      setGuardado({ estado: "guardando" });
+      pedir(`/api/descripcion/trabajos/${espacio.trabajo_id}/borrador`, { method: "PUT", body: JSON.stringify({ borrador }) })
+        .then(() => setGuardado({ estado: "guardado", en: new Date() }))
+        .catch((err) => {
+          setGuardado({ estado: "error" });
+          if (err instanceof ErrorAPI && err.status === 409) { setVencido(true); setError(err.message); }
+        });
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [espacio, vencido, titulo, alcance, items, campos, partes, incluidoEn]);
 
   // Latido: mantiene la marca «en edición» mientras la pantalla está abierta.
   useEffect(() => {
@@ -343,6 +386,18 @@ export function EspacioTrabajo() {
         {propuesta?.contexto_enviado && Object.keys(propuesta.contexto_enviado).length > 0 && (
           <> · el motor recibió {Object.values(propuesta.contexto_enviado).reduce((a, b) => a + b, 0)} entidad(es) del vocabulario del fondo</>
         )}
+      </p>
+      {espacio.borrador && (
+        <div className="aviso bien" role="status">
+          Continúa donde iba{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)
+            .toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })})` : ""}
+          {espacio.recuperado ? ". La propuesta del motor es la misma de la vez anterior." : "."}
+        </div>
+      )}
+      <p className="meta guardado-auto" aria-live="polite">
+        {guardado?.estado === "guardando" ? "Guardando el avance…"
+          : guardado?.estado === "guardado" ? `Avance guardado a las ${guardado.en!.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}. Puede salir y continuar después.`
+          : guardado?.estado === "error" ? "No se pudo guardar el avance: revise la conexión." : "El avance se guarda solo mientras trabaja."}
       </p>
       {propuesta?.aviso && <div className="aviso alerta">{propuesta.aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}

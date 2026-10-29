@@ -45,6 +45,8 @@ interface PorDescribir {
   ocr_baja_confianza: boolean;
   cargado_en: string;
   en_edicion_por: string | null;
+  trabajo_propio_id?: string | null;  // lo tiene abierto quien mira: puede continuar
+  trabajo_id?: string | null;  // solo para la administración: puede liberarlo
 }
 
 interface Publicada {
@@ -157,6 +159,21 @@ export function Descripcion() {
     }
   }
 
+  // La administración libera un documento que otra persona dejó abierto; su avance se conserva.
+  async function liberar(d: PorDescribir) {
+    const motivo = await pedirTexto(`«${d.nombre}» lo tiene abierto ${d.en_edicion_por}. Al liberarlo, otra persona puede `
+      + "describirlo; si quien lo tenía lo abre de nuevo, recupera su avance. Queda constancia en la auditoría.",
+    { titulo: "Liberar un documento en edición", aceptar: "Liberar", minimo: 10 });
+    if (!motivo) return;
+    setError("");
+    try {
+      await pedir(`/api/descripcion/trabajos/${d.trabajo_id}/liberar`, { method: "POST", body: JSON.stringify({ motivo }) });
+      await cargar();
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo liberar.");
+    }
+  }
+
   async function describir(ids: string[], nivelConjunto?: string) {
     setError("");
     setAbriendo({ cantidad: ids.length, nombre: cola?.find((d) => d.id === ids[0])?.nombre || "" });
@@ -216,8 +233,17 @@ export function Descripcion() {
                 </div>
                 {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR con confianza baja</span>}
                 <BotonPrevisualizar base={`/api/descripcion/${d.id}/previsualizar`} nombre={d.nombre} />
-                {d.en_edicion_por ? (
-                  <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
+                {d.trabajo_propio_id ? (
+                  <button type="button" className="boton chico primario" title="Abre su trabajo con el avance guardado"
+                          onClick={() => navegar(`/descripcion/trabajo/${d.trabajo_propio_id}`)}>Continuar</button>
+                ) : d.en_edicion_por ? (
+                  <>
+                    <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
+                    {usuario?.es_administrador && d.trabajo_id && (
+                      <button type="button" className="boton chico" onClick={() => liberar(d)}
+                              title="Si la persona no va a volver pronto. Su avance se conserva.">Liberar</button>
+                    )}
+                  </>
                 ) : puede && (
                   <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
                 )}

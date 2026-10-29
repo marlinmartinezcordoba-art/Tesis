@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
-from app.core.permisos import Actor, acceso_modulo, lectura_catalogo
+from app.core.permisos import Actor, acceso_modulo, lectura_catalogo, solo_administrador
 from app.db.session import get_db
 from app.models.descripcion import Relacion, TrabajoDescripcion
 from app.models.instanciacion import Instanciacion
@@ -64,6 +64,9 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "umbral_ocr": int(parametros.leer(db, "ingesta_umbral_ocr")),
         "propuesta": json.loads(trabajo.propuesta) if trabajo.propuesta else None,
         "minutos_bloqueo": settings.minutos_bloqueo_descripcion,
+        "borrador": trabajo.borrador,
+        "borrador_guardado_en": trabajo.borrador_guardado_en.isoformat() if trabajo.borrador_guardado_en else None,
+        "recuperado": trabajo.recuperado_de_id is not None,
         "umbral_confianza": settings.umbral_confianza,
     }
 
@@ -72,7 +75,7 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
 
 
 @router.get("/cola", response_model=list[ElementoPorDescribir], summary="Documentos listos y todavía sin describir")
-def cola(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+def cola(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
     filas = descripcion.cola(db, fondo_id)
     db.commit()  # por si venció alguna marca de edición
@@ -82,7 +85,10 @@ def cola(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
         id=i.id, nombre=i.nombre_original, tamano_bytes=i.tamano_bytes, formato=i.formato_nombre,
         expediente=expedientes.get(i.expediente_destino_id), origen_texto=i.origen_texto,
         confianza_ocr=i.confianza_ocr, ocr_baja_confianza=i.ocr_baja_confianza, cargado_en=i.cargado_en,
-        en_edicion_por=quien) for i, quien in filas]
+        en_edicion_por=quien["nombre"] if quien else None,
+        # Solo quien lo tiene abierto ve su trabajo, para continuar.
+        trabajo_propio_id=quien["trabajo_id"] if quien and quien["usuario_id"] == actor.id else None,
+        trabajo_id=quien["trabajo_id"] if quien and actor.es_administrador else None) for i, quien in filas]
 
 
 @router.get("/buscar-publicadas", responses={200: {"model": list[ReferenciaBreve], "description": "Descripciones publicadas que coinciden con el título"}},
@@ -138,6 +144,11 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
         db.rollback()
         return JSONResponse({"detail": "Otra persona acaba de abrir alguno de estos documentos."}, status_code=409)
 
+    if trabajo.propuesta:
+        # Continúa un trabajo que se dejó sin publicar: su propuesta y su avance ya están.
+        descripcion.latido(db, trabajo)
+        db.commit()
+        return _espacio(db, trabajo)
     # El motor se consulta con la marca ya tomada (puede tardar unos segundos).
     documentos = [motor.Documento(id=d.id, nombre=d.nombre_original, texto=d.texto_extraido or "")
                   for d in descripcion.documentos_de(db, trabajo)]
@@ -198,6 +209,44 @@ def mantener(trabajo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descri
         db.commit()
         return _error(exc)
     descripcion.latido(db, trabajo)
+    db.commit()
+
+
+class BorradorIn(BaseModel):
+    borrador: dict
+
+
+@router.put("/trabajos/{trabajo_id}/borrador", status_code=status.HTTP_204_NO_CONTENT,
+            summary="Guardar el avance del formulario para continuar después")
+def guardar_borrador(trabajo_id: uuid.UUID, datos: BorradorIn, actor: Actor = Depends(acceso_modulo("descripcion")),
+                     db: Session = Depends(get_db)):
+    try:
+        trabajo = descripcion.trabajo_propio(db, trabajo_id, actor.id)
+        descripcion.guardar_borrador(db, trabajo, datos.borrador)
+    except descripcion.ErrorDescripcion as exc:
+        db.commit()
+        return _error(exc)
+    db.commit()
+
+
+class LiberarIn(BaseModel):
+    motivo: str = Field(max_length=500)
+
+
+@router.post("/trabajos/{trabajo_id}/liberar", status_code=status.HTTP_204_NO_CONTENT,
+             summary="La administración libera un documento que otra persona dejó en edición (su avance se conserva)")
+def liberar(trabajo_id: uuid.UUID, datos: LiberarIn, actor: Actor = Depends(solo_administrador),
+            db: Session = Depends(get_db)):
+    from app.models.descripcion import TrabajoDescripcion
+
+    trabajo = db.get(TrabajoDescripcion, trabajo_id)
+    if trabajo is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El trabajo no existe.")
+    try:
+        descripcion.liberar(db, trabajo, actor.id, datos.motivo)
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
     db.commit()
 
 

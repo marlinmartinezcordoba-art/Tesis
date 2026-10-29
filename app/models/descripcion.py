@@ -275,6 +275,12 @@ class TrabajoDescripcion(Base):
     iniciado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     ultima_actividad = Column(DateTime(timezone=True), default=ahora, nullable=False)
     cerrado_en = Column(DateTime(timezone=True), nullable=True)
+    # El avance del formulario (lo que la persona revisó y escribió), para continuar
+    # donde lo dejó. No es la descripción: esa solo existe al publicar.
+    borrador = Column(JSONB, nullable=True)
+    borrador_guardado_en = Column(DateTime(timezone=True), nullable=True)
+    # Si este trabajo continúa uno que venció o se dejó sin publicar.
+    recuperado_de_id = Column(UUID(as_uuid=True), ForeignKey("trabajos_descripcion.id"), nullable=True)
 
     __table_args__ = (
         # Una descripción publicada solo puede tener una reapertura abierta.

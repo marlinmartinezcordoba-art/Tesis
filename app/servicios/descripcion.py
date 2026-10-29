@@ -189,9 +189,10 @@ def _sin_descripcion():
                            Relacion.codigo_ric == "has_or_had_instantiation")
 
 
-def cola(db: Session, fondo_id: uuid.UUID) -> list[tuple[Instanciacion, str | None]]:
-    """Instanciaciones listas para describir y sin Record Resource, con el
-    nombre de quien las tiene en edición (si alguien)."""
+def cola(db: Session, fondo_id: uuid.UUID) -> list[tuple[Instanciacion, dict | None]]:
+    """Instanciaciones listas para describir y sin Record Resource, con quién
+    las tiene en edición (si alguien): su nombre, su id y el trabajo abierto,
+    para que esa persona pueda continuar."""
     expirar(db)
     filas = db.scalars(select(Instanciacion).where(
         Instanciacion.fondo_id == fondo_id, Instanciacion.estado == "listo_para_descripcion", _sin_descripcion(),
@@ -201,11 +202,11 @@ def cola(db: Session, fondo_id: uuid.UUID) -> list[tuple[Instanciacion, str | No
         # Un recorte nace ya como instanciación de su parte documental.
         Instanciacion.recorte_de_id.is_(None))
         .order_by(Instanciacion.cargado_en)).all()
-    en_edicion = dict(db.execute(
-        select(TrabajoInstanciacion.instanciacion_id, Usuario.nombre)
+    en_edicion = {i: {"nombre": nombre, "usuario_id": u, "trabajo_id": t} for i, nombre, u, t in db.execute(
+        select(TrabajoInstanciacion.instanciacion_id, Usuario.nombre, Usuario.id, TrabajoDescripcion.id)
         .join(TrabajoDescripcion, TrabajoDescripcion.id == TrabajoInstanciacion.trabajo_id)
         .join(Usuario, Usuario.id == TrabajoDescripcion.usuario_id)
-        .where(TrabajoInstanciacion.abierto.is_(True))).all())
+        .where(TrabajoInstanciacion.abierto.is_(True))).all()}
     return [(i, en_edicion.get(i.id)) for i in filas]
 
 
@@ -244,7 +245,70 @@ def abrir(db: Session, *, usuario_id: uuid.UUID, instanciacion_ids: list[uuid.UU
     for d in documentos:
         db.add(TrabajoInstanciacion(trabajo_id=trabajo.id, instanciacion_id=d.id, abierto=True, orden=orden[d.id]))
     db.flush()  # aquí salta el índice único si otra persona ganó la carrera
+    _recuperar(db, trabajo, usuario_id, ids)
     return trabajo
+
+
+# Hasta cuándo se recupera el avance de un trabajo que venció o se dejó sin publicar.
+DIAS_RECUPERAR = 30
+MAX_BORRADOR = 400_000  # caracteres del borrador en JSON: sobra para un expediente grande
+
+
+def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, ids: list[uuid.UUID]) -> None:
+    """Si la misma persona dejó estos mismos documentos sin publicar (la marca
+    venció, cerró la pestaña o salió), el trabajo nuevo continúa el anterior:
+    trae su propuesta (no se vuelve a consultar el motor) y su borrador."""
+    from app.models.evidencia_ia import PropuestaIA
+
+    limite = ahora() - timedelta(days=DIAS_RECUPERAR)
+    anteriores = db.scalars(select(TrabajoDescripcion).where(
+        TrabajoDescripcion.usuario_id == usuario_id, TrabajoDescripcion.id != trabajo.id,
+        TrabajoDescripcion.estado.in_(("expirado", "cancelado")), TrabajoDescripcion.recurso_id.is_(None),
+        TrabajoDescripcion.propuesta.is_not(None), TrabajoDescripcion.ultima_actividad >= limite)
+        .order_by(TrabajoDescripcion.ultima_actividad.desc()).limit(20)).all()
+    buscados = set(ids)
+    for anterior in anteriores:
+        suyos = set(db.scalars(select(TrabajoInstanciacion.instanciacion_id)
+                               .where(TrabajoInstanciacion.trabajo_id == anterior.id)))
+        if suyos != buscados or anterior.nivel != trabajo.nivel:
+            continue
+        trabajo.propuesta, trabajo.propuesta_id = anterior.propuesta, anterior.propuesta_id
+        trabajo.borrador, trabajo.borrador_guardado_en = anterior.borrador, anterior.borrador_guardado_en
+        trabajo.recuperado_de_id = anterior.id
+        if anterior.propuesta_id:
+            p = db.get(PropuestaIA, anterior.propuesta_id)
+            if p is not None and p.estado != "generada":
+                p.estado, p.estado_en = "generada", ahora()  # vuelve a estar en uso; su contenido no cambia
+        registrar(db, modulo="descripcion", accion="descripcion_recuperada", usuario_id=usuario_id,
+                  entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
+                  detalle="Continúa un trabajo sin publicar: se recuperaron la propuesta y el avance.",
+                  nuevo={"recuperado_de": str(anterior.id),
+                         "guardado_en": anterior.borrador_guardado_en.isoformat() if anterior.borrador_guardado_en else None})
+        return
+
+
+def guardar_borrador(db: Session, trabajo: TrabajoDescripcion, borrador: dict) -> None:
+    """El avance del formulario. Guardarlo también cuenta como actividad."""
+    import json
+
+    if len(json.dumps(borrador, ensure_ascii=False)) > MAX_BORRADOR:
+        raise ErrorDescripcion("El avance es demasiado grande para guardarlo; publique o divida el expediente.", 413)
+    trabajo.borrador, trabajo.borrador_guardado_en = borrador, ahora()
+    latido(db, trabajo)
+
+
+def liberar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, motivo: str) -> None:
+    """La administración libera la marca de otra persona (se fue sin cerrar, está de
+    vacaciones). Su avance se conserva: si vuelve a abrir esos documentos, lo recupera."""
+    motivo = " ".join((motivo or "").split())
+    if len(motivo) < 10:
+        raise ErrorDescripcion("Escriba por qué libera el documento (al menos 10 caracteres).")
+    if trabajo.estado != "abierto":
+        raise ErrorDescripcion("Ese documento ya no está en edición.", 409)
+    _cerrar(db, trabajo, "cancelado")
+    registrar(db, modulo="descripcion", accion="edicion_liberada", usuario_id=usuario_id,
+              entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
+              detalle=f"La administración liberó la edición: {motivo}", nuevo={"de": str(trabajo.usuario_id)})
 
 
 def cancelar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID) -> None:

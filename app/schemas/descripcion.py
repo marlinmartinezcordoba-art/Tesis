@@ -21,6 +21,10 @@ class ElementoPorDescribir(BaseModel):
     ocr_baja_confianza: bool = False
     cargado_en: datetime
     en_edicion_por: str | None
+    # El trabajo abierto, si es de quien consulta (para continuar)…
+    trabajo_propio_id: uuid.UUID | None = None
+    # …o, para la administración, el de cualquiera (para liberarlo).
+    trabajo_id: uuid.UUID | None = None
 
 
 class IniciarIn(BaseModel):

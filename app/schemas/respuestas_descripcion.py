@@ -112,6 +112,9 @@ class EspacioTrabajoOut(BaseModel):
     propuesta: dict | None
     minutos_bloqueo: int
     umbral_confianza: float
+    borrador: dict | None = None
+    borrador_guardado_en: str | None = None
+    recuperado: bool = False
 
 
 class PaginasOut(BaseModel):
