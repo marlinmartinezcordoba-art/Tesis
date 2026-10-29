@@ -115,6 +115,7 @@ class EspacioTrabajoOut(BaseModel):
     borrador: dict | None = None
     borrador_guardado_en: str | None = None
     recuperado: bool = False
+    empezada_por: str | None = None
 
 
 class PaginasOut(BaseModel):

@@ -255,14 +255,16 @@ MAX_BORRADOR = 400_000  # caracteres del borrador en JSON: sobra para un expedie
 
 
 def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, ids: list[uuid.UUID]) -> None:
-    """Si la misma persona dejó estos mismos documentos sin publicar (la marca
-    venció, cerró la pestaña o salió), el trabajo nuevo continúa el anterior:
-    trae su propuesta (no se vuelve a consultar el motor) y su borrador."""
+    """Una descripción empezada no se pierde: si estos mismos documentos quedaron
+    sin publicar (la marca venció, la persona cerró la pestaña, salió o la
+    administración la liberó), el trabajo nuevo continúa el anterior, lo abra la
+    misma persona u otra del equipo. Trae la propuesta (no se vuelve a consultar
+    el motor) y el avance, y queda constancia de quién lo empezó y quién lo siguió."""
     from app.models.evidencia_ia import PropuestaIA
 
     limite = ahora() - timedelta(days=DIAS_RECUPERAR)
     anteriores = db.scalars(select(TrabajoDescripcion).where(
-        TrabajoDescripcion.usuario_id == usuario_id, TrabajoDescripcion.id != trabajo.id,
+        TrabajoDescripcion.id != trabajo.id,
         TrabajoDescripcion.estado.in_(("expirado", "cancelado")), TrabajoDescripcion.recurso_id.is_(None),
         TrabajoDescripcion.propuesta.is_not(None), TrabajoDescripcion.ultima_actividad >= limite)
         .order_by(TrabajoDescripcion.ultima_actividad.desc()).limit(20)).all()
@@ -279,10 +281,14 @@ def _recuperar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, 
             p = db.get(PropuestaIA, anterior.propuesta_id)
             if p is not None and p.estado != "generada":
                 p.estado, p.estado_en = "generada", ahora()  # vuelve a estar en uso; su contenido no cambia
+        otra = anterior.usuario_id != usuario_id
+        autor = db.get(Usuario, anterior.usuario_id)
         registrar(db, modulo="descripcion", accion="descripcion_recuperada", usuario_id=usuario_id,
                   entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
-                  detalle="Continúa un trabajo sin publicar: se recuperaron la propuesta y el avance.",
-                  nuevo={"recuperado_de": str(anterior.id),
+                  detalle=(f"Continúa la descripción que empezó {autor.nombre if autor else 'otra persona'}"
+                           if otra else "Continúa su descripción sin publicar") +
+                          ": se recuperaron la propuesta y el avance.",
+                  nuevo={"recuperado_de": str(anterior.id), "empezada_por": str(anterior.usuario_id),
                          "guardado_en": anterior.borrador_guardado_en.isoformat() if anterior.borrador_guardado_en else None})
         return
 
@@ -299,7 +305,8 @@ def guardar_borrador(db: Session, trabajo: TrabajoDescripcion, borrador: dict) -
 
 def liberar(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID, motivo: str) -> None:
     """La administración libera la marca de otra persona (se fue sin cerrar, está de
-    vacaciones). Su avance se conserva: si vuelve a abrir esos documentos, lo recupera."""
+    vacaciones). Su avance se conserva: quien abra esos documentos, ella u otra
+    persona del equipo, continúa desde ahí."""
     motivo = " ".join((motivo or "").split())
     if len(motivo) < 10:
         raise ErrorDescripcion("Escriba por qué libera el documento (al menos 10 caracteres).")

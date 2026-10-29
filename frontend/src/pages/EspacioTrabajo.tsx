@@ -74,6 +74,7 @@ interface Espacio {
   borrador?: Borrador | null;
   borrador_guardado_en?: string | null;
   recuperado?: boolean;
+  empezada_por?: string | null;  // si se continúa la descripción que empezó otra persona
 }
 
 // Lo que se guarda del formulario mientras se trabaja.
@@ -389,7 +390,7 @@ export function EspacioTrabajo() {
       </p>
       {espacio.borrador && (
         <div className="aviso bien" role="status">
-          Continúa donde iba{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)
+          {espacio.empezada_por ? `Continúa la descripción que empezó ${espacio.empezada_por}` : "Continúa donde iba"}{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)
             .toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })})` : ""}
           {espacio.recuperado ? ". La propuesta del motor es la misma de la vez anterior." : "."}
         </div>

@@ -47,6 +47,17 @@ def _error(exc: descripcion.ErrorDescripcion) -> JSONResponse:
     return JSONResponse({"detail": str(exc), **(exc.datos or {})}, status_code=exc.codigo)
 
 
+def _empezada_por(db: Session, trabajo: TrabajoDescripcion) -> str | None:
+    """Si el trabajo continúa la descripción que empezó otra persona, su nombre."""
+    if not trabajo.recuperado_de_id:
+        return None
+    anterior = db.get(TrabajoDescripcion, trabajo.recuperado_de_id)
+    if anterior is None or anterior.usuario_id == trabajo.usuario_id:
+        return None
+    autor = db.get(Usuario, anterior.usuario_id)
+    return autor.nombre if autor else None
+
+
 def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
     """Todo lo que la pantalla de trabajo necesita, para abrirla o recargarla."""
     documentos = descripcion.documentos_de(db, trabajo)
@@ -67,6 +78,7 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "borrador": trabajo.borrador,
         "borrador_guardado_en": trabajo.borrador_guardado_en.isoformat() if trabajo.borrador_guardado_en else None,
         "recuperado": trabajo.recuperado_de_id is not None,
+        "empezada_por": _empezada_por(db, trabajo),
         "umbral_confianza": settings.umbral_confianza,
     }
 

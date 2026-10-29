@@ -162,7 +162,8 @@ export function Descripcion() {
   // La administración libera un documento que otra persona dejó abierto; su avance se conserva.
   async function liberar(d: PorDescribir) {
     const motivo = await pedirTexto(`«${d.nombre}» lo tiene abierto ${d.en_edicion_por}. Al liberarlo, otra persona puede `
-      + "describirlo; si quien lo tenía lo abre de nuevo, recupera su avance. Queda constancia en la auditoría.",
+      + "continuar la descripción desde donde iba (su avance se conserva), o retomarla quien la empezó. Queda constancia "
+      + "en la auditoría.",
     { titulo: "Liberar un documento en edición", aceptar: "Liberar", minimo: 10 });
     if (!motivo) return;
     setError("");

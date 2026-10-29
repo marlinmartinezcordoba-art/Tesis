@@ -5,9 +5,10 @@ Continuar una descripción que se dejó a medias.
   volver a él; a los demás solo quién lo tiene (y a la administración, el
   trabajo para poder liberarlo).
 - El avance del formulario se guarda mientras se trabaja y vuelve al reabrir.
-- Si la marca venció o la persona salió sin publicar, al abrir otra vez los
-  mismos documentos continúa donde iba: recupera la propuesta (sin consultar de
-  nuevo el motor) y el avance.
+- Una descripción empezada no se pierde: si la marca venció, la persona salió
+  sin publicar o la administración la liberó, al abrir otra vez los mismos
+  documentos se continúa donde iba, la misma persona u otra del equipo:
+  recupera la propuesta (sin consultar de nuevo el motor) y el avance.
 - La administración libera la marca de otra persona con motivo; el avance se
   conserva y queda constancia.
 """
@@ -70,8 +71,8 @@ def test_si_la_marca_vencio_se_continua_donde_iba_sin_volver_al_motor(cliente, d
     assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(nuevo)).status_code == 201
 
 
-def test_otra_persona_no_ve_el_trabajo_ajeno_ni_recupera_su_avance(cliente, db, fondo, archivista,  # noqa: F811
-                                                                  motor_prueba):
+def test_otra_persona_continua_la_descripcion_que_quedo_a_medias(cliente, db, fondo, archivista,  # noqa: F811
+                                                                 motor_prueba):
     from app.main import app
 
     d = documento(db, fondo, "a.pdf", OFICIO_114)
@@ -81,15 +82,22 @@ def test_otra_persona_no_ve_el_trabajo_ajeno_ni_recupera_su_avance(cliente, db, 
     crear_usuario(db, "julian@correo.com", "archivista", nombre="Julián Rincón")
     with TestClient(app) as otro_cliente:
         otro = ingresar(otro_cliente, "julian@correo.com")
+        # Mientras Catalina lo tiene abierto, Julián ve quién lo tiene, pero no su trabajo.
         fila = _cola(otro_cliente, otro, fondo)[str(d.id)]
         assert fila["en_edicion_por"] == "Catalina Torres" and fila["trabajo_propio_id"] is None
         assert fila["trabajo_id"] is None  # no es administración
         assert otro_cliente.put(f"/api/descripcion/trabajos/{espacio['trabajo_id']}/borrador", headers=otro,
                                 json={"borrador": {}}).status_code == 404
-        cliente.post(f"/api/descripcion/{espacio['trabajo_id']}/cancelar", headers=archivista)
-        # Si lo abre otra persona, empieza de cero: el avance es de quien lo hizo.
+        # Catalina se va sin publicar: Julián lo abre y sigue desde donde ella iba.
+        trabajo = db.get(TrabajoDescripcion, uuid.UUID(espacio["trabajo_id"]))
+        trabajo.ultima_actividad = ahora() - timedelta(minutes=31)
+        db.commit()
         suyo = iniciar(otro_cliente, otro, [d.id])
-        assert suyo["recuperado"] is False and suyo["borrador"] is None
+        assert suyo["recuperado"] is True and suyo["borrador"] == AVANCE
+        assert suyo["empezada_por"] == "Catalina Torres"
+        assert any("empezó Catalina Torres" in (e.detalle or "") for e in eventos(db, "descripcion_recuperada"))
+        # Y la publica él: la descripción no se queda sin hacer.
+        assert otro_cliente.post("/api/descripcion/publicar", headers=otro, json=aceptar_todo(suyo)).status_code == 201
 
 
 def test_la_administracion_libera_con_motivo_y_el_avance_se_conserva(cliente, db, fondo, archivista,  # noqa: F811
