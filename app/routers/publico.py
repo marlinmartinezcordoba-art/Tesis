@@ -117,9 +117,17 @@ def eac(entidad_id: uuid.UUID, request: Request, actor: Actor | None = Depends(a
     e = db.get(EntidadVocabulario, entidad_id)
     if e is None or e.estado != "activa":
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe.")
-    fondo = db.get(RecursoDocumental, e.fondo_id)
-    # Una autoridad que solo conocen documentos reservados tampoco es pública (INS-02).
-    if e.id in exportacion_rico._entidades_vedadas(db, fondo, _visibles(db, fondo).nodos):
+    # Una autoridad que solo conocen documentos reservados tampoco es pública (INS-02). Una autoridad
+    # compartida es pública si lo es en su fondo de registro o en alguno de los que la citan.
+    from app.servicios import vocabulario
+
+    publica = False
+    for fid in [e.fondo_id] + sorted(vocabulario.fondos_que_citan(db, [e.id]) - {e.fondo_id}, key=str):
+        fondo = db.get(RecursoDocumental, fid)
+        if fondo is not None and e.id not in exportacion_rico._entidades_vedadas(db, fondo, _visibles(db, fondo).nodos):
+            publica = True
+            break
+    if not publica:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe o no es pública.")
     try:
         xml = intercambio.eac_cpf(db, e)

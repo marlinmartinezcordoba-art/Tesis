@@ -21,6 +21,7 @@ from app.core.permisos import Actor, acceso_modulo, solo_administrador
 from app.db.base import ahora
 from app.db.session import get_db
 from app.models.auditoria import RegistroAuditoria
+from app.models.recurso_documental import RecursoDocumental
 from app.models.descripcion import EntidadVocabulario, SugerenciaFusion
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
@@ -48,6 +49,8 @@ class EntidadOut(BaseModel):
     # documentos» de antes era engañoso).
     archivos: int | None = None
     acciones: dict[str, int] | None = None
+    # Autoridad compartida registrada en otro fondo: cuál (la ficha es una sola para toda la institución).
+    fondo_registro: dict | None = None
 
 
 class NombreIn(BaseModel):
@@ -112,10 +115,12 @@ class ParametrosFusion(BaseModel):
     horas_deteccion: int
 
 
-def _entidad_out(db: Session, e: EntidadVocabulario, conexiones: int) -> EntidadOut:
+def _entidad_out(db: Session, e: EntidadVocabulario, conexiones: int, fondo_id: uuid.UUID | None = None) -> EntidadOut:
     destino = db.get(EntidadVocabulario, e.fusionada_en_id) if e.fusionada_en_id else None
     usos = vocabulario.resumen_mecanismo(db, e.id) if e.subtipo == "mecanismo" else {}
-    return EntidadOut(**usos,id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
+    registro = db.get(RecursoDocumental, e.fondo_id) if fondo_id is not None and e.fondo_id != fondo_id else None
+    return EntidadOut(**usos, fondo_registro={"id": str(registro.id), "titulo": registro.titulo} if registro else None,
+                      id=e.id, clase=e.clase, subtipo=e.subtipo, nombre=e.nombre, estado=e.estado, conexiones=conexiones,
                       fusionada_en={"id": str(destino.id), "nombre": destino.nombre} if destino else None,
                       nivel_detalle=e.nivel_detalle if e.clase in ("agente", "tipo_actividad") else None,
                       version=e.version if e.subtipo == "mecanismo" else None)
@@ -146,9 +151,18 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
            orden: Literal["conexiones_desc", "conexiones_asc", "nombre"] = "conexiones_desc",
            nivel_detalle: Literal["minimo", "parcial", "completo"] | None = None,
            mecanismos: Literal["excluir", "solo", "incluir"] = "excluir",
+           alcance: Literal["fondo", "institucion"] = "fondo",
            db: Session = Depends(get_db)):
+    """Con alcance «fondo»: lo registrado en el fondo y las autoridades de otros fondos que este cita.
+    Con «institucion»: además, todas las autoridades compartidas de la institución."""
     fondo_o_404(db, fondo_id)
-    consulta = select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.estado == estado)
+    if alcance == "institucion":
+        ambito = vocabulario.del_fondo_o_compartida(fondo_id)
+    else:
+        citadas = vocabulario.externas_citadas(db, fondo_id)
+        ambito = or_(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.id.in_(citadas)) if citadas \
+            else EntidadVocabulario.fondo_id == fondo_id
+    consulta = select(EntidadVocabulario).where(ambito, EntidadVocabulario.estado == estado)
     # Los mecanismos (software, RiC-E13) son agentes en RiC, pero no autoridades
     # ISAAR: no se mezclan con personas e instituciones; tienen su propio filtro.
     es_mecanismo = EntidadVocabulario.subtipo == "mecanismo"
@@ -171,20 +185,23 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
         filas = sorted(filas, key=lambda e: e.nombre_normalizado)
     else:
         filas = sorted(filas, key=lambda e: (conexiones[e.id] * (-1 if orden == "conexiones_desc" else 1), e.nombre_normalizado))
-    return [_entidad_out(db, e, conexiones[e.id]) for e in filas]
+    return [_entidad_out(db, e, conexiones[e.id], fondo_id) for e in filas]
 
 
 @router.get("/sugerencias-fusion", responses={200: {"model": list[rv.SugerenciaFusionOut], "description": "Candidatos a fusión pendientes, de mayor a menor similitud"}},
              summary="Candidatos a fusión detectados, pendientes de revisión")
 def sugerencias(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
-    filas = db.scalars(select(SugerenciaFusion).where(SugerenciaFusion.fondo_id == fondo_id,
-                                                      SugerenciaFusion.estado == "pendiente")
-                       .order_by(SugerenciaFusion.similitud.desc())).all()
+    # También las que unen una autoridad de este fondo con la misma registrada en otro.
+    del_fondo = select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo_id)
+    filas = db.scalars(select(SugerenciaFusion).where(
+        or_(SugerenciaFusion.fondo_id == fondo_id, SugerenciaFusion.entidad_a_id.in_(del_fondo),
+            SugerenciaFusion.entidad_b_id.in_(del_fondo)),
+        SugerenciaFusion.estado == "pendiente").order_by(SugerenciaFusion.similitud.desc())).all()
     ids = [i for s in filas for i in (s.entidad_a_id, s.entidad_b_id)]
     conexiones = vocabulario.conexiones_de(db, ids)
     return [{"id": str(s.id), "clase": s.clase, "similitud": s.similitud, "motivo": s.motivo, "creada_en": s.creada_en,
-             "entidades": [_entidad_out(db, db.get(EntidadVocabulario, i), conexiones[i]).model_dump(mode="json")
+             "entidades": [_entidad_out(db, db.get(EntidadVocabulario, i), conexiones[i], fondo_id).model_dump(mode="json")
                            for i in (s.entidad_a_id, s.entidad_b_id)]} for s in filas]
 
 

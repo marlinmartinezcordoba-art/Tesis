@@ -421,8 +421,10 @@ def agregar_hito(db: Session, agente: EntidadVocabulario, *, tipo: str, descripc
         i = fechas.interpretar(_texto(edtf, 200) or "")
     except fechas.FechaInvalida as exc:
         raise ErrorAutoridad(str(exc)) from exc
+    from app.servicios.vocabulario import relacionables
+
     lugar = db.get(EntidadVocabulario, lugar_id) if lugar_id else None
-    if lugar_id and (lugar is None or lugar.clase != "lugar" or lugar.fondo_id != agente.fondo_id):
+    if lugar_id and (lugar is None or lugar.clase != "lugar" or not relacionables(agente, lugar)):
         raise ErrorAutoridad("El lugar del hito debe ser un lugar del vocabulario de este fondo.")
     h = Hito(fondo_id=agente.fondo_id, agente_id=agente.id, tipo=tipo, descripcion=descripcion, edtf=i.edtf,
              inicio=i.inicio, fin=i.fin, creado_por_id=usuario_id, lugar_id=lugar.id if lugar else None)
@@ -433,7 +435,7 @@ def agregar_hito(db: Session, agente: EntidadVocabulario, *, tipo: str, descripc
     for a in afectados or []:
         tipo_a, ident = a.get("tipo"), uuid.UUID(str(a.get("id")))
         otro = _clase_nodo(db, tipo_a, ident) if tipo_a in ("entidad_vocabulario", "recurso_documental") else None
-        if otro is None or otro.fondo_id != agente.fondo_id or otro.id == agente.id or (
+        if otro is None or not relacionables(agente, otro) or otro.id == agente.id or (
                 isinstance(otro, EntidadVocabulario) and otro.clase != "agente"):
             raise ErrorAutoridad("Cada afectado debe ser otro agente o una descripción de este fondo.")
         db.add(Relacion(origen_tipo="hito", origen_id=h.id, destino_tipo=tipo_a, destino_id=otro.id,
@@ -714,9 +716,10 @@ def vincular(db: Session, *, tipo: str, desde: EntidadVocabulario, con_tipo: str
         origen, destino, origen_tipo, destino_tipo = otro, desde, con_tipo, "entidad_vocabulario"
     if not _admite(v.origen, origen) or not _admite(v.destino, destino):
         raise ErrorAutoridad("Ese vínculo no se puede declarar entre estas dos entidades.")
-    fondo_otro = otro.fondo_id
-    if fondo_otro != desde.fondo_id:
-        raise ErrorAutoridad("Solo se vinculan entidades del mismo fondo.")
+    from app.servicios.vocabulario import relacionables
+
+    if not relacionables(desde, otro):
+        raise ErrorAutoridad("Solo se vinculan entidades del mismo fondo, salvo con una autoridad de la institución.")
     if origen.id == destino.id:
         raise ErrorAutoridad("Una entidad no se vincula consigo misma.")
     if any(getattr(x, "estado", "activa") != "activa" for x in (origen, destino) if isinstance(x, EntidadVocabulario)):

@@ -123,6 +123,7 @@ class _Contexto:
         self.db, self.fondo, self.ver_restringidos = db, fondo, ver_restringidos
         self._con_documentos: set[uuid.UUID] | None = None
         self.recursos = exportacion_rico._recursos(db, fondo, ver_restringidos, Counter())
+        self.externas = vocabulario.externas_citadas(db, fondo.id)  # autoridades de otros fondos que este cita
         self.hijos: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
         self.por_forma: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
         for r in self.recursos.values():
@@ -177,6 +178,7 @@ class _Contexto:
             return True
         if self._con_documentos is None:
             ids = list(self.db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == self.fondo.id)))
+            ids += list(vocabulario.externas_citadas(self.db, self.fondo.id))  # autoridades de otros fondos
             visibles = {i for i in self.recursos if i != self.fondo.id}
             self._con_documentos = {e for e, docs in vocabulario._documentos_por_entidad(self.db, ids).items()
                                     if docs & visibles}
@@ -200,8 +202,9 @@ class _Contexto:
         if tipo == "entidad_vocabulario":
             self.precargar([(tipo, ident)])
             e = self._entidades.get(ident)
-            if e is None or e.fondo_id != fid or e.estado != "activa" or e.subtipo == "mecanismo" \
-                    or not self.entidad_consultable(e.id):
+            # Una autoridad compartida de otro fondo se muestra si este fondo la cita.
+            if e is None or (e.fondo_id != fid and e.id not in self.externas) or e.estado != "activa" \
+                    or e.subtipo == "mecanismo" or not self.entidad_consultable(e.id):
                 return None
             return {"tipo": tipo, "clase": e.clase, "familia": _FAMILIA_CLASE.get(e.clase, "Concept"), "etiqueta": e.nombre,
                     "subtitulo": e.subtipo, "estado": None,
@@ -392,7 +395,8 @@ def opciones(db: Session, fondo: RecursoDocumental, ver_restringidos: bool) -> d
                "familia": _FAMILIA_NIVEL.get(r.nivel, "RecordSet")}
               for r in sorted(ctx.recursos.values(), key=lambda r: (r.id != fondo.id, NIVEL_ORDEN[r.nivel], r.titulo))]
     for e in db.scalars(select(EntidadVocabulario).where(
-            EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
+            or_(EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.id.in_(ctx.externas)),
+            EntidadVocabulario.estado == "activa",
             or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))
             .order_by(EntidadVocabulario.nombre)):
         if not ctx.entidad_consultable(e.id):

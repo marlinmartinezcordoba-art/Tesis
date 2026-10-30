@@ -108,6 +108,7 @@ export interface Coincidencia {
   similitud: number;
   conexiones: number;
   aviso?: string | null;
+  fondo?: string | null;  // fondo de registro de una autoridad compartida, si es otro
 }
 
 export function verificarVocabulario(fondoId: string, tipo: TipoEntidad | "tipo_parte", valor: string): Promise<Coincidencia[]> {

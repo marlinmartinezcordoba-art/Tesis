@@ -376,14 +376,19 @@ def test_mandato_que_crea_una_competencia(cliente, db, fondo, archivista):
     assert v["etiqueta"] == "es una competencia creada por" and v["propiedad_rico"] == "rico:isOrWasRegulatedBy"
 
 
-def test_no_se_vincula_entre_fondos_ni_con_una_fusionada(cliente, db, fondo, archivista, admin):
+def test_entre_fondos_solo_autoridades_y_nunca_con_una_fusionada(cliente, db, fondo, archivista, admin):
     otro = RecursoDocumental(id=uuid.uuid4(), nivel="fondo", titulo="Otro fondo")
     otro.fondo_id = otro.id
     db.add(otro)
     db.commit()
     a = entidad(db, fondo, "Alcaldía de Tunja")
     b = entidad(db, otro, "Alcaldía de Paipa")
-    assert vincular(cliente, archivista, a, "asociado", b).status_code == 422
+    # Las autoridades son de la institución: se vinculan aunque se hayan registrado en fondos distintos.
+    assert vincular(cliente, archivista, a, "asociado", b).status_code == 201
+    # El resto del vocabulario sigue siendo de cada fondo: dos lugares de fondos distintos no.
+    tunja = entidad(db, fondo, "Tunja", clase="lugar")
+    boyaca = entidad(db, otro, "Boyacá", clase="lugar")
+    assert vincular(cliente, archivista, tunja, "lugar_superior", boyaca).status_code == 422
     c = entidad(db, fondo, "Alcaldia de Tunja.")
     vocabulario.fusionar(db, definitiva=a, absorbida=c, usuario_id=None)
     db.commit()

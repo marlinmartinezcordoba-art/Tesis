@@ -480,7 +480,8 @@ def datos_guia(db: Session, fondo: RecursoDocumental) -> dict:
     # Siegfried, Ghostscript) no son puntos de acceso del contenido del
     # fondo: se administran en Vocabularios, pero no van al índice.
     activas = db.scalars(select(EntidadVocabulario).where(
-        EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
+        or_(EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.id.in_(vocabulario.externas_citadas(db, fondo.id))),
+        EntidadVocabulario.estado == "activa",
         or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
     visibles = set(a.nodos) - {fondo.id}
     documentos = vocabulario._documentos_por_entidad(db, [e.id for e in activas])
@@ -581,7 +582,8 @@ def indice(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False
     # Siegfried, Ghostscript) no son puntos de acceso del contenido del
     # fondo: se administran en Vocabularios, pero no van al índice.
     activas = db.scalars(select(EntidadVocabulario).where(
-        EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.estado == "activa",
+        or_(EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.id.in_(vocabulario.externas_citadas(db, fondo.id))),
+        EntidadVocabulario.estado == "activa",
         or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))).all()
     visibles = {i: r for i, r in _Contexto(db, fondo, ver_restringidos).recursos.items() if i != fondo.id}
     por_entidad = vocabulario._documentos_por_entidad(db, [e.id for e in activas])

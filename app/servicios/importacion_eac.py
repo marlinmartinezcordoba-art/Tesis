@@ -198,11 +198,13 @@ def leer(contenido: bytes, nombre: str) -> list[dict]:
 
 
 def _existente(db: Session, fondo_id: uuid.UUID, nombre: str) -> EntidadVocabulario | None:
-    from app.servicios.vocabulario import normalizar
+    from app.servicios.vocabulario import del_fondo_o_compartida, normalizar
 
+    # Las autoridades son de la institución: completa la que ya exista en cualquier fondo (la de este primero).
     return db.scalar(select(EntidadVocabulario).where(
-        EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == "agente",
-        EntidadVocabulario.estado == "activa", EntidadVocabulario.nombre_normalizado == normalizar(nombre)))
+        del_fondo_o_compartida(fondo_id), EntidadVocabulario.clase == "agente",
+        EntidadVocabulario.estado == "activa", EntidadVocabulario.nombre_normalizado == normalizar(nombre))
+        .order_by(EntidadVocabulario.fondo_id != fondo_id, EntidadVocabulario.creado_en).limit(1))
 
 
 def vista_previa(db: Session, fondo_id: uuid.UUID, contenido: bytes, nombre: str) -> dict:
@@ -212,6 +214,10 @@ def vista_previa(db: Session, fondo_id: uuid.UUID, contenido: bytes, nombre: str
             e = _existente(db, fondo_id, a["nombre"])
             a["accion"] = "completar" if e is not None else "crear"
             a["existente_id"] = str(e.id) if e is not None else None
+            if e is not None and e.fondo_id != fondo_id:  # autoridad compartida, registrada en otro fondo
+                from app.models.recurso_documental import RecursoDocumental
+
+                a["fondo_registro"] = db.get(RecursoDocumental, e.fondo_id).titulo
     return {"autoridades": autoridades, "huella": hashlib.sha256(contenido).hexdigest(),
             "resumen": {"crear": sum(1 for a in autoridades if a.get("accion") == "crear"),
                         "completar": sum(1 for a in autoridades if a.get("accion") == "completar"),

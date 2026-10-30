@@ -46,6 +46,7 @@ class CoincidenciaOut(BaseModel):
     conexiones: int
     aviso: str | None = None
     forma: str | None = None  # otra forma del nombre que coincidió (DES-10)
+    fondo: str | None = None  # fondo de registro de una autoridad compartida, si es otro
 
 
 class EntidadIn(BaseModel):

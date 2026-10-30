@@ -386,7 +386,8 @@ def _nodo_vocabulario(db: Session, fondo_id: uuid.UUID, e: EntidadConfirmada, in
                       confianza: float | None, motor: str | None, usuario_id: uuid.UUID) -> EntidadVocabulario:
     if e.reutilizar_id:
         existente = db.get(EntidadVocabulario, e.reutilizar_id)
-        if existente is None or existente.fondo_id != fondo_id or existente.clase != e.tipo:
+        if existente is None or existente.clase != e.tipo or (
+                existente.fondo_id != fondo_id and not vocabulario.compartida(existente.clase, existente.subtipo)):
             raise ErrorDescripcion(f"La entidad elegida para reutilizar «{e.valor}» no existe en el vocabulario del fondo.")
         while existente.estado == "fusionada" and existente.fusionada_en_id:
             existente = db.get(EntidadVocabulario, existente.fusionada_en_id)
@@ -1506,8 +1507,9 @@ def crear_agrupacion(db: Session, *, fondo_id: uuid.UUID, nivel: str, titulo: st
                     confirmada_por_id=usuario_id))
     if productor_id:
         productor = db.get(EntidadVocabulario, productor_id)
-        if productor is None or productor.clase != "agente" or productor.fondo_id != fondo_id:
-            raise ErrorDescripcion("El productor debe ser un agente del vocabulario de este fondo.")
+        if productor is None or productor.clase != "agente" or (
+                productor.fondo_id != fondo_id and not vocabulario.compartida(productor.clase, productor.subtipo)):
+            raise ErrorDescripcion("El productor debe ser un agente del vocabulario de este fondo o una autoridad de la institución.")
         db.add(Relacion(origen_tipo="recurso_documental", origen_id=r.id, destino_tipo="entidad_vocabulario",
                         destino_id=productor.id, tipo_relacion="procedencia", codigo_ric="has_creator",
                         rol="productor", origen="persona", confirmada_por_id=usuario_id))
@@ -1739,8 +1741,9 @@ def custodio_de_instanciacion(db: Session, inst: Instanciacion, agente_id: uuid.
     """Quien tuvo o tiene la custodia del archivo o del original físico, con
     su tramo de fechas. El dominio de hasOrHadHolder admite Instantiation."""
     agente = db.get(EntidadVocabulario, agente_id)
-    if agente is None or agente.clase != "agente" or agente.fondo_id != inst.fondo_id:
-        raise ErrorDescripcion("El custodio debe ser un agente del vocabulario de este fondo.")
+    if agente is None or agente.clase != "agente" or (
+            agente.fondo_id != inst.fondo_id and not vocabulario.compartida(agente.clase, agente.subtipo)):
+        raise ErrorDescripcion("El custodio debe ser un agente del vocabulario de este fondo o una autoridad de la institución.")
     tramo = None
     if fecha_edtf and fecha_edtf.strip():
         try:

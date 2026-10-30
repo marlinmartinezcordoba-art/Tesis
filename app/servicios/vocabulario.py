@@ -16,7 +16,7 @@ import unicodedata
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -37,6 +37,72 @@ class Coincidencia:
     similitud: float
     conexiones: int
     forma: str | None = None  # la otra forma del nombre que coincidió, si no fue la autorizada
+    fondo: str | None = None  # el fondo donde se registró, si no es el de la consulta (autoridad compartida)
+
+
+# --- Autoridades compartidas ------------------------------------------------------------------------
+# Las autoridades (personas, familias, entidades, grupos y cargos) son de la institución, no de un
+# fondo: cualquier fondo las encuentra, las cita y las fusiona. Cada una conserva su fondo de registro
+# (donde se creó): allí vive su fila en el grafo de control, y los demás fondos la citan por su URI.
+# Los mecanismos (programas con su versión) y el resto del vocabulario siguen siendo de cada fondo.
+
+
+def compartida(clase: str | None, subtipo: str | None = None) -> bool:
+    return clase == "agente" and subtipo != "mecanismo"
+
+
+def es_compartida(modelo=EntidadVocabulario):
+    """La misma regla, como condición SQL."""
+    return and_(modelo.clase == "agente", or_(modelo.subtipo.is_(None), modelo.subtipo != "mecanismo"))
+
+
+def del_fondo_o_compartida(fondo_id, modelo=EntidadVocabulario):
+    return or_(modelo.fondo_id == fondo_id, es_compartida(modelo))
+
+
+def mismo_ambito(a: EntidadVocabulario, b: EntidadVocabulario) -> bool:
+    """Dos entidades se pueden relacionar o fusionar: del mismo fondo, o las dos autoridades compartidas."""
+    return a.fondo_id == b.fondo_id or (compartida(a.clase, a.subtipo) and compartida(b.clase, b.subtipo))
+
+
+def relacionables(a, b) -> bool:
+    """Una relación entre dos nodos (entidades o descripciones): del mismo fondo, o con una
+    autoridad compartida en algún extremo (la descripción de otro fondo la cita)."""
+    def comp(x):
+        return isinstance(x, EntidadVocabulario) and compartida(x.clase, x.subtipo)
+    fa = a.fondo_id or a.id
+    fb = b.fondo_id or b.id
+    return fa == fb or comp(a) or comp(b)
+
+
+def fondos_que_citan(db: Session, ids) -> set[uuid.UUID]:
+    """Fondos con descripciones que citan alguna de estas entidades."""
+    ids = list(ids)
+    if not ids:
+        return set()
+    return set(db.scalars(select(func.coalesce(RecursoDocumental.fondo_id, RecursoDocumental.id)).join(
+        Relacion, Relacion.origen_id == RecursoDocumental.id).where(Relacion.destino_id.in_(ids)).distinct()))
+
+
+def externas_citadas(db: Session, fondo_id) -> set[uuid.UUID]:
+    """Autoridades de otros fondos que este fondo cita (en cualquier sentido de la relación)."""
+    # Lo propio del fondo: sus descripciones y su vocabulario (una actividad del fondo ejercida por una
+    # autoridad de otro también la cita).
+    propios = select(RecursoDocumental.id).where(func.coalesce(RecursoDocumental.fondo_id, RecursoDocumental.id) == fondo_id
+                                                 ).union_all(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo_id))
+    salida = set()
+    for columna_propia, columna_otra in ((Relacion.origen_id, Relacion.destino_id), (Relacion.destino_id, Relacion.origen_id)):
+        salida |= set(db.scalars(select(EntidadVocabulario.id).join(Relacion, columna_otra == EntidadVocabulario.id).where(
+            columna_propia.in_(propios), EntidadVocabulario.fondo_id != fondo_id, Relacion.estado == "vigente")))
+    return salida
+
+
+def fondos_de_externas(db: Session, fondo_id) -> set[uuid.UUID]:
+    """Fondos de registro de las autoridades que este fondo cita."""
+    ids = externas_citadas(db, fondo_id)
+    if not ids:
+        return set()
+    return set(db.scalars(select(EntidadVocabulario.fondo_id).where(EntidadVocabulario.id.in_(ids)).distinct()))
 
 
 def _formas():
@@ -106,7 +172,7 @@ def verificar(db: Session, fondo_id: uuid.UUID, clase: str, valor: str, limite: 
     filas = db.execute(
         select(EntidadVocabulario, similitud.label("s"), formas.c.forma)
         .join(formas, formas.c.entidad_id == EntidadVocabulario.id)
-        .where(EntidadVocabulario.fondo_id == fondo_id,
+        .where(EntidadVocabulario.fondo_id == fondo_id if not compartida(clase) else del_fondo_o_compartida(fondo_id),
                EntidadVocabulario.clase == clase,
                EntidadVocabulario.estado == "activa",
                or_(similitud >= settings.umbral_similitud, formas.c.n == buscado))
@@ -116,9 +182,13 @@ def verificar(db: Session, fondo_id: uuid.UUID, clase: str, valor: str, limite: 
     for e, s, forma in filas:  # la mejor forma de cada entidad
         if e.id not in mejores:
             mejores[e.id] = (e, s, forma)
+    elegidas = list(mejores.values())[:limite]
+    otros = {e.fondo_id for e, _, _ in elegidas if e.fondo_id != fondo_id}
+    titulos = dict(db.execute(select(RecursoDocumental.id, RecursoDocumental.titulo)
+                              .where(RecursoDocumental.id.in_(otros))).all()) if otros else {}
     return [Coincidencia(id=e.id, nombre=e.nombre, subtipo=e.subtipo, similitud=round(float(s), 2),
-                         conexiones=conexiones(db, e.id), forma=forma)
-            for e, s, forma in list(mejores.values())[:limite]]
+                         conexiones=conexiones(db, e.id), forma=forma, fondo=titulos.get(e.fondo_id))
+            for e, s, forma in elegidas]
 
 
 def crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str, subtipo: str | None, origen: str,
@@ -171,8 +241,9 @@ def fusionar(db: Session, *, definitiva: EntidadVocabulario, absorbida: EntidadV
 
     if definitiva.id == absorbida.id:
         raise ErrorFusion("Elija dos entidades distintas.")
-    if definitiva.fondo_id != absorbida.fondo_id or definitiva.clase != absorbida.clase:
-        raise ErrorFusion("Solo se fusionan entidades del mismo tipo y del mismo fondo.")
+    if definitiva.clase != absorbida.clase or not mismo_ambito(definitiva, absorbida):
+        raise ErrorFusion("Solo se fusionan entidades del mismo tipo y del mismo fondo (las autoridades, "
+                          "también de fondos distintos).")
     if definitiva.estado != "activa" or absorbida.estado != "activa":
         raise ErrorFusion("Alguna de las dos entidades ya fue fusionada antes.")
     conexiones_antes = conexiones_de(db, [definitiva.id, absorbida.id])
@@ -294,7 +365,8 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
     similitud = func.max(func.similarity(fa.c.n, fb.c.n))
     otra_forma = func.bool_or(fa.c.forma.is_not(None) | fb.c.forma.is_not(None))
     consulta = (select(a, b, similitud.label("s"), otra_forma.label("otra"))
-                .join(b, (a.fondo_id == b.fondo_id) & (a.clase == b.clase) & (a.id < b.id))
+                .join(b, ((a.fondo_id == b.fondo_id) | (es_compartida(a) & es_compartida(b)))
+                      & (a.clase == b.clase) & (a.id < b.id))
                 .join(fa, fa.c.entidad_id == a.id).join(fb, fb.c.entidad_id == b.id)
                 .where(a.estado == "activa", b.estado == "activa", func.similarity(fa.c.n, fb.c.n) >= umbral)
                 .group_by(a.id, b.id))
@@ -304,13 +376,13 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
     ia, ib = aliased(IdentificadorEntidad), aliased(IdentificadorEntidad)
     por_identificador = (select(a, b)
                          .join(ia, ia.entidad_id == a.id).join(ib, (ib.esquema == ia.esquema) & (ib.valor == ia.valor))
-                         .join(b, (b.id == ib.entidad_id) & (a.fondo_id == b.fondo_id) & (a.clase == b.clase)
-                               & (a.id < b.id))
+                         .join(b, (b.id == ib.entidad_id) & ((a.fondo_id == b.fondo_id) | (es_compartida(a) & es_compartida(b)))
+                               & (a.clase == b.clase) & (a.id < b.id))
                          .where(a.estado == "activa", b.estado == "activa", ia.estado == "vigente",
                                 ib.estado == "vigente", ia.esquema.in_(ESQUEMA_EXTERNO)).distinct())
     if fondo_id is not None:
-        consulta = consulta.where(a.fondo_id == fondo_id)
-        por_identificador = por_identificador.where(a.fondo_id == fondo_id)
+        consulta = consulta.where((a.fondo_id == fondo_id) | (b.fondo_id == fondo_id))
+        por_identificador = por_identificador.where((a.fondo_id == fondo_id) | (b.fondo_id == fondo_id))
     pares = [(x, y, float(s_), "otra_forma" if otra else "nombre") for x, y, s_, otra in db.execute(consulta).all()]
     mismos = {(x.id, y.id) for x, y in db.execute(por_identificador).all()}
     pares = [p for p in pares if (p[0].id, p[1].id) not in mismos] + [
@@ -386,8 +458,8 @@ def relacionar_agentes(db: Session, *, origen: EntidadVocabulario, destino: Enti
 
     if tipo not in RELACION_AGENTES:
         raise ErrorRelacionAgentes("Tipo de relación entre agentes desconocido.")
-    if origen.clase != "agente" or destino.clase != "agente" or origen.fondo_id != destino.fondo_id:
-        raise ErrorRelacionAgentes("Solo se relacionan agentes del mismo fondo.")
+    if origen.clase != "agente" or destino.clase != "agente" or not relacionables(origen, destino):
+        raise ErrorRelacionAgentes("Solo se relacionan agentes del mismo fondo o autoridades de la institución.")
     try:
         return autoridad.vincular(db, tipo=tipo, desde=origen, con_tipo="entidad_vocabulario", con_id=destino.id,
                                   usuario_id=usuario_id, fecha_edtf=fecha_edtf, nota=nota, ip=ip)
@@ -560,8 +632,8 @@ def contexto_para_motor(db: Session, fondo_id: uuid.UUID, texto: str, por_tipo: 
         filas = db.execute(
             select(EntidadVocabulario, parecido.label("s"))
             .join(formas, formas.c.entidad_id == EntidadVocabulario.id)
-            .where(EntidadVocabulario.fondo_id == fondo_id, EntidadVocabulario.clase == clase,
-                   EntidadVocabulario.estado == "activa",
+            .where(EntidadVocabulario.fondo_id == fondo_id if not compartida(clase) else del_fondo_o_compartida(fondo_id),
+                   EntidadVocabulario.clase == clase, EntidadVocabulario.estado == "activa",
                    or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"))
             .group_by(EntidadVocabulario.id)
             .having(parecido >= umbral)

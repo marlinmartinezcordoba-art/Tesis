@@ -14,6 +14,8 @@ export interface EntidadVocabulario {
   // Solo mecanismos (software): sobre cuántos archivos actuó y qué hizo.
   archivos?: number | null;
   acciones?: Record<string, number> | null;
+  // Autoridad compartida registrada en otro fondo (la ficha es una sola en la institución).
+  fondo_registro?: { id: string; titulo: string } | null;
 }
 
 export const esMecanismo = (e: { subtipo: string | null }) => e.subtipo === "mecanismo";

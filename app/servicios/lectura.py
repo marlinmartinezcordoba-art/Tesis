@@ -166,6 +166,22 @@ def preparar(db: Session, fondo: RecursoDocumental) -> dict:
             "filas": {t: len(v) for t, v in filas.items()}}
 
 
+def _con_sus_autoridades(db: Session, fondos: list[RecursoDocumental]) -> list[RecursoDocumental]:
+    """Los fondos y los de registro de las autoridades compartidas que citan: la fila de cada
+    autoridad está en la proyección de su fondo de registro."""
+    from app.servicios import vocabulario
+
+    salida = list(fondos)
+    vistos = {f.id for f in fondos}
+    for fondo in fondos:
+        for fid in sorted(vocabulario.fondos_de_externas(db, fondo.id) - vistos, key=str):
+            otro = db.get(RecursoDocumental, fid)
+            if otro is not None:
+                salida.append(otro)
+                vistos.add(fid)
+    return salida
+
+
 @contextmanager
 def desde_el_grafo(db: Session, fondo: RecursoDocumental):
     """Atajo para las rutas de consulta: prepara la proyección y abre la sesión.
@@ -176,7 +192,8 @@ def desde_el_grafo(db: Session, fondo: RecursoDocumental):
     from app.servicios import grafo_rdf
 
     try:
-        preparar(db, fondo)
+        for f in _con_sus_autoridades(db, [fondo]):
+            preparar(db, f)
     except grafo_rdf.ErrorGrafo as exc:
         db.rollback()
         log.warning("Consulta del fondo %s desde las tablas: el grafo no está disponible (%s)", fondo.id, exc)
@@ -192,7 +209,7 @@ def de_los_fondos(db: Session, fondos: list[RecursoDocumental]):
     from app.servicios import grafo_rdf
 
     try:
-        for fondo in fondos:
+        for fondo in _con_sus_autoridades(db, fondos):
             preparar(db, fondo)
     except grafo_rdf.ErrorGrafo as exc:
         db.rollback()

@@ -34,7 +34,7 @@ export function PreguntaVocabulario({ valor, verificacion, alDecidir }: {
   if (verificacion.estado !== "pregunta") return null;
   return (
     <div className="vocab">
-      <div className="q">Ya existe algo parecido a «{valor}» en el vocabulario del fondo. ¿Es la misma entidad?</div>
+      <div className="q">Ya existe algo parecido a «{valor}» en el vocabulario. ¿Es la misma entidad?</div>
       {verificacion.coincidencias[0]?.aviso && <div className="meta" style={{ margin: "4px 0 6px" }}>{verificacion.coincidencias[0].aviso}</div>}
       {verificacion.coincidencias.map((c) => (
         <div key={c.id} className="vocab-opcion">
@@ -42,6 +42,7 @@ export function PreguntaVocabulario({ valor, verificacion, alDecidir }: {
             <b>{c.nombre}</b>
             {c.subtipo && ` · ${SUBTIPO_NOMBRE[c.subtipo] || c.subtipo}`} · {Math.round(c.similitud * 100)} % parecido ·{" "}
             {c.conexiones} documento{c.conexiones === 1 ? "" : "s"}
+            {c.fondo && <span className="meta"> · autoridad registrada en «{c.fondo}»</span>}
           </span>
           <button type="button" className="boton chico primario"
                   onClick={() => alDecidir({ ...verificacion, estado: "resuelta", reutilizarId: c.id, reutilizarNombre: c.nombre, crearNueva: false })}>

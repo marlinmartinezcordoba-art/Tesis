@@ -182,6 +182,7 @@ class Coincidencia(BaseModel):
     similitud: float
     conexiones: int
     forma: str | None = None
+    fondo: str | None = None  # fondo de registro de una autoridad compartida, si es otro
 
 
 class DeteccionFusion(BaseModel):

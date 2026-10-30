@@ -106,6 +106,7 @@ function TarjetaSugerencia({ s, puede, alResolver }: { s: Sugerencia; puede: boo
                 <span className="nombre">{e.nombre}</span>
                 <span className="meta">
                   {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}{conexionesTexto(e.conexiones)} ·{" "}
+                  {e.fondo_registro && <>registrada en «{e.fondo_registro.titulo}» · </>}
                   <Link to={`/vocabularios/${e.id}`}>ver documentos</Link>
                 </span>
                 {puede && definitiva === e.id && <span className="insignia bien" style={{ marginTop: 6 }}>Queda como definitiva</span>}
@@ -205,6 +206,8 @@ export function Vocabularios() {
   const [q, setQ] = useState("");
   const [orden, setOrden] = useState<Orden>("conexiones_desc");
   const [fusionadas, setFusionadas] = useState(false);
+  // Las autoridades son de la institución: también las de otros fondos que este todavía no cita.
+  const [institucion, setInstitucion] = useState(false);
   const [nivel, setNivel] = useState<"" | "minimo" | "parcial" | "completo">("");
   const [vistaArbol, setVistaArbol] = useState(false);
   const [entidades, setEntidades] = useState<EntidadVocabulario[] | null>(null);
@@ -222,12 +225,13 @@ export function Vocabularios() {
     } else if (clase) params.set("clase", clase);
     if (!mecanismos && clase === "agente" && nivel) params.set("nivel_detalle", nivel);
     if (q.trim()) params.set("q", q.trim());
+    if (institucion) params.set("alcance", "institucion");
     try {
       setEntidades(await pedir<EntidadVocabulario[]>(`/api/vocabulario?${params}`));
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el vocabulario.");
     }
-  }, [fondo, clase, q, orden, fusionadas, nivel, mecanismos]);
+  }, [fondo, clase, q, orden, fusionadas, nivel, mecanismos, institucion]);
 
   const cargarSugerencias = useCallback(async () => {
     if (!fondo) return;
@@ -309,6 +313,9 @@ export function Vocabularios() {
             <label className="pastilla">
               <input type="checkbox" checked={fusionadas} onChange={(e) => setFusionadas(e.target.checked)} /> Ver fusionadas
             </label>
+            <label className="pastilla" title="Personas, familias, entidades y cargos son de toda la institución: muestra también las registradas en otros fondos">
+              <input type="checkbox" checked={institucion} onChange={(e) => setInstitucion(e.target.checked)} /> Autoridades de toda la institución
+            </label>
             {clase === "agente" && !mecanismos && (
               <select className="selector" aria-label="Nivel de detalle" value={nivel}
                       onChange={(e) => setNivel(e.target.value as typeof nivel)}>
@@ -364,6 +371,7 @@ export function Vocabularios() {
                     {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}
                     {e.version ? `versión ${e.version} · ` : esMecanismo(e) ? "sin versión · " : ""}{claseRicDe(e)}
                     {e.fusionada_en && ` · fusionada en «${e.fusionada_en.nombre}»`}
+                    {e.fondo_registro && ` · autoridad registrada en «${e.fondo_registro.titulo}»`}
                     {esMecanismo(e) && <> · {accionesTexto(e.acciones)}</>}
                   </div>
                 </div>

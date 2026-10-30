@@ -8,7 +8,7 @@ import { ErrorAPI, subir } from "@/lib/api";
 interface Autoridad {
   archivo: string; error?: string; nombre?: string; subtipo?: string; accion?: "crear" | "completar";
   campos?: Record<string, unknown>; otras_formas?: { nombre: string }[]; identificadores?: { esquema: string; valor: string }[];
-  omitidas?: Record<string, number>;
+  omitidas?: Record<string, number>; fondo_registro?: string;
 }
 interface Previa { autoridades: Autoridad[]; resumen: { crear: number; completar: number; con_error: number } }
 interface Hecho { creadas: number; completadas: number; avisos: string[]; omitidas: Record<string, number> }
@@ -85,7 +85,8 @@ export function ImportarEac({ fondoId, alTerminar }: { fondoId: string; alTermin
                   <tr key={a.archivo} className={a.error ? "fila-problema" : undefined}>
                     <td><strong>{a.nombre || a.archivo}</strong>{a.error && <div className="meta">{a.error}</div>}</td>
                     <td>{a.subtipo ? SUBTIPO[a.subtipo] : "—"}</td>
-                    <td>{a.accion === "crear" ? "Crear" : a.accion === "completar" ? "Completar la ficha existente" : "—"}</td>
+                    <td>{a.accion === "crear" ? "Crear" : a.accion === "completar" ? "Completar la ficha existente" : "—"}
+                      {a.fondo_registro && <div className="meta">Autoridad registrada en «{a.fondo_registro}»</div>}</td>
                     <td className="meta">{[...Object.keys(a.campos || {}),
                       a.otras_formas?.length ? `${a.otras_formas.length} otra(s) forma(s) del nombre` : "",
                       a.identificadores?.length ? `${a.identificadores.length} identificador(es)` : ""].filter(Boolean).join(", ")}</td>

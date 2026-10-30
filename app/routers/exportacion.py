@@ -30,7 +30,7 @@ from app.models.recurso_documental import RecursoDocumental
 from app.routers.fondos import fondo_o_404
 from app.schemas import respuestas_grafo_rdf as RG
 from app.schemas import respuestas_preservacion as R
-from app.servicios import alertas, conformidad_rico, exportacion_rico, grafo_rdf, parametros
+from app.servicios import alertas, conformidad_rico, exportacion_rico, grafo_rdf, parametros, vocabulario
 from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/exportacion", tags=["Exportación RiC-O"])
@@ -263,15 +263,26 @@ def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: 
 
         resto = pedida[len(m.group(1)):]  # con su extensión, si la traía
         return RedirectResponse(f"/id/{absorbida.fusionada_en_id}{resto}", status_code=status.HTTP_301_MOVED_PERMANENTLY)
-    fondo_id = _fondo_de(db, uuid.UUID(m.group(1)))
-    fondo = db.get(RecursoDocumental, fondo_id) if fondo_id else None
-    if fondo is None:
+    ident = uuid.UUID(m.group(1))
+    fondo_id = _fondo_de(db, ident)
+    if fondo_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe.")
-    # Ni con sesión se resuelve aquí lo clasificado o reservado: para eso
-    # está la exportación completa, con permiso y con registro.
-    ex = _leer(db, fondo, False)
+    # Una autoridad compartida vive en su fondo de registro, pero puede ser pública solo en otro
+    # fondo que la cita: se busca en cada uno, empezando por el de registro.
+    candidatos = [fondo_id] + sorted(vocabulario.fondos_que_citan(db, [ident]) - {fondo_id}, key=str)
     nodo = URIRef(exportacion_rico.base() + ruta)
-    if (nodo, RDF.type, None) not in ex.grafo:
+    ex = None
+    for fid in candidatos:
+        fondo = db.get(RecursoDocumental, fid)
+        if fondo is None:
+            continue
+        # Ni con sesión se resuelve aquí lo clasificado o reservado: para eso
+        # está la exportación completa, con permiso y con registro.
+        leido = _leer(db, fondo, False)
+        if (nodo, RDF.type, None) in leido.grafo:
+            ex = leido
+            break
+    if ex is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe o no es público.")
     cuerpo = exportacion_rico.serializar(exportacion_rico.descripcion_de(ex, nodo), formato)
     return Response(cuerpo, media_type=exportacion_rico.FORMATOS[formato][1], headers={"Vary": "Accept, Authorization"})

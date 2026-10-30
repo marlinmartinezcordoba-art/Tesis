@@ -477,8 +477,28 @@ def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) ->
     Una entidad que no cita ningún documento (una institución antecesora,
     un mandato) es contexto puro y sí se exporta."""
     ids = list(db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo.id)))
+    ids += list(vocabulario.externas_citadas(db, fondo.id))  # autoridades de otros fondos que este cita
     visibles = set(recursos) - {fondo.id}
-    return {e for e, docs in vocabulario._documentos_por_entidad(db, ids).items() if docs and not docs & visibles}
+    return _Vedadas(db, visibles, {e for e, docs in vocabulario._documentos_por_entidad(db, ids).items()
+                                   if docs and not docs & visibles}, set(ids))
+
+
+class _Vedadas(set):
+    """Las vedadas del fondo, y las de cualquier otra entidad a la que se llegue recorriendo el
+    grafo (una autoridad compartida lleva a otras de otros fondos): se calculan al preguntar,
+    con la misma regla (cita documentos y ninguno de este fondo se exporta)."""
+
+    def __init__(self, db, visibles, vedadas, revisadas):
+        super().__init__(vedadas)
+        self._db, self._visibles, self._revisadas = db, visibles, revisadas
+
+    def __contains__(self, ident):
+        if ident not in self._revisadas:
+            self._revisadas.add(ident)
+            docs = vocabulario._documentos_por_entidad(self._db, [ident])[ident]
+            if docs and not docs & self._visibles:
+                self.add(ident)
+        return super().__contains__(ident)
 
 
 def _cargar(db, tipo, ident, recursos, entidades, fechas_, instancias, incluir_restringidos=True, vedadas=frozenset()):

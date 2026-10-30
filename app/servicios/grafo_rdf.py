@@ -203,13 +203,16 @@ _SIN_FONDO = {"fechas", "nombres_entidad", "identificadores_entidad", "verificac
 def _fondos_de(sesion: Session) -> set | None:
     """Los fondos tocados en este flush; None = todos."""
     fondos: set = set()
-    relaciones = []
+    relaciones, compartidas = [], []
     for obj in list(sesion.new) + list(sesion.dirty) + list(sesion.deleted):
         tabla = getattr(obj, "__tablename__", None)
         if tabla == "recursos_documentales":
             fondos.add(obj.id if obj.nivel == "fondo" else obj.fondo_id)
         elif tabla in _CON_FONDO:
             fondos.add(obj.fondo_id)
+            # Una autoridad compartida sale también en el grafo de cada fondo que la cita.
+            if tabla == "entidades_vocabulario" and obj.clase == "agente" and obj.subtipo != "mecanismo":
+                compartidas.append(obj.id)
         elif tabla == "relaciones":
             relaciones.append(obj)
         elif tabla in _SIN_FONDO:
@@ -227,6 +230,15 @@ def _fondos_de(sesion: Session) -> set | None:
                 f = conexion.execute(text(f"SELECT {columna} FROM {tabla} WHERE id = :i"), {"i": ident}).scalar()
                 if f is not None:
                     fondos.add(f)
+    if compartidas:
+        conexion = sesion.connection()
+        fondos |= set(conexion.execute(text("""
+            SELECT DISTINCT COALESCE(r.fondo_id, r.id, e.fondo_id)
+            FROM relaciones rel
+            LEFT JOIN recursos_documentales r ON r.id IN (rel.origen_id, rel.destino_id)
+            LEFT JOIN entidades_vocabulario e ON e.id IN (rel.origen_id, rel.destino_id) AND NOT (e.id = ANY(CAST(:ids AS uuid[])))
+            WHERE rel.origen_id = ANY(CAST(:ids AS uuid[])) OR rel.destino_id = ANY(CAST(:ids AS uuid[]))"""),
+            {"ids": [str(i) for i in compartidas]}).scalars())
     fondos.discard(None)
     return fondos
 

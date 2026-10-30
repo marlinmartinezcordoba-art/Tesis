@@ -30,9 +30,12 @@ def agente_de_usuario(db: Session, usuario_id: uuid.UUID | None, fondo_id: uuid.
         return None
     existente = db.scalar(select(EntidadVocabulario).join(IdentificadorEntidad,
                                                           IdentificadorEntidad.entidad_id == EntidadVocabulario.id)
-                          .where(EntidadVocabulario.fondo_id == fondo_id, IdentificadorEntidad.esquema == "interno",
+                          .where(IdentificadorEntidad.esquema == "interno",
                                  IdentificadorEntidad.valor == _valor(usuario_id),
-                                 IdentificadorEntidad.estado == "vigente"))
+                                 IdentificadorEntidad.estado == "vigente")
+                          # La persona es una sola en la institución (autoridad compartida): la de este
+                          # fondo si ya existe, si no la de otro.
+                          .order_by((EntidadVocabulario.fondo_id != fondo_id), EntidadVocabulario.creado_en).limit(1))
     if existente is not None:
         return mecanismos._vigente(db, existente)
     u = db.get(Usuario, usuario_id)

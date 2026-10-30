@@ -155,10 +155,13 @@ def _por_autoridad(db: Session, q: str, f: _Fondo, ver_restringidos: bool):
     buscado = vocabulario.normalizar(q)
     crudo = q.strip().lower()
     formas = vocabulario._formas()
+    # Las del fondo y las autoridades de otros fondos que este cita.
+    externas = vocabulario.externas_citadas(db, f.fondo.id)
+    del_fondo = or_(EntidadVocabulario.fondo_id == f.fondo.id, EntidadVocabulario.id.in_(externas))
     por_nombre = db.execute(
         select(formas.c.entidad_id, formas.c.forma, func.word_similarity(buscado, formas.c.n))
         .join(EntidadVocabulario, EntidadVocabulario.id == formas.c.entidad_id)
-        .where(EntidadVocabulario.fondo_id == f.fondo.id, EntidadVocabulario.estado == "activa",
+        .where(del_fondo, EntidadVocabulario.estado == "activa",
                or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo != "mecanismo"),
                or_(formas.c.n.contains(buscado, autoescape=True),
                    func.word_similarity(buscado, formas.c.n) >= SIMILITUD_NOMBRE))
@@ -172,7 +175,7 @@ def _por_autoridad(db: Session, q: str, f: _Fondo, ver_restringidos: bool):
     por_identificador = db.execute(
         select(IdentificadorEntidad.entidad_id, IdentificadorEntidad.esquema, IdentificadorEntidad.valor)
         .join(EntidadVocabulario, EntidadVocabulario.id == IdentificadorEntidad.entidad_id)
-        .where(EntidadVocabulario.fondo_id == f.fondo.id, EntidadVocabulario.estado == "activa",
+        .where(del_fondo, EntidadVocabulario.estado == "activa",
                IdentificadorEntidad.estado == "vigente", func.length(IdentificadorEntidad.valor) >= 4,
                condicion_id)).all()
 
