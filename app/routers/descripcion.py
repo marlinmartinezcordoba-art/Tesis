@@ -32,11 +32,12 @@ from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
 from app.schemas.respuestas_descripcion import (
-    AtributoCatalogo, CustodiosOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut, FichaPublicaOut, GuiaMetadatos,
-    PaginasOut,
-    PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut, ReferenciaBreve, VersionCompleta, VersionResumen,
+    AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut,
+    FichaPublicaOut, GuiaMetadatos, PaginasOut, PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut,
+    ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
-from app.servicios import completitud, consulta, descripcion, motor, parametros, propuestas_ia, vocabulario
+from app.servicios import (completitud, consulta, datos_personales, descripcion, motor, parametros, propuestas_ia,
+                           vocabulario)
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -62,7 +63,7 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
     """Todo lo que la pantalla de trabajo necesita, para abrirla o recargarla."""
     documentos = descripcion.documentos_de(db, trabajo)
     fondo = db.get(RecursoDocumental, trabajo.fondo_id)
-    return {
+    espacio = {
         "trabajo_id": str(trabajo.id),
         "nivel": trabajo.nivel,
         "fondo": {"id": str(fondo.id), "titulo": fondo.titulo},
@@ -81,8 +82,12 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "empezada_por": _empezada_por(db, trabajo),
         # Completitud revisada por el sistema (RiC-A24): hallazgos con su página y la nota propuesta.
         "completitud": completitud.revisar_todos(db, documentos),
+        # Posibles datos personales (Ley 1581): cada uno se confirma, corrige o descarta antes de publicar.
+        "datos_personales": datos_personales.de_documentos(db, descripcion.instanciaciones_del_trabajo(db, trabajo)),
         "umbral_confianza": settings.umbral_confianza,
     }
+    db.commit()  # la búsqueda de datos personales guarda sus hallazgos la primera vez
+    return espacio
 
 
 # --- Cola --------------------------------------------------------------------------------
@@ -209,6 +214,70 @@ async def reproponer(trabajo_id: uuid.UUID, request: Request, actor: Actor = Dep
                      "nueva": str(trabajo.propuesta_id) if trabajo.propuesta_id else None}, request=request)
     db.commit()
     return _espacio(db, trabajo)
+
+
+# --- Datos personales (Ley 1581) ------------------------------------------------------------------
+
+
+class DecisionDatoIn(BaseModel):
+    trabajo_id: uuid.UUID
+    accion: Literal["confirmar", "corregir", "descartar"]
+    categoria: Literal["personal", "sensible", "menores"] | None = None
+    tipo: str | None = Field(default=None, max_length=40)
+    motivo: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/datos-personales/{dato_id}/decision",
+             responses={200: {"model": DatosPersonalesOut, "description": "Los hallazgos del trabajo, actualizados"}},
+             summary="Confirmar, corregir o descartar un posible dato personal")
+def decidir_dato_personal(dato_id: uuid.UUID, datos: DecisionDatoIn, request: Request,
+                          actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.models.dato_personal import DatoPersonalDetectado
+
+    try:
+        trabajo = descripcion.trabajo_propio(db, datos.trabajo_id, actor.id)
+    except descripcion.ErrorDescripcion as exc:
+        db.commit()
+        return _error(exc)
+    documentos = descripcion.instanciaciones_del_trabajo(db, trabajo)
+    dato = db.get(DatoPersonalDetectado, dato_id)
+    if dato is None or dato.instanciacion_id not in {d.id for d in documentos}:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El hallazgo no es de los documentos de este trabajo.")
+    try:
+        cambio = datos_personales.decidir(db, dato, accion=datos.accion, usuario_id=actor.id,
+                                          categoria=datos.categoria, tipo=datos.tipo, motivo=datos.motivo)
+    except datos_personales.ErrorDatoPersonal as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    # La auditoría guarda la muestra enmascarada, nunca el dato.
+    registrar(db, modulo="descripcion", accion="dato_personal_revisado", usuario_id=actor.id,
+              entidad_tipo="instanciacion", entidad_id=dato.instanciacion_id,
+              detalle=f"{datos_personales.TIPOS.get(dato.tipo, dato.tipo)} «{dato.muestra}»: {datos.accion}",
+              anterior=cambio["anterior"], nuevo=cambio["nuevo"], request=request)
+    resultado = datos_personales.de_documentos(db, documentos)
+    db.commit()
+    return resultado
+
+
+@router.post("/datos-personales/revisar-fondo",
+             responses={200: {"model": RevisionDatosFondoOut, "description": "Cuántos archivos se revisaron y qué se encontró"}},
+             summary="Buscar posibles datos personales en los archivos ya cargados del fondo (administración)")
+def revisar_datos_fondo(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                        db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    archivos = db.scalars(select(Instanciacion).where(Instanciacion.fondo_id == fondo_id,
+                                                      Instanciacion.texto_extraido.isnot(None))).all()
+    nuevos, graves = 0, 0
+    for inst in archivos:
+        hallados = datos_personales.revisar(db, inst)
+        datos_personales.alertar(db, inst, hallados)
+        nuevos += len(hallados)
+        graves += sum(1 for d in hallados if d.categoria in ("sensible", "menores"))
+    resultado = {"archivos": len(archivos), "hallazgos_nuevos": nuevos, "sensibles_o_menores": graves}
+    registrar(db, modulo="descripcion", accion="datos_personales_revisados", usuario_id=actor.id,
+              entidad_tipo="fondo", entidad_id=fondo_id, detalle="Búsqueda de posibles datos personales en el fondo",
+              nuevo=resultado, request=request)
+    db.commit()
+    return resultado
 
 
 @router.get("/propuestas/{propuesta_id}", responses={200: {"model": PropuestaIAOut, "description": "La propuesta completa: entrada, respuesta y contenido controlado"}},
@@ -426,6 +495,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
+        datos_personales.exigir_revision(db, descripcion.documentos_de(db, trabajo), recurso, actor.id)
         descripcion.versionar(db, recurso, "publicacion", actor.id)
         _asentar(db, recurso)
         db.commit()
@@ -813,7 +883,10 @@ def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descrip
     except IntegrityError:
         db.rollback()
         return JSONResponse({"detail": "Otra persona acaba de abrir esta descripción."}, status_code=409)
-    return {"trabajo_id": str(trabajo.id), "descripcion": descripcion.detalle(db, recurso)}
+    # Lo que quede por revisar de datos personales se resuelve aquí antes de guardar la corrección.
+    revision = datos_personales.de_documentos(db, descripcion.instanciaciones_del_trabajo(db, trabajo))
+    db.commit()
+    return {"trabajo_id": str(trabajo.id), "descripcion": descripcion.detalle(db, recurso), "datos_personales": revision}
 
 
 @router.patch("/{recurso_id}", responses={200: {"model": DetalleDescripcionOut, "description": "La descripción corregida, vista interna"}},
@@ -842,6 +915,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
         elif datos.clasificacion_hereda:
             _volver_a_heredar(db, recurso, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
+        datos_personales.exigir_revision(db, descripcion.instanciaciones_del_trabajo(db, trabajo), recurso, actor.id)
         descripcion.versionar(db, recurso, "edicion", actor.id, hubo_cambio=cambio)
         _asentar(db, recurso)
         db.commit()

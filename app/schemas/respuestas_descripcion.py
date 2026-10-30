@@ -99,6 +99,21 @@ class DocumentoTrabajo(BaseModel):
     expediente_destino_id: str | None
 
 
+class DatosPersonalesOut(BaseModel):
+    """Posibles datos personales (Ley 1581) de los documentos del trabajo, con su decisión."""
+    model_config = ConfigDict(extra="allow")
+    documentos: list[dict]
+    pendientes: int
+    nivel_propuesto: str | None
+    sin_texto: list[str]
+
+
+class RevisionDatosFondoOut(BaseModel):
+    archivos: int
+    hallazgos_nuevos: int
+    sensibles_o_menores: int
+
+
 class EspacioTrabajoOut(BaseModel):
     """Todo lo que la pantalla de trabajo necesita para abrirse o recargarse."""
     model_config = ConfigDict(extra="allow")

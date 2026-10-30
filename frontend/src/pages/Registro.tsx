@@ -23,6 +23,7 @@ import { useSesion } from "@/lib/sesion";
 import { NivelRiC } from "@/components/NivelRiC";
 import { Ventana } from "@/components/Ventana";
 import { Pertenencias } from "@/components/Pertenencias";
+import { DatosPersonales, type RevisionDatos } from "@/components/DatosPersonales";
 
 interface EntidadRegistrada {
   relacion_id: string;
@@ -133,6 +134,7 @@ export function RegistroDescripcion() {
   const veVocabulario = tienePermiso(usuario, "vocabularios");
   const [registro, setRegistro] = useState<Registro | null>(null);
   const [trabajo, setTrabajo] = useState<string | null>(null);
+  const [datosPersonales, setDatosPersonales] = useState<RevisionDatos | null>(null);
   const [titulo, setTitulo] = useState("");
   const [alcance, setAlcance] = useState("");
   const [incluido, setIncluido] = useState("");
@@ -182,8 +184,10 @@ export function RegistroDescripcion() {
   async function corregir() {
     setError("");
     try {
-      const r = await pedir<{ trabajo_id: string; descripcion: Registro }>(`/api/descripcion/registros/${id}/reabrir`, { method: "POST" });
+      const r = await pedir<{ trabajo_id: string; descripcion: Registro; datos_personales: RevisionDatos }>(
+        `/api/descripcion/registros/${id}/reabrir`, { method: "POST" });
       setTrabajo(r.trabajo_id);
+      setDatosPersonales(r.datos_personales);
       cargar(r.descripcion);
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo abrir para corregir.");
@@ -319,8 +323,13 @@ export function RegistroDescripcion() {
       {!editando && <Pertenencias registro={registro} alCambiar={(r) => cargar(r)} />}
 
       {editando ? (
+        <>
+        {trabajo && datosPersonales && (datosPersonales.pendientes > 0 || datosPersonales.documentos.some((d) => d.hallazgos.length)) && (
+          <DatosPersonales trabajoId={trabajo} datos={datosPersonales} alCambiar={setDatosPersonales} />
+        )}
         <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null}
                         heredada={registro.clasificacion_heredada} nivel={registro.nivel} />
+        </>
       ) : (
         <div className="tarjeta">
           <div className="tarjeta-cab">Idioma, condiciones y secuencia</div>
@@ -512,7 +521,7 @@ export function RegistroDescripcion() {
           <span>Los cambios quedan en auditoría con el valor anterior y el nuevo. Lo que se quita no se borra: queda anulado.</span>
           <div className="acciones">
             <button type="button" className="boton" onClick={descartarCambios}>Descartar cambios</button>
-            <button type="button" className="boton primario" disabled={guardando || pendientes > 0 || titulo.trim().length < 3} onClick={guardar}>
+            <button type="button" className="boton primario" disabled={guardando || pendientes > 0 || !!datosPersonales?.pendientes || titulo.trim().length < 3} onClick={guardar}>
               {guardando ? "Guardando…" : "Guardar cambios"}
             </button>
           </div>

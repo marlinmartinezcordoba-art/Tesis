@@ -9,7 +9,7 @@ export interface AlertaEnlazable {
   entidad_id: string;
 }
 
-const A_DESCRIPCION = new Set(["formato_no_identificado", "ocr_baja_confianza"]);
+const A_DESCRIPCION = new Set(["formato_no_identificado", "ocr_baja_confianza", "datos_personales_sensibles"]);
 
 export function enlaceDeAlerta(a: AlertaEnlazable): { ruta: string; texto: string } | null {
   if (A_DESCRIPCION.has(a.tipo) && a.entidad_tipo === "instanciacion")
@@ -35,4 +35,5 @@ export const TIPO_ALERTA: Record<string, string> = {
   mecanismo_sin_version: "Mecanismo sin versión",
   archivo_infectado: "Archivo infectado (en cuarentena)",
   validacion_formato_fallida: "Formato no conforme (validación)",
+  datos_personales_sensibles: "Datos sensibles o de menores (Ley 1581)",
 };

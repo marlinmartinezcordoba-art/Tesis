@@ -18,6 +18,7 @@ import {
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
 import { VisorDocumento, Zona } from "@/components/VisorDocumento";
 import { NivelRiC } from "@/components/NivelRiC";
+import { DatosPersonales, type RevisionDatos } from "@/components/DatosPersonales";
 import { Ventana } from "@/components/Ventana";
 
 interface EntidadPropuesta {
@@ -76,6 +77,7 @@ interface Espacio {
   recuperado?: boolean;
   empezada_por?: string | null;  // si se continúa la descripción que empezó otra persona
   completitud?: RevisionCompletitud | null;
+  datos_personales?: RevisionDatos | null;
 }
 
 // Lo que se guarda del formulario mientras se trabaja.
@@ -388,6 +390,7 @@ export function EspacioTrabajo() {
 
   const umbral = espacio.umbral_confianza;
   const pendientes = items.filter((i) => porResolver(i, items)).length + partes.filter(partePendiente).length;
+  const datosPendientes = espacio?.datos_personales?.pendientes || 0;
   const opciones = (tipo: TipoEntidad) => items.filter((x) => x.tipo === tipo && x.decision !== "descartada");
   const nombreDe = (clave: string | null) => items.find((x) => x.clave === clave)?.valor;
   const aceptadas = items.filter((i) => i.decision === "aceptada").length;
@@ -476,6 +479,15 @@ export function EspacioTrabajo() {
               </select>
             </div>
           </div>
+
+          {espacio.datos_personales && (
+            <DatosPersonales trabajoId={espacio.trabajo_id} datos={espacio.datos_personales}
+                             alCambiar={(d) => {
+                               setEspacio({ ...espacio, datos_personales: d });
+                               // Lo confirmado fija el nivel mínimo; la persona puede declarar más, no menos.
+                               if (d.nivel_propuesto && !campos.datosPersonales) setCampos({ ...campos, datosPersonales: d.nivel_propuesto });
+                             }} />
+          )}
 
           <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
                           completitud={espacio.completitud}
@@ -626,10 +638,11 @@ export function EspacioTrabajo() {
           {items.length} entidad{items.length === 1 ? "" : "es"} · {aceptadas} aceptada{aceptadas === 1 ? "" : "s"}
           {bajas > 0 && ` · ${bajas} con confianza baja`}
           {pendientes > 0 ? ` · ${pendientes} pendiente${pendientes === 1 ? "" : "s"} de resolver` : " · nada pendiente"}
+          {datosPendientes > 0 && ` · ${datosPendientes} dato${datosPendientes === 1 ? "" : "s"} personal${datosPendientes === 1 ? "" : "es"} por revisar`}
         </span>
         <div className="acciones">
           <button type="button" className="boton" onClick={salir}>Salir sin publicar</button>
-          <button type="button" className="boton primario" disabled={pendientes > 0 || publicando || vencido || titulo.trim().length < 3}
+          <button type="button" className="boton primario" disabled={pendientes > 0 || datosPendientes > 0 || publicando || vencido || titulo.trim().length < 3}
                   onClick={publicar}>
             {publicando ? "Publicando…" : "Publicar descripción"}
           </button>

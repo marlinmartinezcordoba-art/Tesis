@@ -288,7 +288,9 @@ def _fila(db: Session, fondo_id, alcance: str) -> GrafoRdf:
 
 def ntriples(g: Graph) -> bytes:
     """N-Triples ordenadas: el mismo grafo da siempre los mismos bytes (y la misma huella)."""
-    lineas = sorted(linea for linea in g.serialize(format="nt").splitlines() if linea.strip())
+    # split("\n") y no splitlines(): splitlines también corta en el salto de página (\f) que puede traer
+    # el texto de un PDF, y partiría el literal en dos.
+    lineas = sorted(linea for linea in g.serialize(format="nt").split("\n") if linea.strip())
     return ("\n".join(lineas) + "\n").encode("utf-8") if lineas else b""
 
 

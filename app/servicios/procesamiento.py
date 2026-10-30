@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.base import ahora
 from app.models.instanciacion import Instanciacion
-from app.servicios import (alertas, almacen, comprobaciones, evidencia, formato, mecanismos, parametros, segunda_copia,
-                           texto)
+from app.servicios import (alertas, almacen, comprobaciones, datos_personales, evidencia, formato, mecanismos,
+                           parametros, segunda_copia, texto)
 
 log = logging.getLogger("ricora.ingesta")
 
@@ -167,6 +167,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         inst.texto_en = ahora()
         # Páginas y líneas con su caja: para ubicar cada fragmento citado (RF-OCR-001).
         evidencia.guardar_paginas(db, inst, t.paginas_texto)
+        # 4 bis. Posibles datos personales (Ley 1581), con reglas y en el servidor: quedan por revisar.
+        _avance(db, inst, "texto", 100, "Buscando posibles datos personales")
+        datos_personales.alertar(db, inst, datos_personales.revisar(db, inst))
         programa = mecanismos.de_texto(t.origen)
         if programa:
             inst.mecanismo_texto_id = mecanismos.obtener(db, inst.fondo_id, *programa).id

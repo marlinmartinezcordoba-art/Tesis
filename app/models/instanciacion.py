@@ -100,6 +100,8 @@ class Instanciacion(Base):
     palabras_ocr = Column(Integer, nullable=True)
     # Bajo el umbral configurable: señal para leer con cuidado, nunca un bloqueo.
     ocr_baja_confianza = Column(Boolean, nullable=False, default=False, server_default="false", index=True)
+    # Revisión de datos personales (Ley 1581): huella del texto y versión de las reglas con que se hizo.
+    revision_datos_personales = Column(String(80), nullable=True)
 
     # Preservación (módulo 5): estado de la última verificación de
     # integridad y, si esta instanciación salió de una migración, de cuál.

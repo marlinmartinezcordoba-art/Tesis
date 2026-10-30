@@ -51,6 +51,27 @@ export function Alertas() {
     cargar();
   }, [cargar]);
 
+  // Para los archivos cargados antes de que existiera la búsqueda de datos personales (Ley 1581).
+  const [revisando, setRevisando] = useState(false);
+  const [revision, setRevision] = useState("");
+  async function revisarDatos() {
+    if (!fondo) return;
+    setRevisando(true);
+    setError("");
+    try {
+      const r = await pedir<{ archivos: number; hallazgos_nuevos: number; sensibles_o_menores: number }>(
+        `/api/descripcion/datos-personales/revisar-fondo?fondo_id=${fondo.id}`, { method: "POST" });
+      setRevision(`Se revisaron ${r.archivos} archivo(s): ${r.hallazgos_nuevos} posible(s) dato(s) personal(es) nuevos, `
+        + `${r.sensibles_o_menores} sensibles o de menores. Se revisan al describir cada documento.`);
+      window.dispatchEvent(new Event("ricora:alertas"));
+      cargar();
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo hacer la búsqueda.");
+    } finally {
+      setRevisando(false);
+    }
+  }
+
   async function atender(a: Alerta) {
     const nota = await pedirTexto("Nota breve de lo que se hizo. Es opcional y queda con la alerta.",
       { titulo: "Atender la alerta", aceptar: "Marcar como atendida", opcional: true });
@@ -81,6 +102,14 @@ export function Alertas() {
         ))}
       </div>
       {error && <div className="aviso error" role="alert">{error}</div>}
+      {usuario?.es_administrador && (
+        <div className="acciones" style={{ marginBottom: 12 }}>
+          <button type="button" className="boton chico" disabled={revisando} onClick={revisarDatos}
+                  title="Busca cédulas, tarjetas de identidad, correos, teléfonos, datos de salud y de menores en el texto de los archivos ya cargados">
+            {revisando ? "Buscando…" : "Buscar datos personales en lo ya cargado"}</button>
+          {revision && <span className="meta">{revision}</span>}
+        </div>
+      )}
       <div className="tarjeta">
         {alertas === null ? (
           <div className="vacio">Cargando…</div>

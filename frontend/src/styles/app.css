@@ -847,3 +847,11 @@ kbd { font: 600 .7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding:
   .paso-recorrido .boton { grid-column: 2; justify-self: start; }
   .lanzador-boton kbd { display: none; }
 }
+
+/* Posibles datos personales (Ley 1581): uno por fila, con su contexto y sus decisiones. */
+.datos-personales .lista-datos { list-style: none; padding: 0; margin: 8px 0 0; }
+.datos-personales .lista-datos > li { padding: 8px 0; border-top: 1px solid var(--line); }
+.datos-personales .lista-datos > li.descartado { opacity: .6; }
+.datos-personales mark { background: var(--warn-bg); color: inherit; padding: 0 2px; border-radius: 2px; }
+.acciones-chicas { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.acciones-chicas .entrada, .acciones-chicas .selector { flex: 1 1 180px; min-width: 0; }
