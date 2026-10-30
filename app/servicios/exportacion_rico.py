@@ -478,7 +478,9 @@ def _entidades_vedadas(db: Session, fondo: RecursoDocumental, recursos: dict) ->
     un mandato) es contexto puro y sí se exporta."""
     ids = list(db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo.id)))
     ids += list(vocabulario.externas_citadas(db, fondo.id))  # autoridades de otros fondos que este cita
-    visibles = set(recursos) - {fondo.id}
+    # El fondo cuenta como visible si se exporta: quien solo está unido al fondo (su institución
+    # custodia, su productor) es tan público como el fondo mismo.
+    visibles = set(recursos)
     return _Vedadas(db, visibles, {e for e, docs in vocabulario._documentos_por_entidad(db, ids).items()
                                    if docs and not docs & visibles}, set(ids))
 

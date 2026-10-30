@@ -155,6 +155,9 @@ class EntidadVocabulario(_Procedencia, Base):
     # clasificación documental; skos:notation).
     tipo_funcion = Column(String(20), nullable=True)
     codigo_clasificacion = Column(String(40), nullable=True)
+    # ISDIAH (institución que custodia fondos): contacto, acceso y servicios, que ISAAR no
+    # tiene. Solo en una entidad corporativa; claves en autoridad.CAMPOS_ISDIAH.
+    isdiah = Column(JSONB, nullable=True)
     # --- Lugar ampliado (RiC-A11 coordenadas; rico:PlaceType) ---
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)

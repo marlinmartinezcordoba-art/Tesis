@@ -55,7 +55,21 @@ CAMPOS_AGENTE = ("version", "existencia_edtf", "historia", "estatuto_juridico", 
                  # Cobertura total de RiC-CM: tipo de entidad (A12), de familia (A20), ocupación (A30)
                  # y grupo demográfico (A15, dato sensible).
                  "tipo_entidad", "tipo_familia", "ocupacion", "grupo_demografico",
-                 *CAMPOS_CONTROL)
+                 # ISDIAH, para la institución que custodia los fondos (entidad corporativa).
+                 "isdiah", *CAMPOS_CONTROL)
+# ISDIAH (ICA, 2008): lo que ISAAR no cubre de una institución con archivos. La identidad, la
+# historia, la estructura, los mandatos y el control ya están en la ficha ISAAR; los fondos que
+# custodia salen de sus vínculos «custodia» con cada fondo.
+CAMPOS_ISDIAH = {
+    "direccion": ("5.2.1 Dirección", 300), "telefono": ("5.2.2 Teléfono", 100), "correo": ("5.2.2 Correo", 200),
+    "sitio_web": ("5.2.2 Sitio web", 300), "contacto": ("5.2.3 Persona de contacto", 200),
+    "contexto_geografico": ("5.3.2 Contexto geográfico y cultural", 4000),
+    "politicas_ingreso": ("5.3.5 Políticas de gestión e ingreso", 4000), "edificios": ("5.3.6 Edificios", 2000),
+    "instrumentos": ("5.3.8 Instrumentos de descripción publicados", 2000),
+    "horarios": ("5.4.1 Horarios", 500), "condiciones_acceso": ("5.4.2 Condiciones y requisitos de acceso", 2000),
+    "accesibilidad": ("5.4.3 Accesibilidad", 2000), "servicios_investigacion": ("5.5.1 Servicios de ayuda a la investigación", 2000),
+    "reproduccion": ("5.5.2 Servicios de reproducción", 2000), "espacios_publicos": ("5.5.3 Espacios públicos", 2000),
+}
 # Función (ISDF; hallazgo VOC-03): tipo, código de clasificación (skos:notation),
 # fechas, historia (nota de alcance) y el área de control.
 CAMPOS_FUNCION = ("tipo_funcion", "codigo_clasificacion", "existencia_edtf", "historia", *CAMPOS_CONTROL)
@@ -196,6 +210,26 @@ def actualizar(db: Session, e: EntidadVocabulario, cambios: dict, usuario_id: uu
             if v and v not in lista:
                 raise ErrorAutoridad(f"Valor desconocido: {', '.join(lista.values()).lower()}.")
             nuevos[campo] = v
+        elif campo == "isdiah":
+            if valor is not None and not isinstance(valor, dict):
+                raise ErrorAutoridad("Los datos ISDIAH se envían campo por campo.")
+            if valor and e.subtipo != "entidad_corporativa":
+                raise ErrorAutoridad("La ficha ISDIAH es de una institución (entidad corporativa) que custodia archivos.")
+            extra_i = sorted(set(valor or {}) - set(CAMPOS_ISDIAH))
+            if extra_i:
+                raise ErrorAutoridad(f"Campos ISDIAH desconocidos: {', '.join(extra_i)}.")
+            limpio = dict(e.isdiah or {})
+            for clave, texto in (valor or {}).items():
+                t = _texto(texto, CAMPOS_ISDIAH[clave][1])
+                if t is None:
+                    limpio.pop(clave, None)
+                else:
+                    if clave == "correo" and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", t):
+                        raise ErrorAutoridad("El correo no es válido.")
+                    if clave == "sitio_web" and not re.match(r"https?://", t):
+                        raise ErrorAutoridad("El sitio web empieza por http:// o https://.")
+                    limpio[clave] = t
+            nuevos[campo] = limpio or None
         elif campo == "ocupacion":
             v = _texto(valor, 200)
             if v and e.subtipo != "persona":
@@ -589,6 +623,9 @@ VINCULOS: dict[str, Vinculo] = {
     # Función ↔ serie que produce (TRD): R001, desde el tipo de actividad.
     "serie_producida": Vinculo("is_related_to", "serie_producida", "asociacion", ("tipo_actividad",),
                                ("recurso:serie,subserie",), False, False),
+    # Institución que custodia el fondo (ISDIAH 5.3.7; RiC-R039i hasOrHadHolder): desde la institución.
+    "custodia_fondo": Vinculo("has_or_had_holder", None, "asociacion", ("recurso:fondo",),
+                              ("agente:entidad_corporativa",), False, False, se_declara_desde="destino"),
     # --- Cobertura total de RiC-CM (documentacion/brechas-ric-lineamiento-completo.md) ---
     # Genealogía (R017): de un ascendiente a su descendiente (no solo padre o madre).
     "ascendiente_de": Vinculo("has_descendant", None, "asociacion", ("agente:persona",), ("agente:persona",), False,

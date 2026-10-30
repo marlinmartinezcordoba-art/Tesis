@@ -557,6 +557,9 @@ SIN_PROPIEDAD = {
                          "se exporta), no con un texto. Se conserva en la ficha.",
     "calendario": "RiC-O no declara calendario; normalizedDateValue usa ISO 8601 (gregoriano). Delimitación de la tesis.",
     "nivel_detalle": "Dato de control interno del registro de autoridad.",
+    "isdiah": "ISDIAH 5.2, 5.4 y 5.5 (contacto, horarios, acceso, servicios de la institución custodia): RiC-O 1.1 "
+              "no tiene propiedades para ellos. Se conservan en la ficha y en el grafo de control; la custodia de "
+              "cada fondo sí se exporta (rico:hasOrHadHolder).",
     "fuentes": "RiC-O solo ofrece fuente para relaciones reificadas (isEvidencedBy); se conserva interno.",
     "origen_confianza": "Procedencia del dato (motor o persona): nunca sale del sistema.",
     # ISAD-G sin propiedad literal en RiC-O 1.1 (hallazgo DES-07; motivo de cada uno en isadg.SIN_PROPIEDAD_RICO).

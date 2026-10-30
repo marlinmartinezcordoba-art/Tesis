@@ -128,9 +128,10 @@ function PropiedadRico({ v }: { v: Vinculo }) {
 }
 
 // Un campo de texto que se edita en el lugar y se guarda con PATCH.
-function TextoEditable({ etiqueta, campo, valor, multilinea, puede, entidadId, alCambiar, pista }: {
+function TextoEditable({ etiqueta, campo, valor, multilinea, puede, entidadId, alCambiar, pista, cuerpo }: {
   etiqueta: string; campo: string; valor: string | number | null | undefined; multilinea?: boolean; puede: boolean;
   entidadId: string; alCambiar: Props["alCambiar"]; pista?: string;
+  cuerpo?: (texto: string) => Record<string, unknown>;  // otro cuerpo para el PATCH (p. ej. un campo ISDIAH)
 }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(valor == null ? "" : String(valor));
@@ -140,7 +141,7 @@ function TextoEditable({ etiqueta, campo, valor, multilinea, puede, entidadId, a
     e.preventDefault();
     setError("");
     try {
-      await enviar(`/api/vocabulario/${entidadId}`, "PATCH", { [campo]: texto });
+      await enviar(`/api/vocabulario/${entidadId}`, "PATCH", cuerpo ? cuerpo(texto) : { [campo]: texto });
       setEditando(false);
       alCambiar();
     } catch (err) {
@@ -254,7 +255,7 @@ function FechaEditable({ etiqueta, campo, edtf, legible, puede, entidadId, alCam
 
 // Buscador de entidades del vocabulario (o de series) para declarar un vínculo.
 function Buscador({ fondoId, busca, excluir, alElegir }: {
-  fondoId: string; busca: ClaseVocabulario | "serie"; excluir: string; alElegir: (id: string, nombre: string) => void;
+  fondoId: string; busca: ClaseVocabulario | "serie" | "fondo"; excluir: string; alElegir: (id: string, nombre: string) => void;
 }) {
   const [q, setQ] = useState("");
   const [resultados, setResultados] = useState<{ id: string; nombre: string; meta: string }[]>([]);
@@ -266,13 +267,20 @@ function Buscador({ fondoId, busca, excluir, alElegir }: {
     }
     const t = setTimeout(async () => {
       try {
-        if (busca === "serie") {
+        if (busca === "fondo") {
+          const r = await pedir<{ id: string; titulo: string }[]>("/api/fondos");
+          const t = q.trim().toLowerCase();
+          setResultados(r.filter((x) => x.titulo.toLowerCase().includes(t)).slice(0, 8)
+            .map((x) => ({ id: x.id, nombre: x.titulo, meta: "Fondo" })));
+        } else if (busca === "serie") {
           const r = await pedir<{ id: string; titulo: string; nivel: string }[]>(
             `/api/vocabulario/series?${new URLSearchParams({ fondo_id: fondoId, q: q.trim() })}`);
           setResultados(r.map((x) => ({ id: x.id, nombre: x.titulo, meta: NIVEL_NOMBRE[x.nivel] || x.nivel })));
         } else {
           const r = await pedir<EntidadVocabulario[]>(
-            `/api/vocabulario?${new URLSearchParams({ fondo_id: fondoId, clase: busca, q: q.trim(), orden: "nombre" })}`);
+            `/api/vocabulario?${new URLSearchParams({ fondo_id: fondoId, clase: busca, q: q.trim(), orden: "nombre",
+              // Las autoridades son de la institución: se vinculan con las de cualquier fondo.
+              ...(busca === "agente" ? { alcance: "institucion" } : {}) })}`);
           setResultados(r.filter((x) => x.id !== excluir).slice(0, 8)
             .map((x) => ({ id: x.id, nombre: x.nombre, meta: x.subtipo ? SUBTIPO_NOMBRE[x.subtipo] || x.subtipo : CLASE_NOMBRE[x.clase] })));
         }
@@ -286,7 +294,8 @@ function Buscador({ fondoId, busca, excluir, alElegir }: {
   return (
     <>
       <input className="entrada" type="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)}
-             aria-label="Buscar" placeholder={busca === "serie" ? "Buscar serie o subserie…" : `Buscar ${CLASE_NOMBRE[busca].toLowerCase()}…`} />
+             aria-label="Buscar" placeholder={busca === "serie" ? "Buscar serie o subserie…" : busca === "fondo" ? "Buscar fondo…"
+               : `Buscar ${CLASE_NOMBRE[busca].toLowerCase()}…`} />
       {q.trim() && resultados.length === 0 && <div className="meta">Sin coincidencias en el vocabulario del fondo.</div>}
       {resultados.map((r) => (
         <div className="fila" key={r.id} style={{ padding: "6px 0" }}>
@@ -303,7 +312,7 @@ function Buscador({ fondoId, busca, excluir, alElegir }: {
 // desde cuál se envía.
 // `subtipos`: solo se ofrece si la entidad que se edita es de uno de esos tipos de agente.
 interface OpcionVinculo {
-  tipo: string; etiqueta: string; busca: ClaseVocabulario | "serie"; conFecha?: boolean; invertir?: boolean; subtipos?: string[];
+  tipo: string; etiqueta: string; busca: ClaseVocabulario | "serie" | "fondo"; conFecha?: boolean; invertir?: boolean; subtipos?: string[];
 }
 const GRUPOS = ["grupo", "entidad_corporativa", "familia"];
 
@@ -362,6 +371,10 @@ const OPCIONES: Record<string, OpcionVinculo[]> = {
     { tipo: "expedido_por", etiqueta: "Fue expedido por", busca: "agente" },
     { tipo: "creado_por", etiqueta: "Crea o establece al agente", busca: "agente", invertir: true },
   ],
+  // ISDIAH 5.3.7: los fondos que la institución custodia o custodió (rico:hasOrHadHolder).
+  custodia: [
+    { tipo: "custodia_fondo", etiqueta: "Custodia o custodió el fondo", busca: "fondo", conFecha: true },
+  ],
   tipo_actividad: [
     { tipo: "serie_producida", etiqueta: "Produce la serie (TRD)", busca: "serie" },
     { tipo: "competencia_creada_por", etiqueta: "Es una competencia creada por", busca: "mandato" },
@@ -387,7 +400,7 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
   async function confirmar() {
     if (!abierta || !elegida) return;
     setError("");
-    const con_tipo = abierta.busca === "serie" ? "recurso_documental" : "entidad_vocabulario";
+    const con_tipo = abierta.busca === "serie" || abierta.busca === "fondo" ? "recurso_documental" : "entidad_vocabulario";
     const desde = abierta.invertir ? elegida.id : entidad.id;
     const con = abierta.invertir ? entidad.id : elegida.id;
     try {
@@ -686,6 +699,42 @@ function LineaDeTiempo({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; ent
 
 // --- Fichas por clase ------------------------------------------------------------------------------------
 
+// ISDIAH: lo que ISAAR no tiene de una institución con archivos. La identidad, la historia, la
+// estructura y el control ya están arriba; los fondos que custodia salen de sus vínculos.
+const ISDIAH: [string, string, boolean][] = [
+  ["direccion", "Dirección (5.2.1)", false], ["telefono", "Teléfono (5.2.2)", false], ["correo", "Correo (5.2.2)", false],
+  ["sitio_web", "Sitio web (5.2.2)", false], ["contacto", "Persona de contacto (5.2.3)", false],
+  ["contexto_geografico", "Contexto geográfico y cultural (5.3.2)", true],
+  ["politicas_ingreso", "Políticas de gestión e ingreso (5.3.5)", true], ["edificios", "Edificios (5.3.6)", true],
+  ["instrumentos", "Instrumentos de descripción publicados (5.3.8)", true],
+  ["horarios", "Horarios de apertura (5.4.1)", false], ["condiciones_acceso", "Condiciones y requisitos de acceso (5.4.2)", true],
+  ["accesibilidad", "Accesibilidad (5.4.3)", true], ["servicios_investigacion", "Servicios de ayuda a la investigación (5.5.1)", true],
+  ["reproduccion", "Servicios de reproducción (5.5.2)", true], ["espacios_publicos", "Espacios públicos (5.5.3)", true],
+];
+
+function AreaIsdiah(p: Props) {
+  const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
+  const datos = (f.campos.isdiah as unknown as Record<string, string> | null) || {};
+  return (
+    <Area titulo="Institución que custodia archivos (ISDIAH)" abierta={Object.keys(datos).length > 0}>
+      <p className="meta" style={{ marginTop: 0 }}>
+        Contacto, acceso y servicios de la institución. RiC-O 1.1 no tiene propiedades para estos datos: se guardan en
+        la ficha y no salen en el grafo. La custodia de cada fondo sí sale (rico:hasOrHadHolder).
+      </p>
+      <dl className="par-dato">
+        {ISDIAH.map(([clave, etiqueta, multilinea]) => (
+          <TextoEditable key={clave} etiqueta={etiqueta} campo={clave} valor={datos[clave]} multilinea={multilinea}
+                         puede={puede} entidadId={e.id} alCambiar={alCambiar}
+                         cuerpo={(texto) => ({ isdiah: { [clave]: texto } })} />
+        ))}
+      </dl>
+      <h4>Fondos que custodia o custodió (5.3.7)</h4>
+      <Vinculos vinculos={f.vinculos} tipos={["custodia_fondo"]} opciones={OPCIONES.custodia}
+                vacio="Sin fondos declarados." entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
+    </Area>
+  );
+}
+
 function FichaAgente(p: Props) {
   const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
   const comun = { puede, entidadId: e.id, alCambiar };
@@ -753,6 +802,8 @@ function FichaAgente(p: Props) {
       </Area>
 
       <AreaControl {...p} titulo="4. Área de control" />
+
+      {e.subtipo === "entidad_corporativa" && <AreaIsdiah {...p} />}
     </>
   );
 }

@@ -179,7 +179,7 @@ class _Contexto:
         if self._con_documentos is None:
             ids = list(self.db.scalars(select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == self.fondo.id)))
             ids += list(vocabulario.externas_citadas(self.db, self.fondo.id))  # autoridades de otros fondos
-            visibles = {i for i in self.recursos if i != self.fondo.id}
+            visibles = set(self.recursos)  # el fondo también: su custodio y su productor son tan públicos como él
             self._con_documentos = {e for e, docs in vocabulario._documentos_por_entidad(self.db, ids).items()
                                     if docs & visibles}
         return ident in self._con_documentos
