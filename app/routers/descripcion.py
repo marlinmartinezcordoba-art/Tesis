@@ -8,6 +8,7 @@ corrige con auditoría de valores anteriores y nuevos.
 """
 
 import json
+from datetime import date
 import uuid
 from typing import Literal
 
@@ -32,12 +33,13 @@ from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
 )
 from app.schemas.respuestas_descripcion import (
-    AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, FichaIsadgOut,
+    AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, EstadoDigitalizacionOut,
+    FichaIsadgOut,
     FichaPublicaOut, GuiaMetadatos, PaginasOut, PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut,
     ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
-from app.servicios import (completitud, consulta, datos_personales, descripcion, motor, parametros, propuestas_ia,
-                           vocabulario)
+from app.servicios import (completitud, consulta, datos_personales, descripcion, digitalizacion, motor, parametros,
+                           propuestas_ia, vocabulario)
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -214,6 +216,101 @@ async def reproponer(trabajo_id: uuid.UUID, request: Request, actor: Actor = Dep
                      "nueva": str(trabajo.propuesta_id) if trabajo.propuesta_id else None}, request=request)
     db.commit()
     return _espacio(db, trabajo)
+
+
+# --- Tipos de contenido (RiC-A10) y digitalización (requisitos 2 y 5) ------------------------------
+
+
+class TipoContenidoIn(BaseModel):
+    clave: str = Field(min_length=2, max_length=40)
+    nombre: str = Field(min_length=2, max_length=120)
+
+
+@router.get("/tipos-contenido", responses={200: {"model": list[dict], "description": "Catálogo de tipos de contenido"}},
+            summary="Tipos de contenido: los de RiC-CM y los que agregó la administración")
+def ver_tipos_contenido(_: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.models.recurso_documental import TIPO_CONTENIDO
+
+    return [{"clave": k, "nombre": n, "propio": k not in TIPO_CONTENIDO} for k, n in descripcion.tipos_de_contenido(db).items()]
+
+
+@router.put("/tipos-contenido", responses={200: {"model": list[dict], "description": "Catálogo actualizado"}},
+            summary="Cambiar los tipos de contenido agregados (administración)")
+def cambiar_tipos_contenido(datos: list[TipoContenidoIn], request: Request, actor: Actor = Depends(solo_administrador),
+                            db: Session = Depends(get_db)):
+    from app.models.recurso_documental import RecursoDocumental as RD
+
+    nuevos = [{"clave": t.clave.strip(), "nombre": t.nombre.strip()} for t in datos]
+    retirados = {t["clave"] for t in parametros.leer(db, "tipos_contenido_adicionales") or []} - {t["clave"] for t in nuevos}
+    # Un tipo en uso no se retira: los documentos que lo tienen quedarían con un valor sin nombre.
+    en_uso = [c for c in retirados if db.scalar(select(func.count()).select_from(RD).where(RD.tipos_contenido.any(c)))]
+    if en_uso:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail=f"No se puede retirar {', '.join(en_uso)}: hay documentos descritos con ese tipo.")
+    try:
+        parametros.cambiar(db, "tipos_contenido_adicionales", nuevos, actor.id, "descripcion", ip=request.client.host if request.client else None)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return ver_tipos_contenido(actor, db)
+
+
+class DatosDigitalizacionIn(BaseModel):
+    responsable: str | None = Field(default=None, max_length=200)
+    fecha: date | None = None
+    equipo: str | None = Field(default=None, max_length=200)
+    resolucion_ppp: int | None = None
+    nota: str | None = Field(default=None, max_length=2000)
+
+
+class VerificacionIn(BaseModel):
+    comprobaciones: dict[str, bool]
+    nota: str | None = Field(default=None, max_length=2000)
+
+
+@router.get("/registros/{recurso_id}/digitalizacion",
+            responses={200: {"model": EstadoDigitalizacionOut, "description": "Estado de digitalización y cada copia"}},
+            summary="Estado de digitalización del documento (aparte de su estado documental)")
+def ver_digitalizacion(recurso_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    return digitalizacion.estado(db, _recurso_o_404(db, recurso_id))
+
+
+def _digitalizacion_o_error(db, relacion_id):
+    try:
+        return digitalizacion.relacion_de(db, relacion_id)
+    except digitalizacion.ErrorDigitalizacion as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.put("/digitalizaciones/{relacion_id}",
+            responses={200: {"model": EstadoDigitalizacionOut, "description": "Estado actualizado"}},
+            summary="Quién, cuándo, con qué equipo y a qué resolución se digitalizó")
+def datos_digitalizacion(relacion_id: uuid.UUID, datos: DatosDigitalizacionIn,
+                         actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    rel = _digitalizacion_o_error(db, relacion_id)
+    try:
+        digitalizacion.registrar_datos(db, rel, usuario_id=actor.id, **datos.model_dump())
+    except digitalizacion.ErrorDigitalizacion as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return digitalizacion.estado(db, digitalizacion.recurso_de(db, rel))
+
+
+@router.post("/digitalizaciones/{relacion_id}/verificaciones", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": EstadoDigitalizacionOut, "description": "Estado con la nueva verificación"}},
+             summary="Verificar la copia digital frente al original, comprobación por comprobación")
+def verificar_digitalizacion(relacion_id: uuid.UUID, datos: VerificacionIn,
+                             actor: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    rel = _digitalizacion_o_error(db, relacion_id)
+    try:
+        digitalizacion.verificar(db, rel, comprobaciones=datos.comprobaciones, nota=datos.nota, usuario_id=actor.id)
+    except digitalizacion.ErrorDigitalizacion as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return digitalizacion.estado(db, digitalizacion.recurso_de(db, rel))
 
 
 # --- Datos personales (Ley 1581) ------------------------------------------------------------------
@@ -489,7 +586,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
-            copia_de_id=datos.copia_de_id, tipo_contenido=datos.tipo_contenido,
+            copia_de_id=datos.copia_de_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
@@ -906,7 +1003,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
-            copia_de_id=datos.copia_de_id, tipo_contenido=datos.tipo_contenido,
+            copia_de_id=datos.copia_de_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)

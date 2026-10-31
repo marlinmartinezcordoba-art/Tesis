@@ -75,6 +75,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "descripcion_cancelada": ("Salió sin publicar", None),
     "edicion_liberada": ("Liberó una edición", None),
     "descripcion_recuperada": ("Continuó una descripción sin publicar", None),
+    "digitalizacion_registrada": ("Registró los datos de una digitalización", None),
+    "digitalizacion_verificada": ("Verificó una digitalización", None),
     "propuesta_repetida": ("Volvió a consultar el motor de análisis", None),
     "eac_importado": ("Importó autoridades en EAC-CPF", None),
     "descripcion_publicada": ("Publicó una descripción", "Descripciones validadas"),

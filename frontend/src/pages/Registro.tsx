@@ -6,7 +6,7 @@ import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
 import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/components/Versiones";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import {
-  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, TIPO_CONTENIDO, VINCULO_NOMBRE, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
   proteccionParaEnviar,
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
@@ -23,6 +23,7 @@ import { useSesion } from "@/lib/sesion";
 import { NivelRiC } from "@/components/NivelRiC";
 import { Ventana } from "@/components/Ventana";
 import { Pertenencias } from "@/components/Pertenencias";
+import { Digitalizacion } from "@/components/Digitalizacion";
 import { DatosPersonales, type RevisionDatos } from "@/components/DatosPersonales";
 
 interface EntidadRegistrada {
@@ -93,7 +94,7 @@ interface Registro {
   vinculos?: { relacion_id: string; id: string; titulo: string; tipo: string; uri_rico: string | null }[];
   estado_documento?: string | null;
   nota_integridad?: string | null;
-  tipo_contenido?: string | null;
+  tipos_contenido?: string[];
   fechas_predominantes?: string | null;
 }
 
@@ -146,6 +147,7 @@ export function RegistroDescripcion() {
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
+  const tiposContenido = useTiposContenido();
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
   const [control, setControl] = useState<Record<keyof Control, string>>(
     { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "", tomo: "", otra_unidad: "", frecuencia_consulta: "" });
@@ -162,7 +164,7 @@ export function RegistroDescripcion() {
     setCampos({ idiomas: r.idiomas, clasificacion: clasificacionInicial(r.clasificacion), condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
                 respondeA: null, borradorDe: null, estadoDocumento: r.estado_documento || "",
-                notaIntegridad: r.nota_integridad || "", copiaDe: null, tipoContenido: r.tipo_contenido || "",
+                notaIntegridad: r.nota_integridad || "", copiaDe: null, tiposContenido: r.tipos_contenido || [],
                 fechasPredominantes: r.fechas_predominantes || "",
                 isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [],
@@ -235,7 +237,7 @@ export function RegistroDescripcion() {
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
           estado_documento: campos.estadoDocumento, nota_integridad: campos.notaIntegridad,
-          copia_de_id: campos.copiaDe?.id || null, tipo_contenido: campos.tipoContenido,
+          copia_de_id: campos.copiaDe?.id || null, tipos_contenido: campos.tiposContenido,
           fechas_predominantes: campos.fechasPredominantes,
           agregar_partes: partes.map(parteParaEnviar),
           control: {
@@ -366,7 +368,7 @@ export function RegistroDescripcion() {
               <dt>Completitud</dt><dd>{registro.nota_integridad || "—"}</dd>
               {(registro.nivel === "unidad_documental" || registro.nivel === "parte_documental") ? (<>
                 <dt>Tipo de contenido</dt>
-                <dd>{TIPO_CONTENIDO.find(([k]) => k === registro.tipo_contenido)?.[1] ?? "—"}</dd>
+                <dd>{nombresContenido(registro.tipos_contenido, tiposContenido) || "—"}</dd>
               </>) : (<>
                 <dt>Fechas predominantes</dt><dd>{registro.fechas_predominantes || "—"}</dd>
               </>)}
@@ -443,6 +445,7 @@ export function RegistroDescripcion() {
 
       <OriginalesFisicos recursoId={registro.id} instanciaciones={registro.instanciaciones} puede={puede && !editando}
                          alGuardar={(r) => cargar(r as Registro)} />
+      {["unidad_documental", "parte_documental"].includes(registro.nivel) && <Digitalizacion key={registro.instanciaciones.length} recursoId={registro.id} puede={puede && !editando} />}
       <ComponentesDigitales recursoId={registro.id} instanciaciones={registro.instanciaciones} puede={puede && !editando}
                             alGuardar={(r) => cargar(r as Registro)} />
       <CompletitudDescripcion recursoId={registro.id} version={registro} />

@@ -136,6 +136,8 @@ class RecursoDocumental(Base):
     # Completitud intelectual (RiC-A24 Integrity Note): si al expediente o al
     # documento le falta algo. No es la fijeza del archivo (eso es autenticidad).
     nota_integridad = Column(Text, nullable=True)
-    tipo_contenido = Column(String(30), nullable=True)  # TIPO_CONTENIDO; RiC-A10, de un documento
+    # RiC-A10, de un documento: varios a la vez (texto e imagen fija). Claves de TIPO_CONTENIDO o de
+    # los tipos que agregó la administración (parámetro tipos_contenido_adicionales).
+    tipos_contenido = Column(ARRAY(String(40)), nullable=True)
     # Fechas predominantes de una agrupación (las de la mayoría de sus documentos; RiC-R083), en EDTF.
     fechas_predominantes_edtf = Column(String(200), nullable=True)

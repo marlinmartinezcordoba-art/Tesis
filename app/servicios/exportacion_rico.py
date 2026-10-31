@@ -100,6 +100,7 @@ class Exportacion:
     omitidas: Counter = field(default_factory=Counter)
     nodos: dict = field(default_factory=dict)  # uuid → (tipo, clase RiC-O)
     completa: bool = False  # con lo restringido (el grafo «completo»), no el público
+    tipos_contenido: dict | None = None  # catálogo RiC-A10 con los tipos que agregó la administración
 
     def resumen(self) -> dict:
         clases = Counter(str(o).split("#")[-1] for o in self.grafo.objects(None, RDF.type) if str(o).startswith(ric_o.RICO))
@@ -168,6 +169,9 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
     y se descarga sale del grafo guardado (`grafo_rdf.leer`)."""
     g = grafo_vacio()
     ex = Exportacion(grafo=g, fondo=fondo, completa=incluir_restringidos)
+    from app.servicios.descripcion import tipos_de_contenido
+
+    ex.tipos_contenido = tipos_de_contenido(db)
     recursos = _recursos(db, fondo, incluir_restringidos, ex.omitidas)
     for r in recursos.values():
         _recurso(ex, r, recursos)
@@ -566,7 +570,7 @@ def _relacion(db: Session, ex: Exportacion, rel: Relacion, extremos, incluir_res
     if descripcion:
         g.add((nodo, _a("descripcion_general"), Literal(descripcion)))
     _procedencia_relacion(db, ex, nodo, rel, incluir_restringidos)
-    _derivadas_de_relacion(ex, rel, n_o, n_d)
+    _derivadas_de_relacion(db, ex, rel, n_o, n_d)
     if rel.codigo_ric == "has_or_had_holder" and rel.fecha_edtf:
         # RiC-O no reifica la custodia en una clase de relación con fechas: el
         # tramo queda en el sistema y la exportación lo cuenta (DES-05).
@@ -578,7 +582,7 @@ def _fisica(i: Instanciacion) -> bool:
     return i.estado == "registro_fisico" or not i.ruta
 
 
-def _derivadas_de_relacion(ex: Exportacion, rel: Relacion, n_o, n_d) -> None:
+def _derivadas_de_relacion(db: Session, ex: Exportacion, rel: Relacion, n_o, n_d) -> None:
     """Lo que una fila dice además en RiC-O 1.1 con propiedades más precisas
     (fase 1 de RiC completo), sin otra fuente que la fila y sus extremos."""
     g = ex.grafo
@@ -604,8 +608,33 @@ def _derivadas_de_relacion(ex: Exportacion, rel: Relacion, n_o, n_d) -> None:
                                                                                          "Digitalización")))
         g.add((nodo, RICO[ric_o.ACCION_TECNICA["afecta"].rico], uri(n_o.id)))
         g.add((nodo, _apoyo("resultado")[0], uri(n_d.id)))
-        if n_d.cargado_en is not None:
-            _fecha_libre(ex, nodo, _apoyo("inicio")[0], URIRef(f"{nodo}/fecha"), None, n_d.cargado_en.date().isoformat())
+        from app.models.digitalizacion import Digitalizacion, VerificacionDigitalizacion
+
+        datos = db.scalar(select(Digitalizacion).where(Digitalizacion.relacion_id == rel.id))
+        cuando = datos.fecha if datos and datos.fecha else (n_d.cargado_en.date() if n_d.cargado_en else None)
+        if cuando is not None:
+            _fecha_libre(ex, nodo, _apoyo("inicio")[0], URIRef(f"{nodo}/fecha"), None, cuando.isoformat())
+        if datos is not None:  # quién, con qué equipo y a qué resolución (requisito 5)
+            partes = [f"Digitalizó: {datos.responsable}" if datos.responsable else None,
+                      f"equipo: {datos.equipo}" if datos.equipo else None,
+                      f"{datos.resolucion_ppp} ppp" if datos.resolucion_ppp else None]
+            if any(partes):
+                g.add((nodo, _a("descripcion_general"), Literal("; ".join(p for p in partes if p), lang="es")))
+        # Cada verificación de la copia es otra actividad que la afecta, con su resultado.
+        for v in db.scalars(select(VerificacionDigitalizacion).where(VerificacionDigitalizacion.relacion_id == rel.id)):
+            nv = uri(rel.id, f"verificacion/{v.id}")
+            etiqueta = f"Verificación de la digitalización de «{n_o.nombre_original}»"
+            g.add((nv, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["actividad"]]))
+            g.add((nv, RDFS.label, Literal(etiqueta)))
+            g.add((nv, _a("nombre"), Literal(etiqueta)))
+            g.add((nv, RICO[ric_o.PROPIEDADES["has_activity_type"].rico],
+                   _tipo_tecnico(ex, "verificacion-digitalizacion", "Verificación de la digitalización")))
+            g.add((nv, RICO[ric_o.ACCION_TECNICA["afecta"].rico], uri(n_d.id)))
+            g.add((nv, _a("descripcion_general"), Literal(
+                ("Verificada: " if v.resultado == "verificada" else "Con problemas: ")
+                + ", ".join(k for k, ok in v.comprobaciones.items() if ok == (v.resultado == "verificada"))
+                + (f". {v.nota}" if v.nota else ""), lang="es")))
+            _fecha_libre(ex, nv, _apoyo("inicio")[0], URIRef(f"{nv}/fecha"), None, v.verificado_en.date().isoformat())
     elif rel.codigo_ric == "has_copy" and isinstance(n_o, RecursoDocumental) and isinstance(n_d, RecursoDocumental) \
             and ric_o.CLASE_NIVEL[n_o.nivel] != "RecordSet" and ric_o.CLASE_NIVEL[n_d.nivel] != "RecordSet":
         g.add((uri(rel.origen_id), _apoyo("original_de")[0], uri(rel.destino_id)))  # RiC-R010, entre documentos
@@ -887,10 +916,12 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
             prop, clase_ap = _apoyo("estado_documento")
             g.add((s, prop, _concepto(ex, "estado-del-documento", r.estado_documento, clase_ap,
                                       ESTADO_DOCUMENTO[r.estado_documento])))
-        if r.tipo_contenido in TIPO_CONTENIDO:  # RiC-A10
+        if r.tipos_contenido:  # RiC-A10: varios a la vez (texto e imagen fija), cada uno un concepto
             prop, clase_ap = _apoyo("tipo_contenido")
-            g.add((s, prop, _concepto(ex, "tipo-de-contenido", r.tipo_contenido, clase_ap,
-                                      TIPO_CONTENIDO[r.tipo_contenido])))
+            catalogo = ex.tipos_contenido if ex.tipos_contenido is not None else TIPO_CONTENIDO
+            for tipo in r.tipos_contenido:
+                if tipo in catalogo:
+                    g.add((s, prop, _concepto(ex, "tipo-de-contenido", tipo, clase_ap, catalogo[tipo])))
     if r.folios:  # ISAD-G 3.1.5, RiC-A35: el texto y el nodo con cantidad y unidad (brecha 2)
         g.add((s, _a("extension"), Literal(f"{r.folios} folios", lang="es")))
         _extension(ex, s, "extension_recurso", "folios", r.folios, "folios")

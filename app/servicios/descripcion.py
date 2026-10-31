@@ -919,19 +919,28 @@ def _estado_y_completitud(recurso: RecursoDocumental, estado_documento: str | No
         recurso.nota_integridad = nota_integridad.strip()[:5000] or None
 
 
-def _contenido_y_predominantes(recurso: RecursoDocumental, tipo_contenido: str | None,
-                               fechas_predominantes: str | None) -> None:
-    """Tipo de contenido de un documento (RiC-A10) y fechas predominantes de una
-    agrupación (RiC-R083). None: no cambia; vacío: se quita."""
+def tipos_de_contenido(db: Session) -> dict[str, str]:
+    """El catálogo de tipos de contenido: los de RiC-CM y los que agregó la administración."""
     from app.models.recurso_documental import TIPO_CONTENIDO
+    from app.servicios import parametros
 
-    if tipo_contenido is not None:
-        tipo = tipo_contenido.strip() or None
-        if tipo and tipo not in TIPO_CONTENIDO:
-            raise ErrorDescripcion("Tipo de contenido: " + ", ".join(TIPO_CONTENIDO.values()).lower() + ".")
-        if tipo and recurso.nivel not in ("unidad_documental", "parte_documental"):
+    return {**TIPO_CONTENIDO, **{t["clave"]: t["nombre"] for t in parametros.leer(db, "tipos_contenido_adicionales") or []}}
+
+
+def _contenido_y_predominantes(db: Session, recurso: RecursoDocumental, tipos_contenido: list[str] | None,
+                               fechas_predominantes: str | None) -> None:
+    """Tipos de contenido de un documento (RiC-A10, varios a la vez: texto e imagen fija) y
+    fechas predominantes de una agrupación (RiC-R083). None: no cambia; lista vacía: se quita."""
+    if tipos_contenido is not None:
+        catalogo = tipos_de_contenido(db)
+        tipos = list(dict.fromkeys(t.strip() for t in tipos_contenido if t and t.strip()))
+        desconocidos = [t for t in tipos if t not in catalogo]
+        if desconocidos:
+            raise ErrorDescripcion("Tipo de contenido desconocido: " + ", ".join(desconocidos) + ". Los tipos son: "
+                                   + ", ".join(catalogo.values()).lower() + ".")
+        if tipos and recurso.nivel not in ("unidad_documental", "parte_documental"):
             raise ErrorDescripcion("El tipo de contenido (texto, imagen, mapa…) es de un documento, no de una agrupación.")
-        recurso.tipo_contenido = tipo
+        recurso.tipos_contenido = tipos or None
     if fechas_predominantes is not None:
         edtf = fechas_predominantes.strip() or None
         if edtf:
@@ -1043,7 +1052,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
              borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
              nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
-             tipo_contenido: str | None = None, fechas_predominantes: str | None = None) -> RecursoDocumental:
+             tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -1076,7 +1085,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     _historia(recurso, historia_archivistica)
     _isadg(recurso, isadg_textos, escrituras)
     _estado_y_completitud(recurso, estado_documento, nota_integridad)
-    _contenido_y_predominantes(recurso, tipo_contenido, fechas_predominantes)
+    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes)
     db.add(recurso)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
@@ -1262,7 +1271,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "historia_archivistica": recurso.historia_archivistica,
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
         "estado_documento": recurso.estado_documento, "nota_integridad": recurso.nota_integridad,
-        "tipo_contenido": recurso.tipo_contenido, "fechas_predominantes": recurso.fechas_predominantes_edtf,
+        "tipos_contenido": list(recurso.tipos_contenido or []), "fechas_predominantes": recurso.fechas_predominantes_edtf,
         "isadg": _isadg_valores(recurso),
         "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
         "partes": partes, "parte_de": parte_de, "secuencia": secuencia, "vinculos": vinculos, "tambien_en": tambien_en, "miembros_adicionales": miembros,
@@ -1348,7 +1357,7 @@ def resumen(db: Session, recurso: RecursoDocumental) -> dict:
         "secuencia": sorted(f"{x['posicion']}:{x['titulo']}" for x in d["secuencia"]),
         "vinculos": sorted(f"{x['tipo']}:{x['titulo']}" for x in d["vinculos"]),
         "estado_documento": d["estado_documento"], "nota_integridad": d["nota_integridad"],
-        "tipo_contenido": d["tipo_contenido"], "fechas_predominantes": d["fechas_predominantes"],
+        "tipos_contenido": d["tipos_contenido"], "fechas_predominantes": d["fechas_predominantes"],
         "historia_archivistica": d["historia_archivistica"], **d["isadg"],
         **control_de(recurso),
     }
@@ -1381,7 +1390,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
            borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
            nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
-           tipo_contenido: str | None = None, fechas_predominantes: str | None = None) -> bool:
+           tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> bool:
     """Aplica la corrección. Devuelve si algo cambió."""
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
@@ -1438,7 +1447,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         if otro_id:
             _vinculo(db, recurso, otro_id, campo, usuario_id)
     _estado_y_completitud(recurso, estado_documento, nota_integridad)
-    _contenido_y_predominantes(recurso, tipo_contenido, fechas_predominantes)
+    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(

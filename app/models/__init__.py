@@ -4,6 +4,7 @@ from app.db.base import Base  # noqa: F401
 from app.models.alerta import Alerta  # noqa: F401
 from app.models.auditoria import RegistroAuditoria  # noqa: F401
 from app.models.dato_personal import DatoPersonalDetectado  # noqa: F401
+from app.models.digitalizacion import Digitalizacion, VerificacionDigitalizacion  # noqa: F401
 from app.models.evidencia_ia import PaginaTexto, PropuestaIA  # noqa: F401
 from app.models.evaluacion import Anotacion, Calificacion, Evaluacion, EvaluacionDocumento, Exposicion  # noqa: F401
 from app.models.grafo_rdf import GrafoRdf  # noqa: F401

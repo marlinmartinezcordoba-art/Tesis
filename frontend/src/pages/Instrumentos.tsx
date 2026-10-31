@@ -11,7 +11,7 @@ import {
 import { useSesion } from "@/lib/sesion";
 import { PestanaGrafo } from "@/pages/GrafoFondo";
 import { CadenaActividad } from "@/components/ContextoActividad";
-import { ESTADO_DOCUMENTO, IDIOMAS, TIPO_CONTENIDO, VINCULO_NOMBRE } from "@/components/DescripcionV3";
+import { ESTADO_DOCUMENTO, IDIOMAS, TIPO_CONTENIDO, VINCULO_NOMBRE, nombresContenido } from "@/components/DescripcionV3";
 import { CLASE_NOMBRE_PLURAL } from "@/lib/vocabulario";
 import { ExportacionRico } from "@/components/ExportacionRico";
 import { useVista } from "@/components/Marco";
@@ -127,8 +127,8 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
               {ficha.estado_documento && <><dt>Estado del documento</dt>
                 <dd>{ESTADO_DOCUMENTO.find(([k]) => k === ficha.estado_documento)?.[1] ?? ficha.estado_documento}</dd></>}
               {ficha.nota_integridad && <><dt>Completitud</dt><dd>{ficha.nota_integridad}</dd></>}
-              {ficha.tipo_contenido && <><dt>Tipo de contenido</dt>
-                <dd>{TIPO_CONTENIDO.find(([k]) => k === ficha.tipo_contenido)?.[1] ?? ficha.tipo_contenido}</dd></>}
+              {!!ficha.tipos_contenido?.length && <><dt>Tipo de contenido</dt>
+                <dd>{nombresContenido(ficha.tipos_contenido, TIPO_CONTENIDO)}</dd></>}
               {ficha.fechas_predominantes && <><dt>Fechas predominantes</dt><dd>{ficha.fechas_predominantes}</dd></>}
               {ficha.partes.length > 0 && (
                 <>

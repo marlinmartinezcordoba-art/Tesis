@@ -26,7 +26,30 @@ def _entero_entre(minimo: int, maximo: int) -> Callable[[Any], str | None]:
     return validar
 
 
+def _tipos_contenido(valor: Any) -> str | None:
+    """Tipos de contenido que la administración agrega a los de RiC-CM: [{clave, nombre}]."""
+    from app.models.recurso_documental import TIPO_CONTENIDO
+
+    if not isinstance(valor, list) or len(valor) > 40:
+        return "Debe ser una lista (máximo 40 tipos)."
+    vistas = set()
+    for t in valor:
+        if not isinstance(t, dict) or set(t) != {"clave", "nombre"}:
+            return "Cada tipo lleva clave y nombre."
+        clave, nombre = t["clave"], t["nombre"]
+        if not isinstance(clave, str) or not __import__("re").fullmatch(r"[a-z][a-z0-9_]{1,38}", clave):
+            return "La clave va en minúsculas, sin espacios ni tildes (p. ej. «objeto_tridimensional»)."
+        if not isinstance(nombre, str) or not 2 <= len(nombre.strip()) <= 120:
+            return "El nombre tiene entre 2 y 120 caracteres."
+        if clave in TIPO_CONTENIDO or clave in vistas:
+            return f"La clave «{clave}» ya existe."
+        vistas.add(clave)
+    return None
+
+
 DEFINICIONES: dict[str, Definicion] = {
+    "tipos_contenido_adicionales": Definicion([], _tipos_contenido,
+                                              "Tipos de contenido que se agregan a los de RiC-CM (RiC-A10)."),
     "ingesta_limite_mb": Definicion(500, _entero_entre(1, 20000), "Tamaño máximo por archivo en la ingesta, en megabytes."),
     "ingesta_umbral_ocr": Definicion(70, _entero_entre(0, 100),
                                      "Confianza mínima del OCR (sobre 100); por debajo, el documento se marca para "

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as EventoPuntero } from "react";
 import { GuiaCampo } from "@/components/GuiaCampo";
 import { PreguntaVocabulario } from "@/components/Vocabulario";
-import { pedir, pedirArchivo } from "@/lib/api";
+import { ErrorAPI, pedir, pedirArchivo } from "@/lib/api";
+import { pedirTexto } from "@/lib/dialogos";
+import { useSesion } from "@/lib/sesion";
 import { NIVEL_NOMBRE, verificarVocabulario, type Coincidencia, type Verificacion } from "@/lib/descripcion";
 
 // --- Idioma, condiciones de acceso y de uso, secuencia ------------------------------------------
@@ -41,7 +43,7 @@ export interface CamposRegistroValor {
   notaIntegridad: string;
   // Cobertura total: copia de (RiC-R012), tipo de contenido (RiC-A10), fechas predominantes (RiC-R083, EDTF).
   copiaDe: { id: string; titulo: string } | null;
-  tipoContenido: string;
+  tiposContenido: string[];  // RiC-A10: varios a la vez (texto e imagen fija)
   fechasPredominantes: string;
   // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
   isadg: Record<string, string>;
@@ -78,7 +80,7 @@ export const ESCRITURAS: Record<string, string> = {
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
            respondeA: null, borradorDe: null, estadoDocumento: "", notaIntegridad: "",
-           copiaDe: null, tipoContenido: "", fechasPredominantes: "",
+           copiaDe: null, tiposContenido: [], fechasPredominantes: "",
            isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
 }
 
@@ -94,6 +96,64 @@ export const TIPO_CONTENIDO: [string, string][] = [
   ["imagen_cartografica", "Imagen cartográfica (mapa, plano)"], ["imagen_en_movimiento", "Imagen en movimiento"],
   ["sonido", "Sonido"], ["notacion_musical", "Notación musical"], ["datos", "Datos"],
 ];
+
+// El catálogo con los tipos que agregó la administración; si no se puede leer, el de RiC-CM.
+let catalogoTipos: Promise<[string, string][]> | null = null;
+export function cargarTiposContenido(recargar = false): Promise<[string, string][]> {
+  if (!catalogoTipos || recargar) {
+    catalogoTipos = pedir<{ clave: string; nombre: string }[]>("/api/descripcion/tipos-contenido")
+      .then((r) => r.map((t) => [t.clave, t.nombre] as [string, string])).catch(() => TIPO_CONTENIDO);
+  }
+  return catalogoTipos;
+}
+export function useTiposContenido(): [string, string][] {
+  const [tipos, setTipos] = useState<[string, string][]>(TIPO_CONTENIDO);
+  useEffect(() => { cargarTiposContenido().then(setTipos); }, []);
+  return tipos;
+}
+export const nombresContenido = (claves: string[] | null | undefined, tipos: [string, string][]) =>
+  (claves || []).map((c) => tipos.find(([k]) => k === c)?.[1] ?? c).join(" · ");
+
+function TiposContenido({ valor, alCambiar }: { valor: string[]; alCambiar: (v: string[]) => void }) {
+  const { usuario } = useSesion();
+  const [tipos, setTipos] = useState<[string, string][]>(TIPO_CONTENIDO);
+  const [error, setError] = useState("");
+  useEffect(() => { cargarTiposContenido().then(setTipos); }, []);
+
+  async function agregar() {
+    const nombre = await pedirTexto("Nombre del tipo de contenido nuevo (por ejemplo, «Objeto tridimensional»). Quedará "
+      + "disponible para todos los documentos.", { titulo: "Agregar un tipo de contenido", aceptar: "Agregar", minimo: 2 });
+    if (!nombre) return;
+    const clave = nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "").slice(0, 38);
+    try {
+      const actuales = (await pedir<{ clave: string; nombre: string; propio: boolean }[]>("/api/descripcion/tipos-contenido"))
+        .filter((t) => t.propio).map(({ clave: c, nombre: n }) => ({ clave: c, nombre: n }));
+      await pedir("/api/descripcion/tipos-contenido", { method: "PUT", body: JSON.stringify([...actuales, { clave, nombre: nombre.trim() }]) });
+      setTipos(await cargarTiposContenido(true));
+      alCambiar([...valor, clave]);
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo agregar.");
+    }
+  }
+
+  return (
+    <>
+      <div className="opciones" role="group" aria-label="Tipos de contenido">
+        {tipos.map(([k, n]) => (
+          <label key={k} className={valor.includes(k) ? "elegida" : ""}>
+            <input type="checkbox" checked={valor.includes(k)}
+                   onChange={(e) => alCambiar(e.target.checked ? [...valor, k] : valor.filter((x) => x !== k))} /> {n}
+          </label>
+        ))}
+      </div>
+      <div className="pista">Marque todos los que tenga: un oficio con fotografías es «Texto» e «Imagen fija».
+        {usuario?.es_administrador && <> <button type="button" className="enlace" onClick={agregar}>Agregar un tipo</button></>}
+      </div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+    </>
+  );
+}
 
 const ES_DOCUMENTO = (nivel?: string) => !nivel || nivel === "unidad_documental" || nivel === "parte_documental";
 
@@ -396,12 +456,8 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       </div>
       {documento && (
         <div className="campo">
-          <label htmlFor="tipo-contenido">Tipo de contenido <span className="meta">(opcional · rico:hasContentOfType)</span></label>
-          <select id="tipo-contenido" className="selector" value={valor.tipoContenido}
-                  onChange={(e) => alCambiar({ ...valor, tipoContenido: e.target.value })}>
-            <option value="">Sin indicar</option>
-            {TIPO_CONTENIDO.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-          </select>
+          <label>Tipo de contenido <span className="meta">(opcional · uno o varios · rico:hasContentOfType)</span></label>
+          <TiposContenido valor={valor.tiposContenido} alCambiar={(tiposContenido) => alCambiar({ ...valor, tiposContenido })} />
         </div>
       )}
       {!documento && (

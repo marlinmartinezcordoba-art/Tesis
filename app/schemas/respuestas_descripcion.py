@@ -108,6 +108,14 @@ class DatosPersonalesOut(BaseModel):
     sin_texto: list[str]
 
 
+class EstadoDigitalizacionOut(BaseModel):
+    """Estado de digitalización del documento, aparte de su estado documental (requisito 5)."""
+    model_config = ConfigDict(extra="allow")
+    estado: str
+    estado_nombre: str
+    digitalizaciones: list[dict]
+
+
 class RevisionDatosFondoOut(BaseModel):
     archivos: int
     hallazgos_nuevos: int
@@ -347,7 +355,7 @@ class DetalleDescripcionOut(BaseModel):
     vinculos: list[VinculoDetalle] = []
     estado_documento: str | None = None
     nota_integridad: str | None = None
-    tipo_contenido: str | None = None
+    tipos_contenido: list[str] = []
     fechas_predominantes: str | None = None
     origen_titulo: str | None
     origen_alcance: str | None
@@ -523,7 +531,7 @@ class FichaPublicaOut(BaseModel):
     vinculos: list[VinculoPublico] = []
     estado_documento: str | None = None
     nota_integridad: str | None = None
-    tipo_contenido: str | None = None
+    tipos_contenido: list[str] = []
     fechas_predominantes: str | None = None
     publicado_en: str | None
 

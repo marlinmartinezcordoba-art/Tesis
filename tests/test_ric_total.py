@@ -56,7 +56,7 @@ def _armar(cliente, db, cab):
     # Documentos con su contenido, estado, respuesta, borrador y copia.
     oficio = documento(db, fnd, "Oficio 114")
     oficio.incluido_en_id = nuevo.id
-    oficio.tipo_contenido = "texto"
+    oficio.tipos_contenido = ["texto"]
     oficio.estado_documento = "definitivo"
     oficio.nota_integridad = "Completo, con sus dos anexos."
     respuesta = documento(db, fnd, "Respuesta al oficio 114")

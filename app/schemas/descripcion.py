@@ -115,7 +115,8 @@ class CamposRegistro(BaseModel):
     nota_integridad: str | None = Field(default=None, max_length=5000)
     # Cobertura total: copia de (RiC-R012), tipo de contenido (A10), fechas predominantes (R083, EDTF).
     copia_de_id: uuid.UUID | None = None
-    tipo_contenido: str | None = Field(default=None, max_length=30)
+    # Varios a la vez (texto e imagen fija…); lista vacía: se quita; None: no cambia.
+    tipos_contenido: list[str] | None = Field(default=None, max_length=12)
     fechas_predominantes: str | None = Field(default=None, max_length=200)
 
 
