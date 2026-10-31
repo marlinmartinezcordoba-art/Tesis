@@ -148,6 +148,51 @@ def aplicar_version(version_id: uuid.UUID, actor: Actor = Depends(solo_administr
     return _aplicar(version_id, actor, db, crear=True)
 
 
+@router.get("/versiones/{version_id}/comparar",
+            responses={200: {"model": dict, "description": "Qué cambia entre las dos versiones y a qué registros afecta"}},
+            summary="Comparar una versión con otra (por defecto, el borrador con la vigente) y ver los registros afectados")
+def comparar_version(version_id: uuid.UUID, con: uuid.UUID | None = None,
+                     _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    from app.servicios import versiones_trd
+
+    try:
+        v = p.version_de(db, version_id)
+        otra = p.version_de(db, con) if con else None
+    except p.ErrorTrd as exc:
+        raise _error(exc) from exc
+    if otra is not None and (otra.fondo_id != v.fondo_id or otra.instrumento != v.instrumento):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Se comparan versiones del mismo fondo y del mismo instrumento.")
+    return versiones_trd.comparar_con_afectados(db, v, otra)
+
+
+@router.get("/versiones/{version_id}/cargas",
+            responses={200: {"model": list[dict], "description": "Archivos originales con que se cargó la versión"}},
+            summary="Archivos originales de la versión, con su huella")
+def cargas_version(version_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    from app.servicios import versiones_trd
+
+    try:
+        return versiones_trd.cargas_de(db, p.version_de(db, version_id))
+    except p.ErrorTrd as exc:
+        raise _error(exc) from exc
+
+
+@router.get("/cargas/{carga_id}/archivo", responses={200: {"content": {"application/octet-stream": {}},
+                                                            "description": "El archivo tal como se cargó"}},
+            summary="Descargar el archivo original de una carga")
+def archivo_carga(carga_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+
+    from app.models.trd import CargaInstrumento
+    from app.servicios import almacen
+
+    c = db.get(CargaInstrumento, carga_id)
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La carga no existe.")
+    return FileResponse(almacen.ruta_absoluta(c.ruta), filename=c.archivo, media_type="application/octet-stream",
+                        headers={"X-Huella-SHA256": c.huella})
+
+
 class ImportarIn(BaseModel):
     filas: list[dict] = Field(min_length=1, max_length=3000)
 
@@ -165,10 +210,18 @@ def importar(version_id: uuid.UUID, datos: ImportarIn, actor: Actor = Depends(so
     return informe
 
 
+class OriginalIn(BaseModel):
+    huella: str = Field(min_length=64, max_length=64)
+    archivo: str = Field(max_length=300)
+    origen: str | None = Field(default=None, max_length=300)
+
+
 class CargarIn(BaseModel):
     fondo_id: uuid.UUID
     filas: list[dict] = Field(min_length=1, max_length=3000)
     instrumento: Literal["trd", "tvd"] = "trd"
+    # El archivo que leyó la vista previa (requisito 3): la versión lo cita y cada fila dice de dónde salió.
+    original: OriginalIn | None = None
 
 
 @router.post("/cargar", response_model=rt.CargaTrd,
@@ -176,7 +229,8 @@ class CargarIn(BaseModel):
 def cargar(datos: CargarIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, datos.fondo_id)
     try:
-        v, informe = p.cargar(db, fondo, datos.filas, actor.id, datos.instrumento)
+        v, informe = p.cargar(db, fondo, datos.filas, actor.id, datos.instrumento,
+                              datos.original.model_dump() if datos.original else None)
     except p.ErrorTrd as exc:
         db.rollback()
         raise _error(exc) from exc

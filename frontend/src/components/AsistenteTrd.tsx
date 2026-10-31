@@ -9,6 +9,7 @@ import {
   BancoTrd, DependenciasTrd, FormVersion, MatrizTrd, type Aplicacion, type VersionTrd,
 } from "@/components/ParametrizacionTrd";
 import { ImportarRico } from "@/components/ImportarRico";
+import { ComparacionTrd } from "@/components/ComparacionTrd";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { Ventana } from "@/components/Ventana";
 
@@ -35,6 +36,23 @@ function Paso({ n, titulo, estado, children, resumen }: {
         {estado !== "pendiente" && children}
       </div>
     </li>
+  );
+}
+
+interface Carga { id: string; archivo: string; huella: string; filas_cargadas: number; cargado_en: string }
+
+function Originales({ versionId }: { versionId: string }) {
+  const [cargas, setCargas] = useState<Carga[]>([]);
+  useEffect(() => { pedir<Carga[]>(`/api/trd/versiones/${versionId}/cargas`).then(setCargas).catch(() => setCargas([])); }, [versionId]);
+  if (!cargas.length) return null;
+  return (
+    <ul className="meta" style={{ margin: "4px 0 0" }}>
+      {cargas.map((c) => (
+        <li key={c.id}>Archivo original: <button type="button" className="enlace"
+          onClick={() => descargar(`/api/trd/cargas/${c.id}/archivo`).catch(() => undefined)}>{c.archivo}</button>
+          {" "}· {c.filas_cargadas} fila(s) · huella SHA-256 <code title={c.huella}>{c.huella.slice(0, 12)}…</code></li>
+      ))}
+    </ul>
   );
 }
 
@@ -65,8 +83,11 @@ function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => voi
     setOcupado(true);
     setError("");
     try {
+      const original = (vista as Vista & { original?: { huella: string; archivo: string } }).original;
+      // El archivo tal como llegó queda guardado con su huella y cada fila dice de dónde salió.
       await pedir("/api/trd/cargar", { method: "POST",
-        body: JSON.stringify({ fondo_id: fondoId, filas: vista.filas.filter((f) => incluir.has(f.fila)) }) });
+        body: JSON.stringify({ fondo_id: fondoId, filas: vista.filas.filter((f) => incluir.has(f.fila)),
+                               original: original ? { huella: original.huella, archivo: original.archivo, origen: vista.origen } : null }) });
       alTerminar();
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar.");
@@ -237,12 +258,14 @@ export function AsistenteTrd() {
               <ol className="pasos">
                 <Paso n={1} titulo="Subir el archivo de la TRD" estado={e1}
                       resumen={subido ? <>{borrador?.filas} serie(s) y subserie(s) guardadas en la {borrador?.nombre}.{" "}
-                        <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button></> : undefined}>
+                        <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button>
+                        <Originales versionId={borrador!.id} /></> : undefined}>
                   {!subido && <Subir fondoId={fondo.id} alTerminar={() => { setResubir(false); setRevision(null); cargar(); }} />}
                 </Paso>
 
                 <Paso n={2} titulo="Revisar lo que leyó el sistema" estado={e2}
                       resumen={revisada ? "Revisada: el cuadro cumple RiC-O 1.1." : undefined}>
+                  {subido && vigente && <ComparacionTrd key={`${borrador!.id}-${borrador!.filas}`} versionId={borrador!.id} />}
                   {!revisada && (
                     <>
                       <p>El sistema arma el cuadro de clasificación con lo que guardó y comprueba que esté completo y sea

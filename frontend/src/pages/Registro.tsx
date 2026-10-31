@@ -95,6 +95,7 @@ interface Registro {
   estado_documento?: string | null;
   nota_integridad?: string | null;
   tipos_contenido?: string[];
+  clasificado_con?: { id: string; nombre: string; acto: string | null; estado: string } | null;
   fechas_predominantes?: string | null;
 }
 
@@ -366,6 +367,12 @@ export function RegistroDescripcion() {
                 <dd>{ESTADO_DOCUMENTO.find(([k]) => k === registro.estado_documento)?.[1] ?? "—"}</dd>
               </>)}
               <dt>Completitud</dt><dd>{registro.nota_integridad || "—"}</dd>
+              {registro.nivel !== "fondo" && <>
+                <dt>Clasificado con</dt>
+                <dd>{registro.clasificado_con ? <>{registro.clasificado_con.nombre}{registro.clasificado_con.acto
+                  && ` · ${registro.clasificado_con.acto}`}{registro.clasificado_con.estado === "historica" && " (ya no rige)"}</>
+                  : <span className="meta">Se clasificó antes de que el sistema lo registrara</span>}</dd>
+              </>}
               {(registro.nivel === "unidad_documental" || registro.nivel === "parte_documental") ? (<>
                 <dt>Tipo de contenido</dt>
                 <dd>{nombresContenido(registro.tipos_contenido, tiposContenido) || "—"}</dd>

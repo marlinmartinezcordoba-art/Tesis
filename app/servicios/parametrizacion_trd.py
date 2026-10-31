@@ -403,7 +403,7 @@ def filas(db: Session, v: VersionTrd) -> list[dict]:
             "nombres_tipos": [terminos[t].nombre for t in f.tipos or [] if t in terminos],
             "gestion": f.gestion, "central": f.central, "disposicion": f.disposicion,
             "otras_disposiciones": list(f.otras_disposiciones or []), "soporte": f.soporte,
-            "procedimiento": f.procedimiento, "funcion": f.funcion})
+            "procedimiento": f.procedimiento, "funcion": f.funcion, "procedencia": f.procedencia})
     return sorted(salida, key=lambda x: (x["codigo_dependencia"] or "", x["codigo"] or ""))
 
 
@@ -604,7 +604,8 @@ def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> t
 # --- Cargar desde archivo ------------------------------------------------------------------------------
 
 
-def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: uuid.UUID) -> dict:
+def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: uuid.UUID,
+             carga=None) -> dict:
     """Llena el borrador con las filas confirmadas en la vista previa de un
     archivo (plantilla o TRD del AGN): crea en el banco y en las dependencias
     lo que falte, reutiliza lo que ya existe por código o por nombre."""
@@ -664,10 +665,13 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
         if ya:
             informe["repetidas"] += 1
             continue
+        # De dónde salió (requisito 3): el archivo original guardado, la parte del .zip y la fila.
+        procedencia = {"carga": str(carga.id), "archivo": carga.archivo, "parte": f.parte, "fila": f.fila} \
+            if carga is not None else ({"parte": f.parte, "fila": f.fila} if f.fila else None)
         db.add(FilaTrd(version_id=v.id, dependencia_id=dep.id, serie_id=serie.id,
                        subserie_id=subserie.id if subserie else None, tipos=tipos, gestion=f.gestion,
                        central=f.central, disposicion=f.disposicion, otras_disposiciones=f.otras_disposiciones,
-                       soporte=f.soporte, procedimiento=f.procedimiento, funcion=f.funcion))
+                       soporte=f.soporte, procedimiento=f.procedimiento, funcion=f.funcion, procedencia=procedencia))
         db.flush()
         informe["filas"] += 1
     registrar(db, modulo="instrumentos", accion="trd_importada", usuario_id=usuario_id, entidad_tipo="recurso_documental",
@@ -676,7 +680,7 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
 
 
 def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usuario_id: uuid.UUID,
-           instrumento: str = "trd") -> tuple[VersionTrd, dict]:
+           instrumento: str = "trd", original: dict | None = None) -> tuple[VersionTrd, dict]:
     """El punto de partida de la parametrización: con el CCD y la TRD leídos de un
     archivo se configura el borrador completo del fondo (dependencias, banco de
     series, subseries y tipos, y la matriz). Si no hay borrador, se abre uno nuevo
@@ -685,7 +689,14 @@ def cargar(db: Session, fondo: RecursoDocumental, filas_leidas: list[dict], usua
                                            VersionTrd.estado == "borrador"))
     if v is None:
         v = crear_version(db, fondo, {}, usuario_id, copiar_vigente=False, instrumento=instrumento)
-    return v, importar(db, v, filas_leidas, usuario_id)
+    from app.servicios import versiones_trd
+
+    carga = versiones_trd.registrar_carga(db, fondo, v, original, usuario_id) if original else None
+    informe = importar(db, v, filas_leidas, usuario_id, carga)
+    if carga is not None:
+        carga.filas_cargadas = informe["filas"]
+        informe["archivo_original"] = {"archivo": carga.archivo, "huella": carga.huella}
+    return v, informe
 
 
 # --- Fondo nuevo -----------------------------------------------------------------------------------------

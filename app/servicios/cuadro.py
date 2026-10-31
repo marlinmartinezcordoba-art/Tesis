@@ -89,6 +89,7 @@ class FilaCuadro:
     procedimiento: str | None = None
     funcion: str | None = None
     soporte: str | None = None  # fisico | electronico | hibrido
+    parte: str | None = None  # en un .zip, el archivo del que salió la fila (procedencia)
     problemas: list[str] = field(default_factory=list)
 
     def a_dict(self) -> dict:
@@ -107,7 +108,8 @@ class FilaCuadro:
                        gestion=d.get("gestion"), central=d.get("central"), disposicion=d.get("disposicion"),
                        otras_disposiciones=[x for x in d.get("otras_disposiciones") or [] if x in DISPOSICION],
                        procedimiento=_limpio(d.get("procedimiento")) or None, funcion=_limpio(d.get("funcion")) or None,
-                       soporte=d.get("soporte") if d.get("soporte") in SOPORTE else None)
+                       soporte=d.get("soporte") if d.get("soporte") in SOPORTE else None,
+                       parte=(_limpio(d.get("parte")) or None) if d.get("parte") else None)
         validar(f)
         return f
 
@@ -690,7 +692,10 @@ def interpretar(contenido: bytes, archivo: str) -> tuple[list[FilaCuadro], str]:
         filas, leidos, sin_leer = [], [], []
         for parte, hojas in partes:
             try:
-                filas += _interpretar_hojas(hojas)[0] if hojas else []
+                de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
+                for f in de_la_parte:
+                    f.parte = parte.rsplit("/", 1)[-1][:300]
+                filas += de_la_parte
                 (leidos if hojas else sin_leer).append(parte)
             except ErrorCuadro:
                 sin_leer.append(parte)

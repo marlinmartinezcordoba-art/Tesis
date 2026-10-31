@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Ventana } from "@/components/Ventana";
+import { ComparacionTrd } from "@/components/ComparacionTrd";
 import { ResultadoValidacion, TablaVistaPrevia, type Validacion, type Vista } from "@/components/CuadroClasificacion";
 
 // Parametrización de la TRD y el CCD en el orden de los SGDEA (Modelo de
@@ -34,7 +35,8 @@ interface Termino { id: string; clase: "serie" | "subserie" | "tipo_documental";
 interface FilaTrd { id: string; dependencia_id: string; serie_id: string; subserie_id: string | null; tipos: string[];
   dependencia: string; codigo_dependencia: string | null; serie: string; subserie: string | null; codigo: string | null;
   nombres_tipos: string[]; gestion: number | null; central: number | null; disposicion: string | null;
-  otras_disposiciones: string[]; soporte: string | null; procedimiento: string | null; funcion: string | null }
+  otras_disposiciones: string[]; soporte: string | null; procedimiento: string | null; funcion: string | null;
+  procedencia?: { archivo?: string; parte?: string | null; fila?: number } | null }
 export interface Aplicacion { aplicada: boolean; version: VersionTrd; validacion: Validacion;
   informe: { reglas: number; reglas_reemplazadas?: number; reglas_sin_cambio?: number; creados: Record<string, number>;
     avisos: string[]; faltan_para_aplicar?: string[]; series_sin_funcion?: string[] } }
@@ -218,6 +220,30 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
   );
 }
 
+function CompararVersiones({ versiones }: { versiones: VersionTrd[] }) {
+  const orden = [...versiones].sort((a, b) => b.numero - a.numero);
+  const [nueva, setNueva] = useState(orden[0].id);
+  const [anterior, setAnterior] = useState(orden[1].id);
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Comparar dos versiones</div>
+      <div className="tarjeta-cuerpo">
+        <div className="acciones-chicas">
+          <select className="selector" aria-label="Versión nueva" value={nueva} onChange={(e) => setNueva(e.target.value)}>
+            {orden.map((v) => <option key={v.id} value={v.id}>{v.nombre} ({ESTADO[v.estado][0].toLowerCase()})</option>)}
+          </select>
+          <span className="meta">frente a</span>
+          <select className="selector" aria-label="Versión anterior" value={anterior} onChange={(e) => setAnterior(e.target.value)}>
+            {orden.map((v) => <option key={v.id} value={v.id}>{v.nombre} ({ESTADO[v.estado][0].toLowerCase()})</option>)}
+          </select>
+        </div>
+        {nueva === anterior ? <p className="meta">Elija dos versiones distintas.</p>
+          : <ComparacionTrd versionId={nueva} con={anterior} abierta />}
+      </div>
+    </div>
+  );
+}
+
 export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string; instrumento?: Instrumento }) {
   const esAdmin = useAdmin();
   const tvd = instrumento === "tvd";
@@ -363,6 +389,9 @@ export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string
           </table>
         )}
       </div>
+      {!tvd && versiones && versiones.filter((v) => v.estado !== "anulada").length > 1 && (
+        <CompararVersiones versiones={versiones.filter((v) => v.estado !== "anulada")} />
+      )}
       {formulario && (
         <Ventana titulo={formulario === "nueva" ? (tvd ? "Abrir la TVD de un periodo" : "Abrir una versión de la TRD")
           : `Datos de la ${formulario.nombre}`} alCerrar={() => setFormulario(null)} ancha>
@@ -853,7 +882,8 @@ export function MatrizTrd({ fondoId, instrumento = "trd", incrustado }: { fondoI
                     ...lista.map((f) => (
                       <tr key={f.id}>
                         <td><strong>{f.codigo}</strong></td>
-                        <td>{f.serie}{f.subserie && <> › {f.subserie}</>}
+                        <td title={f.procedencia?.fila ? `Salió de «${f.procedencia.archivo || "el archivo"}»${f.procedencia.parte
+                              ? `, ${f.procedencia.parte}` : ""}, fila ${f.procedencia.fila}` : "Escrita a mano"}>{f.serie}{f.subserie && <> › {f.subserie}</>}
                           {f.nombres_tipos.length > 0 && <div className="meta">{f.nombres_tipos.join("; ")}</div>}</td>
                         {!tvd && <td>{f.gestion ?? "—"}</td>}
                         <td>{f.central ?? "—"}</td>

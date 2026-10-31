@@ -39,7 +39,7 @@ from app.schemas.respuestas_descripcion import (
     ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
 from app.servicios import (completitud, consulta, datos_personales, descripcion, digitalizacion, motor, parametros,
-                           propuestas_ia, vocabulario)
+                           propuestas_ia, versiones_trd, vocabulario)
 from app.servicios.auditoria import registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
@@ -593,6 +593,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
         datos_personales.exigir_revision(db, descripcion.documentos_de(db, trabajo), recurso, actor.id)
+        versiones_trd.clasificar(db, recurso)
         descripcion.versionar(db, recurso, "publicacion", actor.id)
         _asentar(db, recurso)
         db.commit()
@@ -991,6 +992,7 @@ def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descrip
 def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso_modulo("descripcion")),
            db: Session = Depends(get_db)):
     recurso = _recurso_o_404(db, recurso_id)
+    incluido_antes = recurso.incluido_en_id
     try:
         trabajo = descripcion.trabajo_propio(db, datos.trabajo_id, actor.id)
         cambio = descripcion.editar(
@@ -1013,6 +1015,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             _volver_a_heredar(db, recurso, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
         datos_personales.exigir_revision(db, descripcion.instanciaciones_del_trabajo(db, trabajo), recurso, actor.id)
+        versiones_trd.clasificar(db, recurso, reclasificado=recurso.incluido_en_id != incluido_antes)
         descripcion.versionar(db, recurso, "edicion", actor.id, hubo_cambio=cambio)
         _asentar(db, recurso)
         db.commit()

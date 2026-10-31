@@ -51,9 +51,14 @@ async def vista_previa(request: Request, actor: Actor = Depends(solo_administrad
     finally:
         await formulario.close()
     try:
-        return await run_in_threadpool(cuadro.vista_previa, contenido, nombre)
+        vista = await run_in_threadpool(cuadro.vista_previa, contenido, nombre)
     except cuadro.ErrorCuadro as exc:
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    # El archivo tal como llegó se guarda por su huella (requisito 3): al cargar, la versión lo cita.
+    from app.servicios import versiones_trd
+
+    original = await run_in_threadpool(versiones_trd.guardar_original, contenido, nombre)
+    return {**vista, "original": {k: original[k] for k in ("huella", "archivo", "tamano")}}
 
 
 class AplicarIn(BaseModel):

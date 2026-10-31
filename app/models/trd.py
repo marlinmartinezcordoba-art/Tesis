@@ -118,5 +118,27 @@ class FilaTrd(Base):
     soporte = Column(String(20), nullable=True)
     procedimiento = Column(Text, nullable=True)
     funcion = Column(String(300), nullable=True)
+    # De dónde salió la fila (requisito 3): {carga, archivo, parte, fila}. Vacío si se escribió a mano.
+    procedencia = Column(JSONB, nullable=True)
     estado = Column(String(20), nullable=False, default="vigente")
     creado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+class CargaInstrumento(Base):
+    """El archivo original de una carga de CCD/TRD/TVD (requisito 3), tal como llegó: se guarda
+    con su huella SHA-256 y nunca se borra, para poder mostrar de dónde salió cada fila."""
+
+    __tablename__ = "cargas_instrumento"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fondo_id = Column(UUID(as_uuid=True), ForeignKey("recursos_documentales.id", ondelete="CASCADE"), nullable=False,
+                      index=True)
+    version_id = Column(UUID(as_uuid=True), ForeignKey("trd_versiones.id", ondelete="CASCADE"), nullable=False, index=True)
+    archivo = Column(String(300), nullable=False)  # nombre con que se subió
+    huella = Column(String(64), nullable=False)  # SHA-256 del archivo
+    tamano = Column(Integer, nullable=False)
+    ruta = Column(String(500), nullable=False)  # en el almacenamiento, por su huella
+    origen = Column(String(300), nullable=True)  # cómo se leyó (plantilla, formato del AGN, zip…)
+    filas_cargadas = Column(Integer, nullable=False, default=0)
+    cargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    cargado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)

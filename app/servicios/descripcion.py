@@ -919,6 +919,13 @@ def _estado_y_completitud(recurso: RecursoDocumental, estado_documento: str | No
         recurso.nota_integridad = nota_integridad.strip()[:5000] or None
 
 
+def _version_trd(db: Session, version_id) -> dict | None:
+    from app.models.trd import VersionTrd
+
+    v = db.get(VersionTrd, version_id) if version_id else None
+    return {"id": str(v.id), "nombre": v.nombre, "acto": v.acto_aprobacion, "estado": v.estado} if v else None
+
+
 def tipos_de_contenido(db: Session) -> dict[str, str]:
     """El catálogo de tipos de contenido: los de RiC-CM y los que agregó la administración."""
     from app.models.recurso_documental import TIPO_CONTENIDO
@@ -1272,6 +1279,8 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
         "estado_documento": recurso.estado_documento, "nota_integridad": recurso.nota_integridad,
         "tipos_contenido": list(recurso.tipos_contenido or []), "fechas_predominantes": recurso.fechas_predominantes_edtf,
+        # La TRD que regía cuando se clasificó (requisito 7).
+        "clasificado_con": _version_trd(db, recurso.version_trd_id),
         "isadg": _isadg_valores(recurso),
         "tipo_parte": _vocab_breve(db, recurso.tipo_parte_id) if recurso.tipo_parte_id else None,
         "partes": partes, "parte_de": parte_de, "secuencia": secuencia, "vinculos": vinculos, "tambien_en": tambien_en, "miembros_adicionales": miembros,

@@ -63,6 +63,8 @@ class RecursoDocumental(Base):
     alcance_contenido = Column(Text, nullable=True)
     # Forma documental (RiC-A17 Documentary form type), del vocabulario.
     forma_documental_id = Column(UUID(as_uuid=True), ForeignKey("entidades_vocabulario.id"), nullable=True)
+    # La versión de la TRD que regía cuando se clasificó (se publicó en su lugar del cuadro). Requisito 7.
+    version_trd_id = Column(UUID(as_uuid=True), ForeignKey("trd_versiones.id"), nullable=True)
     # Procedencia de los campos descriptivos, en columnas propias.
     origen_titulo = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
     origen_alcance = Column(Enum("motor", "motor_editado", "persona", name="origen_dato", create_type=False), nullable=True)
