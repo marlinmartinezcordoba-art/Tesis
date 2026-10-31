@@ -10,6 +10,7 @@ import {
 } from "@/components/ParametrizacionTrd";
 import { ImportarRico } from "@/components/ImportarRico";
 import { ComparacionTrd } from "@/components/ComparacionTrd";
+import { CotejoCcd } from "@/components/CotejoCcd";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { Ventana } from "@/components/Ventana";
 
@@ -56,8 +57,17 @@ function Originales({ versionId }: { versionId: string }) {
   );
 }
 
-function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => void }) {
-  const [vista, setVista] = useState<Vista | null>(null);
+// Un .zip puede traer varios instrumentos (requisito 3): el sistema sugiere qué es cada archivo
+// y la persona lo confirma. La TRD llena la versión, la TVD su propio borrador y el CCD se coteja.
+type Rol = "trd" | "ccd" | "tvd" | "omitir";
+interface Parte { archivo: string; filas: number; con_problemas: number; con_retencion: number; sugerido: Rol }
+type VistaPaquete = Vista & { partes?: Parte[]; original?: { huella: string; archivo: string } };
+const ROL_NOMBRE: Record<Rol, string> = { trd: "TRD (llena la versión)", ccd: "CCD (se coteja con la TRD)",
+  tvd: "TVD (abre su propio borrador)", omitir: "No usar" };
+
+function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; versionTrdId: string | null; alTerminar: () => void }) {
+  const [vista, setVista] = useState<VistaPaquete | null>(null);
+  const [roles, setRoles] = useState<Record<string, Rol>>({});
   const [incluir, setIncluir] = useState<Set<number>>(new Set());
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
@@ -68,8 +78,9 @@ function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => voi
     datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<Vista>("/api/cuadro/vista-previa", datos, () => undefined);
+      const v = await subir<VistaPaquete>("/api/cuadro/vista-previa", datos, () => undefined);
       setVista(v);
+      setRoles(Object.fromEntries((v.partes || []).map((x) => [x.archivo, x.sugerido])));
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
@@ -83,11 +94,25 @@ function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => voi
     setOcupado(true);
     setError("");
     try {
-      const original = (vista as Vista & { original?: { huella: string; archivo: string } }).original;
       // El archivo tal como llegó queda guardado con su huella y cada fila dice de dónde salió.
-      await pedir("/api/trd/cargar", { method: "POST",
-        body: JSON.stringify({ fondo_id: fondoId, filas: vista.filas.filter((f) => incluir.has(f.fila)),
-                               original: original ? { huella: original.huella, archivo: original.archivo, origen: vista.origen } : null }) });
+      const original = vista.original ? { huella: vista.original.huella, archivo: vista.original.archivo, origen: vista.origen } : null;
+      const cargar = (filas: unknown[], instrumento: "trd" | "tvd") => pedir<{ version: { id: string } }>("/api/trd/cargar", {
+        method: "POST", body: JSON.stringify({ fondo_id: fondoId, instrumento, filas, original }) });
+      if (paquete) {
+        const de = (rol: Rol) => vista.filas.filter((f) => roles[(f as { parte?: string }).parte || ""] === rol && !f.problemas.length);
+        if (Object.values(roles).filter((r) => r === "tvd").length > 1) {
+          throw new ErrorAPI(422, "Marque una sola TVD por paquete: cada TVD es un periodo y se carga en su propio borrador.");
+        }
+        let versionId = versionTrdId;
+        if (de("trd").length) versionId = (await cargar(de("trd"), "trd")).version.id;
+        if (de("tvd").length) await cargar(de("tvd"), "tvd");
+        if (de("ccd").length) {
+          if (!versionId) throw new ErrorAPI(422, "Para cotejar el CCD hace falta una TRD: marque también el archivo de la TRD.");
+          await pedir(`/api/trd/versiones/${versionId}/cotejo`, { method: "POST", body: JSON.stringify({ filas: de("ccd"), original }) });
+        }
+      } else {
+        await cargar(vista.filas.filter((f) => incluir.has(f.fila)), "trd");
+      }
       alTerminar();
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar.");
@@ -97,10 +122,11 @@ function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => voi
   }
 
   const conProblemas = vista ? vista.filas.filter((f) => f.problemas.length).length : 0;
+  const paquete = !!vista?.partes && vista.partes.length > 1;
   return (
     <>
-      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF con texto, Word, CSV o un .zip con varias tablas.
-        Si trae también el cuadro de clasificación (CCD), se lee junto.</p>
+      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF con texto, Word o CSV. También un .zip con varios
+        archivos (la TRD, el CCD, una TVD): el sistema le pregunta qué es cada uno.</p>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="acciones">
         <label className="boton primario">
@@ -119,13 +145,37 @@ function Subir({ fondoId, alTerminar }: { fondoId: string; alTerminar: () => voi
               dice qué le falta). Puede corregirlas en el archivo y volver a subirlo, o agregarlas a mano en el paso 3.</>
               : " Todas se leyeron bien."}
           </div>
-          <details open={conProblemas > 0}>
+          {paquete && (
+            <div className="tarjeta" style={{ marginTop: 10 }}>
+              <div className="tarjeta-cab">El paquete trae {vista.partes!.length} archivos: confirme qué es cada uno</div>
+              <div className="tabla-desplazable">
+                <table className="tabla-permisos">
+                  <thead><tr><th>Archivo</th><th>Filas</th><th>Con retención</th><th>Es</th></tr></thead>
+                  <tbody>
+                    {vista.partes!.map((x) => (
+                      <tr key={x.archivo}>
+                        <td><strong>{x.archivo}</strong>{x.con_problemas > 0 && <div className="meta">{x.con_problemas} con problemas (quedan fuera)</div>}</td>
+                        <td>{x.filas}</td><td>{x.con_retencion}</td>
+                        <td><select className="selector" aria-label={`Qué es ${x.archivo}`} value={roles[x.archivo]}
+                                    onChange={(e) => setRoles({ ...roles, [x.archivo]: e.target.value as Rol })}>
+                          {(Object.keys(ROL_NOMBRE) as Rol[]).map((r) => <option key={r} value={r}>{ROL_NOMBRE[r]}</option>)}
+                        </select></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="meta" style={{ padding: "0 16px" }}>El sistema lo sugiere por el nombre del archivo y por si trae
+                retención; cámbielo si no acierta.</p>
+            </div>
+          )}
+          <details open={conProblemas > 0 && !paquete}>
             <summary className="meta">Ver fila por fila lo que se leyó</summary>
             <div className="tabla-desplazable"><TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={setIncluir} /></div>
           </details>
           <div className="acciones">
-            <button type="button" className="boton primario" disabled={ocupado || !incluir.size} onClick={guardar}>
-              {ocupado ? "Guardando…" : `Guardar estas ${incluir.size} fila(s) y seguir`}</button>
+            <button type="button" className="boton primario" disabled={ocupado || (!paquete && !incluir.size)} onClick={guardar}>
+              {ocupado ? "Guardando…" : paquete ? "Guardar el paquete y seguir" : `Guardar estas ${incluir.size} fila(s) y seguir`}</button>
           </div>
         </>
       )}
@@ -260,12 +310,14 @@ export function AsistenteTrd() {
                       resumen={subido ? <>{borrador?.filas} serie(s) y subserie(s) guardadas en la {borrador?.nombre}.{" "}
                         <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button>
                         <Originales versionId={borrador!.id} /></> : undefined}>
-                  {!subido && <Subir fondoId={fondo.id} alTerminar={() => { setResubir(false); setRevision(null); cargar(); }} />}
+                  {!subido && <Subir fondoId={fondo.id} versionTrdId={borrador?.id || vigente?.id || null}
+                                     alTerminar={() => { setResubir(false); setRevision(null); cargar(); }} />}
                 </Paso>
 
                 <Paso n={2} titulo="Revisar lo que leyó el sistema" estado={e2}
                       resumen={revisada ? "Revisada: el cuadro cumple RiC-O 1.1." : undefined}>
                   {subido && vigente && <ComparacionTrd key={`${borrador!.id}-${borrador!.filas}`} versionId={borrador!.id} />}
+                  {subido && <CotejoCcd versionId={borrador!.id} />}
                   {!revisada && (
                     <>
                       <p>El sistema arma el cuadro de clasificación con lo que guardó y comprueba que esté completo y sea

@@ -12,6 +12,7 @@ export interface AlertaEnlazable {
 const A_DESCRIPCION = new Set(["formato_no_identificado", "ocr_baja_confianza", "datos_personales_sensibles"]);
 
 export function enlaceDeAlerta(a: AlertaEnlazable): { ruta: string; texto: string } | null {
+  if (a.tipo === "ccd_trd_no_coinciden") return { ruta: "/fondos?vista=cargar", texto: "Ir a TRD y CCD" };
   if (A_DESCRIPCION.has(a.tipo) && a.entidad_tipo === "instanciacion")
     return { ruta: `/descripcion?documento=${encodeURIComponent(a.entidad_id)}`, texto: "Ir a describir" };
   return null;
@@ -36,4 +37,5 @@ export const TIPO_ALERTA: Record<string, string> = {
   archivo_infectado: "Archivo infectado (en cuarentena)",
   validacion_formato_fallida: "Formato no conforme (validación)",
   datos_personales_sensibles: "Datos sensibles o de menores (Ley 1581)",
+  ccd_trd_no_coinciden: "El CCD y la TRD no coinciden",
 };

@@ -139,6 +139,9 @@ class CargaInstrumento(Base):
     tamano = Column(Integer, nullable=False)
     ruta = Column(String(500), nullable=False)  # en el almacenamiento, por su huella
     origen = Column(String(300), nullable=True)  # cómo se leyó (plantilla, formato del AGN, zip…)
+    # Qué instrumento es: la TRD o la TVD que llenó la versión, o el CCD con que se cotejó (fase C).
+    clase = Column(String(3), nullable=False, default="trd", server_default="trd")
+    informe = Column(JSONB, nullable=True)  # en un CCD, el resultado del cotejo con la versión
     filas_cargadas = Column(Integer, nullable=False, default=0)
     cargado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     cargado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)

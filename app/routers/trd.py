@@ -26,6 +26,17 @@ router = APIRouter(prefix="/api/trd", tags=["Parametrización de la TRD y el CCD
 lectura = acceso_modulo("descripcion")
 
 
+class OriginalIn(BaseModel):
+    huella: str = Field(min_length=64, max_length=64)
+    archivo: str = Field(max_length=300)
+    origen: str | None = Field(default=None, max_length=300)
+
+
+class CotejoIn(BaseModel):
+    filas: list[dict] = Field(min_length=1, max_length=5000)
+    original: OriginalIn | None = None
+
+
 def _error(exc: p.ErrorTrd) -> HTTPException:
     return HTTPException(exc.codigo, detail=str(exc))
 
@@ -165,14 +176,56 @@ def comparar_version(version_id: uuid.UUID, con: uuid.UUID | None = None,
     return versiones_trd.comparar_con_afectados(db, v, otra)
 
 
+@router.post("/versiones/{version_id}/cotejo", responses={200: {"model": dict, "description": "Lo que coincide y lo que no"}},
+             summary="Cotejar el CCD (las filas leídas de su archivo) con la versión de la TRD")
+def cotejar_ccd(version_id: uuid.UUID, datos: CotejoIn, actor: Actor = Depends(solo_administrador),
+                db: Session = Depends(get_db)):
+    from app.servicios import cotejo_ccd
+
+    try:
+        informe = cotejo_ccd.cotejar_y_guardar(db, p.version_de(db, version_id), datos.filas,
+                                               datos.original.model_dump() if datos.original else None, actor.id)
+    except p.ErrorTrd as exc:
+        db.rollback()
+        raise _error(exc) from exc
+    db.commit()
+    return informe
+
+
+@router.get("/versiones/{version_id}/cotejo", responses={200: {"model": dict, "description": "El último cotejo, o nada"}},
+            summary="El último cotejo del CCD con la versión")
+def ver_cotejo(version_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+    from app.servicios import cotejo_ccd
+
+    try:
+        return cotejo_ccd.ultimo(db, p.version_de(db, version_id))
+    except p.ErrorTrd as exc:
+        raise _error(exc) from exc
+
+
+@router.post("/versiones/{version_id}/cotejo/repetir", responses={200: {"model": dict, "description": "El cotejo, otra vez"}},
+             summary="Volver a cotejar el último CCD con la versión tal como está ahora")
+def repetir_cotejo(version_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import cotejo_ccd, cuadro
+
+    try:
+        informe = cotejo_ccd.repetir(db, p.version_de(db, version_id), actor.id)
+    except (p.ErrorTrd, cuadro.ErrorCuadro) as exc:
+        db.rollback()
+        raise HTTPException(exc.codigo, detail=str(exc)) from exc
+    db.commit()
+    return informe
+
+
 @router.get("/versiones/{version_id}/cargas",
             responses={200: {"model": list[dict], "description": "Archivos originales con que se cargó la versión"}},
             summary="Archivos originales de la versión, con su huella")
-def cargas_version(version_id: uuid.UUID, _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
+def cargas_version(version_id: uuid.UUID, clase: Literal["trd", "tvd", "ccd"] | None = None,
+                   _: Actor = Depends(acceso_modulo("instrumentos")), db: Session = Depends(get_db)):
     from app.servicios import versiones_trd
 
     try:
-        return versiones_trd.cargas_de(db, p.version_de(db, version_id))
+        return versiones_trd.cargas_de(db, p.version_de(db, version_id), clase)
     except p.ErrorTrd as exc:
         raise _error(exc) from exc
 
@@ -210,18 +263,14 @@ def importar(version_id: uuid.UUID, datos: ImportarIn, actor: Actor = Depends(so
     return informe
 
 
-class OriginalIn(BaseModel):
-    huella: str = Field(min_length=64, max_length=64)
-    archivo: str = Field(max_length=300)
-    origen: str | None = Field(default=None, max_length=300)
-
-
 class CargarIn(BaseModel):
     fondo_id: uuid.UUID
     filas: list[dict] = Field(min_length=1, max_length=3000)
     instrumento: Literal["trd", "tvd"] = "trd"
     # El archivo que leyó la vista previa (requisito 3): la versión lo cita y cada fila dice de dónde salió.
     original: OriginalIn | None = None
+
+
 
 
 @router.post("/cargar", response_model=rt.CargaTrd,

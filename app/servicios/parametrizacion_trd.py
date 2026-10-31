@@ -399,7 +399,7 @@ def filas(db: Session, v: VersionTrd) -> list[dict]:
             "subserie_id": str(f.subserie_id) if f.subserie_id else None, "tipos": [str(t) for t in f.tipos or []],
             "dependencia": dep.nombre, "codigo_dependencia": c["subseccion"] or c["seccion"],
             "serie": terminos[f.serie_id].nombre, "subserie": terminos[f.subserie_id].nombre if f.subserie_id else None,
-            "codigo": c["subserie"] or c["serie"],
+            "codigo": c["subserie"] or c["serie"], "codigo_serie": c["serie"],
             "nombres_tipos": [terminos[t].nombre for t in f.tipos or [] if t in terminos],
             "gestion": f.gestion, "central": f.central, "disposicion": f.disposicion,
             "otras_disposiciones": list(f.otras_disposiciones or []), "soporte": f.soporte,

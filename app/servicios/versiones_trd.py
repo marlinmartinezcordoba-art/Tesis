@@ -49,7 +49,7 @@ def guardar_original(contenido: bytes, nombre: str) -> dict:
 
 
 def registrar_carga(db: Session, fondo: RecursoDocumental, v: VersionTrd, original: dict,
-                    usuario_id: uuid.UUID) -> CargaInstrumento | None:
+                    usuario_id: uuid.UUID, clase: str | None = None) -> CargaInstrumento | None:
     """La carga, si el archivo que dice la vista previa está de verdad guardado con esa huella."""
     huella = (original.get("huella") or "").lower()
     if len(huella) != 64 or not all(c in "0123456789abcdef" for c in huella):
@@ -61,20 +61,23 @@ def registrar_carga(db: Session, fondo: RecursoDocumental, v: VersionTrd, origin
     c = CargaInstrumento(id=uuid.uuid4(), fondo_id=fondo.id, version_id=v.id,
                          archivo=(original.get("archivo") or "archivo")[:300], huella=huella,
                          tamano=destino.stat().st_size, ruta=ruta, origen=(original.get("origen") or None),
-                         filas_cargadas=0, cargado_por_id=usuario_id)
+                         clase=clase or v.instrumento, filas_cargadas=0, cargado_por_id=usuario_id)
     db.add(c)
     db.flush()
     registrar(db, modulo="instrumentos", accion="trd_archivo_original", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=fondo.id,
-              detalle=f"{v.nombre}: archivo original «{c.archivo}»", nuevo={"huella": huella, "tamano": c.tamano})
+              detalle=f"{v.nombre}: archivo original «{c.archivo}»" + (" (CCD para cotejar)" if c.clase == "ccd" else ""),
+              nuevo={"huella": huella, "tamano": c.tamano, "clase": c.clase})
     return c
 
 
-def cargas_de(db: Session, v: VersionTrd) -> list[dict]:
+def cargas_de(db: Session, v: VersionTrd, clase: str | None = None) -> list[dict]:
+    consulta = select(CargaInstrumento).where(CargaInstrumento.version_id == v.id)
+    if clase:
+        consulta = consulta.where(CargaInstrumento.clase == clase)
     return [{"id": str(c.id), "archivo": c.archivo, "huella": c.huella, "tamano": c.tamano, "origen": c.origen,
-             "filas_cargadas": c.filas_cargadas, "cargado_en": c.cargado_en.isoformat()}
-            for c in db.scalars(select(CargaInstrumento).where(CargaInstrumento.version_id == v.id)
-                                .order_by(CargaInstrumento.cargado_en))]
+             "clase": c.clase, "filas_cargadas": c.filas_cargadas, "cargado_en": c.cargado_en.isoformat()}
+            for c in db.scalars(consulta.order_by(CargaInstrumento.cargado_en))]
 
 
 # --- Comparar dos versiones -----------------------------------------------------------------------------

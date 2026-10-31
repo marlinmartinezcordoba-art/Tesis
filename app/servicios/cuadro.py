@@ -732,9 +732,31 @@ def _interpretar_hojas(hojas: list[list[list[str]]]) -> tuple[list[FilaCuadro], 
                       "sistema.")
 
 
+def _sugerido(nombre: str, filas: list[FilaCuadro]) -> str:
+    """Qué instrumento parece cada archivo de un paquete: por su nombre y, si no lo dice, por si trae retención."""
+    n = _n(nombre)
+    if "tvd" in n or "valoracion" in n:
+        return "tvd"
+    if "ccd" in n or "cuadro" in n or not any(f.gestion is not None or f.central is not None or f.disposicion for f in filas):
+        return "ccd"
+    return "trd"
+
+
+def _partes(filas: list[FilaCuadro]) -> list[dict]:
+    grupos: dict[str, list[FilaCuadro]] = {}
+    for f in filas:
+        if f.parte:
+            grupos.setdefault(f.parte, []).append(f)
+    return [{"archivo": nombre, "filas": len(lista), "con_problemas": sum(1 for f in lista if f.problemas),
+             "con_retencion": sum(1 for f in lista if f.disposicion), "sugerido": _sugerido(nombre, lista)}
+            for nombre, lista in grupos.items()]
+
+
 def vista_previa(contenido: bytes, archivo: str) -> dict:
     filas, origen = interpretar(contenido, archivo)
     return {"origen": origen, "filas": [f.a_dict() for f in filas],
+            # En un .zip, cada archivo con lo que parece ser (CCD, TRD o TVD): la persona lo confirma.
+            "partes": _partes(filas),
             "resumen": {"filas": len(filas), "con_problemas": sum(1 for f in filas if f.problemas),
                         "secciones": len({(f.seccion.codigo, f.seccion.nombre) for f in filas if f.seccion}),
                         "series": len({codigos_compuestos(f)["serie"] or (f.serie.nombre if f.serie else "")
