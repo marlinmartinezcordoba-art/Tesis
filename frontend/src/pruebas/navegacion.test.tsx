@@ -107,7 +107,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
   it("cada rol ve solo lo suyo: consulta ve el índice, no el FUID ni la guía; sin pestañas de una sola vista", () => {
     expect(submodulosDe("/instrumentos", CONSULTA).map((sm) => [sm.nombre, sm.vistas.map((v) => v.nombre)])).toEqual([
       ["Catálogo y grafo", ["Catálogo", "Grafo de contexto"]], ["Instrumentos de descripción", ["Índice"]],
-      ["Datos enlazados (RiC-O)", ["Datos enlazados (RiC-O)"]]]);
+      ["Datos enlazados (RiC-O)", ["Datos enlazados (RiC-O)", "Adopción de RiC"]]]);
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
     montar("/instrumentos?vista=indice", CONSULTA);
     expect(pestanas()).toEqual([]);

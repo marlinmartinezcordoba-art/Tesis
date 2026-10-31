@@ -385,10 +385,14 @@ def test_entre_fondos_solo_autoridades_y_nunca_con_una_fusionada(cliente, db, fo
     b = entidad(db, otro, "Alcaldía de Paipa")
     # Las autoridades son de la institución: se vinculan aunque se hayan registrado en fondos distintos.
     assert vincular(cliente, archivista, a, "asociado", b).status_code == 201
-    # El resto del vocabulario sigue siendo de cada fondo: dos lugares de fondos distintos no.
+    # Los lugares también son de la institución (criterio nativo 1): se vinculan entre fondos.
     tunja = entidad(db, fondo, "Tunja", clase="lugar")
     boyaca = entidad(db, otro, "Boyacá", clase="lugar")
-    assert vincular(cliente, archivista, tunja, "lugar_superior", boyaca).status_code == 422
+    assert vincular(cliente, archivista, tunja, "lugar_superior", boyaca).status_code == 201
+    # Las actividades siguen siendo de cada fondo: dos de fondos distintos no se vinculan.
+    ejercicio = entidad(db, fondo, "Ejercicio de la policía local, 1948", clase="actividad")
+    otra = entidad(db, otro, "Ejercicio de la hacienda, 1950", clase="actividad")
+    assert vincular(cliente, archivista, ejercicio, "actividad_mayor", otra).status_code == 422
     c = entidad(db, fondo, "Alcaldia de Tunja.")
     vocabulario.fusionar(db, definitiva=a, absorbida=c, usuario_id=None)
     db.commit()

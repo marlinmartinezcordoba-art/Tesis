@@ -7,7 +7,9 @@ Autoridades compartidas entre fondos (RiC: cualquier entidad es punto de acceso 
   el otro fondo la cita, la exporta en su grafo RiC-O y la muestra en su
   vocabulario. Los dos grafos siguen coincidiendo con las tablas.
 - Las fichas duplicadas en fondos distintos se sugieren y se fusionan.
-- Los mecanismos (programas con su versión) y el resto del vocabulario
+- Desde el criterio nativo 1, también los lugares, las materias y los
+  mandatos son de la institución. Los mecanismos (programas con su
+  versión), las formas documentales, las actividades y las funciones
   siguen siendo de cada fondo.
 - Lo reservado sigue sin salir: una autoridad que otro fondo solo conoce
   por documentos reservados no se nombra en el grafo público de ese fondo.
@@ -58,13 +60,15 @@ def test_una_autoridad_para_toda_la_institucion(cliente, db, fondo, admin, archi
     lugar = _agente(db, fondo, "Boyacá")
     otro = _otro_fondo(db, admin)
 
-    # Al describir en el otro fondo, la autoridad aparece con su fondo de registro; el lugar no (es de cada fondo).
+    # Al describir en el otro fondo, la autoridad aparece con su fondo de registro, y el lugar también
+    # (criterio nativo 1: los lugares son de la institución).
     r = cliente.post("/api/vocabulario/verificar", headers=archivista,
                      json={"fondo_id": str(otro.id), "tipo": "agente", "valor": "Alcaldía Municipal"})
     assert r.status_code == 200 and r.json()[0]["id"] == str(alcaldia.id)
     assert r.json()[0]["fondo"] == "Correspondencia municipal"
-    assert cliente.post("/api/vocabulario/verificar", headers=archivista,
-                        json={"fondo_id": str(otro.id), "tipo": "lugar", "valor": "Boyacá"}).json() == []
+    r = cliente.post("/api/vocabulario/verificar", headers=archivista,
+                     json={"fondo_id": str(otro.id), "tipo": "lugar", "valor": "Boyacá"})
+    assert r.json()[0]["id"] == str(lugar.id) and r.json()[0]["fondo"] == "Correspondencia municipal"
 
     publicada = _publicar(cliente, db, otro, archivista, "b.pdf", reutilizar={"Alcaldía Municipal": alcaldia.id})
     assert _agente(db, otro, "Alcaldía Municipal") is None  # no se duplicó
@@ -123,15 +127,24 @@ def test_fusionar_duplicados_de_fondos_distintos(cliente, db, fondo, admin, arch
 def test_lo_que_sigue_siendo_de_cada_fondo(db, fondo, admin):  # noqa: F811
     otro = _otro_fondo(db, admin)
     usuario = admin.id
-    lugar = vocabulario.crear(db, fondo_id=fondo.id, clase="lugar", nombre="Tunja", subtipo=None, origen="persona",
-                              confianza=None, motor=None, usuario_id=usuario)
-    lugar2 = vocabulario.crear(db, fondo_id=otro.id, clase="lugar", nombre="Tunja", subtipo=None, origen="persona",
-                               confianza=None, motor=None, usuario_id=usuario)
+
+    def crear(fnd, clase, nombre):
+        return vocabulario.crear(db, fondo_id=fnd.id, clase=clase, nombre=nombre, subtipo=None, origen="persona",
+                                 confianza=None, motor=None, usuario_id=usuario)
+    # Un lugar registrado en dos fondos es la misma autoridad de la institución: se fusiona.
+    lugar, lugar2 = crear(fondo, "lugar", "Tunja"), crear(otro, "lugar", "Tunja")
     db.commit()
-    assert not vocabulario.mismo_ambito(lugar, lugar2)
+    assert vocabulario.mismo_ambito(lugar, lugar2)
+    vocabulario.fusionar(db, definitiva=lugar, absorbida=lugar2, usuario_id=usuario)
+    # Las funciones y las formas documentales nacen de la TRD de cada productor: siguen siendo del fondo.
+    funcion, funcion2 = crear(fondo, "tipo_actividad", "Policía local"), crear(otro, "tipo_actividad", "Policía local")
+    db.commit()
+    assert not vocabulario.mismo_ambito(funcion, funcion2)
     with __import__("pytest").raises(vocabulario.ErrorFusion):
-        vocabulario.fusionar(db, definitiva=lugar, absorbida=lugar2, usuario_id=usuario)
+        vocabulario.fusionar(db, definitiva=funcion, absorbida=funcion2, usuario_id=usuario)
     assert not vocabulario.compartida("agente", "mecanismo") and vocabulario.compartida("agente", "persona")
+    assert all(vocabulario.compartida(c) for c in ("lugar", "materia", "mandato"))
+    assert not any(vocabulario.compartida(c) for c in ("forma_documental", "tipo_actividad", "actividad"))
 
 
 def test_reservado_en_un_fondo_no_nombra_la_autoridad(cliente, db, fondo, admin, archivista, motor_prueba):  # noqa: F811

@@ -370,6 +370,13 @@ def agregar_identificador(db: Session, e: EntidadVocabulario, *, esquema: str, v
         if e.subtipo != "persona":
             raise ErrorAutoridad("ORCID identifica personas: úselo solo en la ficha de una persona.")
         valor = orcid_normalizado(valor)
+    if esquema == "geonames":
+        valor = valor.strip().removeprefix("https://sws.geonames.org/").removeprefix("https://www.geonames.org/").strip("/")
+        valor = valor.split("/")[0]
+        if not valor.isdigit():
+            raise ErrorAutoridad("Un identificador de GeoNames es numérico, por ejemplo 3666640 (Tunja).")
+        if e.clase != "lugar":
+            raise ErrorAutoridad("GeoNames identifica lugares: úselo solo en la ficha de un lugar.")
     if esquema == "ror":
         if e.subtipo != "entidad_corporativa":
             raise ErrorAutoridad("ROR identifica instituciones: úselo solo en la ficha de una entidad corporativa.")
@@ -401,6 +408,8 @@ URI_EXTERNA = {
     "lcnaf": "http://id.loc.gov/authorities/names/{}",
     "orcid": "https://orcid.org/{}",
     "ror": "https://ror.org/{}",
+    # GeoNames publica cada lugar como recurso de datos enlazados con barra final.
+    "geonames": "https://sws.geonames.org/{}/",
 }
 
 
@@ -946,13 +955,16 @@ def ficha(db: Session, e: EntidadVocabulario) -> dict:
             "revisada_en": eventos[-1] if eventos else None,
         },
     }
-    if e.clase == "agente":
+    from app.servicios.vocabulario import compartida
+
+    if compartida(e.clase, e.subtipo):  # autoridades de la institución (criterio nativo 1)
         identificadores = db.scalars(select(IdentificadorEntidad).where(
             IdentificadorEntidad.entidad_id == e.id, IdentificadorEntidad.estado == "vigente")
             .order_by(IdentificadorEntidad.esquema)).all()
         salida["identificadores"] = [{"id": str(i.id), "esquema": i.esquema, "valor": i.valor,
                                       "externo": i.esquema in ESQUEMA_EXTERNO,
                                       "uri": uri_externa(i.esquema, i.valor)} for i in identificadores]
+    if e.clase == "agente":
         salida["hitos"] = hitos_de(db, e.id)
         salida["existencia_legible"] = fechas.legible(e.existencia_edtf) if e.existencia_edtf else None
         salida["falta_version"] = e.subtipo == "mecanismo" and not e.version

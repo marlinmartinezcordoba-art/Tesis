@@ -65,6 +65,9 @@ interface Espacio {
     idiomas?: string[];
     confianza_idiomas?: number | null;
     contexto_enviado?: Record<string, number>;
+    // Evidencia del título y del alcance (requisito 6): fragmentos literales del texto.
+    evidencia_titulo?: Evidencia[] | null;
+    evidencia_alcance?: Evidencia[] | null;
     // Registro inalterable de la propuesta (RF-AI-002).
     propuesta_id?: string;
     version_modelo?: string | null;
@@ -115,6 +118,30 @@ function nuevoItem(e: EntidadPropuesta, manual = false): Item {
     ...e, decision: "pendiente", editada: false, manual, editando: false, verif: verificacionInicial(e.tipo),
     control: desarmar(e.edtf, e.fecha_subtipo), conPeriodo: !!e.edtf, actividadMayor: null,
   };
+}
+
+interface Evidencia { fragmento: string; documento_id: string | null; inicio: number | null; localizado: boolean }
+
+// La evidencia de un campo de texto libre: los fragmentos en que el motor apoyó su redacción,
+// con enlace al lugar del texto. Si ninguno aparece en el texto, lo dice: «no identificada».
+function EvidenciaCampo({ campo, evidencia, activa, alElegir }: {
+  campo: string; evidencia: Evidencia[] | null | undefined; activa: string | null; alElegir: (clave: string) => void;
+}) {
+  if (evidencia == null) return null; // propuesta anterior a este registro
+  const halladas = evidencia.map((e, n) => ({ ...e, clave: `ev-${campo}-${n}` })).filter((e) => e.localizado);
+  if (halladas.length === 0) {
+    return <p className="pista evidencia-campo sin">Evidencia: no identificada en el texto. Verifique la redacción contra el documento.</p>;
+  }
+  return (
+    <p className="pista evidencia-campo">Evidencia:{" "}
+      {halladas.map((e, n) => (
+        <span key={e.clave}>{n > 0 && " · "}
+          <button type="button" id={`t-${e.clave}`} className={`enlace${activa === e.clave ? " activa" : ""}`}
+                  onClick={() => alElegir(e.clave)}>«{e.fragmento}»</button>
+        </span>
+      ))}
+    </p>
+  );
 }
 
 // Texto del documento con los fragmentos citados resaltados.
@@ -376,8 +403,15 @@ export function EspacioTrabajo() {
       if (i.decision === "descartada" || i.inicio === null || !i.documento_id || !i.fragmento) continue;
       (mapa[i.documento_id] ||= []).push({ clave: i.clave, inicio: i.inicio, largo: i.fragmento.length });
     }
+    for (const campo of ["titulo", "alcance"] as const) {
+      (espacio?.propuesta?.[`evidencia_${campo}`] || []).forEach((e, n) => {
+        if (e.localizado && e.documento_id && e.inicio !== null) {
+          (mapa[e.documento_id] ||= []).push({ clave: `ev-${campo}-${n}`, inicio: e.inicio, largo: e.fragmento.length });
+        }
+      });
+    }
     return mapa;
-  }, [items]);
+  }, [items, espacio]);
 
   if (!espacio) {
     return (
@@ -467,10 +501,14 @@ export function EspacioTrabajo() {
             <div className="campo">
               <label htmlFor="titulo">Título <GuiaCampo clave="titulo" /></label>
               <input id="titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+              {propuesta?.titulo && <EvidenciaCampo campo="titulo" evidencia={propuesta.evidencia_titulo} activa={activa}
+                                                    alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo">
               <label htmlFor="alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
               <textarea id="alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} />
+              {propuesta?.alcance && <EvidenciaCampo campo="alcance" evidencia={propuesta.evidencia_alcance} activa={activa}
+                                                     alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" style={{ marginBottom: 0 }}>
               <label htmlFor="incluido">Queda incluido en</label>

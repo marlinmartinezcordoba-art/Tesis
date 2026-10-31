@@ -102,6 +102,12 @@ class Propuesta:
     # contexto, por tipo (evidencia de la capa de recuperación).
     contexto_enviado: dict = field(default_factory=dict)
     entidades: list[EntidadPropuesta] = field(default_factory=list)
+    # Evidencia del título y del alcance (requisito 6): los fragmentos en que el motor
+    # apoyó su redacción, cada uno con su documento y su posición si se halló en el texto.
+    # Ninguno localizado: la pantalla lo muestra como «evidencia no identificada».
+    # None: la respuesta no trae el campo (anterior al requisito 6), distinto de «no identificada».
+    evidencia_titulo: list[dict] | None = None
+    evidencia_alcance: list[dict] | None = None
     motor: str | None = None
     version_prompt: str | None = None
     disponible: bool = False
@@ -141,7 +147,11 @@ Reglas estrictas:
 - Vocabulario existente del fondo: si el pedido trae una lista «VOCABULARIO EXISTENTE DEL FONDO» y una entidad del texto es una de esas (aunque esté escrita de otra forma), pon en "existente" su código (por ejemplo «V3») y en "valor" su nombre tal como figura en la lista. Si no es ninguna, no pongas "existente". Nunca uses un código para una entidad de otro tipo.
 - "idiomas": la lengua o lenguas del contenido en códigos ISO 639-3 (spa, lat, eng, fra, por…), y "confianza_idiomas" entre 0 y 1. Si el texto es demasiado breve o ilegible para saberlo, deja la lista vacía. No propongas condiciones de acceso ni de uso: las decide la institución.
 - "titulo": título formal breve del nivel descrito. "alcance_contenido": 2 a 6 frases de alcance y contenido (ISAD(G) 3.3.1) que sinteticen TODOS los documentos, sin opiniones.
+- "evidencia_titulo" (1 a 3) y "evidencia_alcance" (1 a 6): los fragmentos del texto en que se apoyan el título y el alcance, cada uno copiado LITERALMENTE (entre 3 y 25 palabras) con su "documento". No escribas en el título ni en el alcance nada que no puedas apoyar en un fragmento.
 Responde solo con el JSON pedido."""
+
+_EVIDENCIA = {"type": "OBJECT", "properties": {"fragmento": {"type": "STRING"}, "documento": {"type": "INTEGER"}},
+              "required": ["fragmento", "documento"]}
 
 ESQUEMA = {
     "type": "OBJECT",
@@ -151,6 +161,8 @@ ESQUEMA = {
         "confianza_alcance": {"type": "NUMBER"},
         "idiomas": {"type": "ARRAY", "items": {"type": "STRING"}},
         "confianza_idiomas": {"type": "NUMBER"},
+        "evidencia_titulo": {"type": "ARRAY", "items": _EVIDENCIA},
+        "evidencia_alcance": {"type": "ARRAY", "items": _EVIDENCIA},
         "entidades": {
             "type": "ARRAY",
             "items": {
@@ -174,7 +186,7 @@ ESQUEMA = {
             },
         },
     },
-    "required": ["titulo", "alcance_contenido", "entidades"],
+    "required": ["titulo", "alcance_contenido", "evidencia_titulo", "evidencia_alcance", "entidades"],
 }
 
 # Identificador de la versión de las instrucciones que recibe el motor:
@@ -344,6 +356,27 @@ def _localizar(fragmento: str, texto: str) -> int | None:
     return hallado.start() if hallado else None
 
 
+def _evidencias(crudas, documentos: list[Documento], maximo: int) -> list[dict]:
+    """Los fragmentos que apoyan un campo de texto libre, localizados como los de las entidades."""
+    salida = []
+    for e in (crudas if isinstance(crudas, list) else [])[:maximo]:
+        if not isinstance(e, dict):
+            continue
+        fragmento = " ".join(str(e.get("fragmento", "")).split())[:500]
+        if not fragmento:
+            continue
+        indice = e.get("documento")
+        candidatos = ([documentos[indice - 1]] if isinstance(indice, int) and 1 <= indice <= len(documentos) else []) + documentos
+        documento, inicio = None, None
+        for d in candidatos:
+            if (p := _localizar(fragmento, d.texto)) is not None:
+                documento, inicio = d, p
+                break
+        salida.append({"fragmento": fragmento, "documento_id": str(documento.id) if documento else None,
+                       "inicio": inicio, "localizado": inicio is not None})
+    return salida
+
+
 def _confianza(valor) -> float:
     try:
         return max(0.0, min(1.0, float(valor)))
@@ -434,10 +467,16 @@ def normalizar(crudo: dict, documentos: list[Documento], motor: str,
     resumen_contexto: dict[str, int] = {}
     for c in contexto:
         resumen_contexto[c.tipo] = resumen_contexto.get(c.tipo, 0) + 1
+    evidencia_titulo = _evidencias(crudo["evidencia_titulo"], documentos, 3) if "evidencia_titulo" in crudo else None
+    evidencia_alcance = _evidencias(crudo["evidencia_alcance"], documentos, 6) if "evidencia_alcance" in crudo else None
+    confianza_alcance = _confianza(crudo.get("confianza_alcance", 0.8))
+    if evidencia_alcance is not None and not any(e["localizado"] for e in evidencia_alcance):
+        confianza_alcance = min(confianza_alcance, CONFIANZA_SIN_FRAGMENTO)  # como una entidad sin fragmento
     return Propuesta(
         titulo=" ".join(str(crudo.get("titulo", "")).split())[:300],
         alcance=str(crudo.get("alcance_contenido", "")).strip()[:5000],
-        confianza_alcance=_confianza(crudo.get("confianza_alcance", 0.8)),
+        confianza_alcance=round(confianza_alcance, 2),
+        evidencia_titulo=evidencia_titulo, evidencia_alcance=evidencia_alcance,
         idiomas=idiomas, confianza_idiomas=_confianza(crudo.get("confianza_idiomas", 0.8)) if idiomas else None,
         contexto_enviado=resumen_contexto,
         entidades=entidades, motor=motor, version_prompt=VERSION_PROMPT, disponible=True,

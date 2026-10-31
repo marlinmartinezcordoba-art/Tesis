@@ -49,6 +49,24 @@ def validar(consulta: str) -> None:
         raise ErrorSparql("Solo se admiten SELECT, ASK, CONSTRUCT y DESCRIBE.", 403)
 
 
+def consultar_acervo(db, consulta: str) -> tuple[bytes, str]:
+    """La misma consulta sobre el grafo público de todos los fondos (criterio nativo 5)."""
+    from app.servicios import grafo_rdf
+
+    validar(consulta)
+    futuro = _HILOS.submit(grafo_rdf.consultar_acervo, db, consulta, MAXIMO_FILAS)
+    try:
+        cuerpo, tipo, _ = futuro.result(timeout=SEGUNDOS)
+        return cuerpo, tipo
+    except Agotado as exc:
+        raise ErrorSparql(f"La consulta tardó más de {SEGUNDOS} segundos.", 503) from exc
+    except grafo_rdf.ErrorGrafo as exc:
+        mensaje = str(exc)
+        raise ErrorSparql(mensaje, 413 if "supera" in mensaje else 503) from exc
+    except (SyntaxError, ValueError, OSError) as exc:
+        raise ErrorSparql(f"La consulta no se pudo resolver: {exc}") from exc
+
+
 def consultar(db, fondo, consulta: str) -> tuple[bytes, str]:
     """La consulta se resuelve en el almacén de tripletas, sobre el grafo público guardado del fondo."""
     from app.servicios import grafo_rdf

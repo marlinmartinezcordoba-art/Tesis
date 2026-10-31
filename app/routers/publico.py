@@ -76,8 +76,8 @@ def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonl
 @router.api_route("/sparql", methods=["GET", "POST"],
                   responses={200: {"content": {"application/sparql-results+json": {}, "text/turtle": {}},
                                    "description": "Resultados SPARQL (JSON) o grafo en Turtle (CONSTRUCT y DESCRIBE)."}},
-                  summary="SPARQL de solo lectura sobre el subconjunto público de un fondo")
-async def consulta_sparql(request: Request, fondo_id: uuid.UUID, query: str | None = None,
+                  summary="SPARQL de solo lectura sobre lo público de un fondo o, sin fondo, de todo el acervo")
+async def consulta_sparql(request: Request, fondo_id: uuid.UUID | None = None, query: str | None = None,
                           actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     if request.method == "POST":
         tipo = request.headers.get("content-type", "")
@@ -85,9 +85,11 @@ async def consulta_sparql(request: Request, fondo_id: uuid.UUID, query: str | No
             query = (await request.body()).decode("utf-8", "replace")
         else:
             query = (await request.form()).get("query") or query
-    fondo = fondo_o_404(db, fondo_id)
     try:
-        cuerpo, tipo = sparql.consultar(db, fondo, query or "")
+        if fondo_id is None:  # todo el acervo: la unión de los grafos públicos de los fondos
+            cuerpo, tipo = sparql.consultar_acervo(db, query or "")
+        else:
+            cuerpo, tipo = sparql.consultar(db, fondo_o_404(db, fondo_id), query or "")
     except sparql.ErrorSparql as exc:
         return JSONResponse({"detail": str(exc)}, status_code=exc.codigo)
     return Response(cuerpo, media_type=tipo, headers={"Vary": "Authorization"})

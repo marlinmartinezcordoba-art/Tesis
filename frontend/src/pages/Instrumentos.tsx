@@ -19,8 +19,9 @@ import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { NivelRiC } from "@/components/NivelRiC";
 import { AprobarInstrumento, ListaAprobados } from "@/components/InstrumentosAprobados";
+import { AdopcionRic } from "@/components/AdopcionRic";
 
-type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico";
+type Pestana = "catalogo" | "grafo" | "inventario" | "guia" | "indice" | "rico" | "adopcion";
 const AGRUPACIONES = ["fondo", "seccion", "subseccion", "serie", "subserie", "expediente"];
 
 function Migas({ fondo, migas, actual, ir }: { fondo: string; migas: Miga[]; actual?: Miga; ir: (id: string | null) => void }) {
@@ -670,6 +671,7 @@ const PROPOSITO: Partial<Record<Pestana, [string, string]>> = {
   inventario: ["Para control interno.", "El inventario documental (FUID) dice qué hay, dónde está físicamente (caja, carpeta, folios) y en qué soporte: es la herramienta de quien custodia el fondo."],
   guia: ["Para un lector externo.", "La guía presenta el fondo en prosa a quien no lo conoce: su productor, su contenido y cómo se organiza, sin detalle unidad por unidad."],
   indice: ["Para buscar rápido por nombre.", "El índice es la puerta de consulta por nombres: cada agente, lugar o forma documental lleva a los documentos publicados que lo citan."],
+  adopcion: ["Para demostrar el nivel de adopción.", "El sistema se evalúa a sí mismo contra los siete criterios de un sistema nativo en RiC, con los datos reales del archivo, y deja ejecutar las consultas que lo comprueban."],
   rico: ["Para verificar la correspondencia con la ontología.", "La vista RiC-O entrega el fondo como datos enlazados y comprueba que cada clase y propiedad exista en RiC-O 1.1: es la evidencia técnica de conformidad."],
 };
 
@@ -733,6 +735,7 @@ export function Instrumentos() {
           {pestana === "indice" && <Indice fondo={nivel.fondo} abrir={(id) => cambiar({ ficha: id })} puede={puede}
                                                verAprobados={tienePermiso(usuario, "instrumentos")} />}
           {pestana === "rico" && <ExportacionRico fondo={nivel.fondo} />}
+          {pestana === "adopcion" && <AdopcionRic />}
           <Proposito vista={pestana} />
           {pestana === "grafo" && (
             <PestanaGrafo fondo={nivel.fondo} centro={parametros.get("centro")}

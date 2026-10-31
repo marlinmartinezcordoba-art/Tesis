@@ -761,8 +761,10 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
     for tipo, propuesto, final in (("titulo", propuesta.get("titulo"), titulo), ("alcance", propuesta.get("alcance"), alcance)):
         if propuesto:
             p_c, f_c = " ".join(propuesto.split()), " ".join((final or "").split())
+            evidencia = propuesta.get(f"evidencia_{tipo}")  # None: propuesta anterior al requisito 6
             evento(decision="aceptada" if p_c == f_c else ("rechazada" if not f_c else "corregida"), tipo=tipo,
                    clave=tipo, confianza=propuesta.get("confianza_alcance") if tipo == "alcance" else None,
+                   fragmento_localizado=None if evidencia is None else any(e.get("localizado") for e in evidencia),
                    propuesto={"valor": p_c}, final={"valor": f_c} if f_c else None)
     return n
 

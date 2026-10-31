@@ -84,6 +84,14 @@ def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonl
                              "X-RICORA-Conformidad": "conforme" if conforme else "no-conforme"})
 
 
+@router.get("/adopcion-ric", summary="Nivel de adopción de RiC: los siete criterios de un sistema nativo, evaluados en vivo",
+            responses={200: {"model": RG.AdopcionRicOut, "description": "Nivel, criterios con su evidencia y conformidad"}})
+def adopcion_ric(actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import adopcion_ric as adopcion
+
+    return adopcion.evaluar(db)
+
+
 @router.get("/conformidad", summary="Conformidad de la exportación con RiC-O 1.1 (OWL y SHACL)",
             responses={200: {"model": R.ReporteConformidad, "description": "Reporte de conformidad con RiC-O 1.1"}})
 def conformidad(request: Request, fondo_id: uuid.UUID, incluir_restringidos: bool = False,
@@ -243,8 +251,9 @@ def _actor_si_hay(request: Request, db: Session = Depends(get_db)) -> Actor | No
 
 
 @uris.get("/id/{ruta:path}", summary="Descripción RDF de un nodo (URI de RiC-O)", include_in_schema=True,
-          responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
-                           "description": "El nodo en RiC-O, según la cabecera Accept o la extensión (.ttl, .jsonld)"},
+          responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "text/html": {}},
+                           "description": "El nodo en RiC-O, según la cabecera Accept o la extensión (.ttl, .jsonld); "
+                                          "en un navegador (text/html), su ficha legible"},
                      301: {"description": "La entidad se fusionó: redirige a la URI que la absorbió"}})
 def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: Actor | None = Depends(_actor_si_hay)):
     if actor is None and not parametros.leer(db, "rdf_uris_publicas"):
@@ -252,7 +261,10 @@ def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: 
     if actor is not None and not actor.puede("catalogo"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Su rol no tiene permiso para esta acción.")
     pedida = ruta.strip("/")
-    ruta, formato = _formato(pedida, request.headers.get("accept", ""))
+    aceptar = request.headers.get("accept", "")
+    ruta, formato = _formato(pedida, aceptar)
+    # Una persona en el navegador (text/html, sin extensión) recibe la ficha legible; una máquina, RiC-O.
+    quiere_html = ruta == pedida and "text/html" in aceptar and "application/ld+json" not in aceptar
     m = _UUID.match(ruta)
     if not m:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe.")
@@ -284,5 +296,13 @@ def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: 
             break
     if ex is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe o no es público.")
-    cuerpo = exportacion_rico.serializar(exportacion_rico.descripcion_de(ex, nodo), formato)
+    descripcion = exportacion_rico.descripcion_de(ex, nodo)
+    if quiere_html:
+        from fastapi.responses import HTMLResponse
+
+        from app.servicios import pagina_entidad
+
+        return HTMLResponse(pagina_entidad.html(descripcion, nodo, exportacion_rico.base(), ex.fondo.titulo),
+                            headers={"Vary": "Accept, Authorization"})
+    cuerpo = exportacion_rico.serializar(descripcion, formato)
     return Response(cuerpo, media_type=exportacion_rico.FORMATOS[formato][1], headers={"Vary": "Accept, Authorization"})

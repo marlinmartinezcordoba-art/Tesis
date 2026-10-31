@@ -54,3 +54,31 @@ class ReconstruccionGrafo(BaseModel):
     corregidas: int
     sobrantes: list[DiferenciaGrafo]
     diferencias_despues: list[DiferenciaGrafo]
+
+
+class CriterioNativo(BaseModel):
+    """Uno de los siete criterios de un sistema nativo en RiC, con su evidencia medida."""
+    model_config = ConfigDict(extra="allow")
+
+    numero: int
+    criterio: str
+    estado: str
+    evidencia: list[str]
+    verificacion: str
+    prueba: str
+    motivo: str | None
+    en_uso: bool  # el acervo ya tiene casos que ejercen la capacidad
+
+
+class AdopcionRicOut(BaseModel):
+    """Nivel de adopción de RiC del sistema, evaluado en vivo contra los siete criterios."""
+    model_config = ConfigDict(extra="allow")
+
+    nivel: dict
+    niveles: list[dict]
+    cumplidos: int
+    criterios: list[CriterioNativo]
+    conformidad: dict
+    cobertura: dict
+    perfil_agn: dict
+    consultas: list[dict]

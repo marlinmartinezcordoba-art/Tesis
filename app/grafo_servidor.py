@@ -57,7 +57,7 @@ def leer(grafo: str):
 
 
 class Consulta(BaseModel):
-    grafo: str
+    grafo: str | list[str]  # una lista: la unión de esos grafos (el acervo)
     consulta: str
     maximo: int = 10_000
 
@@ -65,7 +65,8 @@ class Consulta(BaseModel):
 @app.post("/consulta", dependencies=[Depends(autorizado)])
 def consultar(datos: Consulta):
     try:
-        cuerpo, tipo = _almacen.consultar(_grafo(datos.grafo), datos.consulta, datos.maximo)
+        grafos = _grafo(datos.grafo) if isinstance(datos.grafo, str) else [_grafo(g) for g in datos.grafo]
+        cuerpo, tipo = _almacen.consultar(grafos, datos.consulta, datos.maximo)
     except ErrorGrafo as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except (SyntaxError, ValueError, OSError) as exc:

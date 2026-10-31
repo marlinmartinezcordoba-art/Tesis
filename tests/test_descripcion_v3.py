@@ -350,3 +350,31 @@ def eventos_de(db, accion, entidad_id=None):
     if entidad_id:
         q = q.where(RegistroAuditoria.entidad_id == str(entidad_id))
     return db.scalars(q).all()
+
+
+# --- Requisito 6 · El título y el alcance también citan su evidencia ---------------------------------------
+
+
+def test_el_titulo_y_el_alcance_citan_su_evidencia_o_dicen_que_no_la_hay():
+    texto = "El alcalde de Tunja informa al Concejo sobre los mercados públicos en marzo de 1948."
+    docs = [motor.Documento(id=uuid.uuid4(), nombre="a", texto=texto)]
+    p = motor.normalizar({"titulo": "Informe sobre mercados", "alcance_contenido": "Informe del alcalde.",
+                          "confianza_alcance": 0.9,
+                          "evidencia_titulo": [{"fragmento": "informa al Concejo sobre los mercados públicos", "documento": 1}],
+                          "evidencia_alcance": [{"fragmento": "El  alcalde de tunja informa", "documento": 1},
+                                                {"fragmento": "texto que no está en el documento", "documento": 1}],
+                          "entidades": []}, docs, "m")
+    assert p.evidencia_titulo[0]["localizado"] and p.evidencia_titulo[0]["inicio"] == texto.find("informa al")
+    assert p.evidencia_titulo[0]["documento_id"] == str(docs[0].id)
+    assert [e["localizado"] for e in p.evidencia_alcance] == [True, False]
+    assert p.confianza_alcance == 0.9
+    # Sin ningún fragmento hallado en el texto: «no identificada», y la confianza baja como la de una entidad.
+    p = motor.normalizar({"titulo": "x", "alcance_contenido": "y", "confianza_alcance": 0.9, "evidencia_titulo": [],
+                          "evidencia_alcance": [{"fragmento": "inventado", "documento": 1}], "entidades": []}, docs, "m")
+    assert p.evidencia_titulo == [] and not any(e["localizado"] for e in p.evidencia_alcance)
+    assert p.confianza_alcance == motor.CONFIANZA_SIN_FRAGMENTO
+    # Una respuesta sin el campo (anterior a este registro) no se confunde con «no identificada».
+    p = motor.normalizar({"titulo": "x", "alcance_contenido": "y", "confianza_alcance": 0.9, "entidades": []}, docs, "m")
+    assert p.evidencia_titulo is None and p.evidencia_alcance is None and p.confianza_alcance == 0.9
+    # El esquema obliga al motor a devolverla.
+    assert {"evidencia_titulo", "evidencia_alcance"} <= set(motor.ESQUEMA["required"])

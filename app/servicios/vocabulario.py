@@ -47,13 +47,20 @@ class Coincidencia:
 # Los mecanismos (programas con su versión) y el resto del vocabulario siguen siendo de cada fondo.
 
 
+# Autoridades de la institución, no de un fondo (criterio nativo 1): los agentes (salvo los mecanismos,
+# que documentan lo que pasó en cada fondo), los lugares, las materias y los mandatos. «Tunja», «Hacienda
+# pública» o la «Ley 594 de 2000» son las mismas en cualquier fondo. Las formas documentales y los tipos de
+# actividad (funciones) siguen siendo del fondo: nacen del cuadro y de la TRD de cada productor.
+CLASES_INSTITUCIONALES = ("agente", "lugar", "materia", "mandato")
+
+
 def compartida(clase: str | None, subtipo: str | None = None) -> bool:
-    return clase == "agente" and subtipo != "mecanismo"
+    return clase in CLASES_INSTITUCIONALES and subtipo != "mecanismo"
 
 
 def es_compartida(modelo=EntidadVocabulario):
     """La misma regla, como condición SQL."""
-    return and_(modelo.clase == "agente", or_(modelo.subtipo.is_(None), modelo.subtipo != "mecanismo"))
+    return and_(modelo.clase.in_(CLASES_INSTITUCIONALES), or_(modelo.subtipo.is_(None), modelo.subtipo != "mecanismo"))
 
 
 def del_fondo_o_compartida(fondo_id, modelo=EntidadVocabulario):

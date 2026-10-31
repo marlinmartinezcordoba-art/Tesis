@@ -877,3 +877,17 @@ kbd { font: 600 .7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding:
 .lista-control li.bien::before { content: "✓ "; color: var(--ok); }
 .estado-trd dd { margin-bottom: 4px; }
 .otras-tareas > summary { padding: 12px 16px; cursor: pointer; }
+
+/* Adopción de RiC: la escala de niveles, con el actual marcado y los superados atenuados. */
+.escala-ric { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.escala-ric li { border: 1px solid var(--line, #d9dfeb); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
+.escala-ric li span { color: var(--muted, #5b6780); }
+.escala-ric li.superado { opacity: .75; }
+.escala-ric li.actual { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-bg); }
+.codigo-sparql { background: var(--accent-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: .78rem; white-space: pre; }
+
+/* Evidencia del título y del alcance (requisito 6) */
+.evidencia-campo { margin: 4px 0 0; font-size: .82rem; }
+.evidencia-campo .enlace { font-size: inherit; text-align: left; }
+.evidencia-campo .enlace.activa { background: var(--accent); color: var(--accent-ink); border-radius: 3px; }
+.evidencia-campo.sin { color: var(--warn); }

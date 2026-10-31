@@ -62,7 +62,7 @@ class NombreIn(BaseModel):
 
 
 class IdentificadorIn(BaseModel):
-    esquema: Literal["interno", "viaf", "wikidata", "isni", "lcnaf", "orcid", "ror", "otro"]
+    esquema: Literal["interno", "viaf", "wikidata", "isni", "lcnaf", "orcid", "ror", "geonames", "otro"]
     valor: str = Field(min_length=1, max_length=200)
 
 
@@ -324,14 +324,16 @@ def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
 
 @router.post("/{entidad_id}/identificadores", status_code=status.HTTP_201_CREATED,
              responses={201: {"model": rv.DetalleEntidad, "description": "Identificador agregado: detalle de la entidad actualizado"}},
-             summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF, ORCID, ROR)")
+             summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF, ORCID, ROR, GeoNames)")
 def agregar_identificador(entidad_id: uuid.UUID, datos: IdentificadorIn, request: Request,
                           actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     e = _entidad_o_404(db, entidad_id)
     _no_mecanismo(e)
     _activa_o_409(e)
-    if e.clase != "agente":
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Los identificadores se registran en agentes.")
+    if not vocabulario.compartida(e.clase, e.subtipo):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Los identificadores se registran en las autoridades de la institución: agentes, "
+                                   "lugares, materias y mandatos.")
     try:
         autoridad.agregar_identificador(db, e, usuario_id=actor.id, ip=ip_de(request), **datos.model_dump())
     except autoridad.ErrorAutoridad as exc:

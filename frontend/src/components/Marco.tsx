@@ -95,7 +95,8 @@ const ENTRADAS: Entrada[] = [
       // los mismos términos en Autoridades, salvo quien genera instrumentos: lo aprueba.
       { vista: "indice", nombre: "Índice", submodulo: "Instrumentos de descripción",
         permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
-      { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" }] },
+      { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" },
+      { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },

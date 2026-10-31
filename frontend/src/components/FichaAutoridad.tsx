@@ -68,7 +68,7 @@ interface Props {
 }
 
 const ESQUEMA_NOMBRE: Record<string, string> = {
-  interno: "Código interno", viaf: "VIAF", wikidata: "Wikidata", isni: "ISNI", lcnaf: "LCNAF", orcid: "ORCID (persona)", ror: "ROR (institución)", otro: "Otro esquema",
+  interno: "Código interno", viaf: "VIAF", wikidata: "Wikidata", isni: "ISNI", lcnaf: "LCNAF", orcid: "ORCID (persona)", ror: "ROR (institución)", geonames: "GeoNames (lugar)", otro: "Otro esquema",
 };
 const TIPO_NOMBRE_FORMA: Record<string, string> = {
   paralela: "Forma paralela (otra lengua)", normalizada: "Forma normalizada según otras reglas", otra: "Otra forma (variante, sigla)",
@@ -616,7 +616,7 @@ function Identificadores({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; e
             </select>
             <input className="entrada" required aria-label="Valor" value={valor} onChange={(e) => setValor(e.target.value)}
                    placeholder={esquema === "wikidata" ? "Q2841" : esquema === "viaf" ? "Número VIAF" : esquema === "orcid" ? "0000-0002-1825-0097"
-                     : esquema === "ror" ? "05dxps055" : "Valor"} />
+                     : esquema === "ror" ? "05dxps055" : esquema === "geonames" ? "3666640" : "Valor"} />
           </div>
           {error && <div className="aviso error" role="alert">{error}</div>}
           <div className="acciones" style={{ marginTop: 8 }}>
@@ -905,6 +905,8 @@ function FichaLugar(p: Props) {
           <TextoEditable etiqueta="Historia o nota" campo="historia" valor={f.campos.historia} multilinea {...comun} />
         </dl>
         {lat != null && lon != null && <Mapa lat={lat} lon={lon} />}
+        <h4>Identificadores (GeoNames, Wikidata)</h4>
+        <Identificadores ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
       </Area>
       <Area titulo="Jerarquía">
         <h4 style={{ marginTop: 0 }}>Lugar superior</h4>
@@ -1052,6 +1054,8 @@ function FichaMandato(p: Props) {
         <h4>Agentes y competencias que creó</h4>
         <Vinculos vinculos={f.vinculos} tipos={["creado_por", "competencia_creada_por"]} opciones={OPCIONES.mandato.slice(2)} entidad={e}
                   fondoId={fondoId} puede={puede} alCambiar={alCambiar} vacio="No hay creación registrada." />
+        <h4>Identificadores</h4>
+        <Identificadores ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
       </Area>
       <Area titulo="Jerarquía normativa">
         <Vinculos vinculos={f.vinculos} tipos={["mandato_superior"]} opciones={OPCIONES.mandato.slice(0, 1)} entidad={e} fondoId={fondoId}
@@ -1098,6 +1102,8 @@ function FichaGeneral(p: Props) {
       <dl className="par-dato">
         <TextoEditable etiqueta="Nota de alcance" campo="historia" valor={f.campos.historia} multilinea puede={puede} entidadId={e.id} alCambiar={alCambiar} />
       </dl>
+      {e.clase === "materia" && (<><h4>Identificadores</h4>
+        <Identificadores ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} /></>)}
     </Area>
   );
 }

@@ -101,6 +101,7 @@ class Exportacion:
     nodos: dict = field(default_factory=dict)  # uuid → (tipo, clase RiC-O)
     completa: bool = False  # con lo restringido (el grafo «completo»), no el público
     tipos_contenido: dict | None = None  # catálogo RiC-A10 con los tipos que agregó la administración
+    autoria: set = field(default_factory=set)  # actividades de autoría ya escritas (criterio nativo 7)
 
     def resumen(self) -> dict:
         clases = Counter(str(o).split("#")[-1] for o in self.grafo.objects(None, RDF.type) if str(o).startswith(ric_o.RICO))
@@ -669,7 +670,7 @@ def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relac
     if rel.origen == "persona":
         fuente = "Registrada por una persona."
     else:
-        # El motor no se nombra: no se exporta como agente (decisión anterior, que se mantiene).
+        # La fuente lo dice en palabras; el motor como agente (rico:Mechanism) y su actividad van en _autoria.
         fuente = ("Propuesta por el motor de análisis" + (", corregida" if rel.origen == "motor_editado" else "")
                   + " y confirmada por una persona.")
     if rel.fragmento and rel.fragmento_instanciacion_id:
@@ -688,6 +689,114 @@ def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relac
     estado = _estado_relacion(rel.fecha_edtf)
     if estado:
         g.add((nodo, _a("estado_relacion"), Literal(estado, lang="es")))
+    _autoria(db, ex, nodo, rel)
+
+
+# --- Autoría de la descripción en el propio grafo (criterio nativo 7) ----------------------------------
+#
+# Quién afirmó cada relación ya no queda solo en la auditoría del sistema: cada relación se asocia
+# (rico:isAssociatedWithEvent) a la actividad que la produjo. Una propuesta del motor es una
+# rico:Activity que ejerce el motor como rico:Mechanism, con su versión; la validación es otra
+# actividad, ejercida por la archivista. En el grafo público la archivista aparece por su cargo
+# (rico:Position «Archivista»), sin su nombre; en el completo, también como rico:Person que ocupa ese cargo.
+
+TIPOS_AUTORIA = {
+    "propuesta": "Propuesta de descripción asistida por IA",
+    "validacion": "Validación humana de una propuesta",
+    "correccion": "Corrección humana de una propuesta",
+    "manual": "Descripción por una persona",
+}
+
+
+def _actividad_autoria(ex: Exportacion, nodo: URIRef, nombre: str, clave_tipo: str, afectado: URIRef | None,
+                       cuando) -> URIRef:
+    g = ex.grafo
+    if nodo not in ex.autoria:
+        ex.autoria.add(nodo)
+        g.add((nodo, RDF.type, RICO[ric_o.CLASE_VOCABULARIO["actividad"]]))
+        g.add((nodo, RDFS.label, Literal(nombre)))
+        g.add((nodo, _a("nombre"), Literal(nombre)))
+        g.add((nodo, RICO[ric_o.PROPIEDADES["has_activity_type"].rico],
+               _tipo_tecnico(ex, f"autoria-{clave_tipo}", TIPOS_AUTORIA[clave_tipo])))
+        if cuando is not None:
+            _fecha_libre(ex, nodo, _apoyo("inicio")[0], URIRef(f"{nodo}/fecha"), None, cuando.date().isoformat())
+    if afectado is not None:
+        g.add((nodo, RICO[ric_o.ACCION_TECNICA["afecta"].rico], afectado))
+    return nodo
+
+
+def _cargo_archivista(ex: Exportacion) -> URIRef:
+    g = ex.grafo
+    cargo = uri(ex.fondo.id, "cargo", "archivista")
+    if cargo not in ex.autoria:
+        ex.autoria.add(cargo)
+        g.add((cargo, RDF.type, RICO["Position"]))
+        g.add((cargo, RDFS.label, Literal(f"Archivista · {ex.fondo.titulo}")))
+        g.add((cargo, _a("nombre"), Literal(f"Archivista · {ex.fondo.titulo}")))
+    return cargo
+
+
+def _persona(db: Session, ex: Exportacion, usuario_id) -> URIRef:
+    """Quien validó: su cargo siempre; su nombre, solo en el grafo completo (dato personal del personal)."""
+    cargo = _cargo_archivista(ex)
+    if not ex.completa or usuario_id is None:
+        return cargo
+    from app.models.usuario import Usuario
+
+    u = db.get(Usuario, usuario_id)
+    if u is None:
+        return cargo
+    g, p = ex.grafo, uri("persona-del-sistema", u.id)
+    if p not in ex.autoria:
+        ex.autoria.add(p)
+        g.add((p, RDF.type, RICO["Person"]))
+        g.add((p, RDFS.label, Literal(u.nombre)))
+        g.add((p, _a("nombre"), Literal(u.nombre)))
+        g.add((p, RICO[ric_o.PROPIEDADES["occupies_or_occupied"].rico], cargo))
+    return p
+
+
+def _autoria(db: Session, ex: Exportacion, nodo: URIRef, rel: Relacion) -> None:
+    g = ex.grafo
+    ejerce = RICO[ric_o.PROPIEDADES["performs_or_performed"].rico]
+    asociada = RICO["isAssociatedWithEvent"]
+    doc_id = rel.origen_id if rel.origen_tipo == "recurso_documental" else (
+        rel.destino_id if rel.destino_tipo == "recurso_documental" else None)
+    documento = uri(doc_id) if doc_id else None
+    quien = _persona(db, ex, rel.confirmada_por_id)
+    if rel.origen == "persona":
+        act = _actividad_autoria(ex, uri(doc_id or rel.id, "autoria", "manual"), "Descripción por una persona",
+                                 "manual", documento, rel.creado_en)
+        g.add((quien, ejerce, act))
+        g.add((nodo, asociada, act))
+        return
+    # Lo propuso el motor: la actividad de la propuesta, ejercida por el motor (rico:Mechanism).
+    from app.models.evidencia_ia import PropuestaIA
+
+    propuesta = db.get(PropuestaIA, rel.propuesta_id) if rel.propuesta_id else None
+    clave = rel.propuesta_id or rel.id
+    nombre = "Propuesta del motor de análisis" + (f" (instrucción {propuesta.version_prompt})"
+                                                  if propuesta and propuesta.version_prompt else "")
+    act = _actividad_autoria(ex, uri(clave, "propuesta"), nombre, "propuesta", documento,
+                             propuesta.generada_en if propuesta else rel.creado_en)
+    motor = db.get(EntidadVocabulario, rel.motor_id) if rel.motor_id else None
+    # Sin versión no se exporta: el perfil exige la versión exacta de un mecanismo (RiC-A41), y un
+    # mecanismo incompleto bloquearía la publicación de todo el fondo.
+    if motor is not None and motor.estado == "activa" and motor.subtipo == "mecanismo" and motor.version:
+        m = uri(motor.id)
+        if m not in ex.autoria:
+            ex.autoria.add(m)
+            _entidad(db, ex, motor, {})
+        g.add((m, ejerce, act))
+    else:
+        ex.omitidas["propuesta del motor sin su mecanismo registrado (anterior al registro de mecanismos)"] += 1
+    g.add((nodo, asociada, act))
+    # Y la validación humana: confirmada tal cual o corregida.
+    tipo = "correccion" if rel.origen == "motor_editado" else "validacion"
+    val = _actividad_autoria(ex, uri(doc_id or rel.id, "autoria", tipo), TIPOS_AUTORIA[tipo], tipo, documento,
+                             rel.creado_en)
+    g.add((quien, ejerce, val))
+    g.add((nodo, asociada, val))
 
 
 def _estado_relacion(edtf: str | None) -> str | None:
@@ -1262,6 +1371,19 @@ def descripcion_de(ex: Exportacion, nodo: URIRef) -> Graph:
         sujeto = str(t[0])
         if t[0] == nodo or t[2] == nodo or (sujeto.startswith(propio) and not sujeto.startswith(compartidos)):
             salida.add(t)
+    # Las relaciones de la entidad y quién las afirmó (criterio nativo 7): el nodo de cada relación
+    # y las actividades de autoría asociadas, con quién las ejerció.
+    rels = set(ex.grafo.subjects(RICO[ric_o.RELACION_ORIGEN], nodo)) | set(ex.grafo.subjects(RICO[ric_o.RELACION_DESTINO], nodo))
+    asociada = RICO["isAssociatedWithEvent"]
+    ejerce = RICO[ric_o.PROPIEDADES["performs_or_performed"].rico]
+    for rel in rels:
+        for t in ex.grafo.triples((rel, None, None)):
+            salida.add(t)
+        for act in ex.grafo.objects(rel, asociada):
+            for t in ex.grafo.triples((act, None, None)):
+                salida.add(t)
+            for quien in ex.grafo.subjects(ejerce, act):
+                salida.add((quien, ejerce, act))
     for o in set(salida.objects()) | set(salida.subjects()):
         if isinstance(o, URIRef) and o != nodo:
             for p in (RDFS.label, RDF.type):

@@ -103,9 +103,11 @@ class Embebido:
             return b""
         return self.store.dump(format=self._ox.RdfFormat.N_TRIPLES, from_graph=g)
 
-    def consultar(self, grafo: str, consulta: str, maximo: int) -> tuple[bytes, str]:
+    def consultar(self, grafo: str | list[str], consulta: str, maximo: int) -> tuple[bytes, str]:
+        """Sobre un grafo o, con una lista, sobre su unión como un solo grafo (el acervo)."""
         ox = self._ox
-        resultado = self.store.query(consulta, default_graph=[ox.NamedNode(grafo)])
+        grafos = [grafo] if isinstance(grafo, str) else grafo
+        resultado = self.store.query(consulta, default_graph=[ox.NamedNode(validar_nombre(g)) for g in grafos])
         if isinstance(resultado, ox.QueryBoolean):
             return json.dumps({"head": {}, "boolean": bool(resultado)}).encode(), "application/sparql-results+json"
         if isinstance(resultado, ox.QueryTriples):
@@ -170,7 +172,7 @@ class Remoto:
     def leer(self, grafo: str) -> bytes:
         return self._pedir("GET", "/grafos", params={"grafo": grafo}).content
 
-    def consultar(self, grafo: str, consulta: str, maximo: int) -> tuple[bytes, str]:
+    def consultar(self, grafo: str | list[str], consulta: str, maximo: int) -> tuple[bytes, str]:
         r = self._pedir("POST", "/consulta", json={"grafo": grafo, "consulta": consulta, "maximo": maximo})
         return r.content, r.headers.get("content-type", "application/octet-stream")
 
@@ -407,6 +409,18 @@ def consultar(db: Session, fondo: RecursoDocumental, consulta: str, maximo: int)
     """SPARQL de lectura sobre el grafo público guardado del fondo, en el almacén."""
     al_dia(db, fondo, "publico")
     return almacen().consultar(nombre(fondo.id, "publico"), consulta, maximo)
+
+
+def consultar_acervo(db: Session, consulta: str, maximo: int) -> tuple[bytes, str, int]:
+    """SPARQL de lectura sobre la unión de los grafos públicos de todos los fondos (criterio
+    nativo 5): una sola pregunta para todo el archivo. Solo entran los grafos públicos ya
+    sincronizados; nunca un grafo completo. Devuelve también cuántos fondos se consultaron."""
+    fondos = list(db.scalars(select(GrafoRdf.fondo_id).where(GrafoRdf.alcance == "publico",
+                                                             GrafoRdf.version_sincronizada > 0)))
+    if not fondos:
+        raise ErrorGrafo("Todavía no hay fondos publicados en el grafo.")
+    cuerpo, tipo = almacen().consultar([nombre(f, "publico") for f in fondos], consulta, maximo)
+    return cuerpo, tipo, len(fondos)
 
 
 def sincronizar_pendientes(db: Session, limite: int = 4) -> int:
