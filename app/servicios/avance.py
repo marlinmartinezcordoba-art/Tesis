@@ -13,6 +13,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.descripcion import SugerenciaFusion
 from app.models.instanciacion import Instanciacion
 from app.models.instrumento_aprobado import InstrumentoAprobado
@@ -117,16 +118,18 @@ def avance(db: Session, fondo: RecursoDocumental) -> dict:
         paso("difusion", "Instrumentos de descripción", "hecho", "Inventario, guía e índice aprobados.",
              "Ver el catálogo", "/instrumentos", "instrumentos")
 
-    if alterados:
-        paso("preservacion", "Preservación", "en_curso", f"{alterados} archivo(s) alterados o ausentes: atienda ya.",
-             "Ver preservación", "/preservacion", "preservacion")
-    elif sin_verificar:
-        paso("preservacion", "Preservación", "en_curso", f"{sin_verificar} archivo(s) sin verificar todavía.",
-             "Ver preservación", "/preservacion", "preservacion")
-    else:
-        paso("preservacion", "Preservación", "hecho" if archivos else "pendiente",
-             "Integridad verificada." if archivos else "Sin archivos que preservar.", "Ver preservación",
-             "/preservacion", "preservacion")
+    # La preservación está fuera del alcance de la tesis: con el módulo apagado no es un paso del avance.
+    if settings.preservacion_activa:
+        if alterados:
+            paso("preservacion", "Preservación", "en_curso", f"{alterados} archivo(s) alterados o ausentes: atienda ya.",
+                 "Ver preservación", "/preservacion", "preservacion")
+        elif sin_verificar:
+            paso("preservacion", "Preservación", "en_curso", f"{sin_verificar} archivo(s) sin verificar todavía.",
+                 "Ver preservación", "/preservacion", "preservacion")
+        else:
+            paso("preservacion", "Preservación", "hecho" if archivos else "pendiente",
+                 "Integridad verificada." if archivos else "Sin archivos que preservar.", "Ver preservación",
+                 "/preservacion", "preservacion")
 
     siguiente = next((p for p in pasos if p["estado"] != "hecho" and p["accion"]), None)
     return {"fondo": {"id": str(f), "titulo": fondo.titulo}, "pasos": pasos,

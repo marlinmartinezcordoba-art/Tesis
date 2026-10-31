@@ -3,6 +3,7 @@ import { ErrorAPI, pedir } from "@/lib/api";
 import { ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
 import { Ventana } from "@/components/Ventana";
+import { useSesion } from "@/lib/sesion";
 
 // Hallazgos de conformidad con RiC (prompt de auditoría v7, §5bis): un
 // registro que lleva una persona, no un analizador automático. Del
@@ -24,9 +25,15 @@ const COMPONENTES: [string, string][] = [["autenticacion", "Autenticación"], ["
   ["descripcion", "Descripción"], ["vocabularios", "Autoridades y términos"], ["instrumentos", "Consulta y difusión"],
   ["preservacion", "Preservación"], ["auditoria", "Auditoría"]];
 const NOMBRE_COMPONENTE = Object.fromEntries(COMPONENTES);
+// Con la preservación apagada (fuera del alcance de la tesis), no se ofrece como componente.
+function useComponentes() {
+  const { usuario } = useSesion();
+  return COMPONENTES.filter(([k]) => k !== "preservacion" || !!usuario?.preservacion_activa);
+}
 const dia = (iso: string) => fecha(`${iso}T12:00:00`).split(",")[0];
 
 export function Hallazgos() {
+  const componentes_ = useComponentes();
   const [estado, setEstado] = useState("");
   const [componente, setComponente] = useState("");
   const [datos, setDatos] = useState<Datos | null>(null);
@@ -61,7 +68,7 @@ export function Hallazgos() {
         </select>
         <select className="selector" aria-label="Componente" value={componente} onChange={(e) => setComponente(e.target.value)}>
           <option value="">Todos los componentes</option>
-          {COMPONENTES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          {componentes_.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <ExportarExcel ruta={`/api/auditoria/hallazgos/hoja-de-calculo?${consulta()}`} deshabilitado={!datos?.hallazgos.length} />
         <button type="button" className="boton chico primario" onClick={() => setNuevo(true)}>Registrar hallazgo</button>
@@ -164,6 +171,7 @@ function Tarjeta({ h, cambiado, abierta, alternar }: { h: Hallazgo; cambiado: ()
 }
 
 function NuevoHallazgo({ cerrar, creado }: { cerrar: () => void; creado: () => void }) {
+  const componentes_ = useComponentes();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [componentes, setComponentes] = useState<string[]>([]);
@@ -196,7 +204,7 @@ function NuevoHallazgo({ cerrar, creado }: { cerrar: () => void; creado: () => v
         <fieldset style={{ border: 0, padding: 0, margin: "8px 0" }}>
           <legend className="meta">Componentes que afecta</legend>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {COMPONENTES.map(([k, v]) => (
+            {componentes_.map(([k, v]) => (
               <label key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input type="checkbox" checked={componentes.includes(k)}
                        onChange={(e) => setComponentes(e.target.checked ? [...componentes, k] : componentes.filter((c) => c !== k))} />

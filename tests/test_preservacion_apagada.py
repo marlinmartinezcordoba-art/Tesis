@@ -33,3 +33,13 @@ def test_apagada_la_api_no_existe_y_la_sesion_lo_dice(cliente, db, admin, cabece
 def test_encendida_vuelve(monkeypatch):
     monkeypatch.setattr(settings, "preservacion_activa", True)
     assert permisos_efectivos({"preservacion": "escribir"}) == {"preservacion": "escribir"}
+
+
+def test_apagada_no_es_un_paso_del_avance_del_fondo(cliente, db, cabeceras_admin, monkeypatch):
+    """La tesis no trata la preservación: con el módulo apagado no aparece en el avance del fondo."""
+    from tests.test_disposicion import _fondo
+
+    fnd, _, _ = _fondo(cliente, db, cabeceras_admin)
+    monkeypatch.setattr(settings, "preservacion_activa", False)
+    pasos = [p["clave"] for p in cliente.get(f"/api/fondos/{fnd.id}/avance", headers=cabeceras_admin).json()["pasos"]]
+    assert "preservacion" not in pasos and pasos[0] == "instrumentos"
