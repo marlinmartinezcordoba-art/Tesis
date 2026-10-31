@@ -326,6 +326,7 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
       <div className="tarjeta-cuerpo">
         <p>{ev.documentos} documento(s) · {ev.con_propuesta} con propuesta del motor</p>
         {aviso && <div className="aviso">{aviso}</div>}
+        <Expertas ev={ev} />
         <CriterioComparabilidad ev={ev} cambio={cambio} />
         {ev.estado === "preparacion" && (
           <>
@@ -361,6 +362,153 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
           </div>
         )}
         <p className="meta">Ver los resultados muestra las propuestas: desde ahí, usted no puede describir a ciegas estos documentos.</p>
+      </div>
+    </div>
+  );
+}
+
+// Expertas participantes: quién hace la descripción humana de referencia (pregunta problema: humano
+// frente a máquina). Cada una entra con su cuenta, su formación, su experiencia y su consentimiento.
+// En los resultados y en la hoja de cálculo aparece por su código (E1, E2…), nunca por su nombre.
+interface Participante {
+  id: string; usuario_id: string; codigo: string; nombre: string | null; profesion: string; formacion: string;
+  formacion_nombre: string; anios_experiencia: number; anios_descripcion: number | null; cargo: string | null;
+  institucion: string | null; rol: string; rol_nombre: string; consentimiento: boolean; activa: boolean;
+}
+const FORMACIONES: [string, string][] = [["tecnica", "Técnica"], ["tecnologica", "Tecnológica"], ["profesional", "Profesional"],
+  ["especializacion", "Especialización"], ["maestria", "Maestría"], ["doctorado", "Doctorado"]];
+const ROLES_EXPERTA: [string, string][] = [["descriptora", "Describe"], ["calificadora", "Califica la propuesta"],
+  ["ambas", "Describe y califica"]];
+const VACIA = { usuario_id: "", nombre: "", profesion: "", formacion: "profesional", anios_experiencia: "", anios_descripcion: "",
+  cargo: "", institucion: "", rol: "descriptora", consentimiento: false };
+
+function Expertas({ ev }: { ev: EvaluacionBreve }) {
+  const [lista, setLista] = useState<Participante[] | null>(null);
+  const [cuentas, setCuentas] = useState<{ id: string; nombre: string; correo: string; activo: boolean }[]>([]);
+  const [f, setF] = useState(VACIA);
+  const [abierto, setAbierto] = useState(false);
+  const [error, setError] = useState("");
+  const cargar = useCallback(() => {
+    pedir<Participante[]>(`/api/evaluacion/${ev.id}/participantes`).then(setLista).catch(() => setLista([]));
+  }, [ev.id]);
+  useEffect(cargar, [cargar]);
+  useEffect(() => {
+    if (abierto) pedir<{ usuarios: { id: string; nombre: string; correo: string; activo: boolean }[] }>("/api/auth/usuarios?activo=true")
+      .then((r) => setCuentas(r.usuarios)).catch(() => setCuentas([]));
+  }, [abierto]);
+
+  async function registrar(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      await pedir(`/api/evaluacion/${ev.id}/participantes`, { method: "POST", body: JSON.stringify({
+        ...f, anios_experiencia: Number(f.anios_experiencia),
+        anios_descripcion: f.anios_descripcion === "" ? null : Number(f.anios_descripcion),
+        cargo: f.cargo || null, institucion: f.institucion || null }) });
+      setF(VACIA);
+      setAbierto(false);
+      cargar();
+    } catch (err) {
+      setError(mensaje(err, "No se pudo registrar."));
+    }
+  }
+
+  async function cambiar(p: Participante, cuerpo: object) {
+    setError("");
+    try {
+      await pedir(`/api/evaluacion/${ev.id}/participantes/${p.id}`, { method: "PUT", body: JSON.stringify(cuerpo) });
+      cargar();
+    } catch (err) {
+      setError(mensaje(err, "No se pudo actualizar."));
+    }
+  }
+
+  const usadas = new Set((lista || []).map((p) => p.usuario_id));
+  const listas = (lista || []).filter((p) => p.activa && p.consentimiento).length;
+  const cerrada = ev.estado === "cerrada";
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Expertas participantes</div>
+      <div className="tarjeta-cuerpo">
+        <p className="meta" style={{ marginTop: 0 }}>Quienes hacen la descripción humana con que se compara el motor. Solo describen
+          las registradas aquí, con su consentimiento. En los resultados aparecen por su código, no por su nombre.</p>
+        {lista && lista.length > 0 && (
+          <div className="tabla-desplazable">
+            <table className="tabla-permisos">
+              <thead><tr><th>Código</th><th>Nombre</th><th>Profesión y formación</th><th>Experiencia</th><th>Rol</th>
+                <th>Consentimiento</th><th /></tr></thead>
+              <tbody>
+                {lista.map((p) => (
+                  <tr key={p.id} style={p.activa ? undefined : { opacity: .55 }}>
+                    <td><strong>{p.codigo}</strong></td>
+                    <td>{p.nombre}{p.cargo && <div className="meta">{p.cargo}{p.institucion ? ` · ${p.institucion}` : ""}</div>}</td>
+                    <td>{p.profesion}<div className="meta">{p.formacion_nombre}</div></td>
+                    <td>{p.anios_experiencia} años en archivos{p.anios_descripcion !== null && <div className="meta">{p.anios_descripcion} describiendo</div>}</td>
+                    <td>{p.rol_nombre}</td>
+                    <td>{p.consentimiento ? "Sí" : (
+                      <button type="button" className="enlace" disabled={cerrada || !p.activa}
+                              onClick={() => cambiar(p, { consentimiento: true })}>Registrar</button>)}</td>
+                    <td>{p.activa ? (!cerrada && <button type="button" className="enlace" onClick={() => cambiar(p, { retirar: true })}>Retirar</button>)
+                      : <span className="meta">Retirada</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {lista && listas === 0 && ev.estado === "preparacion" && (
+          <div className="aviso alerta" role="status">Para iniciar, registre al menos una experta con su consentimiento. Para comparar
+            humano y máquina con un techo de acuerdo, se necesitan al menos dos que describan.</div>
+        )}
+        {lista && listas === 1 && ev.estado === "preparacion" && (
+          <p className="meta">Con una sola experta no se puede medir el acuerdo entre personas (el techo de la comparación).</p>
+        )}
+        {error && <div className="aviso error" role="alert">{error}</div>}
+        {!cerrada && !abierto && <div className="acciones"><button type="button" className="boton chico" onClick={() => setAbierto(true)}>
+          Registrar una experta</button></div>}
+        {abierto && (
+          <form onSubmit={registrar} className="formulario-experta">
+            <div className="campo">
+              <label htmlFor="exp-cuenta">Cuenta con que describe</label>
+              <select id="exp-cuenta" className="selector" required value={f.usuario_id} onChange={(e) => {
+                const c = cuentas.find((x) => x.id === e.target.value);
+                setF({ ...f, usuario_id: e.target.value, nombre: f.nombre || c?.nombre || "" });
+              }}>
+                <option value="">Elija…</option>
+                {cuentas.filter((c) => !usadas.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.nombre} · {c.correo}</option>)}
+              </select>
+              <div className="meta">¿No tiene cuenta? Créela primero en Usuarios y permisos.</div>
+            </div>
+            <div className="campo"><label htmlFor="exp-nombre">Nombre completo</label>
+              <input id="exp-nombre" className="entrada" required minLength={3} value={f.nombre}
+                     onChange={(e) => setF({ ...f, nombre: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-prof">Profesión</label>
+              <input id="exp-prof" className="entrada" required minLength={3} placeholder="Profesional en Archivística" value={f.profesion}
+                     onChange={(e) => setF({ ...f, profesion: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-form">Máximo nivel de formación</label>
+              <select id="exp-form" className="selector" value={f.formacion} onChange={(e) => setF({ ...f, formacion: e.target.value })}>
+                {FORMACIONES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
+            <div className="campo"><label htmlFor="exp-anios">Años de experiencia en archivos</label>
+              <input id="exp-anios" className="entrada" type="number" min={0} max={70} required value={f.anios_experiencia}
+                     onChange={(e) => setF({ ...f, anios_experiencia: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-desc">Años describiendo documentos históricos (opcional)</label>
+              <input id="exp-desc" className="entrada" type="number" min={0} max={70} value={f.anios_descripcion}
+                     onChange={(e) => setF({ ...f, anios_descripcion: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-cargo">Cargo (opcional)</label>
+              <input id="exp-cargo" className="entrada" value={f.cargo} onChange={(e) => setF({ ...f, cargo: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-inst">Institución (opcional)</label>
+              <input id="exp-inst" className="entrada" value={f.institucion} onChange={(e) => setF({ ...f, institucion: e.target.value })} /></div>
+            <div className="campo"><label htmlFor="exp-rol">Rol en la evaluación</label>
+              <select id="exp-rol" className="selector" value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })}>
+                {ROLES_EXPERTA.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
+            <div className="casillas"><label><input type="checkbox" checked={f.consentimiento}
+              onChange={(e) => setF({ ...f, consentimiento: e.target.checked })} />Firmó el consentimiento informado</label></div>
+            <div className="acciones">
+              <button type="submit" className="boton chico primario">Registrar</button>
+              <button type="button" className="boton chico" onClick={() => { setAbierto(false); setError(""); }}>Cancelar</button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -634,6 +782,9 @@ function Rubrica({ evId, inst, cerrar }: { evId: string; inst: string; cerrar: (
 interface Medida { vp: number; fp: number; fn: number; precision: number | null; exhaustividad: number | null; f1: number | null }
 interface Resultado {
   umbral: number; motores: { motor: string; version_prompt: string }[];
+  expertas?: (Participante & { documentos_descritos: number; mediana_minutos_ciega: number | null;
+    mediana_minutos_asistida: number | null;
+    motor_frente_a_ella: { entidades: Medida | null; relaciones: Medida | null } })[];
   estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
   flexible: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
   relaciones: {
@@ -713,6 +864,31 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
         <div className="cifra"><strong>{num(r.tiempos.ciega?.mediana_minutos, 1)} / {num(r.tiempos.asistida?.mediana_minutos, 1)}</strong>
           <span>Minutos por documento: a ciegas / asistida (mediana)</span></div>
       </div>
+      {r.expertas && r.expertas.length > 0 && (
+        <div className="tarjeta tabla-desplazable">
+          <div className="tarjeta-cab">Humano frente a máquina, experta por experta</div>
+          <p className="meta" style={{ padding: "0 18px" }}>El motor medido contra la descripción a ciegas de cada experta (F1 flexible).
+            Las expertas aparecen por su código; su perfil sustenta que su descripción es una referencia válida.</p>
+          <table className="tabla-permisos">
+            <thead><tr><th>Experta</th><th>Formación</th><th>Experiencia</th><th>Documentos</th><th>F1 entidades</th>
+              <th>F1 relaciones</th><th>Minutos a ciegas</th><th>Minutos asistida</th></tr></thead>
+            <tbody>
+              {r.expertas.map((e) => (
+                <tr key={e.codigo}>
+                  <td><strong>{e.codigo}</strong><div className="meta">{e.profesion}</div></td>
+                  <td>{e.formacion_nombre}</td>
+                  <td>{e.anios_experiencia} años</td>
+                  <td>{e.documentos_descritos}</td>
+                  <td>{num(e.motor_frente_a_ella.entidades?.f1)}</td>
+                  <td>{num(e.motor_frente_a_ella.relaciones?.f1)}</td>
+                  <td>{num(e.mediana_minutos_ciega, 1)}</td>
+                  <td>{num(e.mediana_minutos_asistida, 1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Respuesta a la pregunta: ¿son comparables con las de las archivistas?</div>
         <p className="meta" style={{ padding: "0 18px" }}>

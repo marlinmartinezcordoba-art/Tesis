@@ -9,29 +9,23 @@ import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
-import { BotonPrevisualizar } from "@/components/VisorDocumento";
+import { VentanaVisor } from "@/components/VisorDocumento";
+import { Encabezado, IconoDocumento, Indicadores, MenuAcciones, type Accion } from "@/components/Encabezado";
 import { NivelRiC } from "@/components/NivelRiC";
 
 // «Descritas» muestra las más recientes; el resto, en la exportación.
 const RECIENTES_DESCRITAS = 15;
 
-// Bajo una cola corta: lo descrito hoy y el total del fondo, el mismo dato
-// que cuenta el panel consolidado de auditoría (no un cálculo aparte).
-function Productividad({ fondoId }: { fondoId: string }) {
-  const [p, setP] = useState<{ hoy_por_mi: number; total_fondo: number } | null>(null);
+// Cifras medidas del fondo para los indicadores (el mismo dato que cuenta el panel de auditoría).
+interface Productividad { hoy_por_mi: number; total_fondo: number; archivos_listos: number; archivos_descritos: number }
+
+function useProductividad(fondoId: string | undefined, version: number) {
+  const [p, setP] = useState<Productividad | null>(null);
   useEffect(() => {
-    pedir<{ hoy_por_mi: number; total_fondo: number }>(`/api/descripcion/productividad?fondo_id=${fondoId}`).then(setP).catch(() => setP(null));
-  }, [fondoId]);
-  if (!p) return null;
-  return (
-    <div className="tarjeta">
-      <div className="tarjeta-cab">Su trabajo reciente</div>
-      <div className="resumen-preservacion compacto">
-        <div className="cifra"><strong>{p.hoy_por_mi}</strong><span>Descripciones que usted validó hoy (publicadas, corregidas o recortadas)</span></div>
-        <div className="cifra bien"><strong>{p.total_fondo}</strong><span>Descripciones publicadas en el fondo</span></div>
-      </div>
-    </div>
-  );
+    if (!fondoId) return;
+    pedir<Productividad>(`/api/descripcion/productividad?fondo_id=${fondoId}`).then(setP).catch(() => setP(null));
+  }, [fondoId, version]);
+  return p;
 }
 
 interface PorDescribir {
@@ -63,8 +57,11 @@ const TEXTO: Record<string, string> = { capa_de_texto: "con texto", ocr: "texto 
 
 function extension(nombre: string) {
   const p = nombre.split(".");
-  return p.length > 1 ? p.pop()!.slice(0, 4) : "·";
+  return p.length > 1 ? p.pop()!.slice(0, 4).toUpperCase() : "";
 }
+
+const FILTROS: [string, string][] = [["todos", "Todos"], ["libres", "Sin abrir"], ["edicion", "En edición"],
+  ["ocr", "OCR con confianza baja"], ["sin_texto", "Sin texto"]];
 
 // Mientras el motor de análisis lee el documento (puede tardar hasta 90 s, el
 // límite del servidor): qué está pasando y cuánto lleva, en lugar de una
@@ -118,6 +115,11 @@ export function Descripcion() {
   const [seleccion, setSeleccion] = useState<string[]>([]);
   const [abriendo, setAbriendo] = useState<{ cantidad: number; nombre: string } | null>(null);
   const [error, setError] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [filtro, setFiltro] = useState("todos");
+  const [viendo, setViendo] = useState<PorDescribir | null>(null);
+  const [version, setVersion] = useState(0);
+  const productividad = useProductividad(fondo?.id, version);
   const aviso = (ubicacion.state as { aviso?: string } | null)?.aviso;
   // Desde el panel de alertas se llega con ?documento=<id>: esa fila se resalta.
   const resaltado = new URLSearchParams(ubicacion.search).get("documento");
@@ -131,6 +133,7 @@ export function Descripcion() {
       ]);
       setCola(c);
       setPublicadas(p);
+      setVersion((v) => v + 1);
       setSeleccion((s) => s.filter((id) => c.some((x) => x.id === id && !x.en_edicion_por)));
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar la cola.");
@@ -201,79 +204,117 @@ export function Descripcion() {
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
-      {pestana === "cola" ? (
-        <>
-          <h1>Por describir</h1>
-          <p className="sub">
-            Documentos que ya salieron de ingesta y están listos. Abra uno para describirlo solo, o seleccione varios para
-            describirlos juntos como un expediente.
-          </p>
-          <div className="tarjeta">
-            <div className="tarjeta-cab">
-              {cola === null ? "Cargando…" : `${cola.length} documento${cola.length === 1 ? "" : "s"} listo${cola.length === 1 ? "" : "s"}`}
-            </div>
-            {cola !== null && cola.length === 0 && (
-              <EstadoVacio icono="bien" titulo="No hay documentos por describir"
-                           texto="Los que termina de procesar la ingesta aparecen aquí solos."
-                           accion={tienePermiso(usuario, "ingesta", "escribir") ? { texto: "Cargar documentos", alHacer: () => navegar("/ingesta") } : undefined} />
-            )}
-            {cola?.map((d) => (
-              <div className={`fila${resaltado === d.id ? " resaltada" : ""}`} key={d.id}>
-                {puede && (
-                  <input type="checkbox" aria-label={`Seleccionar ${d.nombre}`} disabled={!!d.en_edicion_por}
-                         checked={seleccion.includes(d.id)} onChange={() => alternar(d.id)} />
+      {pestana === "cola" ? (() => {
+        const texto = busqueda.trim().toLowerCase();
+        const visibles = (cola || []).filter((d) =>
+          (!texto || d.nombre.toLowerCase().includes(texto) || (d.expediente || "").toLowerCase().includes(texto))
+          && (filtro === "todos" || (filtro === "libres" && !d.en_edicion_por && !d.trabajo_propio_id)
+            || (filtro === "edicion" && (!!d.en_edicion_por || !!d.trabajo_propio_id))
+            || (filtro === "ocr" && d.ocr_baja_confianza) || (filtro === "sin_texto" && d.origen_texto === "sin_texto")));
+        const siguiente = (cola || []).find((d) => !d.en_edicion_por && !d.trabajo_propio_id);
+        const p = productividad;
+        const avance = p && p.archivos_listos ? p.archivos_descritos / p.archivos_listos : null;
+        const dudosos = (cola || []).filter((d) => d.ocr_baja_confianza).length;
+        return (
+          <>
+            <Encabezado titulo="Descripción documental"
+                        descripcion="Describa los documentos listos del fondo. El motor de análisis propone; usted valida, corrige o descarta cada dato." />
+            <Indicadores etiqueta="Indicadores de la descripción" items={[
+              { etiqueta: "Por describir", valor: cola === null ? "—" : cola.length.toLocaleString("es-CO"),
+                nota: "Archivos listos, sin descripción" },
+              { etiqueta: "Descripciones publicadas", valor: p ? p.total_fondo.toLocaleString("es-CO") : "—",
+                nota: p ? `${p.hoy_por_mi} validadas hoy por usted` : undefined, tono: "bien" },
+              { etiqueta: "Avance del fondo", valor: avance === null ? "—" : `${Math.round(avance * 100)} %`, avance,
+                nota: p ? `${p.archivos_descritos.toLocaleString("es-CO")} de ${p.archivos_listos.toLocaleString("es-CO")} archivos descritos` : undefined },
+              { etiqueta: "OCR con confianza baja", valor: cola === null ? "—" : dudosos.toLocaleString("es-CO"),
+                nota: "Lea su texto con cuidado", tono: dudosos ? "alerta" : undefined },
+            ]} />
+            <div className="tarjeta">
+              <div className="lista-titulo">
+                <h2>Documentos pendientes</h2>
+                {puede && siguiente && (
+                  <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir([siguiente.id])}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Describir el siguiente</button>
                 )}
-                <span className="icono-archivo" aria-hidden="true">{extension(d.nombre)}</span>
-                <div className="fila-principal">
-                  <div className="nombre">{d.nombre}</div>
-                  <div className="meta">
-                    {d.expediente ? `Expediente: ${d.expediente}` : "Sin expediente asignado"} · {peso(d.tamano_bytes)}
-                    {d.origen_texto && ` · ${TEXTO[d.origen_texto] || d.origen_texto}`}
-                    {d.confianza_ocr !== null && ` (confianza ${confianzaTexto(d.confianza_ocr)})`} · cargado {fecha(d.cargado_en)}
+              </div>
+              <div className="herramientas">
+                <label className="buscador">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                  <input className="entrada" type="search" placeholder="Buscar por nombre o expediente…" aria-label="Buscar documentos pendientes"
+                         value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                </label>
+                <select className="selector" aria-label="Filtrar" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+                  {FILTROS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                </select>
+              </div>
+              {cola === null && <div className="vacio">Cargando…</div>}
+              {cola !== null && cola.length === 0 && (
+                <EstadoVacio icono="bien" titulo="No hay documentos por describir"
+                             texto="Los que termina de procesar la ingesta aparecen aquí solos."
+                             accion={tienePermiso(usuario, "ingesta", "escribir") ? { texto: "Cargar documentos", alHacer: () => navegar("/ingesta") } : undefined} />
+              )}
+              {cola !== null && cola.length > 0 && visibles.length === 0 && <div className="vacio">Ningún documento coincide con la búsqueda.</div>}
+              {visibles.map((d) => {
+                const secundarias: Accion[] = [{ texto: "Previsualizar", alHacer: () => setViendo(d) }];
+                if (usuario?.es_administrador && d.en_edicion_por && d.trabajo_id) {
+                  secundarias.push({ texto: "Liberar para otra persona", alHacer: () => liberar(d),
+                    ayuda: "Si la persona no va a volver pronto. Su avance se conserva." });
+                }
+                if (usuario?.es_administrador && !d.en_edicion_por) {
+                  secundarias.push({ texto: "Eliminar (cargado por error)", alHacer: () => eliminar(d), peligro: true,
+                    ayuda: "Solo si se cargó por error y nunca se describió" });
+                }
+                const formato = extension(d.nombre);
+                return (
+                  <div className={`fila${resaltado === d.id ? " resaltada" : ""}`} key={d.id}>
+                    {puede && (
+                      <input type="checkbox" aria-label={`Seleccionar ${d.nombre}`} disabled={!!d.en_edicion_por}
+                             checked={seleccion.includes(d.id)} onChange={() => alternar(d.id)} />
+                    )}
+                    <span className="icono-archivo" aria-hidden="true"><IconoDocumento /></span>
+                    <div className="fila-principal">
+                      <div className="nombre">{d.nombre}</div>
+                      <div className="meta">
+                        {d.expediente ? `Expediente ${d.expediente}` : "Sin expediente"}{formato && ` · ${formato}`} · {peso(d.tamano_bytes)}
+                        {d.origen_texto && ` · ${TEXTO[d.origen_texto] || d.origen_texto}`}
+                        {d.confianza_ocr !== null && ` ${confianzaTexto(d.confianza_ocr)}`} · cargado {fecha(d.cargado_en)}
+                      </div>
+                    </div>
+                    {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR dudoso</span>}
+                    {d.trabajo_propio_id ? <span className="insignia acento">En curso por usted</span>
+                      : d.en_edicion_por ? <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
+                        : <span className="insignia pendiente">Pendiente</span>}
+                    {d.trabajo_propio_id ? (
+                      <button type="button" className="boton chico primario" title="Abre su trabajo con el avance guardado"
+                              onClick={() => navegar(`/descripcion/trabajo/${d.trabajo_propio_id}`)}>Continuar</button>
+                    ) : !d.en_edicion_por && puede && (
+                      <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
+                    )}
+                    <MenuAcciones etiqueta={`Más acciones para ${d.nombre}`} acciones={secundarias} />
+                  </div>
+                );
+              })}
+              {puede && seleccion.length > 1 && (
+                <div className="confirmar">
+                  <span>{seleccion.length} documentos seleccionados</span>
+                  <div className="acciones" style={{ alignItems: "center" }}>
+                    <span className="pista" style={{ margin: 0 }}>Se describen como un expediente de su serie (las series
+                      salen de la TRD)</span>
+                    <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, "expediente")}>
+                      {abriendo ? "Abriendo…" : "Describir como expediente"}
+                    </button>
                   </div>
                 </div>
-                {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR con confianza baja</span>}
-                <BotonPrevisualizar base={`/api/descripcion/${d.id}/previsualizar`} nombre={d.nombre} />
-                {d.trabajo_propio_id ? (
-                  <button type="button" className="boton chico primario" title="Abre su trabajo con el avance guardado"
-                          onClick={() => navegar(`/descripcion/trabajo/${d.trabajo_propio_id}`)}>Continuar</button>
-                ) : d.en_edicion_por ? (
-                  <>
-                    <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
-                    {usuario?.es_administrador && d.trabajo_id && (
-                      <button type="button" className="boton chico" onClick={() => liberar(d)}
-                              title="Si la persona no va a volver pronto. Su avance se conserva.">Liberar</button>
-                    )}
-                  </>
-                ) : puede && (
-                  <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
-                )}
-                {usuario?.es_administrador && !d.en_edicion_por && (
-                  <button type="button" className="boton chico peligro" title="Solo si se cargó por error y nunca se describió"
-                          onClick={() => eliminar(d)}>Eliminar</button>
-                )}
-              </div>
-            ))}
-            {puede && seleccion.length > 1 && (
-              <div className="confirmar">
-                <span>{seleccion.length} documentos seleccionados</span>
-                <div className="acciones" style={{ alignItems: "center" }}>
-                  <span className="pista" style={{ margin: 0 }}>Se describen como un expediente de su serie (las series
-                    salen de la TRD)</span>
-                  <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, "expediente")}>
-                    {abriendo ? "Abriendo…" : "Describir como expediente"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          {fondo && cola !== null && cola.length < 5 && <Productividad fondoId={fondo.id} />}
-        </>
-      ) : (
+              )}
+            </div>
+            {viendo && <VentanaVisor base={`/api/descripcion/${viendo.id}/previsualizar`} titulo={viendo.nombre} cerrar={() => setViendo(null)} />}
+          </>
+        );
+      })() : (
         <>
-          <h1>Descritas</h1>
-          <p className="sub">Descripciones ya publicadas en el fondo, las más recientes primero. Se pueden reabrir para corregirlas;
-            cada cambio queda en auditoría.</p>
+          <Encabezado titulo="Descripciones publicadas"
+                      descripcion="Las más recientes primero. Se pueden reabrir para corregirlas; cada cambio queda en la auditoría." />
           {fondo && publicadas && publicadas.length > RECIENTES_DESCRITAS && (
             <div className="filtros"><ExportarExcel ruta={`/api/descripcion/publicadas/exportar?fondo_id=${fondo.id}`} /></div>
           )}

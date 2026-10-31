@@ -169,6 +169,8 @@ class ProductividadOut(BaseModel):
 
     hoy_por_mi: int
     total_fondo: int
+    archivos_listos: int = 0
+    archivos_descritos: int = 0
 
 
 # --- Detalle interno de una descripción --------------------------------------------------------------

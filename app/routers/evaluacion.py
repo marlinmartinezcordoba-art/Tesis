@@ -106,8 +106,12 @@ def _hecho(db: Session, funcion, *args, **kwargs):
     summary="Evaluaciones: todas para la administración; las en curso para quien anota")
 def listar(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session = Depends(get_db)):
     consulta = select(Evaluacion).where(Evaluacion.fondo_id == fondo_id).order_by(Evaluacion.creada_en.desc())
-    if not actor.es_administrador:
-        consulta = consulta.where(Evaluacion.estado == "en_curso")
+    if not actor.es_administrador:  # quien anota ve solo las evaluaciones en curso en que está registrada
+        from app.models.evaluacion import Participante
+
+        consulta = consulta.where(Evaluacion.estado == "en_curso", Evaluacion.id.in_(
+            select(Participante.evaluacion_id).where(Participante.usuario_id == actor.id,
+                                                     Participante.retirado_en.is_(None))))
     return [evaluacion.evaluacion_out(db, e) for e in db.scalars(consulta).all()]
 
 
@@ -253,3 +257,63 @@ def resultados_xlsx(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_admini
     return Response(evaluacion.hoja_de_calculo(datos),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": 'attachment; filename="evaluacion-ciega.xlsx"'})
+
+
+# --- Expertas participantes (pregunta problema: humano frente a máquina) ------------------------------
+
+
+class ParticipanteIn(BaseModel):
+    usuario_id: uuid.UUID
+    nombre: str = Field(min_length=3, max_length=200)
+    profesion: str = Field(min_length=3, max_length=200)
+    formacion: Literal["tecnica", "tecnologica", "profesional", "especializacion", "maestria", "doctorado"]
+    anios_experiencia: int = Field(ge=0, le=70)
+    anios_descripcion: int | None = Field(default=None, ge=0, le=70)
+    cargo: str | None = Field(default=None, max_length=200)
+    institucion: str | None = Field(default=None, max_length=200)
+    rol: Literal["descriptora", "calificadora", "ambas"] = "descriptora"
+    consentimiento: bool = False
+
+
+class ParticipanteCambioIn(BaseModel):
+    nombre: str | None = Field(default=None, min_length=3, max_length=200)
+    profesion: str | None = Field(default=None, min_length=3, max_length=200)
+    formacion: Literal["tecnica", "tecnologica", "profesional", "especializacion", "maestria", "doctorado"] | None = None
+    anios_experiencia: int | None = Field(default=None, ge=0, le=70)
+    anios_descripcion: int | None = Field(default=None, ge=0, le=70)
+    cargo: str | None = Field(default=None, max_length=200)
+    institucion: str | None = Field(default=None, max_length=200)
+    rol: Literal["descriptora", "calificadora", "ambas"] | None = None
+    consentimiento: bool | None = None
+    retirar: bool = False
+
+
+@router.get("/{evaluacion_id}/participantes",
+            responses={200: {"model": list[re_.ParticipanteOut], "description": "Expertas registradas"}},
+            summary="Expertas que participan: quiénes son, su formación, su experiencia y su consentimiento")
+def participantes(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_participantes as p
+
+    return [p.out(x) for x in p.listar(db, _ev(db, evaluacion_id))]
+
+
+@router.post("/{evaluacion_id}/participantes", status_code=status.HTTP_201_CREATED,
+             responses={201: {"model": re_.ParticipanteOut, "description": "Experta registrada"}},
+             summary="Registrar una experta (con su cuenta de usuario)")
+def registrar_participante(evaluacion_id: uuid.UUID, datos: ParticipanteIn, actor: Actor = Depends(solo_administrador),
+                           db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_participantes as p
+
+    ev = _ev(db, evaluacion_id)
+    return p.out(_hecho(db, p.registrar_participante, db, ev, datos.model_dump(), actor.id))
+
+
+@router.put("/{evaluacion_id}/participantes/{participante_id}",
+            responses={200: {"model": re_.ParticipanteOut, "description": "Experta actualizada"}},
+            summary="Corregir los datos de una experta, registrar su consentimiento o retirarla (no se borra)")
+def actualizar_participante(evaluacion_id: uuid.UUID, participante_id: uuid.UUID, datos: ParticipanteCambioIn,
+                            actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_participantes as p
+
+    ev = _ev(db, evaluacion_id)
+    return p.out(_hecho(db, p.actualizar, db, ev, participante_id, datos.model_dump(exclude_none=True), actor.id))

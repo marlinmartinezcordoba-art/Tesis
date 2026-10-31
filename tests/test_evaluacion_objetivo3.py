@@ -21,7 +21,8 @@ from app.models.evaluacion import Anotacion
 from app.servicios import evaluacion_analisis as an
 from tests.conftest import crear_usuario, ingresar
 from tests.test_descripcion import documento, fondo  # noqa: F401
-from tests.test_evaluacion import CIEGA_A, CIEGA_B, TEXTO, anotar, evaluadora, motor_eval  # noqa: F401
+from tests.test_evaluacion import (CIEGA_A, CIEGA_B, TEXTO, _registrar_quien_administra, anotar, evaluadora,  # noqa: F401
+                                   motor_eval)
 
 # --- Funciones puras (calculadas a mano) -------------------------------------------------------------
 
@@ -98,6 +99,7 @@ def _preparar_con_criterio(cliente, db, fondo, adm, criterio):  # noqa: F811
     assert r.status_code == 200 and r.json()["criterio"]["minimo_casos"] == criterio["minimo_casos"]
     cliente.post(f"/api/evaluacion/{ev['id']}/documentos", headers=adm, json={"instanciacion_ids": [str(d.id)]})
     cliente.post(f"/api/evaluacion/{ev['id']}/propuestas", headers=adm)
+    _registrar_quien_administra(cliente, db, adm, ev["id"])
     assert cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"}).status_code == 200
     return ev["id"], d
 
@@ -167,7 +169,7 @@ def test_objetivo_3_de_principio_a_fin(cliente, db, fondo, cabeceras_admin, moto
     assert comp["sin_decidir"] == ["lugar"] and comp["criterio"]["minimo_casos"] == 1
     assert res["acuerdo_por_tipo"]["fecha"]["f1"] == 1.0
     # Tiempos pareados (Ana): un solo par, sin p.
-    assert res["tiempos_por_documento"][0]["evaluadora"] == "Evaluadora 1"
+    assert res["tiempos_por_documento"][0]["evaluadora"] == "E2"  # por su código de participante (E1 es quien administra), nunca por su nombre
     assert res["prueba_tiempos"]["n"] == 1 and res["prueba_tiempos"]["p"] is None
     assert res["intervalos"]["entidades_flexible"]["documentos"] == 1
     # Desacuerdos: Ana (variante Concejo, sobrante Tunja, faltante Boyacá, y las dos relaciones del lugar)

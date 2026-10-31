@@ -390,3 +390,24 @@ class ResultadosOut(BaseModel):
     errores: ResumenErrores
     acuerdo_por_tipo: dict[str, Metricas]
     tiempos_por_documento: list[dict]
+
+
+class ParticipanteOut(BaseModel):
+    """Una experta que participa en la evaluación."""
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    usuario_id: str
+    codigo: str
+    nombre: str | None
+    profesion: str
+    formacion: str
+    formacion_nombre: str
+    anios_experiencia: int
+    anios_descripcion: int | None
+    cargo: str | None
+    institucion: str | None
+    rol: str
+    rol_nombre: str
+    consentimiento: bool
+    activa: bool

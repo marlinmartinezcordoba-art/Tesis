@@ -6,7 +6,7 @@ from app.models.auditoria import RegistroAuditoria  # noqa: F401
 from app.models.dato_personal import DatoPersonalDetectado  # noqa: F401
 from app.models.digitalizacion import Digitalizacion, VerificacionDigitalizacion  # noqa: F401
 from app.models.evidencia_ia import PaginaTexto, PropuestaIA  # noqa: F401
-from app.models.evaluacion import (Anotacion, Calificacion, ClasificacionError, Evaluacion, EvaluacionDocumento,  # noqa: F401
+from app.models.evaluacion import (Anotacion, Participante, Calificacion, ClasificacionError, Evaluacion, EvaluacionDocumento,  # noqa: F401
                                    Exposicion)
 from app.models.grafo_rdf import GrafoRdf  # noqa: F401
 from app.models.hallazgo import EtiquetaVersionPrompt, HallazgoConformidad  # noqa: F401

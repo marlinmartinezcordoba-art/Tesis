@@ -10,7 +10,7 @@ una anotación se anula, no se elimina.
 
 import uuid
 
-from sqlalchemy import (CheckConstraint, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
+from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
                         UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
@@ -114,3 +114,34 @@ class ClasificacionError(Base):
     tipo_error = Column(String(20), nullable=False)
     nota = Column(Text, nullable=True)
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+FORMACION = ("tecnica", "tecnologica", "profesional", "especializacion", "maestria", "doctorado")
+ROL_PARTICIPANTE = ("descriptora", "calificadora", "ambas")
+
+
+class Participante(Base):
+    """Una experta que participa en la evaluación: quién es y por qué su descripción sirve de
+    referencia humana (formación y experiencia), con su consentimiento informado. Su cuenta de
+    usuario es la que firma sus anotaciones. En los resultados exportados aparece por su código
+    (E1, E2…), nunca por su nombre."""
+    __tablename__ = "evaluacion_participantes"
+    __table_args__ = (UniqueConstraint("evaluacion_id", "usuario_id"), UniqueConstraint("evaluacion_id", "codigo"))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluacion_id = Column(UUID(as_uuid=True), ForeignKey("evaluaciones.id"), nullable=False, index=True)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    codigo = Column(String(8), nullable=False)  # E1, E2…
+    nombre = Column(String(200), nullable=False)
+    profesion = Column(String(200), nullable=False)  # «Profesional en Ciencia de la Información – Bibliotecología»
+    formacion = Column(Enum(*FORMACION, name="formacion_participante"), nullable=False)
+    anios_experiencia = Column(Integer, nullable=False)  # en archivos
+    anios_descripcion = Column(Integer, nullable=True)  # describiendo documentos históricos
+    cargo = Column(String(200), nullable=True)
+    institucion = Column(String(200), nullable=True)
+    rol = Column(Enum(*ROL_PARTICIPANTE, name="rol_participante"), nullable=False, default="descriptora")
+    consentimiento = Column(Boolean, nullable=False, default=False)  # firmó el consentimiento informado
+    consentimiento_en = Column(DateTime(timezone=True), nullable=True)
+    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    registrado_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+    retirado_en = Column(DateTime(timezone=True), nullable=True)  # se retira, no se borra

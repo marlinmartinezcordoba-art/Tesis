@@ -89,9 +89,37 @@ def motor_eval(monkeypatch):
     return m
 
 
-def evaluadora(cliente, db, correo, nombre):
-    crear_usuario(db, correo, "archivista", nombre=nombre)
+def registrar_experta(db, ev, usuario, rol="ambas", consentimiento=True):
+    """La registra como experta participante (formación, experiencia y consentimiento)."""
+    from app.models.usuario import Usuario
+    from app.servicios import evaluacion_participantes
+
+    registrante = db.scalar(select(Usuario).where(Usuario.rol == "administrador").limit(1)) or usuario
+    p = evaluacion_participantes.registrar_participante(db, ev, {
+        "usuario_id": usuario.id, "nombre": usuario.nombre, "profesion": "Profesional en Archivística",
+        "formacion": "profesional", "anios_experiencia": 8, "anios_descripcion": 5, "rol": rol,
+        "consentimiento": consentimiento}, registrante.id)
+    db.commit()
+    return p
+
+
+def evaluadora(cliente, db, correo, nombre, registrar=True):
+    """Una archivista con cuenta; si ya hay una evaluación, queda registrada como experta en la más reciente."""
+    from app.models.evaluacion import Evaluacion
+
+    usuario = crear_usuario(db, correo, "archivista", nombre=nombre)
+    ev = db.scalar(select(Evaluacion).order_by(Evaluacion.creada_en.desc()).limit(1))
+    if registrar and ev is not None and ev.estado != "cerrada":
+        registrar_experta(db, ev, usuario)
     return ingresar(cliente, correo)
+
+
+def _registrar_quien_administra(cliente, db, adm, ev_id):
+    from app.models.evaluacion import Evaluacion
+    from app.models.usuario import Usuario
+
+    yo = db.get(Usuario, uuid.UUID(cliente.get("/api/auth/perfil", headers=adm).json()["id"]))
+    registrar_experta(db, db.get(Evaluacion, uuid.UUID(ev_id)), yo)
 
 
 def preparar(cliente, db, fondo, adm, umbral=0.75):
@@ -105,6 +133,10 @@ def preparar(cliente, db, fondo, adm, umbral=0.75):
     assert cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"}).status_code == 409
     r = cliente.post(f"/api/evaluacion/{ev['id']}/propuestas", headers=adm).json()
     assert r["generadas"] == 1 and "entidades" not in str(r)  # se genera sin mostrarla
+    # Tampoco sin al menos una experta registrada con su consentimiento.
+    r = cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"})
+    assert r.status_code == 409 and "experta" in r.json()["detail"]
+    _registrar_quien_administra(cliente, db, adm, ev["id"])
     assert cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"}).status_code == 200
     return ev["id"], d
 
@@ -176,7 +208,7 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert res["anotaciones"] == {"ciegas": 2, "asistidas": 1, "evaluadores": 2}
     assert res["motores"] == [{"motor": "motor-de-prueba", "version_prompt": motor.VERSION_PROMPT}]
     hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
-    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Conformidad RiC-O",
+    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Expertas", "Conformidad RiC-O",
                                                                   "Acuerdo, tiempos y rúbrica", "Comparabilidad",
                                                                   "Supervisión (asistida)", "Tiempos por documento",
                                                                   "Desacuerdos", "Documentos"]

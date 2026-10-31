@@ -755,7 +755,20 @@ def productividad(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("des
         RegistroAuditoria.fecha < trazabilidad._inicio_local(hoy + timedelta(days=1))))
     total = db.scalar(select(func.count(RecursoDocumental.id)).where(
         RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel != "fondo", RecursoDocumental.publicado_en.isnot(None)))
-    return {"hoy_por_mi": por_mi, "total_fondo": total}
+    # Avance medido, no ilustrativo: archivos listos del fondo y cuántos ya forman parte de una descripción publicada.
+    from app.models.descripcion import Relacion
+    from app.models.instanciacion import Instanciacion
+
+    listos = db.scalar(select(func.count(Instanciacion.id)).where(
+        Instanciacion.fondo_id == fondo_id, Instanciacion.estado == "listo_para_descripcion"))
+    descritos = db.scalar(select(func.count(func.distinct(Relacion.destino_id))).join(
+        RecursoDocumental, RecursoDocumental.id == Relacion.origen_id).join(
+        Instanciacion, Instanciacion.id == Relacion.destino_id).where(
+        Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente",
+        Relacion.origen_tipo == "recurso_documental", Relacion.destino_tipo == "instanciacion",
+        RecursoDocumental.publicado_en.isnot(None), Instanciacion.fondo_id == fondo_id,
+        Instanciacion.estado == "listo_para_descripcion"))
+    return {"hoy_por_mi": por_mi, "total_fondo": total, "archivos_listos": listos or 0, "archivos_descritos": descritos or 0}
 
 
 @router.get("/registros/{recurso_id}", responses={200: {"model": DetalleDescripcionOut, "description": "La descripción publicada, vista interna"}},

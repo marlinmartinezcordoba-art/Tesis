@@ -7,6 +7,7 @@ import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { Ventana } from "@/components/Ventana";
+import { PuestaEnMarcha } from "@/components/PuestaEnMarcha";
 
 interface Usuario {
   id: string;
@@ -266,7 +267,7 @@ export function Usuarios() {
   const [entrega, setEntrega] = useState<Entrega | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-  const pestana = useVista<"usuarios" | "roles">("/usuarios");
+  const pestana = useVista<"usuarios" | "roles" | "puesta">("/usuarios");
   const [roles, setRoles] = useState<RolInfo[] | null>(null);
 
   const cargarRoles = useCallback(() => {
@@ -308,11 +309,13 @@ export function Usuarios() {
 
   return (
     <>
-      <h1>{pestana === "roles" ? "Roles y permisos" : "Usuarios"}</h1>
+      <h1>{pestana === "roles" ? "Roles y permisos" : pestana === "puesta" ? "Puesta en marcha" : "Usuarios"}</h1>
       <p className="sub">
-        Solo visible para el rol administrador. Crear, reasignar rol o desactivar sin perder trazabilidad en auditoría.
+        {pestana === "puesta"
+          ? "Deja el sistema en blanco para empezar a usarlo: borra lo cargado y lo descrito, conserva usuarios y configuración."
+          : "Solo visible para el rol administrador. Crear, reasignar rol o desactivar sin perder trazabilidad en auditoría."}
       </p>
-      {pestana === "roles" ? (
+      {pestana === "puesta" ? <PuestaEnMarcha /> : pestana === "roles" ? (
         <>
           {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
           <PanelRoles roles={roles} alCambiar={(m) => { setMensaje(m); cargarRoles(); }} />

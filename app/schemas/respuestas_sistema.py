@@ -135,3 +135,29 @@ class SaludOut(BaseModel):
     trabajador: PiezaSalud
     respaldo: PiezaSalud | None = None
     grafo_rdf: PiezaSalud | None = None
+
+class CantidadOut(BaseModel):
+    que: str
+    cantidad: int
+
+
+class InventarioReinicioOut(BaseModel):
+    """Lo que hay hoy y lo que se borraría."""
+    model_config = ConfigDict(extra="allow")
+
+    frase: str
+    se_borra: list[CantidadOut]
+    tesauros: int
+    se_conserva: list[str]
+    sin_clasificar: list[str]
+
+
+class ReinicioOut(BaseModel):
+    """Lo que se borró, el respaldo que lo guarda y dónde quedaron los archivos."""
+    model_config = ConfigDict(extra="allow")
+
+    borrado: list[CantidadOut]
+    respaldo: dict
+    archivos_apartados: dict
+    aviso_grafos: str | None
+    tesauros_borrados: bool

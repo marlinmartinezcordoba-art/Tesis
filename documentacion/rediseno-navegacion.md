@@ -319,3 +319,31 @@ La autora entregó como referencia un **índice de información clasificada y re
   - a la derecha hay botones ▲ ▼, + y −, un deslizador de acercamiento y «ajustar»;
   - con el lienzo seleccionado, las flechas del teclado desplazan.
 - **Dos instanciaciones no son un duplicado.** Una migración de formato (por ejemplo, a PDF/A-2b) crea la **versión de conservación** y el original nunca se borra. RiC-O declara las dos instanciaciones del documento, y así sigue la exportación. El grafo, en cambio, dibuja la copia **colgando de su original** («migrada a») y la rotula «versión de conservación», para que no parezca un archivo repetido.
+
+## Rediseño fase 2: producto institucional especializado
+
+Objetivo: que RICORA se lea como un producto tecnológico de gestión documental archivística. No se trata solo de cambiar
+colores: se reorganizó cada pantalla con una jerarquía fija:
+1. la ceja con el fondo activo;
+2. el título y la descripción;
+3. los indicadores medidos;
+4. la lista con búsqueda y filtro;
+5. en cada fila, una acción principal y un menú (⋯) con las demás.
+
+Piezas nuevas:
+- `frontend/src/components/Encabezado.tsx`, con `Encabezado`, `Indicadores`, `MenuAcciones` e `IconoDocumento`;
+- la capa «Rediseño fase 2» al final de `frontend/src/styles/app.css`;
+- la barra lateral con emblema y modo compacto;
+- la barra superior en una sola línea;
+- la pantalla de ingreso con la identidad institucional.
+
+Primera pantalla rehecha: Descripción, en la vista «Por describir». Las demás heredan los botones, las tarjetas, las
+filas, la tipografía y el marco.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Alcance | (a) Cambiar colores; (b) rehacer todas las pantallas; (c) sistema visual global más las pantallas clave | (c) | Con un solo cambio se renuevan todas las pantallas; las clave se reorganizan a mano. Cabe en el plazo de entrega. | Pantallas secundarias con la estructura anterior. Se migran al patrón `Encabezado` cuando se toquen. |
+| Indicadores | (a) Cifras ilustrativas, como en la maqueta; (b) cifras medidas | (b) | Un sistema que se presenta como evidencia de una tesis no puede mostrar datos inventados. El «avance» es archivos descritos sobre archivos listos, contado en la base (`/api/descripcion/productividad`). | Ninguno. |
+| Acciones por fila | (a) Todos los botones visibles; (b) una principal y las demás en ⋯ | (b) | Antes había tres botones del mismo peso por fila, con «Eliminar» a la vista. Ahora la acción destructiva queda en el menú, en rojo, solo para la administración. | Una acción menos visible. «Previsualizar» está a un clic, en el menú. |
+| Títulos | (a) Serif; (b) sans | (b) para la interfaz, serif solo para la marca | La lectura es más técnica y actual; la serif conserva la identidad de RICORA. | Ninguno. |
+| Barra lateral compacta | (a) Fija; (b) compactable | (b), y la preferencia se guarda en el navegador | Gana espacio para el visor y las listas largas. | Sin nombres visibles: cada ícono lleva su nombre como título. |

@@ -266,6 +266,10 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
             raise ErrorEvaluacion("Solo se inicia una evaluación en preparación.", 409)
         if not documentos or any(d.propuesta is None for d in documentos):
             raise ErrorEvaluacion("Antes de iniciar, cada documento necesita la propuesta del motor.", 409)
+        from app.servicios import evaluacion_participantes as participantes
+
+        if participantes.listas_para_iniciar(db, ev) == 0:
+            raise ErrorEvaluacion("Antes de iniciar, registre al menos una experta con su consentimiento informado.", 409)
         from app.servicios import evaluacion_analisis as an
 
         ev.criterio = an.criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
@@ -313,6 +317,9 @@ def _exponer(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.U
 def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion: str, usuario_id: uuid.UUID) -> Anotacion:
     if ev.estado != "en_curso":
         raise ErrorEvaluacion("La evaluación no está en curso.", 409)
+    from app.servicios import evaluacion_participantes as participantes
+
+    participantes.exigir(db, ev, usuario_id, "describir")
     d = _documento(db, ev, inst_id)
     existente = db.scalar(select(Anotacion).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst_id,
                                                   Anotacion.evaluador_id == usuario_id, Anotacion.condicion == condicion))
@@ -394,6 +401,9 @@ def ver_propuesta(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: u
     """Para calificar con la rúbrica: verla deja constancia (exposición)."""
     if ev.estado != "en_curso":
         raise ErrorEvaluacion("La evaluación no está en curso.", 409)
+    from app.servicios import evaluacion_participantes as participantes
+
+    participantes.exigir(db, ev, usuario_id, "calificar")
     d = _documento(db, ev, inst_id)
     if db.scalar(select(Anotacion.id).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst_id,
                                             Anotacion.evaluador_id == usuario_id, Anotacion.condicion == "ciega",
@@ -406,6 +416,9 @@ def ver_propuesta(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: u
 def calificar(db: Session, ev: Evaluacion, inst_id: uuid.UUID, puntajes: dict[str, int], usuario_id: uuid.UUID) -> None:
     if ev.estado != "en_curso":
         raise ErrorEvaluacion("La evaluación no está en curso.", 409)
+    from app.servicios import evaluacion_participantes as participantes
+
+    participantes.exigir(db, ev, usuario_id, "calificar")
     _documento(db, ev, inst_id)
     if not db.scalar(select(Exposicion.id).where(Exposicion.evaluacion_id == ev.id, Exposicion.instanciacion_id == inst_id,
                                                  Exposicion.usuario_id == usuario_id).limit(1)):
@@ -489,6 +502,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     cuentas_doc, cuentas_doc_rel = [], []
     supervision_tipo: dict[str, dict] = {}
     lista_desacuerdos = []
+    por_experta: dict[uuid.UUID, dict] = {}  # el motor frente a la referencia ciega de cada experta
 
     def acumular(destino: dict, cuentas: dict) -> None:
         for k, c in cuentas.items():
@@ -519,6 +533,9 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                 flexible[t] = _sumar(flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
             c_doc = conteo(sistema, referencia, ev.umbral_similitud)
             doc_ent = _sumar(doc_ent, c_doc)
+            experta = por_experta.setdefault(a.evaluador_id, {"entidades": {}, "relaciones": {}, "documentos": 0})
+            experta["entidades"] = _sumar(experta["entidades"], c_doc)
+            experta["documentos"] += 1
             f1_doc.append(prf(c_doc)["f1"])
             referencia_rel = ric.tripletas(a.datos)
             lista_desacuerdos += an.desacuerdos(str(d.instanciacion_id), str(a.id), sistema, referencia, sistema_rel,
@@ -533,6 +550,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                 total = _sumar(total, c)
             f1_rel_doc.append(prf(total)["f1"])
             doc_rel = _sumar(doc_rel, total)
+            experta["relaciones"] = _sumar(experta["relaciones"], total)
         cuentas_doc.append(doc_ent)
         cuentas_doc_rel.append(doc_rel)
         for a, b in combinations(ciegas, 2):  # acuerdo entre archivistas
@@ -567,10 +585,13 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                for c in ("ciega", "asistida")}
     tiempos = {c: {"n": len(v), "mediana_minutos": _r(statistics.median(v)) if v else None,
                    "media_minutos": _r(statistics.mean(v)) if v else None} for c, v in minutos.items()}
-    # Las evaluadoras no se identifican: «Evaluadora 1, 2…» en el orden en que empezaron.
+    # Las expertas no se identifican por su nombre: por su código de participante (E1, E2…).
+    from app.servicios import evaluacion_participantes as participantes
+
+    registradas = participantes.codigos(db, ev)
     orden = sorted({a.evaluador_id for a in anotaciones},
                    key=lambda u: min(x.iniciada_en for x in anotaciones if x.evaluador_id == u))
-    alias = {u: f"Evaluadora {i}" for i, u in enumerate(orden, 1)}
+    alias = {u: registradas[u].codigo if u in registradas else f"Evaluadora {i}" for i, u in enumerate(orden, 1)}
     nombres_doc = {d.instanciacion_id: db.get(Instanciacion, d.instanciacion_id).nombre_original for d in documentos}
     pareados: dict[tuple, dict] = {}
     for a in anotaciones:
@@ -610,8 +631,21 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
               entidad_tipo="evaluacion", entidad_id=ev.id, nuevo={"anotaciones": len(anotaciones)})
     db.flush()
     motores = sorted({(d.motor, d.version_prompt) for d in documentos if d.motor}, key=str)
+    # Humano frente a máquina, experta por experta: el motor medido contra la descripción ciega de cada una.
+    expertas = []
+    for u, p in registradas.items():
+        cuentas = por_experta.get(u, {"entidades": {}, "relaciones": {}, "documentos": 0})
+        suyos = [x for x in tiempos_documento if x["evaluadora"] == p.codigo]
+        mediana = (lambda v: _r(statistics.median(v)) if v else None)
+        expertas.append(participantes.out(p, con_nombre=False) | {
+            "documentos_descritos": cuentas["documentos"],
+            "motor_frente_a_ella": {"entidades": prf(cuentas["entidades"]) if cuentas["entidades"] else None,
+                                    "relaciones": prf(cuentas["relaciones"]) if cuentas["relaciones"] else None},
+            "mediana_minutos_ciega": mediana([x["ciega"] for x in suyos if x["ciega"] is not None]),
+            "mediana_minutos_asistida": mediana([x["asistida"] for x in suyos if x["asistida"] is not None])})
     salida = {"evaluacion": evaluacion_out(db, ev), "umbral": ev.umbral_similitud,
             "motores": [{"motor": m, "version_prompt": v} for m, v in motores],
+            "expertas": expertas,
             "estricto": tabla(estricto), "flexible": tabla(flexible),
             "relaciones": {"estricto": tabla(rel_estricto), "flexible": tabla(rel_flexible),
                            "acuerdo_entre_archivistas": prf(acuerdo_rel) if sum(acuerdo_rel.values()) else None,
@@ -723,6 +757,16 @@ def hoja_de_calculo(datos: dict) -> bytes:
     rel.append(["Confusión de propiedades", "Motor", "Archivista", "Veces"])
     for c in datos["relaciones"]["confusiones"]:
         rel.append([None, nombres.get(c["motor"], c["motor"]), nombres.get(c["archivista"], c["archivista"]), c["veces"]])
+    exp = libro.create_sheet("Expertas")
+    exp.append(["Código", "Profesión", "Formación", "Años en archivos", "Años describiendo", "Rol", "Consentimiento",
+                "Documentos descritos", "F1 entidades (motor frente a ella)", "F1 relaciones (motor frente a ella)",
+                "Mediana minutos ciega", "Mediana minutos asistida"])
+    for e in datos.get("expertas", []):
+        m = e["motor_frente_a_ella"]
+        exp.append([e["codigo"], e["profesion"], e["formacion_nombre"], e["anios_experiencia"], e["anios_descripcion"],
+                    e["rol_nombre"], "Sí" if e["consentimiento"] else "No", e["documentos_descritos"],
+                    (m["entidades"] or {}).get("f1"), (m["relaciones"] or {}).get("f1"),
+                    e["mediana_minutos_ciega"], e["mediana_minutos_asistida"]])
     conf = libro.create_sheet("Conformidad RiC-O")
     conf.append(["Quién describe", "Descripciones", "Conformes", "Relaciones", "Relaciones válidas", "Tasa"])
     for quien, c in datos["conformidad"].items():

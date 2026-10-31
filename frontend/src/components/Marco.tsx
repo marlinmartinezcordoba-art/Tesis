@@ -108,7 +108,8 @@ const ENTRADAS: Entrada[] = [
   // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
   { ruta: "/usuarios", nombre: "Usuarios y permisos", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
-    { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" }] },
+    { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" },
+    { vista: "puesta", nombre: "Puesta en marcha", permitir: (u) => u.es_administrador }] },
 ];
 
 /** Vistas de un módulo que el usuario puede ver, en orden. */
@@ -178,7 +179,7 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
               const enModulo = actual?.ruta === e.ruta;
               if (subs.length < 2) {
                 return (
-                  <NavLink key={e.ruta} to={e.ruta} onClick={alNavegar}>
+                  <NavLink key={e.ruta} to={e.ruta} onClick={alNavegar} title={e.nombre}>
                     {ICONOS[e.icono]}
                     {e.nombre}
                   </NavLink>
@@ -191,7 +192,7 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
               const idLista = `submodulos-${e.ruta.slice(1)}`;
               return (
                 <div key={e.ruta} className={`rama${enModulo ? " en-modulo" : ""}`}>
-                  <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista}
+                  <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista} title={e.nombre}
                           onClick={() => alternar(e.ruta)}>
                     {ICONOS[e.icono]}
                     <span className="rama-nombre"><span>{e.nombre}</span>
@@ -448,15 +449,42 @@ function AvisoAlertas() {
   );
 }
 
+// Emblema de la institución archivística: un edificio con columnas.
+const EMBLEMA = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 9.5L12 4l9 5.5" /><path d="M4.5 10v8M9 10v8M15 10v8M19.5 10v8" /><path d="M3 20h18" />
+  </svg>
+);
+const CLAVE_COMPACTA = "ricora:lateral-compacta";
+
 export function Marco({ children }: { children: ReactNode }) {
   const { fondo } = useFondo();
   // En pantallas angostas el árbol se vuelve un menú desplegable.
   const [menu, setMenu] = useState(false);
+  // Barra lateral compacta (solo íconos): preferencia de quien mira, en su navegador.
+  const [compacta, setCompacta] = useState(() => {
+    try { return localStorage.getItem(CLAVE_COMPACTA) === "1"; } catch { return false; }
+  });
+  const alternarCompacta = () => setCompacta((c) => {
+    try { localStorage.setItem(CLAVE_COMPACTA, c ? "0" : "1"); } catch { /* sin almacenamiento: dura esta visita */ }
+    return !c;
+  });
   return (
-    <div className="app">
+    <div className={`app${compacta ? " compacta" : ""}`}>
       <aside className="lateral">
         <div className="lateral-cab">
-          <Marca />
+          <div className="marca-bloque">
+            <span className="emblema">{EMBLEMA}</span>
+            <Marca />
+          </div>
+          <button type="button" className="boton-compacto" onClick={alternarCompacta}
+                  aria-label={compacta ? "Expandir la barra lateral" : "Compactar la barra lateral"}
+                  title={compacta ? "Expandir" : "Compactar"}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M9 4.5v15" />
+              {compacta ? <path d="M13 10l2 2-2 2" /> : <path d="M15 10l-2 2 2 2" />}
+            </svg>
+          </button>
           <button type="button" className="boton-menu" aria-expanded={menu} aria-controls="menu-lateral"
                   onClick={() => setMenu(!menu)}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...trazo}>
