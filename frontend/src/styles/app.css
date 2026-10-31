@@ -115,7 +115,7 @@ fieldset.campo legend { font-size: .78rem; font-weight: 600; color: var(--muted)
 
 /* ---- marco de la aplicación ---- */
 .app { display: flex; min-height: 100vh; }
-.lateral { width: 212px; flex: 0 0 212px; background: var(--side-bg); color: var(--side-fg); padding: 20px 14px; display: flex; flex-direction: column; gap: 22px; position: sticky; top: 0; height: 100vh; }
+.lateral { width: 244px; flex: 0 0 244px; background: var(--side-bg); color: var(--side-fg); padding: 20px 12px; display: flex; flex-direction: column; gap: 22px; position: sticky; top: 0; height: 100vh; }
 .lateral .marca { font-size: 1.1rem; font-weight: 600; padding: 0 8px; }
 .lateral .marca span { color: var(--side-muted); font-size: .68rem; }
 .navegacion { display: flex; flex-direction: column; gap: 2px; }
@@ -131,16 +131,19 @@ fieldset.campo legend { font-size: .78rem; font-weight: 600; color: var(--muted)
 .rama-cab { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 8px; border: 0; background: none; color: var(--side-muted); font: inherit; font-size: .86rem; cursor: pointer; text-align: left; }
 .rama-cab:hover { color: var(--side-fg); }
 .rama-cab svg { width: 16px; height: 16px; flex: 0 0 16px; }
-.rama-cab span { flex: 1; }
+.rama-cab .rama-nombre { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.rama-cab .rama-nombre small, .subvistas a small { font-size: .7rem; font-weight: 400; color: var(--side-muted); }
+/* Submódulos: una sola guía vertical continua; el activo, con el acento y un fondo sutil (no una caja pesada). */
+.subvistas { list-style: none; margin: 2px 0 8px 18px; padding: 0 0 0 10px; border-left: 1px solid var(--side-line); display: flex; flex-direction: column; gap: 2px; }
+.subvistas a { padding: 7px 10px; border-radius: 6px; font-size: .82rem; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1.25; }
+.subvistas a small { opacity: .85; }
+.subvistas a:hover { background: rgba(255, 255, 255, .04); }
+.subvistas a.active { background: rgba(126, 162, 240, .09); color: var(--side-fg); font-weight: 600; box-shadow: inset 2px 0 0 #7ea2f0; }
+.subvistas a.active small { color: #c9d6f2; opacity: 1; }
 .rama-cab .flecha-rama { width: 14px; height: 14px; flex: 0 0 14px; transition: transform .15s; opacity: .8; }
 .rama-cab[aria-expanded="true"] .flecha-rama { transform: rotate(90deg); }
 .rama.en-modulo > .rama-cab { color: var(--side-fg); font-weight: 600; }
 .rama-cab:focus-visible, .navegacion a:focus-visible, .boton-menu:focus-visible { outline: 2px solid var(--side-fg); outline-offset: -2px; }
-.subvistas { list-style: none; margin: 0 0 4px; padding: 0 0 0 22px; display: flex; flex-direction: column; gap: 1px; }
-.subvistas a { position: relative; padding: 6px 10px 6px 14px; font-size: .82rem; border-radius: 6px; }
-.subvistas a::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--side-line); }
-.subvistas a.active { background: var(--side-active); color: var(--side-fg); font-weight: 600; }
-.subvistas a.active::before { background: var(--side-fg); width: 3px; }
 /* El contenido usa todo el ancho disponible: sin franja vacía a la derecha. */
 .contenido { flex: 1; min-width: 0; padding: 22px 26px 60px; }
 .superior { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }

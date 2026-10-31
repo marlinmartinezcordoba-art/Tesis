@@ -27,11 +27,13 @@ function montar(ruta: string, usuario: UsuarioBreve = ADMIN) {
   return render(<MemoryRouter initialEntries={[ruta]}><ArbolNavegacion /><PestanasModulo /><Ubicacion /></MemoryRouter>);
 }
 
-const rama = (nombre: string) => screen.getByRole("button", { name: nombre });
-const submodulosVisibles = (nombre: string) => {
-  const id = rama(nombre).getAttribute("aria-controls")!;
+// El nombre visible (la pista de ayuda va aparte, oculta para el lector de pantalla).
+const nombre = (el: Element) => el.querySelector("span")?.textContent ?? el.textContent;
+const rama = (n: string) => screen.getAllByRole("button").find((b) => nombre(b.querySelector(".rama-nombre") ?? b) === n)!;
+const submodulosVisibles = (modulo: string) => {
+  const id = rama(modulo).getAttribute("aria-controls")!;
   const lista = document.getElementById(id);
-  return lista ? within(lista).getAllByRole("link").map((a) => a.textContent) : [];
+  return lista ? within(lista).getAllByRole("link").map((a) => nombre(a)) : [];
 };
 const pestanas = () => {
   const barra = document.querySelector(".pestanas-modulo") as HTMLElement | null;
@@ -42,10 +44,10 @@ const pestanaActual = () => (document.querySelector(".pestanas-modulo [aria-curr
 afterEach(cleanup);
 
 describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro de la pantalla", () => {
-  it("solo Instrumentos archivísticos y Consulta y difusión se despliegan; lo demás es un enlace", () => {
+  it("solo Instrumentos y Consulta y difusión se despliegan; lo demás es un enlace", () => {
     montar("/ingesta");
     expect(screen.getAllByRole("button", { expanded: false }).concat(screen.queryAllByRole("button", { expanded: true }))
-      .map((b) => b.textContent)).toEqual(["Instrumentos archivísticos", "Consulta y difusión"]);
+      .map((b) => nombre(b.querySelector(".rama-nombre") ?? b))).toEqual(["Instrumentos", "Consulta y difusión"]);
     for (const m of ["Carga de documentos", "Descripción", "Autoridades y términos", "Preservación", "Auditoría",
       "Evaluación", "Usuarios y permisos"]) {
       expect(screen.getByRole("link", { name: m })).toBeTruthy();
@@ -54,8 +56,8 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("la TRD y el CCD son pasos guiados; las direcciones de antes llevan al paso donde quedó cada tarea", () => {
     montar("/fondos?vista=matriz");
-    expect(rama("Instrumentos archivísticos").getAttribute("aria-expanded")).toBe("true");
-    expect(submodulosVisibles("Instrumentos archivísticos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
+    expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("true");
+    expect(submodulosVisibles("Instrumentos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
     expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
     expect(pestanas()).toEqual(["Paso a paso", "Cuadro y versiones"]);
     expect(pestanaActual()).toBe("Paso a paso");
@@ -91,7 +93,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
   it("acordeón: abrir un módulo cierra el otro; tocar el abierto lo cierra", () => {
     montar("/fondos");
     fireEvent.click(rama("Consulta y difusión"));
-    expect(rama("Instrumentos archivísticos").getAttribute("aria-expanded")).toBe("false");
+    expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(rama("Consulta y difusión"));
     expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
   });

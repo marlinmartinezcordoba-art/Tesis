@@ -108,6 +108,7 @@ def fila(e: RegistroAuditoria, nombres: dict, etiquetas: dict | None = None) -> 
             "clase_rico": clase, "propiedad_rico": propiedad,
             "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")), "final": _texto(n.get("final")),
             "confianza": n.get("confianza"), "modelo": n.get("modelo"), "version_prompt": n.get("version_prompt"),
+            "fragmento_localizado": n.get("fragmento_localizado"),
             "version_etiqueta": (etiquetas or {}).get(n.get("version_prompt")),
             "por": nombres.get(e.usuario_id)}
 
@@ -120,7 +121,12 @@ def _conteos(lista: list[dict]) -> dict:
     return c | {"propuestas": propuestas, "pct_aceptadas": pct(c["aceptada"], propuestas),
                 "pct_corregidas": pct(c["corregida"], propuestas), "pct_rechazadas": pct(c["rechazada"], propuestas),
                 # De todo lo que quedó publicado, cuánto propuso el motor (exhaustividad aparente).
-                "pct_cobertura": pct(c["aceptada"] + c["corregida"], c["aceptada"] + c["corregida"] + c["agregada"])}
+                "pct_cobertura": pct(c["aceptada"] + c["corregida"], c["aceptada"] + c["corregida"] + c["agregada"]),
+                # Indicador de seguimiento: propuestas cuyo fragmento citado no apareció en el texto
+                # (alucinación o error de reconocimiento). Las decisiones anteriores a este registro no cuentan.
+                "sin_fragmento": sum(1 for f in lista if f.get("fragmento_localizado") is False),
+                "pct_sin_fragmento": pct(sum(1 for f in lista if f.get("fragmento_localizado") is False),
+                                         sum(1 for f in lista if f.get("fragmento_localizado") is not None))}
 
 
 def consultar(db: Session, limite: int = 500, **filtros) -> dict:
@@ -150,11 +156,13 @@ def hoja_de_calculo(db: Session, **filtros) -> bytes:
     resumen = libro.active
     resumen.title = "Resumen"
     encabezado = ["Tipo", "Propuestas", "Aceptadas", "Corregidas", "Rechazadas", "Agregadas por la archivista",
-                  "% aceptadas", "% corregidas", "% rechazadas", "% cobertura del motor"]
+                  "% aceptadas", "% corregidas", "% rechazadas", "% cobertura del motor", "Fragmento no hallado",
+                  "% fragmento no hallado"]
     resumen.append(encabezado)
     for t in datos["por_tipo"] + [{"tipo_nombre": "Total", **datos["resumen"]}]:
         resumen.append([t["tipo_nombre"], t["propuestas"], t["aceptada"], t["corregida"], t["rechazada"], t["agregada"],
-                        t["pct_aceptadas"], t["pct_corregidas"], t["pct_rechazadas"], t["pct_cobertura"]])
+                        t["pct_aceptadas"], t["pct_corregidas"], t["pct_rechazadas"], t["pct_cobertura"],
+                        t["sin_fragmento"], t["pct_sin_fragmento"]])
     resumen.append([])
     resumen.append(["Modelos", ", ".join(datos["modelos"])])
     resumen.append(["Versiones de la instrucción", ", ".join(datos["versiones_prompt"])])

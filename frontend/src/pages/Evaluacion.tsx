@@ -11,9 +11,10 @@ import { useSesion } from "@/lib/sesion";
 // relaciones (con su propiedad de RiC-O) entre el documento y esas entidades
 // o entre ellas. El servidor revisa la conformidad con RiC-O 1.1.
 
+interface Criterio { margen_f: number; minimo_casos: number; rubrica_minima: number; conformidad_asistida: number }
 interface EvaluacionBreve {
   id: string; nombre: string; protocolo: string | null; estado: "preparacion" | "en_curso" | "cerrada";
-  umbral_similitud: number; documentos: number; con_propuesta: number;
+  umbral_similitud: number; documentos: number; con_propuesta: number; criterio: Criterio;
 }
 interface EstadoAnotacion { id: string; estado: "en_curso" | "enviada" | "anulada" }
 interface Tarea {
@@ -97,6 +98,20 @@ const CRITERIOS: [string, string, string][] = [
   ["completitud", "Completitud", "No le falta nada importante."],
   ["pertinencia", "Pertinencia", "El contexto (agentes, funciones, fechas) es el que un archivista registraría."],
 ];
+// Descriptores de cada nivel (tabla de la rúbrica en el capítulo III de la tesis), del 1 al 5.
+const DESCRIPTORES: Record<string, string[]> = {
+  exactitud: ["La mayor parte de lo propuesto es incorrecto",
+    "Error en el productor, la fecha principal o el tipo documental",
+    "Errores que exigen corrección, sin afectar al productor ni a la fecha principal",
+    "Un error menor que no altera el sentido",
+    "Todas las entidades y relaciones propuestas son correctas"],
+  completitud: ["Omite la mayor parte de lo esencial", "Omite un elemento principal", "Omite varios elementos secundarios",
+    "Omite un elemento secundario", "Propone todo lo que una archivista registraría"],
+  pertinencia: ["La propuesta no sirve para describir el documento", "Predominan los elementos irrelevantes",
+    "Varios elementos sin valor descriptivo", "Un elemento de poco valor descriptivo",
+    "Todo lo propuesto es relevante para describir el documento"],
+};
+const NOMBRE_TIPO = (t: string) => TIPOS.find(([k]) => k === t)?.[1] || t;
 
 function mensaje(err: unknown, porDefecto: string) {
   return err instanceof ErrorAPI ? err.message : porDefecto;
@@ -311,6 +326,7 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
       <div className="tarjeta-cuerpo">
         <p>{ev.documentos} documento(s) · {ev.con_propuesta} con propuesta del motor</p>
         {aviso && <div className="aviso">{aviso}</div>}
+        <CriterioComparabilidad ev={ev} cambio={cambio} />
         {ev.estado === "preparacion" && (
           <>
             <p className="meta">Solo documentos aún sin describir: si ya lo estuvieran, el vocabulario del fondo le daría la
@@ -347,6 +363,47 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
         <p className="meta">Ver los resultados muestra las propuestas: desde ahí, usted no puede describir a ciegas estos documentos.</p>
       </div>
     </div>
+  );
+}
+
+// Criterio de comparabilidad: se fija antes de iniciar y queda congelado (objetivo 3 de la tesis).
+function CriterioComparabilidad({ ev, cambio }: { ev: EvaluacionBreve; cambio: () => void }) {
+  const [c, setC] = useState<Criterio>(ev.criterio);
+  const [aviso, setAviso] = useState("");
+  useEffect(() => setC(ev.criterio), [ev.criterio]);
+  const editable = ev.estado === "preparacion";
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setAviso("");
+    try {
+      await pedir(`/api/evaluacion/${ev.id}/criterio`, { method: "PUT", body: JSON.stringify(c) });
+      setAviso("Criterio guardado. Quedará fijo al iniciar la evaluación.");
+      cambio();
+    } catch (err) {
+      setAviso(mensaje(err, "No se pudo guardar el criterio."));
+    }
+  }
+
+  const campo = (k: keyof Criterio, texto: string, paso: number, min: number, max: number) => (
+    <label className="meta" style={{ display: "grid", gap: 2 }}>{texto}
+      <input className="campo" type="number" step={paso} min={min} max={max} value={c[k]} disabled={!editable}
+             onChange={(e) => setC({ ...c, [k]: Number(e.target.value) })} />
+    </label>
+  );
+  return (
+    <form onSubmit={guardar} style={{ margin: "8px 0 12px" }}>
+      <strong>Criterio de comparabilidad</strong>{" "}
+      <span className="meta">{editable ? "Se fija antes de iniciar; después no cambia." : "Fijado al iniciar la evaluación."}</span>
+      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", marginTop: 6 }}>
+        {campo("margen_f", "Margen frente al acuerdo entre archivistas (F)", 0.01, 0, 0.5)}
+        {campo("minimo_casos", "Mínimo de entidades de referencia por tipo", 1, 1, 1000)}
+        {campo("rubrica_minima", "Media mínima de la rúbrica", 0.5, 1, 5)}
+        {campo("conformidad_asistida", "Conformidad mínima de las asistidas (0 a 1)", 0.05, 0, 1)}
+      </div>
+      {aviso && <div className="aviso" role="status">{aviso}</div>}
+      {editable && <div className="acciones"><button type="submit" className="boton chico">Guardar el criterio</button></div>}
+    </form>
   );
 }
 
@@ -556,10 +613,11 @@ function Rubrica({ evId, inst, cerrar }: { evId: string; inst: string; cerrar: (
           {CRITERIOS.map(([k, nombre, pista]) => (
             <fieldset key={k} style={{ border: 0, padding: 0, margin: "10px 0" }}>
               <legend><strong>{nombre}</strong> <span className="meta">{pista}</span></legend>
-              <div style={{ display: "flex", gap: 12 }}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <label key={n} style={{ display: "flex", gap: 4 }}>
-                    <input type="radio" name={k} checked={notas[k] === n} onChange={() => setNotas({ ...notas, [k]: n })} />{n}
+              <div style={{ display: "grid", gap: 4 }}>
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <label key={n} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                    <input type="radio" name={k} checked={notas[k] === n} onChange={() => setNotas({ ...notas, [k]: n })} />
+                    <span><strong>{n}</strong> · {DESCRIPTORES[k][n - 1]}</span>
                   </label>
                 ))}
               </div>
@@ -594,16 +652,39 @@ interface Resultado {
     referencias_ciegas: number; f1_flexible: number | null; f1_relaciones_flexible: number | null; motor_conforme: boolean;
     descrito_durante_la_evaluacion: boolean }[];
   anotaciones: { ciegas: number; asistidas: number; evaluadores: number };
+  comparabilidad: {
+    criterio: Criterio;
+    condiciones: Record<string, { valor: number | Record<string, number | null> | null; exigido: number; cumple: boolean }>;
+    tipos: { tipo: string; casos: number; f_motor: number | null; techo: number | null; diferencia: number | null;
+      estado: "comparable" | "no_comparable" | "datos_insuficientes" | "sin_techo"; motivos: string[] }[];
+    comparables: string[]; no_comparables: string[]; sin_decidir: string[];
+  };
+  intervalos: Record<string, { documentos: number; remuestreos: number; inferior: number | null; superior: number | null }>;
+  prueba_tiempos: { n: number; z: number | null; p: number | null; nota: string | null };
+  supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
+    pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
+  errores: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number;
+    clasificadoras: number; pares: number; kappa: number | null; por_clase: Record<string, number>;
+    distribucion: { tipo_error: string; nombre: string; veces: number; porcentaje: number | null }[] };
 }
+const ESTADO_TIPO: Record<string, { texto: string; clase: string }> = {
+  comparable: { texto: "Comparable", clase: "bien" },
+  no_comparable: { texto: "No comparable", clase: "error" },
+  datos_insuficientes: { texto: "Datos insuficientes", clase: "alerta" },
+  sin_techo: { texto: "Sin techo (falta una segunda archivista)", clase: "alerta" },
+};
 
 const num = (x: number | null | undefined, d = 2) => (x === null || x === undefined ? "—" : x.toLocaleString("es-CO", { maximumFractionDigits: d }));
 
 function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
   const [r, setR] = useState<Resultado | null>(null);
   const [error, setError] = useState("");
-  useEffect(() => {
+  const [clasificando, setClasificando] = useState(false);
+  const cargar = useCallback(() => {
     pedir<Resultado>(`/api/evaluacion/${evId}/resultados`).then(setR).catch((err) => setError(mensaje(err, "No se pudieron calcular.")));
   }, [evId]);
+  useEffect(cargar, [cargar]);
+  if (clasificando) return <Desacuerdos evId={evId} volver={() => { setClasificando(false); cargar(); }} />;
   if (error) return <><button type="button" className="boton chico" onClick={volver}>← Volver</button><div className="aviso error">{error}</div></>;
   if (!r) return <div className="cargando">Calculando…</div>;
   const tipos = Array.from(new Set([...Object.keys(r.estricto.por_tipo), ...Object.keys(r.flexible.por_tipo)]));
@@ -631,6 +712,65 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
         <div className="cifra"><strong>{num(r.acuerdo_entre_archivistas?.f1)}</strong><span>Acuerdo entre archivistas (F1)</span></div>
         <div className="cifra"><strong>{num(r.tiempos.ciega?.mediana_minutos, 1)} / {num(r.tiempos.asistida?.mediana_minutos, 1)}</strong>
           <span>Minutos por documento: a ciegas / asistida (mediana)</span></div>
+      </div>
+      <div className="tarjeta tabla-desplazable">
+        <div className="tarjeta-cab">Respuesta a la pregunta: ¿son comparables con las de las archivistas?</div>
+        <p className="meta" style={{ padding: "0 18px" }}>
+          Criterio fijado antes de iniciar: la F flexible del motor no queda más de {num(r.comparabilidad.criterio.margen_f)} por
+          debajo del acuerdo entre archivistas (techo), con al menos {r.comparabilidad.criterio.minimo_casos} entidades de
+          referencia; descripciones asistidas conformes ≥ {num(r.comparabilidad.criterio.conformidad_asistida * 100, 0)} %
+          ({r.comparabilidad.condiciones.conformidad_asistida?.cumple ? "cumple" : "no cumple"}); rúbrica media
+          ≥ {num(r.comparabilidad.criterio.rubrica_minima, 1)} en los tres criterios
+          ({r.comparabilidad.condiciones.rubrica?.cumple ? "cumple" : "no cumple"}).
+        </p>
+        <table className="tabla-permisos">
+          <thead><tr><th>Tipo</th><th>Casos</th><th>F del motor</th><th>Acuerdo entre archivistas</th><th>Diferencia</th>
+            <th>Resultado</th><th>Por qué</th></tr></thead>
+          <tbody>
+            {r.comparabilidad.tipos.length === 0 && <tr><td colSpan={7} className="meta">Todavía no hay descripciones ciegas.</td></tr>}
+            {r.comparabilidad.tipos.map((t) => (
+              <tr key={t.tipo}><td>{NOMBRE_TIPO(t.tipo)}</td><td>{t.casos}</td><td>{num(t.f_motor)}</td><td>{num(t.techo)}</td>
+                <td>{num(t.diferencia)}</td>
+                <td><span className={`insignia ${ESTADO_TIPO[t.estado].clase}`}>{ESTADO_TIPO[t.estado].texto}</span></td>
+                <td className="meta">{t.motivos.join("; ") || "—"}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="tarjeta tabla-desplazable">
+        <div className="tarjeta-cab">Supervisión en la condición asistida</div>
+        <table className="tabla-permisos">
+          <thead><tr><th>Tipo</th><th>Aceptadas</th><th>Corregidas</th><th>Rechazadas</th><th>Agregadas por la archivista</th></tr></thead>
+          <tbody>
+            {Object.entries(r.supervision.por_tipo).map(([t, x]) => (
+              <tr key={t}><td>{NOMBRE_TIPO(t)}</td><td>{x.aceptada}</td><td>{x.corregida}</td><td>{x.rechazada}</td><td>{x.agregada}</td></tr>
+            ))}
+            <tr><td><strong>Total</strong></td><td>{r.supervision.total.aceptada ?? 0} ({num(r.supervision.pct_aceptadas, 1)} %)</td>
+              <td>{r.supervision.total.corregida ?? 0} ({num(r.supervision.pct_corregidas, 1)} %)</td>
+              <td>{r.supervision.total.rechazada ?? 0} ({num(r.supervision.pct_rechazadas, 1)} %)</td>
+              <td>{r.supervision.total.agregada ?? 0} ({num(r.supervision.pct_agregadas, 1)} %)</td></tr>
+          </tbody>
+        </table>
+        <p className="meta" style={{ padding: "0 18px" }}>
+          F1 de entidades (flexible), intervalo del 95 %: {num(r.intervalos.entidades_flexible?.inferior)} a{" "}
+          {num(r.intervalos.entidades_flexible?.superior)} · de relaciones: {num(r.intervalos.relaciones_flexible?.inferior)} a{" "}
+          {num(r.intervalos.relaciones_flexible?.superior)} ({r.intervalos.entidades_flexible?.documentos ?? 0} documento(s),
+          remuestreo por documento). Tiempos ciega frente a asistida, Wilcoxon: n = {r.prueba_tiempos.n}
+          {r.prueba_tiempos.p !== null ? `, z = ${num(r.prueba_tiempos.z)}, p = ${num(r.prueba_tiempos.p, 4)}` : ` (${r.prueba_tiempos.nota ?? "sin datos"})`}.
+        </p>
+      </div>
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Análisis de errores</div>
+        <div className="tarjeta-cuerpo">
+          <p>{r.errores.desacuerdos} desacuerdo(s) entre el motor y las referencias ciegas · {r.errores.clasificados} clasificados ·{" "}
+            {r.errores.pendientes_consenso} pendientes de consenso · {r.errores.sin_clasificar} sin clasificar. Kappa entre
+            clasificadoras: {num(r.errores.kappa)} ({r.errores.pares} pares).</p>
+          {r.errores.distribucion.length > 0 && (
+            <ul>{r.errores.distribucion.map((x) => <li key={x.tipo_error}>{x.nombre}: {x.veces} ({num(x.porcentaje, 1)} %)</li>)}</ul>
+          )}
+          <div className="acciones"><button type="button" className="boton chico primario" onClick={() => setClasificando(true)}>
+            Clasificar los desacuerdos</button></div>
+        </div>
       </div>
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Entidades del motor frente a las descripciones ciegas</div>
@@ -741,6 +881,96 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
         contra el mapeo verificado y contra el OWL oficial de RiC-O 1.1. Cada descripción ciega es una referencia. El acuerdo entre archivistas se mide con F1, porque en la
         extracción de entidades no hay negativos y el kappa no está definido; la rúbrica usa kappa ponderado cuadrático.
       </p>
+    </>
+  );
+}
+
+interface DesacuerdoFila {
+  clave: string; documento: string | null; clase: string; clase_nombre: string; tipo: string; propiedad: string | null;
+  propiedad_archivista: string | null; motor: string | null; archivista: string | null; mia: string | null; otra: string | null;
+  otra_clasifico: boolean; consenso: string | null; requiere_consenso: boolean;
+}
+interface DesacuerdosRespuesta {
+  estado: string; tipos_error: Record<string, string>; clases: Record<string, string>;
+  resumen: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number; kappa: number | null; pares: number };
+  desacuerdos: DesacuerdoFila[];
+}
+
+// Clasificación de cada desacuerdo con la taxonomía de errores de la tesis. Cada investigadora
+// clasifica por su cuenta; ve la clasificación de la otra solo después de dar la suya, y si
+// difieren, registran el consenso.
+function Desacuerdos({ evId, volver }: { evId: string; volver: () => void }) {
+  const [d, setD] = useState<DesacuerdosRespuesta | null>(null);
+  const [error, setError] = useState("");
+  const [filtro, setFiltro] = useState<"todos" | "pendientes" | "consenso">("pendientes");
+  const cargar = useCallback(() => {
+    pedir<DesacuerdosRespuesta>(`/api/evaluacion/${evId}/desacuerdos`).then(setD)
+      .catch((err) => setError(mensaje(err, "No se pudieron cargar los desacuerdos.")));
+  }, [evId]);
+  useEffect(cargar, [cargar]);
+
+  async function clasificar(clave: string, tipo_error: string, ronda: "individual" | "consenso") {
+    setError("");
+    try {
+      await pedir(`/api/evaluacion/${evId}/desacuerdos/${clave}`, { method: "PUT", body: JSON.stringify({ tipo_error, ronda }) });
+      cargar();
+    } catch (err) {
+      setError(mensaje(err, "No se pudo clasificar."));
+    }
+  }
+
+  if (!d) return <>{error ? <div className="aviso error">{error}</div> : <div className="cargando">Cargando…</div>}</>;
+  const filas = d.desacuerdos.filter((x) => filtro === "todos" || (filtro === "pendientes" ? !x.mia : x.requiere_consenso));
+  const opciones = Object.entries(d.tipos_error);
+  return (
+    <>
+      <button type="button" className="boton chico" onClick={volver}>← Resultados</button>
+      <h2>Clasificar los desacuerdos</h2>
+      {d.estado !== "cerrada" && <div className="aviso alerta">Se clasifican con la evaluación cerrada, cuando ya no cambian.</div>}
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      <p className="meta">{d.resumen.clasificados} de {d.resumen.desacuerdos} clasificados · {d.resumen.pendientes_consenso} por
+        consenso · kappa entre clasificadoras {num(d.resumen.kappa)}. Usted ve la clasificación de la otra investigadora solo
+        después de dar la suya.</p>
+      <div className="acciones">
+        {(["pendientes", "consenso", "todos"] as const).map((f) => (
+          <button key={f} type="button" className={`boton chico${filtro === f ? " primario" : ""}`} onClick={() => setFiltro(f)}>
+            {f === "pendientes" ? "Sin mi clasificación" : f === "consenso" ? "Requieren consenso" : "Todos"}</button>
+        ))}
+      </div>
+      <div className="tarjeta tabla-desplazable">
+        <table className="tabla-permisos">
+          <thead><tr><th>Documento</th><th>Desacuerdo</th><th>Motor</th><th>Archivista</th><th>Mi clasificación</th><th>Otra / consenso</th></tr></thead>
+          <tbody>
+            {filas.length === 0 && <tr><td colSpan={6} className="meta">Nada en esta vista.</td></tr>}
+            {filas.map((x) => (
+              <tr key={x.clave}>
+                <td>{x.documento}</td>
+                <td>{x.clase_nombre}{x.tipo !== "relacion" ? ` · ${NOMBRE_TIPO(x.tipo)}` : ""}
+                  {x.propiedad && <div className="meta">{x.propiedad}{x.propiedad_archivista ? ` / ${x.propiedad_archivista}` : ""}</div>}</td>
+                <td>{x.motor ?? "—"}</td><td>{x.archivista ?? "—"}</td>
+                <td>
+                  <select className="campo" value={x.mia ?? ""} disabled={d.estado !== "cerrada"}
+                          aria-label="Mi clasificación" onChange={(e) => e.target.value && clasificar(x.clave, e.target.value, "individual")}>
+                    <option value="">Elegir…</option>
+                    {opciones.map(([k, nombre]) => <option key={k} value={k}>{nombre}</option>)}
+                  </select>
+                </td>
+                <td>
+                  {x.consenso ? <span className="insignia bien">Consenso: {d.tipos_error[x.consenso]}</span>
+                    : x.otra ? d.tipos_error[x.otra] : x.otra_clasifico ? <span className="meta">Ya clasificó (oculta)</span> : "—"}
+                  {x.requiere_consenso && (
+                    <select className="campo" value="" aria-label="Consenso"
+                            onChange={(e) => e.target.value && clasificar(x.clave, e.target.value, "consenso")}>
+                      <option value="">Registrar consenso…</option>
+                      {opciones.map(([k, nombre]) => <option key={k} value={k}>{nombre}</option>)}
+                    </select>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

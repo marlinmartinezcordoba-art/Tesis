@@ -35,6 +35,8 @@ class Evaluacion(Base):
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     iniciada_en = Column(DateTime(timezone=True), nullable=True)
     cerrada_en = Column(DateTime(timezone=True), nullable=True)
+    # Criterio de comparabilidad (objetivo 3): se fija antes de iniciar y no cambia después.
+    criterio = Column(JSONB, nullable=True)
 
 
 class EvaluacionDocumento(Base):
@@ -91,4 +93,24 @@ class Calificacion(Base):
     evaluador_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     criterio = Column(Enum(*CRITERIOS, name="criterio_rubrica"), nullable=False)
     puntaje = Column(Integer, nullable=False)
+    creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+class ClasificacionError(Base):
+    """Cómo clasificó una investigadora un desacuerdo entre el motor y una
+    referencia ciega (taxonomía de errores de la tesis). Cada investigadora
+    clasifica por su cuenta (ronda «individual»); si difieren, se resuelve
+    por consenso (ronda «consenso»). Un cambio de clasificación reemplaza
+    la anterior de la misma persona y queda en la auditoría."""
+    __tablename__ = "evaluacion_errores"
+    __table_args__ = (UniqueConstraint("evaluacion_id", "clave", "ronda", "clasificadora_id", name="uq_error_clasificacion"),
+                      CheckConstraint("ronda IN ('individual', 'consenso')", name="ck_error_ronda"))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluacion_id = Column(UUID(as_uuid=True), ForeignKey("evaluaciones.id"), nullable=False, index=True)
+    clave = Column(String(40), nullable=False)
+    ronda = Column(String(12), nullable=False)
+    clasificadora_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    tipo_error = Column(String(20), nullable=False)
+    nota = Column(Text, nullable=True)
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)

@@ -247,6 +247,126 @@ class ConteoAnotaciones(BaseModel):
     evaluadores: int
 
 
+class CondicionGlobal(BaseModel):
+    """Una condición del criterio que vale para todos los tipos (conformidad asistida, rúbrica)."""
+    model_config = ConfigDict(extra="allow")
+
+    valor: float | dict | None
+    exigido: float
+    cumple: bool
+
+
+class VeredictoTipo(BaseModel):
+    """El criterio de comparabilidad aplicado a un tipo de entidad."""
+    model_config = ConfigDict(extra="allow")
+
+    tipo: str
+    casos: int
+    f_motor: float | None
+    techo: float | None
+    diferencia: float | None
+    estado: str
+    motivos: list[str]
+
+
+class ComparabilidadOut(BaseModel):
+    """Respuesta a la pregunta de investigación según el criterio fijado antes de iniciar."""
+    model_config = ConfigDict(extra="allow")
+
+    criterio: dict[str, float]
+    condiciones: dict[str, CondicionGlobal]
+    tipos: list[VeredictoTipo]
+    comparables: list[str]
+    no_comparables: list[str]
+    sin_decidir: list[str]
+
+
+class IntervaloF(BaseModel):
+    """Intervalo de confianza del 95 % de la F, por remuestreo de documentos."""
+    model_config = ConfigDict(extra="allow")
+
+    documentos: int
+    remuestreos: int
+    inferior: float | None
+    superior: float | None
+
+
+class PruebaWilcoxon(BaseModel):
+    """Prueba de rangos con signo de Wilcoxon de los tiempos pareados."""
+    model_config = ConfigDict(extra="allow")
+
+    n: int
+    w_mas: float | None
+    w_menos: float | None
+    z: float | None
+    p: float | None
+    nota: str | None
+
+
+class SupervisionOut(BaseModel):
+    """Qué hizo la archivista con cada propuesta del motor en la condición asistida."""
+    model_config = ConfigDict(extra="allow")
+
+    por_tipo: dict[str, dict[str, int]]
+    total: dict[str, int]
+    propuestas: int
+    pct_aceptadas: float | None
+    pct_corregidas: float | None
+    pct_rechazadas: float | None
+    pct_agregadas: float | None
+
+
+class ResumenErrores(BaseModel):
+    """Clasificación de los desacuerdos con la taxonomía de errores y el acuerdo entre clasificadoras."""
+    model_config = ConfigDict(extra="allow")
+
+    desacuerdos: int
+    clasificados: int
+    pendientes_consenso: int
+    sin_clasificar: int
+    clasificadoras: int
+    pares: int
+    kappa: float | None
+    distribucion: list[dict]
+    por_clase: dict[str, int]
+
+
+class Desacuerdo(BaseModel):
+    """Una diferencia entre el motor y una referencia ciega."""
+    model_config = ConfigDict(extra="allow")
+
+    clave: str
+    documento: str | None
+    clase: str
+    clase_nombre: str
+    tipo: str
+    motor: str | None
+    archivista: str | None
+    mia: str | None
+    otra: str | None
+    otra_clasifico: bool
+    consenso: str | None
+    requiere_consenso: bool
+
+
+class DesacuerdosOut(BaseModel):
+    """Los desacuerdos de una evaluación, con la clasificación de quien consulta."""
+    model_config = ConfigDict(extra="allow")
+
+    estado: str
+    tipos_error: dict[str, str]
+    clases: dict[str, str]
+    resumen: ResumenErrores
+    desacuerdos: list[Desacuerdo]
+
+
+class ClasificadoOut(BaseModel):
+    """Confirmación de una clasificación."""
+    model_config = ConfigDict(extra="allow")
+
+    clasificado: bool
+
+
 class ResultadosOut(BaseModel):
     """Precisión, exhaustividad, F1, acuerdo, tiempos y rúbrica de la evaluación."""
     model_config = ConfigDict(extra="allow")
@@ -263,3 +383,10 @@ class ResultadosOut(BaseModel):
     rubrica: dict[str, RubricaCriterio]
     documentos: list[DocumentoResultado]
     anotaciones: ConteoAnotaciones
+    comparabilidad: ComparabilidadOut
+    intervalos: dict[str, IntervaloF]
+    prueba_tiempos: PruebaWilcoxon
+    supervision: SupervisionOut
+    errores: ResumenErrores
+    acuerdo_por_tipo: dict[str, Metricas]
+    tiempos_por_documento: list[dict]

@@ -207,6 +207,8 @@ class ConteosDecisiones(BaseModel):
     pct_corregidas: float | None
     pct_rechazadas: float | None
     pct_cobertura: float | None
+    sin_fragmento: int = 0
+    pct_sin_fragmento: float | None = None
 
 
 class ConteosPorTipo(ConteosDecisiones):

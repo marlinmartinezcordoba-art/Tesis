@@ -31,6 +31,7 @@ import io
 import re
 import statistics
 import unicodedata
+from collections import Counter
 import uuid
 from difflib import SequenceMatcher
 from itertools import combinations
@@ -194,6 +195,11 @@ def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuari
         if descrito(db, inst.id):
             raise ErrorEvaluacion(f"«{inst.nombre_original}» ya está descrito: su vocabulario le daría la respuesta "
                                   "al motor y contaminaría la evaluación.")
+        from app.servicios import derechos
+
+        if derechos.instanciacion_restringida(db, inst):
+            raise ErrorEvaluacion(f"«{inst.nombre_original}» tiene información clasificada o reservada: no entra a la "
+                                  "evaluación, porque su texto se enviaría al motor y lo verían las evaluadoras.")
         if inst.id not in ya:
             db.add(EvaluacionDocumento(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst.id))
             nuevos += 1
@@ -235,6 +241,24 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
     return {"generadas": hechas, "avisos": avisos}
 
 
+def fijar_criterio(db: Session, ev: Evaluacion, datos: dict, usuario_id: uuid.UUID) -> dict:
+    """El criterio de comparabilidad se fija antes de iniciar: después de ver
+    los datos, cambiarlo invalidaría la respuesta a la pregunta."""
+    from app.servicios import evaluacion_analisis as an
+
+    if ev.estado != "preparacion":
+        raise ErrorEvaluacion("El criterio de comparabilidad se fija antes de iniciar y no cambia después.", 409)
+    try:
+        nuevo = an.validar_criterio(datos)
+    except an.ErrorAnalisis as exc:
+        raise ErrorEvaluacion(str(exc), exc.codigo) from exc
+    anterior, ev.criterio = an.criterio_de(ev.criterio), nuevo
+    registrar(db, modulo="evaluacion", accion="criterio_fijado", usuario_id=usuario_id, entidad_tipo="evaluacion",
+              entidad_id=ev.id, anterior=anterior, nuevo=nuevo)
+    db.flush()
+    return nuevo
+
+
 def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UUID) -> None:
     documentos = db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
     if estado == "en_curso":
@@ -242,6 +266,9 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
             raise ErrorEvaluacion("Solo se inicia una evaluación en preparación.", 409)
         if not documentos or any(d.propuesta is None for d in documentos):
             raise ErrorEvaluacion("Antes de iniciar, cada documento necesita la propuesta del motor.", 409)
+        from app.servicios import evaluacion_analisis as an
+
+        ev.criterio = an.criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
         ev.iniciada_en = ahora()
     elif estado == "cerrada":
         if ev.estado != "en_curso":
@@ -252,7 +279,8 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
     anterior, ev.estado = ev.estado, estado
     registrar(db, modulo="evaluacion", accion="evaluacion_iniciada" if estado == "en_curso" else "evaluacion_cerrada",
               usuario_id=usuario_id, entidad_tipo="evaluacion", entidad_id=ev.id,
-              anterior={"estado": anterior}, nuevo={"estado": estado, "documentos": len(documentos)})
+              anterior={"estado": anterior}, nuevo={"estado": estado, "documentos": len(documentos),
+                                                    **({"criterio": ev.criterio} if estado == "en_curso" else {})})
 
 
 def _documento(db: Session, ev: Evaluacion, inst_id: uuid.UUID) -> EvaluacionDocumento:
@@ -455,6 +483,12 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     acuerdo_rel = {"vp": 0, "fp": 0, "fn": 0}
     conformidad = {"motor": [], "ciega": [], "asistida": []}
     por_documento = []
+    from app.servicios import evaluacion_analisis as an
+
+    acuerdo_tipo = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
+    cuentas_doc, cuentas_doc_rel = [], []
+    supervision_tipo: dict[str, dict] = {}
+    lista_desacuerdos = []
 
     def acumular(destino: dict, cuentas: dict) -> None:
         for k, c in cuentas.items():
@@ -471,6 +505,11 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
             conformidad[a.condicion].append(ric.conformidad(a.datos))
         ciegas = [a for a in anotadas if a.condicion == "ciega"]
         f1_doc, f1_rel_doc = [], []
+        doc_ent, doc_rel = {"vp": 0, "fp": 0, "fn": 0}, {"vp": 0, "fp": 0, "fn": 0}
+        for a in anotadas:
+            if a.condicion == "asistida":
+                for t, c in an.supervision(sistema, entidades_de_anotacion(a.datos), ev.umbral_similitud).items():
+                    supervision_tipo[t] = {k: supervision_tipo.get(t, {}).get(k, 0) + v for k, v in c.items()}
         for a in ciegas:  # cada descripción ciega es una referencia
             referencia = entidades_de_anotacion(a.datos)
             for t in TIPOS:
@@ -478,8 +517,12 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                 r_t = [e for e in referencia if e["tipo"] == t]
                 estricto[t] = _sumar(estricto[t], conteo(s_t, r_t, 1.0))
                 flexible[t] = _sumar(flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
-            f1_doc.append(prf(conteo(sistema, referencia, ev.umbral_similitud))["f1"])
+            c_doc = conteo(sistema, referencia, ev.umbral_similitud)
+            doc_ent = _sumar(doc_ent, c_doc)
+            f1_doc.append(prf(c_doc)["f1"])
             referencia_rel = ric.tripletas(a.datos)
+            lista_desacuerdos += an.desacuerdos(str(d.instanciacion_id), str(a.id), sistema, referencia, sistema_rel,
+                                                referencia_rel, ev.umbral_similitud)
             acumular(rel_estricto, ric.conteo_por_propiedad(sistema_rel, referencia_rel, 1.0)[0])
             cuentas, confundidas = ric.conteo_por_propiedad(sistema_rel, referencia_rel, ev.umbral_similitud)
             acumular(rel_flexible, cuentas)
@@ -489,9 +532,15 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
             for c in cuentas.values():
                 total = _sumar(total, c)
             f1_rel_doc.append(prf(total)["f1"])
+            doc_rel = _sumar(doc_rel, total)
+        cuentas_doc.append(doc_ent)
+        cuentas_doc_rel.append(doc_rel)
         for a, b in combinations(ciegas, 2):  # acuerdo entre archivistas
-            acuerdo = _sumar(acuerdo, conteo(entidades_de_anotacion(a.datos), entidades_de_anotacion(b.datos),
-                                             ev.umbral_similitud))
+            ea, eb = entidades_de_anotacion(a.datos), entidades_de_anotacion(b.datos)
+            acuerdo = _sumar(acuerdo, conteo(ea, eb, ev.umbral_similitud))
+            for t in TIPOS:  # el techo de cada tipo, para el criterio de comparabilidad
+                acuerdo_tipo[t] = _sumar(acuerdo_tipo[t], conteo([e for e in ea if e["tipo"] == t],
+                                                                 [e for e in eb if e["tipo"] == t], ev.umbral_similitud))
             vp, _ = ric.emparejar(ric.tripletas(a.datos), ric.tripletas(b.datos), ev.umbral_similitud)
             acuerdo_rel = _sumar(acuerdo_rel, {"vp": vp, "fp": len(ric.tripletas(a.datos)) - vp,
                                                "fn": len(ric.tripletas(b.datos)) - vp})
@@ -518,6 +567,20 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                for c in ("ciega", "asistida")}
     tiempos = {c: {"n": len(v), "mediana_minutos": _r(statistics.median(v)) if v else None,
                    "media_minutos": _r(statistics.mean(v)) if v else None} for c, v in minutos.items()}
+    # Las evaluadoras no se identifican: «Evaluadora 1, 2…» en el orden en que empezaron.
+    orden = sorted({a.evaluador_id for a in anotaciones},
+                   key=lambda u: min(x.iniciada_en for x in anotaciones if x.evaluador_id == u))
+    alias = {u: f"Evaluadora {i}" for i, u in enumerate(orden, 1)}
+    nombres_doc = {d.instanciacion_id: db.get(Instanciacion, d.instanciacion_id).nombre_original for d in documentos}
+    pareados: dict[tuple, dict] = {}
+    for a in anotaciones:
+        pareados.setdefault((a.evaluador_id, a.instanciacion_id), {})[a.condicion] = \
+            _r((a.enviada_en - a.iniciada_en).total_seconds() / 60)
+    tiempos_documento = [{"evaluadora": alias[u], "documento": nombres_doc.get(i), "ciega": v.get("ciega"),
+                          "asistida": v.get("asistida"),
+                          "diferencia": _r(v["ciega"] - v["asistida"]) if "ciega" in v and "asistida" in v else None}
+                         for (u, i), v in sorted(pareados.items(), key=lambda x: (alias[x[0][0]], str(nombres_doc.get(x[0][1]))))]
+    prueba_tiempos = an.wilcoxon([(t["ciega"], t["asistida"]) for t in tiempos_documento if t["diferencia"] is not None])
 
     def resumen_conformidad(revisiones: list[dict]) -> dict:
         relaciones = sum(x["relaciones"] for x in revisiones)
@@ -547,7 +610,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
               entidad_tipo="evaluacion", entidad_id=ev.id, nuevo={"anotaciones": len(anotaciones)})
     db.flush()
     motores = sorted({(d.motor, d.version_prompt) for d in documentos if d.motor}, key=str)
-    return {"evaluacion": evaluacion_out(db, ev), "umbral": ev.umbral_similitud,
+    salida = {"evaluacion": evaluacion_out(db, ev), "umbral": ev.umbral_similitud,
             "motores": [{"motor": m, "version_prompt": v} for m, v in motores],
             "estricto": tabla(estricto), "flexible": tabla(flexible),
             "relaciones": {"estricto": tabla(rel_estricto), "flexible": tabla(rel_flexible),
@@ -557,17 +620,77 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                            "propiedades": {c: ric.nombre_rico(c) for c in ric.PROPIEDADES}},
             "conformidad": {k: resumen_conformidad(v) for k, v in conformidad.items()},
             "acuerdo_entre_archivistas": prf(acuerdo) if sum(acuerdo.values()) else None,
-            "tiempos": tiempos, "rubrica": rubrica, "documentos": por_documento,
+            "tiempos": tiempos, "tiempos_por_documento": tiempos_documento, "prueba_tiempos": prueba_tiempos, "rubrica": rubrica, "documentos": por_documento,
+            "acuerdo_por_tipo": {t: prf(c) for t, c in acuerdo_tipo.items() if sum(c.values())},
+            "intervalos": {"entidades_flexible": an.intervalo_f(cuentas_doc), "relaciones_flexible": an.intervalo_f(cuentas_doc_rel)},
+            "supervision": an.resumen_supervision(supervision_tipo),
+            "errores": _resumen_errores(db, ev, lista_desacuerdos),
             "anotaciones": {"ciegas": sum(1 for a in anotaciones if a.condicion == "ciega"),
                             "asistidas": sum(1 for a in anotaciones if a.condicion == "asistida"),
                             "evaluadores": len({a.evaluador_id for a in anotaciones})}}
+    salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
+    return salida
+
+
+def _resumen_errores(db: Session, ev: Evaluacion, lista: list[dict]) -> dict:
+    from app.models.evaluacion import ClasificacionError
+    from app.servicios import evaluacion_analisis as an
+
+    filas = db.scalars(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id)).all()
+    resumen = an.resumen_clasificaciones([x["clave"] for x in lista], filas)
+    resumen["por_clase"] = dict(Counter(x["clase"] for x in lista))
+    resumen["lista"] = [x | {"tipo_error": resumen["finales"].get(x["clave"])} for x in lista]
+    del resumen["finales"]
+    return resumen
+
+
+def desacuerdos(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
+    """Los desacuerdos para clasificarlos. Cada investigadora ve su propia
+    clasificación; la de la otra, solo después de haber clasificado ella
+    (independencia), y el consenso cuando ya existe."""
+    from app.models.evaluacion import ClasificacionError
+    from app.servicios import evaluacion_analisis as an
+
+    datos = resultados(db, ev, usuario_id)
+    filas = db.scalars(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id)).all()
+    por_clave: dict[str, list] = {}
+    for f in filas:
+        por_clave.setdefault(f.clave, []).append(f)
+    nombres_doc = {x["instanciacion_id"]: x["nombre"] for x in datos["documentos"]}
+    items = []
+    for x in datos["errores"]["lista"]:
+        propias = por_clave.get(x["clave"], [])
+        mia = next((f.tipo_error for f in propias if f.ronda == "individual" and f.clasificadora_id == usuario_id), None)
+        otras = [f.tipo_error for f in propias if f.ronda == "individual" and f.clasificadora_id != usuario_id]
+        consenso = next((f.tipo_error for f in propias if f.ronda == "consenso"), None)
+        items.append(x | {"documento": nombres_doc.get(x["documento_id"]), "mia": mia,
+                          "otra": (otras[0] if otras else None) if mia else None, "otra_clasifico": bool(otras),
+                          "consenso": consenso,
+                          "requiere_consenso": consenso is None and mia is not None and bool(otras) and otras[0] != mia})
+    resumen = {k: v for k, v in datos["errores"].items() if k != "lista"}
+    return {"estado": ev.estado, "tipos_error": an.TIPOS_ERROR, "clases": an.CLASES_DESACUERDO, "resumen": resumen,
+            "desacuerdos": items}
+
+
+def clasificar_desacuerdo(db: Session, ev: Evaluacion, clave: str, tipo_error: str, ronda: str, nota: str | None,
+                          usuario_id: uuid.UUID) -> None:
+    from app.servicios import evaluacion_analisis as an
+
+    claves = {x["clave"] for x in resultados(db, ev, usuario_id)["errores"]["lista"]}
+    try:
+        an.clasificar(db, ev, clave, tipo_error, ronda, nota, claves, usuario_id)
+    except an.ErrorAnalisis as exc:
+        raise ErrorEvaluacion(str(exc), exc.codigo) from exc
 
 
 def evaluacion_out(db: Session, ev: Evaluacion) -> dict:
+    from app.servicios.evaluacion_analisis import criterio_de
+
     documentos = db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
     return {"id": str(ev.id), "nombre": ev.nombre, "protocolo": ev.protocolo, "estado": ev.estado,
             "umbral_similitud": ev.umbral_similitud, "creada_en": ev.creada_en, "iniciada_en": ev.iniciada_en,
             "cerrada_en": ev.cerrada_en, "documentos": len(documentos),
+            "criterio": criterio_de(ev.criterio),
             "con_propuesta": sum(1 for d in documentos if d.propuesta is not None)}
 
 
@@ -619,6 +742,46 @@ def hoja_de_calculo(datos: dict) -> bytes:
     for criterio, r in datos["rubrica"].items():
         otra.append([f"Rúbrica · {criterio} (media)", r["media"], "kappa ponderado", r["kappa_ponderado"],
                      "pares", r["pares"]])
+    for nombre, i in (("F1 entidades (flexible)", datos["intervalos"]["entidades_flexible"]),
+                      ("F1 relaciones (flexible)", datos["intervalos"]["relaciones_flexible"])):
+        otra.append([f"IC 95 % {nombre}", i["inferior"], i["superior"], "documentos", i["documentos"],
+                     "remuestreos", i["remuestreos"]])
+    w = datos["prueba_tiempos"]
+    otra.append(["Wilcoxon, tiempos ciega frente a asistida", "n", w["n"], "z", w["z"], "p", w["p"], w["nota"] or ""])
+    comp = libro.create_sheet("Comparabilidad")
+    c = datos["comparabilidad"]
+    comp.append(["Criterio fijado antes de iniciar", "margen F", c["criterio"]["margen_f"], "mínimo de casos",
+                 c["criterio"]["minimo_casos"], "rúbrica mínima", c["criterio"]["rubrica_minima"],
+                 "conformidad asistida", c["criterio"]["conformidad_asistida"]])
+    comp.append(["Tipo", "Casos de referencia", "F del motor (flexible)", "Acuerdo entre archivistas (techo)",
+                 "Diferencia", "Resultado", "Motivos"])
+    for t in c["tipos"]:
+        comp.append([t["tipo"], t["casos"], t["f_motor"], t["techo"], t["diferencia"], t["estado"], "; ".join(t["motivos"])])
+    sup = libro.create_sheet("Supervisión (asistida)")
+    sup.append(["Tipo", "Aceptadas", "Corregidas", "Rechazadas", "Agregadas por la archivista"])
+    for t, x in datos["supervision"]["por_tipo"].items():
+        sup.append([t, x["aceptada"], x["corregida"], x["rechazada"], x["agregada"]])
+    tot = datos["supervision"]["total"]
+    sup.append(["Total", tot.get("aceptada", 0), tot.get("corregida", 0), tot.get("rechazada", 0), tot.get("agregada", 0)])
+    tie = libro.create_sheet("Tiempos por documento")
+    tie.append(["Evaluadora", "Documento", "Minutos a ciegas", "Minutos asistida", "Diferencia"])
+    for t in datos["tiempos_por_documento"]:
+        tie.append([t["evaluadora"], t["documento"], t["ciega"], t["asistida"], t["diferencia"]])
+    des = libro.create_sheet("Desacuerdos")
+    des.append(["Clave", "Documento", "Clase", "Tipo", "Propiedad (motor)", "Propiedad (archivista)", "Motor",
+                "Archivista", "Tipo de error (final)"])
+    nombres_doc = {d["instanciacion_id"]: d["nombre"] for d in datos["documentos"]}
+    from app.servicios.evaluacion_analisis import TIPOS_ERROR
+
+    for x in datos["errores"]["lista"]:
+        des.append([x["clave"], nombres_doc.get(x["documento_id"]), x["clase_nombre"], x["tipo"],
+                    nombres.get(x["propiedad"], x["propiedad"]) if x["propiedad"] else None,
+                    nombres.get(x["propiedad_archivista"], x["propiedad_archivista"]) if x["propiedad_archivista"] else None,
+                    x["motor"], x["archivista"], TIPOS_ERROR.get(x["tipo_error"]) if x["tipo_error"] else None])
+    des.append([])
+    e = datos["errores"]
+    des.append(["Kappa entre clasificadoras", e["kappa"], "pares", e["pares"], "pendientes de consenso",
+                e["pendientes_consenso"], "sin clasificar", e["sin_clasificar"]])
     docs = libro.create_sheet("Documentos")
     docs.append(["Documento", "Entidades del motor", "Relaciones del motor", "Referencias ciegas", "F1 flexible",
                  "F1 relaciones (flexible)", "Motor conforme con RiC-O", "Descrito durante la evaluación"])

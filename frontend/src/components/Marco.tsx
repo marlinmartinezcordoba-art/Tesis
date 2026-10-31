@@ -45,6 +45,10 @@ interface Entrada {
   // un módulo es un proceso archivístico; sus pasos y pestañas van adentro).
   vistas?: Vista[];
   submodulos?: string[];
+  // Línea de ayuda bajo el nombre del módulo y bajo cada submódulo: dice qué hay adentro
+  // sin obligar a conocer las siglas (TRD, TVD, CCD).
+  pista?: string;
+  pistas?: Record<string, string>;
   // Direcciones de antes que siguen sirviendo: vista vieja → vista donde quedó.
   alias?: Record<string, string>;
 }
@@ -55,8 +59,11 @@ interface Entrada {
 const ENTRADAS: Entrada[] = [
   // Inicio guiado: dónde va el fondo y cuál es el siguiente paso.
   { ruta: "/inicio", nombre: "Inicio", icono: "inicio", grupo: "trabajo", modulo: "catalogo" },
-  { ruta: "/fondos", nombre: "Instrumentos archivísticos", icono: "fondos", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["TRD y CCD", "TVD", "Disposición final"],
+  // «Instrumentos archivísticos» no cabía en una línea del menú: nombre corto y la pista dice el proceso.
+  { ruta: "/fondos", nombre: "Instrumentos", pista: "Clasificación y valoración", icono: "fondos", grupo: "trabajo",
+    modulo: "catalogo", submodulos: ["TRD y CCD", "TVD", "Disposición final"],
+    pistas: { "TRD y CCD": "Cuadro y tiempos de retención", TVD: "Fondos acumulados",
+      "Disposición final": "Eliminar, conservar, transferir" },
     alias: { fondos: "cargar", ajustar: "cargar", dependencias: "cargar", series: "cargar", matriz: "cargar", cuadro: "versiones" },
     vistas: [
       // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
@@ -74,7 +81,9 @@ const ENTRADAS: Entrada[] = [
     { vista: "vocabulario", nombre: "Autoridades" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
     { vista: "tesauros", nombre: "Tesauros" }] },
   { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"], vistas: [
+    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"],
+    pistas: { "Catálogo y grafo": "Buscar y explorar el contexto", "Instrumentos de descripción": "Inventario, guía e índice",
+      "Datos enlazados (RiC-O)": "Descargas y consulta SPARQL" }, vistas: [
       { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo y grafo" },
       { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo y grafo" },
       // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
@@ -184,7 +193,8 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
                   <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista}
                           onClick={() => alternar(e.ruta)}>
                     {ICONOS[e.icono]}
-                    <span>{e.nombre}</span>
+                    <span className="rama-nombre"><span>{e.nombre}</span>
+                      {e.pista && <small aria-hidden="true">{e.pista}</small>}</span>
                     <svg className="flecha-rama" viewBox="0 0 24 24" aria-hidden="true" {...trazo}><path d="M9 6l6 6-6 6" /></svg>
                   </button>
                   {abierto && (
@@ -195,7 +205,11 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
                         return (
                           <li key={sm.nombre}>
                             <Link to={hrefDe(e, primera, primera === vistas[0])} className={activa ? "active" : undefined}
-                                  aria-current={activa ? "page" : undefined} onClick={alNavegar}>{sm.nombre}</Link>
+                                  aria-current={activa ? "page" : undefined} onClick={alNavegar}
+                                  title={e.pistas?.[sm.nombre]}>
+                              <span>{sm.nombre}</span>
+                              {e.pistas?.[sm.nombre] && <small aria-hidden="true">{e.pistas[sm.nombre]}</small>}
+                            </Link>
                           </li>
                         );
                       })}

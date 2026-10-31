@@ -142,6 +142,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "propuesta_vista": ("Vio la propuesta del motor en una evaluación", "Evaluación"),
     "calificacion_registrada": ("Calificó una propuesta del motor con la rúbrica", "Evaluación"),
     "resultados_consultados": ("Consultó los resultados de una evaluación", "Evaluación"),
+    "criterio_fijado": ("Fijó el criterio de comparabilidad de una evaluación", "Evaluación"),
+    "desacuerdo_clasificado": ("Clasificó un desacuerdo entre el motor y una archivista", "Evaluación"),
     "hallazgo_actualizado": ("Cambió el estado o la acción de un hallazgo", "Hallazgos de conformidad"),
     "version_prompt_etiquetada": ("Puso nombre a una versión de la instrucción del motor", "Administración"),
     "conformidad_rico_validada": ("Validó la conformidad con RiC-O (OWL y SHACL)", "Instrumentos generados"),

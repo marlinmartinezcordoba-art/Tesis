@@ -303,3 +303,32 @@ Una anotación con el formato anterior se sigue leyendo: se convierte con la reg
 **Pendiente de la autora:**
 - validar que la lista de 28 propiedades es la adecuada para el conjunto documental del caso;
 - decidir si la rúbrica agrega un criterio relacional (punto 3, que no se tocó).
+
+## 25. Versión 3: el objetivo 3 convertido en lógica
+
+**Por qué.** La tesis (capítulo III) describe un procedimiento que el sistema no ejecutaba completo: el criterio de comparabilidad se aplicaba a mano, los errores se clasificaban fuera del sistema, no había intervalos ni prueba de los tiempos, y los documentos reservados podían entrar a la evaluación. Ahora el sistema hace lo que la tesis dice.
+
+**Qué se agregó (migración 0054, `app/servicios/evaluacion_analisis.py`):**
+
+1. **Criterio de comparabilidad** por evaluación (`evaluaciones.criterio`): margen de F frente al acuerdo entre archivistas (0,10), mínimo de entidades de referencia por tipo (10), media mínima de la rúbrica (3) y conformidad mínima de las asistidas (100 %). Se fija en preparación (`PUT /api/evaluacion/{id}/criterio`) y se congela al iniciar; el inicio lo registra en la auditoría. Los resultados traen `comparabilidad`: cada tipo de entidad queda **comparable**, **no comparable** (con sus motivos), **datos insuficientes** o **sin techo**.
+2. **Acuerdo entre archivistas por tipo**, que es el techo de cada tipo.
+3. **Supervisión en la condición asistida:** cada propuesta del motor quedó aceptada (igual), corregida (parecida desde el umbral) o rechazada; lo que añadió la archivista es «agregada».
+4. **Desacuerdos:** cada diferencia entre el motor y una referencia ciega (variante, sobrante, faltante, otra relación, relación sobrante o faltante), con una clave estable. Se clasifican con la taxonomía de la tesis (`GET /desacuerdos`, `PUT /desacuerdos/{clave}`), solo con la evaluación cerrada. Cada investigadora clasifica por su cuenta y ve la clasificación de la otra solo después de dar la suya; si difieren, se registra el consenso. Kappa de Cohen entre clasificadoras y distribución final por tipo de error.
+5. **Estadística:** intervalo de confianza del 95 % de la F micro (flexible) por remuestreo de documentos, 1000 repeticiones y semilla fija (Efron y Tibshirani, 1993); prueba de rangos con signo de Wilcoxon de los tiempos pareados (misma archivista, mismo documento), con corrección por empates y de continuidad (Wilcoxon, 1945).
+6. **Documentos reservados fuera:** un archivo clasificado o reservado no se agrega a la evaluación.
+7. **Tiempos por documento** con las evaluadoras anonimizadas («Evaluadora 1, 2…»).
+8. **Rúbrica con descriptores** de los cinco niveles en la pantalla de calificación.
+9. **Indicador de fragmento no hallado** en el panel de decisiones de IA (capítulo V): cada decisión guarda si el fragmento citado por el motor apareció en el texto.
+
+La hoja de cálculo suma cuatro pestañas: Comparabilidad, Supervisión (asistida), Tiempos por documento y Desacuerdos.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cuándo se fija el criterio | Al analizar los datos; antes de iniciar | Antes de iniciar, congelado | Un criterio elegido después de ver los datos invalida la respuesta a la pregunta | Un criterio mal pensado no se corrige; se valida con el juicio de expertos antes de iniciar |
+| Techo de comparación | Un valor fijo de F; el acuerdo entre archivistas | Acuerdo entre archivistas por tipo | No se le exige al motor más coincidencia que la que tienen dos profesionales | Con una sola archivista no hay techo: el tipo queda «sin techo» y no se decide |
+| Unidad del remuestreo | Entidades; documentos | Documentos | Las entidades de un documento no son independientes | Con pocos documentos el intervalo es ancho; así se informa |
+| Prueba de los tiempos | t pareada; Wilcoxon | Wilcoxon, aproximación normal | Los tiempos no siguen una distribución normal; con menos de 6 pares no se informa p | La aproximación normal es conservadora con muestras pequeñas |
+| Clasificación de errores | Fuera del sistema; en el sistema, independiente y con consenso | En el sistema | La independencia se garantiza en el servidor y el kappa se calcula sobre lo registrado | Las investigadoras ven las propuestas; por eso solo se clasifica con la evaluación cerrada |
+| Documentos reservados | Admitirlos; excluirlos | Excluirlos | Su texto iría al motor y lo verían las evaluadoras | Puede reducir la muestra en fondos con mucha reserva |
+
+**Pruebas:** `tests/test_evaluacion_objetivo3.py` (Wilcoxon y kappa calculados a mano, remuestreo reproducible, supervisión, el criterio tipo por tipo, documento reservado rechazado, el flujo completo con clasificación independiente y consenso, el indicador de fragmento no hallado).

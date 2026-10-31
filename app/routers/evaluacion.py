@@ -72,6 +72,20 @@ class DatosIn(BaseModel):
     enviar: bool = False
 
 
+class CriterioIn(BaseModel):
+    """Criterio de comparabilidad (objetivo 3), fijado antes de iniciar."""
+    margen_f: float = Field(default=0.10, ge=0, le=0.5)
+    minimo_casos: int = Field(default=10, ge=1, le=1000)
+    rubrica_minima: float = Field(default=3.0, ge=1, le=5)
+    conformidad_asistida: float = Field(default=1.0, ge=0, le=1)
+
+
+class ClasificacionIn(BaseModel):
+    tipo_error: str = Field(min_length=3, max_length=20)
+    ronda: Literal["individual", "consenso"] = "individual"
+    nota: str | None = Field(default=None, max_length=2000)
+
+
 class CalificacionIn(BaseModel):
     exactitud: int = Field(ge=1, le=5)
     completitud: int = Field(ge=1, le=5)
@@ -129,6 +143,15 @@ def propuestas(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrad
     ev = _ev(db, evaluacion_id)
     resultado = _hecho(db, evaluacion.generar_propuestas, db, ev, actor.id)
     return resultado | {"evaluacion": evaluacion.evaluacion_out(db, ev)}
+
+
+@router.put("/{evaluacion_id}/criterio", responses={200: {"model": re_.EvaluacionOut, "description": "Evaluación con su criterio"}},
+    summary="Fijar el criterio de comparabilidad (solo en preparación)")
+def criterio(evaluacion_id: uuid.UUID, datos: CriterioIn, actor: Actor = Depends(solo_administrador),
+             db: Session = Depends(get_db)):
+    ev = _ev(db, evaluacion_id)
+    _hecho(db, evaluacion.fijar_criterio, db, ev, datos.model_dump(), actor.id)
+    return evaluacion.evaluacion_out(db, ev)
 
 
 @router.post("/{evaluacion_id}/estado", responses={200: {"model": re_.EvaluacionOut, "description": "Evaluación con su nuevo estado"}},
@@ -204,6 +227,22 @@ def anular(anotacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), 
 def resultados(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     return _hecho(db, evaluacion.resultados, db, ev, actor.id)
+
+
+@router.get("/{evaluacion_id}/desacuerdos", responses={200: {"model": re_.DesacuerdosOut, "description": "Desacuerdos entre el motor y las referencias ciegas"}},
+    summary="Cada diferencia entre el motor y una referencia ciega, para clasificarla con la taxonomía de errores")
+def desacuerdos(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    ev = _ev(db, evaluacion_id)
+    return _hecho(db, evaluacion.desacuerdos, db, ev, actor.id)
+
+
+@router.put("/{evaluacion_id}/desacuerdos/{clave}", responses={200: {"model": re_.ClasificadoOut, "description": "Clasificación registrada"}},
+    summary="Clasificar un desacuerdo (individual o, si dos difieren, por consenso)")
+def clasificar(evaluacion_id: uuid.UUID, clave: str, datos: ClasificacionIn, actor: Actor = Depends(solo_administrador),
+               db: Session = Depends(get_db)):
+    ev = _ev(db, evaluacion_id)
+    _hecho(db, evaluacion.clasificar_desacuerdo, db, ev, clave, datos.tipo_error, datos.ronda, datos.nota, actor.id)
+    return {"clasificado": True}
 
 
 @router.get("/{evaluacion_id}/resultados/hoja-de-calculo", responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}, "description": "Hoja de cálculo con los resultados"}},

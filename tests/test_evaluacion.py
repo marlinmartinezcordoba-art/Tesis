@@ -177,7 +177,9 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert res["motores"] == [{"motor": "motor-de-prueba", "version_prompt": motor.VERSION_PROMPT}]
     hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
     assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Conformidad RiC-O",
-                                                                  "Acuerdo, tiempos y rúbrica", "Documentos"]
+                                                                  "Acuerdo, tiempos y rúbrica", "Comparabilidad",
+                                                                  "Supervisión (asistida)", "Tiempos por documento",
+                                                                  "Desacuerdos", "Documentos"]
     # Todo queda en la auditoría.
     acciones = {e.accion for e in db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.modulo == "evaluacion"))}
     assert {"evaluacion_creada", "documentos_agregados", "propuestas_generadas", "evaluacion_iniciada",

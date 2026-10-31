@@ -745,6 +745,7 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
             final_c = _comparable(campos, final)
             decision = "aceptada" if final_c == propuesto else "corregida"
         evento(decision=decision, tipo=p["tipo"], clave=p["clave"], confianza=p.get("confianza"),
+               fragmento_localizado=p.get("fragmento_localizado"),
                propuesto=propuesto, final=final_c, subtipo=(final or p).get("subtipo"),
                codigo_ric=codigo_de_decision(p["tipo"], final if final is not None else p, propuesta))
     for e in manuales:  # lo que el motor no propuso (omisiones del motor)

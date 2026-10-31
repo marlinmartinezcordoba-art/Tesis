@@ -272,6 +272,7 @@ function PanelConsolidado() {
 interface Conteo {
   aceptada: number; corregida: number; rechazada: number; agregada: number; propuestas: number;
   pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_cobertura: number | null;
+  sin_fragmento: number; pct_sin_fragmento: number | null;
 }
 interface FilaDecision {
   id: number; fecha: string; documento: { id: string; titulo: string | null }; tipo: string; tipo_nombre: string;
@@ -356,6 +357,9 @@ function DecisionesIA() {
             <div className="cifra error"><strong>{r.rechazada}</strong><span>Rechazadas · {pct(r.pct_rechazadas)}</span></div>
             <div className="cifra"><strong>{r.propuestas}</strong><span>Propuestas evaluadas</span></div>
             <div className="cifra"><strong>{r.agregada}</strong><span>Agregadas por la archivista (el motor no las propuso)</span></div>
+            <div className="cifra"><strong>{r.sin_fragmento}</strong>
+              <span title="El fragmento que citó el motor no apareció en el texto del documento: posible invención o error de reconocimiento">
+                Con fragmento no hallado · {pct(r.pct_sin_fragmento)}</span></div>
           </div>
           {datos.por_tipo.length > 1 && (
             <div className="tarjeta">
