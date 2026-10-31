@@ -57,12 +57,12 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/inicio", nombre: "Inicio", icono: "inicio", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/fondos", nombre: "Instrumentos archivísticos", icono: "fondos", grupo: "trabajo", modulo: "catalogo",
     submodulos: ["TRD y CCD", "TVD", "Disposición final"],
-    alias: { fondos: "cargar", dependencias: "ajustar", series: "ajustar", matriz: "ajustar", cuadro: "versiones" },
+    alias: { fondos: "cargar", ajustar: "cargar", dependencias: "cargar", series: "cargar", matriz: "cargar", cuadro: "versiones" },
     vistas: [
-      // Tres pestañas (decisión de la autora): lo de todos los días a un clic y los ajustes juntos.
-      { vista: "cargar", nombre: "Cargar", submodulo: "TRD y CCD" },
-      { vista: "ajustar", nombre: "Ajustar", submodulo: "TRD y CCD" },
-      { vista: "versiones", nombre: "Aplicar y cuadro", submodulo: "TRD y CCD" },
+      // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
+      // aparte, el cuadro que rige y el historial de versiones.
+      { vista: "cargar", nombre: "Paso a paso", submodulo: "TRD y CCD" },
+      { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },
       { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD" },
       { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final" }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [

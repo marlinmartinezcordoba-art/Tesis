@@ -855,3 +855,22 @@ kbd { font: 600 .7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding:
 .datos-personales mark { background: var(--warn-bg); color: inherit; padding: 0 2px; border-radius: 2px; }
 .acciones-chicas { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .acciones-chicas .entrada, .acciones-chicas .selector { flex: 1 1 180px; min-width: 0; }
+
+/* TRD paso a paso: cada paso con su número, su estado y lo que hay que hacer. */
+.pasos { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 12px; }
+.paso { display: grid; grid-template-columns: 36px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px; }
+.paso-ahora { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+.paso-pendiente { opacity: .7; }
+.paso-marca { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700;
+  background: var(--proc-bg); color: var(--proc); }
+.paso-ahora .paso-marca { background: var(--accent); color: var(--accent-ink); }
+.paso-hecho .paso-marca { background: var(--ok-bg); color: var(--ok); }
+.paso-cuerpo { min-width: 0; }
+.paso-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+.paso-cuerpo > p:first-of-type { margin-top: 8px; }
+.lista-control { list-style: none; padding: 0; margin: 8px 0; }
+.lista-control li::before { content: "○ "; color: var(--warn); }
+.lista-control li.bien::before { content: "✓ "; color: var(--ok); }
+.estado-trd dd { margin-bottom: 4px; }
+.otras-tareas > summary { padding: 12px 16px; cursor: pointer; }

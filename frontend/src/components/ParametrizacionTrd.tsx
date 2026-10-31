@@ -35,7 +35,7 @@ interface FilaTrd { id: string; dependencia_id: string; serie_id: string; subser
   dependencia: string; codigo_dependencia: string | null; serie: string; subserie: string | null; codigo: string | null;
   nombres_tipos: string[]; gestion: number | null; central: number | null; disposicion: string | null;
   otras_disposiciones: string[]; soporte: string | null; procedimiento: string | null; funcion: string | null }
-interface Aplicacion { aplicada: boolean; version: VersionTrd; validacion: Validacion;
+export interface Aplicacion { aplicada: boolean; version: VersionTrd; validacion: Validacion;
   informe: { reglas: number; reglas_reemplazadas?: number; reglas_sin_cambio?: number; creados: Record<string, number>;
     avisos: string[]; faltan_para_aplicar?: string[]; series_sin_funcion?: string[] } }
 
@@ -80,7 +80,7 @@ function DesdeLaCarga() {
 
 // --- 1. Versiones ---------------------------------------------------------------------------------------
 
-function FormVersion({ fondoId, version, hayVigente, alTerminar, instrumento = "trd" }: { fondoId: string;
+export function FormVersion({ fondoId, version, hayVigente, alTerminar, instrumento = "trd" }: { fondoId: string;
   version: VersionTrd | null; hayVigente: boolean; alTerminar: () => void; instrumento?: Instrumento }) {
   const tvd = instrumento === "tvd";
   const [d, setD] = useState({
@@ -428,7 +428,7 @@ function FormDependencia({ fondoId, dep, secciones, alTerminar }: { fondoId: str
   );
 }
 
-export function DependenciasTrd({ fondoId }: { fondoId: string }) {
+export function DependenciasTrd({ fondoId, incrustado }: { fondoId: string; incrustado?: boolean }) {
   const esAdmin = useAdmin();
   const { datos, error, cargar } = useLista<Dependencia>(`/api/trd/dependencias?fondo_id=${fondoId}`);
   const [form, setForm] = useState<Dependencia | "nueva" | null>(null);
@@ -449,6 +449,7 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
 
   return (
     <>
+      {!incrustado && <>
       <h1>Dependencias productoras</h1>
       <p className="sub">
         Las secciones (dependencias) y subsecciones (oficinas) que producen los documentos, con el código del organigrama.
@@ -456,6 +457,7 @@ export function DependenciasTrd({ fondoId }: { fondoId: string }) {
         (rico:CorporateBody). Su código encabeza el de sus series: la serie 2 de la dependencia 110 es la 110.2.
       </p>
       <DesdeLaCarga />
+      </>}
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && <div className="acciones"><button type="button" className="boton primario" onClick={() => setForm("nueva")}>
         + Registrar una dependencia</button></div>}
@@ -547,7 +549,7 @@ function FormTermino({ fondoId, termino, clase, series, alTerminar }: { fondoId:
   );
 }
 
-export function BancoTrd({ fondoId }: { fondoId: string }) {
+export function BancoTrd({ fondoId, incrustado }: { fondoId: string; incrustado?: boolean }) {
   const esAdmin = useAdmin();
   const { datos, error, cargar } = useLista<Termino>(`/api/trd/banco?fondo_id=${fondoId}`);
   const [form, setForm] = useState<{ clase: Termino["clase"]; termino: Termino | null } | null>(null);
@@ -573,6 +575,7 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
 
   return (
     <>
+      {!incrustado && <>
       <h1>Series, subseries y tipos documentales</h1>
       <p className="sub">
         El banco terminológico del fondo: los nombres normalizados de las series, subseries y tipos documentales, con su
@@ -580,6 +583,7 @@ export function BancoTrd({ fondoId }: { fondoId: string }) {
         serie y subserie es un rico:RecordSet del cuadro y cada tipo documental un rico:DocumentaryFormType.
       </p>
       <DesdeLaCarga />
+      </>}
       {(error || fallo) && <div className="aviso error" role="alert">{error || fallo}</div>}
       {esAdmin && (
         <div className="acciones">
@@ -764,7 +768,7 @@ function FormFila({ version, fila, deps, banco, alTerminar }: { version: Version
   );
 }
 
-export function MatrizTrd({ fondoId, instrumento = "trd" }: { fondoId: string; instrumento?: Instrumento }) {
+export function MatrizTrd({ fondoId, instrumento = "trd", incrustado }: { fondoId: string; instrumento?: Instrumento; incrustado?: boolean }) {
   const esAdmin = useAdmin();
   const tvd = instrumento === "tvd";
   const versiones = useLista<VersionTrd>(`/api/trd/versiones?fondo_id=${fondoId}&instrumento=${instrumento}`);
@@ -801,7 +805,7 @@ export function MatrizTrd({ fondoId, instrumento = "trd" }: { fondoId: string; i
 
   return (
     <>
-      {tvd ? null : (
+      {tvd || incrustado ? null : (
         <>
           <h1>Matriz de la TRD</h1>
           <p className="sub">
