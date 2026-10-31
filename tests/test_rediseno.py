@@ -145,7 +145,8 @@ def test_productividad_y_descritas_en_excel(cliente, db, fondo, admin, archivist
               entidad_tipo="recurso_documental", entidad_id="x")
     db.commit()
     p = cliente.get("/api/descripcion/productividad", headers=otra, params={"fondo_id": str(fondo.id)}).json()
-    assert p == {"hoy_por_mi": 1, "total_fondo": 1}
+    # Más el avance medido del fondo: archivos listos y cuántos ya forman parte de una descripción publicada.
+    assert p == {"hoy_por_mi": 1, "total_fondo": 1, "archivos_listos": 1, "archivos_descritos": 1}
     assert cliente.get("/api/descripcion/productividad", headers=archivista,
                        params={"fondo_id": str(fondo.id)}).json()["hoy_por_mi"] == 0
     x = cliente.get("/api/descripcion/publicadas/exportar", headers=archivista, params={"fondo_id": str(fondo.id)})
