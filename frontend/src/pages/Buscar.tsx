@@ -247,6 +247,8 @@ export function CajaBusqueda() {
            strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
       <input type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar en el archivo…"
              aria-label="Buscar en el archivo" maxLength={200} />
+      <button type="button" className="atajo-lanzador" title="Ir a cualquier pantalla o acción (Ctrl+K)"
+              onClick={() => window.dispatchEvent(new Event("ricora:lanzador"))}><kbd>Ctrl K</kbd></button>
     </form>
   );
 }

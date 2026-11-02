@@ -28,6 +28,7 @@ export interface Indicador {
   /** Proporción 0–1: dibuja una barra de avance. */
   avance?: number | null;
   tono?: "bien" | "alerta";
+  icono?: ReactNode;
 }
 
 /** Cifras medidas del módulo. Nunca ilustrativas: cada una viene de la base. */
@@ -35,16 +36,19 @@ export function Indicadores({ items, etiqueta }: { items: Indicador[]; etiqueta:
   return (
     <section className="indicadores" aria-label={etiqueta}>
       {items.map((i) => (
-        <div className={`indicador${i.tono ? ` ${i.tono}` : ""}`} key={i.etiqueta}>
-          <span className="etiqueta">{i.etiqueta}</span>
-          <strong>{i.valor}</strong>
-          {i.nota && <span className="nota">{i.nota}</span>}
+        <div className={`indicador${i.tono ? ` ${i.tono}` : ""}${i.icono ? " con-icono" : ""}`} key={i.etiqueta}>
+          {i.icono && <span className={`icono-indicador${i.tono === "bien" ? " bien" : ""}`} aria-hidden="true">{i.icono}</span>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+          {i.icono ? <><strong>{i.valor}</strong><span className="etiqueta">{i.etiqueta}</span></>
+            : <><span className="etiqueta">{i.etiqueta}</span><strong>{i.valor}</strong></>}
+          {i.nota && <span className="nota" style={{ display: "block" }}>{i.nota}</span>}
           {i.avance != null && (
             <div className="barra" role="progressbar" aria-valuemin={0} aria-valuemax={100}
                  aria-valuenow={Math.round(i.avance * 100)} aria-label={i.etiqueta}>
               <i style={{ width: `${Math.max(0, Math.min(1, i.avance)) * 100}%` }} />
             </div>
           )}
+          </div>
         </div>
       ))}
     </section>
@@ -105,5 +109,34 @@ export function IconoDocumento() {
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
       <path d="M9 13h6M9 17h4" />
     </svg>
+  );
+}
+
+/** Paginación de una tabla: «Mostrando 1–25 de 89» y los números de página. */
+export function Paginacion({ pagina, paginas, total, porPagina, alCambiar, unidad = "registros" }: {
+  pagina: number; paginas: number; total: number; porPagina: number; alCambiar: (p: number) => void; unidad?: string;
+}) {
+  if (total === 0) return null;
+  const desde = (pagina - 1) * porPagina + 1;
+  const hasta = Math.min(total, pagina * porPagina);
+  const numeros: (number | "…")[] = [];
+  for (let p = 1; p <= paginas; p++) {
+    if (p === 1 || p === paginas || Math.abs(p - pagina) <= 1) numeros.push(p);
+    else if (numeros[numeros.length - 1] !== "…") numeros.push("…");
+  }
+  return (
+    <div className="paginacion">
+      <span>Mostrando {desde.toLocaleString("es-CO")}–{hasta.toLocaleString("es-CO")} de {total.toLocaleString("es-CO")} {unidad}</span>
+      {paginas > 1 && (
+        <nav aria-label="Páginas">
+          <button type="button" disabled={pagina <= 1} onClick={() => alCambiar(pagina - 1)} aria-label="Página anterior">‹</button>
+          {numeros.map((n, i) => n === "…" ? <span className="salto" key={`s${i}`}>…</span> : (
+            <button type="button" key={n} aria-current={n === pagina ? "page" : undefined} onClick={() => alCambiar(n)}
+                    aria-label={`Página ${n}`}>{n}</button>
+          ))}
+          <button type="button" disabled={pagina >= paginas} onClick={() => alCambiar(pagina + 1)} aria-label="Página siguiente">›</button>
+        </nav>
+      )}
+    </div>
   );
 }

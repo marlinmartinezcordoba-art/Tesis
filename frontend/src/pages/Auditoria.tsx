@@ -10,6 +10,7 @@ import { useSesion } from "@/lib/sesion";
 import { AvisoReciente, ExportarExcel } from "@/components/HistorialReciente";
 import { fecha } from "@/lib/formato";
 import { useVista } from "@/components/Marco";
+import { Encabezado, Paginacion } from "@/components/Encabezado";
 
 const hora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const soloHora = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" });
@@ -88,8 +89,6 @@ function MiTrazabilidad() {
 
   return (
     <>
-      <p className="sub">Todo lo que usted hizo en el sistema, en orden cronológico. Cada acción quedó registrada de forma
-        permanente: nadie, ni la administración, puede modificarla ni borrarla.</p>
       <div className="filtros">
         <select className="selector" aria-label="Tipo de acción" value={filtro.accion}
                 onChange={(e) => setFiltro({ ...filtro, accion: e.target.value })}>
@@ -422,23 +421,106 @@ function DecisionesIA() {
 // Trazabilidad: una sola entrada con dos modos. «Mis acciones» es el
 // registro de cada acción propia; «Equipo por semana» resume, por persona,
 // días, horas y cantidad de acciones (solo para quien ve toda la auditoría).
+// Registro de actividad de todas las personas (quien ve toda la auditoría): una tabla con fecha y hora,
+// persona, acción, módulo y resultado; filtros agrupados con «Limpiar», paginación y Excel con el mismo filtro.
+interface EventoRegistro extends Evento { resultado: "realizada" | "fallida" }
+interface Registro { eventos: EventoRegistro[]; total: number; pagina: number; paginas: number; por_pagina: number;
+  personas: { id: string; nombre: string }[] }
+const VACIO_FILTRO = { usuario_id: "", accion: "", desde: "", hasta: "" };
+
+function RegistroActividad() {
+  const [acciones, setAcciones] = useState<{ accion: string; modulo: string; etiqueta: string }[]>([]);
+  const [filtro, setFiltro] = useState(VACIO_FILTRO);
+  const [pagina, setPagina] = useState(1);
+  const [datos, setDatos] = useState<Registro | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { pedir<typeof acciones>("/api/auditoria/acciones").then(setAcciones).catch(() => undefined); }, []);
+  const consulta = useCallback(() => {
+    const p = new URLSearchParams();
+    Object.entries(filtro).forEach(([k, v]) => v && p.set(k, v));
+    return p;
+  }, [filtro]);
+  useEffect(() => {
+    const p = consulta();
+    p.set("pagina", String(pagina));
+    p.set("por_pagina", "25");
+    pedir<Registro>(`/api/auditoria/registro?${p}`).then((r) => { setDatos(r); setError(""); })
+      .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el registro."));
+  }, [consulta, pagina]);
+  const cambiar = (k: keyof typeof VACIO_FILTRO, v: string) => { setFiltro({ ...filtro, [k]: v }); setPagina(1); };
+  const activos = Object.values(filtro).some(Boolean);
+  return (
+    <>
+      <div className="barra-filtros" role="group" aria-label="Filtros del registro">
+        <label className="filtro">
+          <span>Acción</span>
+          <select className="selector" value={filtro.accion} onChange={(e) => cambiar("accion", e.target.value)}>
+            <option value="">Todas</option>
+            {acciones.map((a) => <option key={`${a.modulo}-${a.accion}`} value={a.accion}>{MODULO_NOMBRE[a.modulo] || a.modulo} · {a.etiqueta}</option>)}
+          </select>
+        </label>
+        <label className="filtro">
+          <span>Usuario</span>
+          <select className="selector" value={filtro.usuario_id} onChange={(e) => cambiar("usuario_id", e.target.value)}>
+            <option value="">Todos</option>
+            {datos?.personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </label>
+        <label className="filtro"><span>Desde</span>
+          <input className="entrada" type="date" value={filtro.desde} onChange={(e) => cambiar("desde", e.target.value)} /></label>
+        <label className="filtro"><span>Hasta</span>
+          <input className="entrada" type="date" value={filtro.hasta} onChange={(e) => cambiar("hasta", e.target.value)} /></label>
+        <button type="button" className="enlace-limpiar" disabled={!activos} onClick={() => { setFiltro(VACIO_FILTRO); setPagina(1); }}>Limpiar filtros</button>
+        <div className="empujar"><ExportarExcel ruta={`/api/auditoria/registro/exportar?${consulta()}`} deshabilitado={!datos?.total} /></div>
+      </div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      <div className="tarjeta">
+        <div className="cabecera-tabla">
+          <span>{datos ? `${datos.total.toLocaleString("es-CO")} registro${datos.total === 1 ? "" : "s"}` : "Cargando…"}</span>
+          <span className="meta">Inalterable: nadie, ni la administración, puede modificar ni borrar un registro.</span>
+        </div>
+        {datos && datos.eventos.length === 0 && <div className="vacio">No hay acciones con esos filtros.</div>}
+        {datos && datos.eventos.length > 0 && (
+          <div className="tabla-desplazable">
+            <table className="tabla-datos">
+              <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Resultado</th></tr></thead>
+              <tbody>
+                {datos.eventos.map((e) => (
+                  <tr key={e.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fecha(e.fecha)}</td>
+                    <td>{e.usuario}</td>
+                    <td>{e.etiqueta}{e.detalle && <span className="secundario">{e.detalle}</span>}</td>
+                    <td>{MODULO_NOMBRE[e.modulo] || e.modulo}</td>
+                    <td>{e.resultado === "fallida"
+                      ? <span className="insignia error">✕ Fallida</span>
+                      : <span className="insignia bien">✓ Realizada</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {datos && <Paginacion pagina={datos.pagina} paginas={datos.paginas} total={datos.total} porPagina={datos.por_pagina}
+                                alCambiar={setPagina} />}
+      </div>
+    </>
+  );
+}
+
 function Trazabilidad() {
   const { usuario } = useSesion();
   const veTodo = !!usuario && (usuario.es_administrador || usuario.permisos?.auditoria === "todo");
   const [parametros] = useSearchParams();
-  const equipo = veTodo && parametros.get("vista") === "consolidado";
+  // Sin selector: quien ve toda la auditoría, el registro de todas las personas (sus propias acciones,
+  // con el filtro «Usuario»); el resto, sus acciones. La autora pidió quitar el selector: el panel semanal
+  // por persona ya no se ofrece en pantalla; su código queda y responde solo en la dirección ?vista=consolidado.
+  const consolidado = veTodo && parametros.get("vista") === "consolidado";
   return (
     <>
-      <div className="cabecera-nivel" style={{ marginBottom: 6 }}>
-        <h1>Trazabilidad</h1>
-        {veTodo && (
-          <div className="segmentado" role="radiogroup" aria-label="Qué trazabilidad ver">
-            <Link to="/auditoria" role="radio" aria-checked={!equipo} className={equipo ? "" : "elegido"}>Mis acciones</Link>
-            <Link to="/auditoria?vista=consolidado" role="radio" aria-checked={equipo} className={equipo ? "elegido" : ""}>Equipo por semana</Link>
-          </div>
-        )}
-      </div>
-      {equipo ? <PanelConsolidado /> : <MiTrazabilidad />}
+      <Encabezado titulo="Trazabilidad" ceja={null}
+                  descripcion={veTodo ? "Consulte el registro cronológico de las acciones realizadas en el sistema y su resultado."
+                    : "Todo lo que usted hizo en el sistema, en orden cronológico."} />
+      {consolidado ? <PanelConsolidado /> : veTodo ? <RegistroActividad /> : <MiTrazabilidad />}
     </>
   );
 }

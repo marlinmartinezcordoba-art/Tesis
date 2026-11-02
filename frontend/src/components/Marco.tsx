@@ -101,8 +101,8 @@ const ENTRADAS: Entrada[] = [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
   { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria", vistas: [
-    // Trazabilidad reúne «Mis acciones» y «Equipo por semana» (?vista=consolidado).
-    { vista: "propia", nombre: "Trazabilidad" },
+    // Registro de actividad: el de todas las personas (administración), «Mis acciones» y «Equipo por semana».
+    { vista: "propia", nombre: "Registro de actividad" },
     { vista: "decisiones", nombre: "Decisiones de IA", permitir: (u) => u.es_administrador },
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
   // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
@@ -303,8 +303,13 @@ function Lanzador() {
         setAbierto(true);
       }
     };
+    const abrir = () => setAbierto(true);
     document.addEventListener("keydown", tecla);
-    return () => document.removeEventListener("keydown", tecla);
+    window.addEventListener("ricora:lanzador", abrir);
+    return () => {
+      document.removeEventListener("keydown", tecla);
+      window.removeEventListener("ricora:lanzador", abrir);
+    };
   }, []);
 
   const palabras = normal(q).split(/\s+/).filter(Boolean);
@@ -318,9 +323,12 @@ function Lanzador() {
 
   return (
     <>
-      <button type="button" className="pastilla lanzador-boton" onClick={() => setAbierto(true)} title="Ir a cualquier pantalla (Ctrl+K)">
-        ¿Qué quiere hacer? <kbd>Ctrl K</kbd>
-      </button>
+      {/* Con el buscador a la vista, el atajo vive dentro de él; sin él, este botón. */}
+      {!puede(usuario, "catalogo") && (
+        <button type="button" className="pastilla lanzador-boton" onClick={() => setAbierto(true)} title="Ir a cualquier pantalla (Ctrl+K)">
+          ¿Qué quiere hacer? <kbd>Ctrl K</kbd>
+        </button>
+      )}
       {abierto && (
         <Ventana titulo="¿Qué quiere hacer?" alCerrar={() => { setAbierto(false); setQ(""); }}>
           <input className="entrada lanzador-entrada" autoFocus placeholder="Escriba: describir, inventario, TRD, grafo…"
@@ -378,12 +386,13 @@ function MenuPersona() {
   if (!usuario) return null;
   return (
     <div className="persona" ref={caja}>
-      <button type="button" aria-haspopup="menu" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}>
-        <span className="avatar chico">{usuario.iniciales}</span>
-        {usuario.nombre.split(" ")[0]} · {usuario.rol_nombre}
+      <button type="button" aria-haspopup="menu" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}
+              aria-label={`${usuario.nombre} · ${usuario.rol_nombre}`} title={`${usuario.nombre} · ${usuario.rol_nombre}`}>
+        <span className="avatar">{usuario.iniciales}</span>
       </button>
       {abierto && (
         <div className="menu" role="menu">
+          <div className="menu-persona"><strong>{usuario.nombre}</strong><span>{usuario.rol_nombre}</span></div>
           <Link to="/perfil" role="menuitem" onClick={() => setAbierto(false)}>Mi perfil</Link>
           <button
             type="button"
@@ -412,10 +421,15 @@ export function atiendeAlertas(u: UsuarioBreve | null): boolean {
 function SelectorFondo() {
   const { fondos, fondo, elegir } = useFondo();
   if (!fondos || fondos.length === 0) return <span />;
-  if (fondos.length === 1) return <span className="pastilla">📁 {fondo?.titulo}</span>;
+  const carpeta = (
+    <svg className="icono-fondo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h4l2 2.2h7A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+    </svg>
+  );
+  if (fondos.length === 1) return <span className="pastilla selector-fondo" title={fondo?.titulo}>{carpeta}<span>{fondo?.titulo}</span></span>;
   return (
-    <label className="pastilla">
-      📁
+    <label className="pastilla selector-fondo" title={fondo?.titulo}>
+      {carpeta}
       <select aria-label="Fondo activo" value={fondo?.id} onChange={(e) => elegir(e.target.value)}>
         {fondos.map((f) => <option key={f.id} value={f.id}>{f.titulo}</option>)}
       </select>
@@ -443,8 +457,12 @@ function AvisoAlertas() {
 
   if (!permitido || !fondo) return null;
   return (
-    <NavLink to="/alertas" className={`pastilla alertas${n ? " con-alertas" : ""}`} title="Panel de alertas">
-      {ICONOS.alerta} Alertas{n ? <span className="contador">{n}</span> : null}
+    <NavLink to="/alertas" className={`campana${n ? " con-alertas" : ""}`} title="Panel de alertas"
+             aria-label={n ? `Alertas: ${n} pendientes` : "Alertas: ninguna pendiente"}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9" /><path d="M10 20a2 2 0 0 0 4 0" />
+      </svg>
+      {n ? <span className="contador" aria-hidden="true">{n > 99 ? "99+" : n}</span> : null}
     </NavLink>
   );
 }

@@ -261,9 +261,12 @@ def entidad(db: Session, entidad_tipo: str, entidad_id: str, *, solo_de: uuid.UU
     return [evento_out(e, nombres) for e in filas]
 
 
-def _consulta_propia(usuario_id: uuid.UUID, accion: str | None, modulo: str | None, desde: date | None,
+def _consulta_propia(usuario_id: uuid.UUID | None, accion: str | None, modulo: str | None, desde: date | None,
                      hasta: date | None):
-    consulta = select(RegistroAuditoria).where(RegistroAuditoria.usuario_id == usuario_id)
+    """Sin usuario_id: las acciones de todas las personas (registro de actividad de la administración)."""
+    consulta = select(RegistroAuditoria)
+    if usuario_id is not None:
+        consulta = consulta.where(RegistroAuditoria.usuario_id == usuario_id)
     if accion:
         consulta = consulta.where(RegistroAuditoria.accion == accion)
     if modulo:
@@ -290,6 +293,31 @@ def propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, mod
             "siguiente": filas[limite - 1].id if len(filas) > limite else None}
 
 
+# Acciones que registran un intento que no se cumplió: su resultado es «fallida». El resto de
+# eventos solo se registran cuando la acción se hizo, así que su resultado es «realizada».
+RESULTADO_FALLIDO = {Accion.INGRESO_FALLIDO, Accion.INGRESO_BLOQUEADO, "migracion_fallida", "carga_rechazada"}
+
+
+def resultado(accion: str) -> str:
+    return "fallida" if accion in RESULTADO_FALLIDO or "fallid" in accion or "rechazad" in accion else "realizada"
+
+
+def registro(db: Session, *, usuario_id: uuid.UUID | None = None, accion: str | None = None, modulo: str | None = None,
+             desde: date | None = None, hasta: date | None = None, pagina: int = 1, por_pagina: int = 25) -> dict:
+    """Registro de actividad de todas las personas, por páginas (vista de la administración)."""
+    from sqlalchemy import func
+
+    total = db.scalar(select(func.count()).select_from(_consulta_propia(usuario_id, accion, modulo, desde, hasta).subquery()))
+    paginas = max(1, -(-total // por_pagina))
+    pagina = min(max(1, pagina), paginas)
+    filas = db.scalars(_consulta_propia(usuario_id, accion, modulo, desde, hasta).order_by(RegistroAuditoria.id.desc())
+                       .offset((pagina - 1) * por_pagina).limit(por_pagina)).all()
+    nombres = _nombres(db)
+    personas = sorted(({"id": str(u), "nombre": n} for u, n in nombres.items()), key=lambda x: x["nombre"])
+    return {"eventos": [evento_out(e, nombres) | {"resultado": resultado(e.accion)} for e in filas], "total": total,
+            "pagina": pagina, "paginas": paginas, "por_pagina": por_pagina, "personas": personas}
+
+
 # --- Exportación completa a Excel (patrón «historial reciente») -------------------------------------
 
 
@@ -305,7 +333,7 @@ def _texto_cambios(cambios: list[dict]) -> str:
     return "; ".join(f"{c['campo']}: {c['antes']} → {c['despues']}" for c in cambios)
 
 
-def hoja_propia(db: Session, usuario_id: uuid.UUID, *, accion: str | None = None, modulo: str | None = None,
+def hoja_propia(db: Session, usuario_id: uuid.UUID | None, *, accion: str | None = None, modulo: str | None = None,
                 desde: date | None = None, hasta: date | None = None) -> bytes:
     """Toda la trazabilidad propia que cumple los filtros, no solo la visible."""
     from app.servicios.hoja import libro

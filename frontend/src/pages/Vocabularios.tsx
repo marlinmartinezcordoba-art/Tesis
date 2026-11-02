@@ -10,6 +10,21 @@ import { EstadoVacio } from "@/components/EstadoVacio";
 import { Tesauros } from "@/components/Tesauros";
 import { ImportarEac } from "@/components/ImportarEac";
 import { NIVEL_FICHA } from "@/components/FichaAutoridad";
+import { Encabezado, MenuAcciones, Paginacion } from "@/components/Encabezado";
+
+const POR_PAGINA = 25;
+const TRAZO = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+// Ícono por clase: el tipo se reconoce por la forma y por la insignia con su nombre, no solo por el color.
+const ICONO_CLASE: Record<string, JSX.Element> = {
+  agente: <svg viewBox="0 0 24 24" {...TRAZO}><circle cx="12" cy="8" r="3.4" /><path d="M5 20c1.2-4 4.4-6 7-6s5.8 2 7 6" /></svg>,
+  lugar: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z" /><circle cx="12" cy="9.8" r="2.3" /></svg>,
+  forma_documental: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>,
+  actividad: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></svg>,
+  tipo_actividad: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5M3 17.5l9 5 9-5" /></svg>,
+  mandato: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M5 21h14M7 21V10M17 21V10M12 21V10M4 10l8-6 8 6z" /></svg>,
+  materia: <svg viewBox="0 0 24 24" {...TRAZO}><path d="M20 12l-8 8-9-9V3h8z" /><circle cx="7.5" cy="7.5" r="1.4" /></svg>,
+};
+const ICONO_GENERICO = <svg viewBox="0 0 24 24" {...TRAZO}><circle cx="12" cy="12" r="8" /></svg>;
 import {
   CLASES, CLASE_INSIGNIA, CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, accionesTexto, claseRicDe, conexionesTexto, esMecanismo,
   type ClaseVocabulario, type EntidadVocabulario, type ParametrosFusion, type Sugerencia,
@@ -215,6 +230,14 @@ export function Vocabularios() {
   const [aviso, setAviso] = useState((ubicacion.state as { aviso?: string } | null)?.aviso || "");
   const [error, setError] = useState("");
   const [buscando, setBuscando] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [masFiltros, setMasFiltros] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const navegar = useNavigate();
+  const filtrosActivos = !!(q || clase || nivel || fusionadas || mecanismos || institucion);
+  const limpiarFiltros = () => {
+    setQ(""); setClase(""); setNivel(""); setFusionadas(false); setMecanismos(false); setInstitucion(false); setPagina(1);
+  };
 
   const cargarEntidades = useCallback(async () => {
     if (!fondo) return;
@@ -276,115 +299,142 @@ export function Vocabularios() {
 
       {pestana === "tesauros" ? <Tesauros /> : pestana === "vocabulario" ? (
         <>
-          <h1>Vocabulario del fondo</h1>
-          <p className="sub">
-            Registro único de agentes, lugares, formas documentales, actividades, tipos de actividad y mandatos de
-            «{fondo.titulo}». Cada entidad se crea una sola vez al describir, se reutiliza en todos los documentos que la
-            mencionan y se enriquece aquí: la ficha de autoridad de un agente, la ficha ampliada de un lugar, el árbol de
-            funciones.
-          </p>
-          {usuario?.es_administrador && (
-            <details className="caja" style={{ marginBottom: 12 }}>
-              <summary><strong>Importar autoridades en EAC-CPF</strong></summary>
-              <ImportarEac fondoId={fondo.id} alTerminar={cargarEntidades} />
-            </details>
+          <Encabezado titulo="Autoridades y términos"
+                      descripcion="El vocabulario del fondo: agentes, lugares, formas documentales, actividades y demás términos normalizados. Cada entidad se crea una sola vez al describir y se reutiliza en todos los documentos."
+                      acciones={usuario?.es_administrador ? (
+                        <button type="button" className="boton" onClick={() => setImportando(!importando)}>
+                          {importando ? "Cerrar la importación" : "Importar autoridades (EAC-CPF)"}</button>) : undefined} />
+          {importando && usuario?.es_administrador && (
+            <div className="tarjeta"><div className="tarjeta-cuerpo"><ImportarEac fondoId={fondo.id} alTerminar={cargarEntidades} /></div></div>
           )}
-          <div className="opciones" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 10 }}>
-            {(["", ...CLASES] as (ClaseVocabulario | "")[]).map((c) => (
-              <label key={c || "todos"} className={!mecanismos && clase === c ? "elegida" : ""}>
-                <input type="radio" name="clase" checked={!mecanismos && clase === c}
-                       onChange={() => { setMecanismos(false); setClase(c); }} />
-                {c ? CLASE_NOMBRE_PLURAL[c] : "Todos"}
-              </label>
-            ))}
-            <label className={mecanismos ? "elegida" : ""} title="Programas que actuaron sobre los archivos (RiC-E13)">
-              <input type="radio" name="clase" checked={mecanismos} onChange={() => { setMecanismos(true); setNivel(""); }} />
-              Mecanismos (software)
+          <div className="barra-filtros" role="group" aria-label="Filtros">
+            <label className="filtro">
+              <span>Tipo de autoridad</span>
+              <select className="selector" value={mecanismos ? "mecanismos" : clase} onChange={(e) => {
+                const v = e.target.value;
+                if (v === "mecanismos") { setMecanismos(true); setNivel(""); } else { setMecanismos(false); setClase(v as ClaseVocabulario | ""); }
+                setPagina(1);
+              }}>
+                <option value="">Todas</option>
+                {CLASES.map((c) => <option key={c} value={c}>{CLASE_NOMBRE_PLURAL[c]}</option>)}
+                <option value="mecanismos">Mecanismos (software)</option>
+              </select>
             </label>
-          </div>
-          <div className="filtros">
-            <input className="entrada" type="search" placeholder="Buscar por nombre…" aria-label="Buscar por nombre"
-                   value={q} onChange={(e) => setQ(e.target.value)} />
-            <select className="selector" aria-label="Orden" value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
-              <option value="conexiones_desc">Más conectadas primero</option>
-              <option value="conexiones_asc">Menos conectadas primero</option>
-              <option value="nombre">Por nombre</option>
-            </select>
-            <label className="pastilla">
-              <input type="checkbox" checked={fusionadas} onChange={(e) => setFusionadas(e.target.checked)} /> Ver fusionadas
+            <label className="filtro ancho">
+              <span>Buscar</span>
+              <span className="buscador">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                <input className="entrada" type="search" placeholder="Buscar por nombre…" value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} />
+              </span>
             </label>
-            <label className="pastilla" title="Personas, familias, entidades y cargos son de toda la institución: muestra también las registradas en otros fondos">
-              <input type="checkbox" checked={institucion} onChange={(e) => setInstitucion(e.target.checked)} /> Autoridades de toda la institución
+            <label className="filtro">
+              <span>Ordenar por</span>
+              <select className="selector" value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
+                <option value="conexiones_desc">Más conectadas</option>
+                <option value="conexiones_asc">Menos conectadas</option>
+                <option value="nombre">Nombre</option>
+              </select>
             </label>
             {clase === "agente" && !mecanismos && (
-              <select className="selector" aria-label="Nivel de detalle" value={nivel}
-                      onChange={(e) => setNivel(e.target.value as typeof nivel)}>
-                <option value="">Cualquier nivel de detalle</option>
-                <option value="minimo">Ficha mínima (por enriquecer)</option>
-                <option value="parcial">Ficha parcial</option>
-                <option value="completo">Ficha completa</option>
-              </select>
+              <label className="filtro">
+                <span>Nivel de la ficha</span>
+                <select className="selector" value={nivel} onChange={(e) => { setNivel(e.target.value as typeof nivel); setPagina(1); }}>
+                  <option value="">Cualquiera</option>
+                  <option value="minimo">Mínima (por enriquecer)</option>
+                  <option value="parcial">Parcial</option>
+                  <option value="completo">Completa</option>
+                </select>
+              </label>
             )}
-            {clase === "tipo_actividad" && !fusionadas && (
-              <div className="opciones" role="radiogroup" aria-label="Vista">
-                <label className={!vistaArbol ? "elegida" : ""}>
-                  <input type="radio" checked={!vistaArbol} onChange={() => setVistaArbol(false)} /> Lista
-                </label>
-                <label className={vistaArbol ? "elegida" : ""}>
-                  <input type="radio" checked={vistaArbol} onChange={() => setVistaArbol(true)} /> Árbol de funciones
-                </label>
-              </div>
-            )}
+            <button type="button" className={`boton${masFiltros ? " con-filtros" : ""}`} aria-expanded={masFiltros}
+                    onClick={() => setMasFiltros(!masFiltros)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" /></svg>
+              Filtros{(fusionadas ? 1 : 0) + (institucion ? 1 : 0) ? ` (${(fusionadas ? 1 : 0) + (institucion ? 1 : 0)})` : ""}
+            </button>
+            <button type="button" className="enlace-limpiar" disabled={!filtrosActivos} onClick={limpiarFiltros}>Limpiar filtros</button>
           </div>
+          {masFiltros && (
+            <div className="casillas" style={{ margin: "-6px 0 16px", flexDirection: "row", gap: 18 }}>
+              <label><input type="checkbox" checked={fusionadas} onChange={(e) => { setFusionadas(e.target.checked); setPagina(1); }} />
+                Ver las fusionadas</label>
+              <label title="Personas, familias, entidades, cargos, lugares, materias y mandatos son de toda la institución">
+                <input type="checkbox" checked={institucion} onChange={(e) => { setInstitucion(e.target.checked); setPagina(1); }} />
+                Incluir las autoridades de toda la institución</label>
+              {clase === "tipo_actividad" && !fusionadas && (
+                <label><input type="checkbox" checked={vistaArbol} onChange={(e) => setVistaArbol(e.target.checked)} />
+                  Ver como árbol de funciones</label>
+              )}
+            </div>
+          )}
           {clase === "regla" && !fusionadas && (
-            <p className="meta">Las reglas de retención se crean al aplicar la TRD (Fondos › Versiones de la TRD).</p>
+            <p className="meta">Las reglas de retención se crean al aplicar la TRD (Instrumentos › TRD y CCD).</p>
           )}
           {clase === "tipo_actividad" && vistaArbol && !fusionadas ? <ArbolFunciones fondoId={fondo.id} /> : (
           <div className="tarjeta">
-            <div className="tarjeta-cab">
-              {entidades === null ? "Cargando…" : `${entidades.length} entidad${entidades.length === 1 ? "" : "es"}${fusionadas ? " fusionadas" : ""}`}
+            <div className="cabecera-tabla">
+              <span>{entidades === null ? "Cargando…" : `${entidades.length.toLocaleString("es-CO")} registro${entidades.length === 1 ? "" : "s"}${fusionadas ? " fusionados" : ""}`}</span>
             </div>
             {entidades !== null && entidades.length === 0 && (
-              q || clase || nivel || fusionadas || mecanismos ? (
+              filtrosActivos ? (
                 <EstadoVacio icono="filtro" titulo="Ninguna entidad cumple el filtro activo"
                              texto={fusionadas && !q && !clase && !nivel ? "No hay entidades fusionadas en este fondo." : "La lista no está vacía por un error: el filtro no deja pasar nada."}
-                             accion={{ texto: "Limpiar filtro", alHacer: () => { setQ(""); setClase(""); setNivel(""); setFusionadas(false); setMecanismos(false); } }} />
+                             accion={{ texto: "Limpiar filtros", alHacer: limpiarFiltros }} />
               ) : (
                 <EstadoVacio icono="lista" titulo="El vocabulario del fondo está vacío"
                              texto="Se llena solo, a medida que se publican descripciones: cada agente, lugar o forma documental confirmado queda aquí una sola vez." />
               )
             )}
             {mecanismos && (
-              <div className="pista" style={{ padding: "10px 16px" }}>
-                Programas que actuaron sobre los archivos del fondo, cada uno con su versión exacta: identificar el
-                formato, extraer el texto, validar, migrar, copiar o proponer la descripción. En RiC son agentes
-                (rico:Mechanism) y salen en el grafo, en el RDF y en el PREMIS; aquí son de solo consulta porque los
-                registra el sistema, no una persona.
+              <div className="pista" style={{ padding: "10px 18px" }}>
+                Programas que actuaron sobre los archivos del fondo, cada uno con su versión exacta. En RiC son agentes
+                (rico:Mechanism); aquí son de solo consulta porque los registra el sistema, no una persona.
               </div>
             )}
-            {entidades?.map((e) => (
-              <Link to={`/vocabularios/${e.id}`} className="fila fila-enlace" key={e.id}>
-                <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span>
-                <div className="fila-principal">
-                  <div className="nombre">{e.nombre}</div>
-                  <div className="meta">
-                    {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}
-                    {e.version ? `versión ${e.version} · ` : esMecanismo(e) ? "sin versión · " : ""}{claseRicDe(e)}
-                    {e.fusionada_en && ` · fusionada en «${e.fusionada_en.nombre}»`}
-                    {e.fondo_registro && ` · autoridad registrada en «${e.fondo_registro.titulo}»`}
-                    {esMecanismo(e) && <> · {accionesTexto(e.acciones)}</>}
-                  </div>
-                </div>
-                {e.nivel_detalle && !esMecanismo(e) && (
-                  <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`}>
-                    {NIVEL_FICHA[e.nivel_detalle] || e.nivel_detalle}
-                  </span>
-                )}
-                <span className="meta">
-                  {esMecanismo(e) ? `${e.archivos ?? 0} archivo${e.archivos === 1 ? "" : "s"}` : conexionesTexto(e.conexiones)}
-                </span>
-              </Link>
-            ))}
+            {entidades !== null && entidades.length > 0 && (
+              <div className="tabla-desplazable">
+                <table className="tabla-datos">
+                  <thead><tr><th>Nombre</th><th>Tipo</th><th className="num">{mecanismos ? "Archivos" : "Documentos vinculados"}</th>
+                    {!mecanismos && <th>Ficha</th>}<th className="acciones-celda"><span className="sr-only">Acciones</span></th></tr></thead>
+                  <tbody>
+                    {entidades.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((e) => (
+                      <tr key={e.id}>
+                        <td>
+                          <Link to={`/vocabularios/${e.id}`} className="celda-nombre">
+                            {ICONO_CLASE[e.clase] || ICONO_GENERICO}
+                            <span>{e.nombre}
+                              <span className="secundario">
+                                {e.subtipo ? `${SUBTIPO_NOMBRE[e.subtipo] || e.subtipo} · ` : ""}
+                                {e.version ? `versión ${e.version} · ` : esMecanismo(e) ? "sin versión · " : ""}{claseRicDe(e)}
+                                {e.fusionada_en && ` · fusionada en «${e.fusionada_en.nombre}»`}
+                                {e.fondo_registro && ` · registrada en «${e.fondo_registro.titulo}»`}
+                                {esMecanismo(e) && <> · {accionesTexto(e.acciones)}</>}
+                              </span>
+                            </span>
+                          </Link>
+                        </td>
+                        <td><span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span></td>
+                        <td className="num">{(esMecanismo(e) ? e.archivos ?? 0 : e.conexiones).toLocaleString("es-CO")}</td>
+                        {!mecanismos && (
+                          <td>{e.nivel_detalle && !esMecanismo(e) ? (
+                            <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "neutra"}`}>{NIVEL_FICHA[e.nivel_detalle] || e.nivel_detalle}</span>
+                          ) : <span className="meta">—</span>}</td>
+                        )}
+                        <td className="acciones-celda">
+                          <MenuAcciones etiqueta={`Acciones para ${e.nombre}`} acciones={[
+                            { texto: "Ver y editar la ficha", alHacer: () => navegar(`/vocabularios/${e.id}`) },
+                            { texto: "Ver su historial de auditoría", alHacer: () => navegar(`/auditoria/entidad/entidad_vocabulario/${e.id}`) },
+                          ]} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {entidades !== null && (
+              <Paginacion pagina={pagina} paginas={Math.max(1, Math.ceil(entidades.length / POR_PAGINA))} total={entidades.length}
+                          porPagina={POR_PAGINA} alCambiar={setPagina} />
+            )}
           </div>
           )}
         </>

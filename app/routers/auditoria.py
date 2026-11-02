@@ -88,6 +88,30 @@ def mi_trazabilidad_xlsx(accion: str | None = None, modulo: str | None = None, d
                  "mi-trazabilidad.xlsx")
 
 
+@router.get("/registro", responses={200: {"model": ra.RegistroActividadOut, "description": "Acciones de todas las personas, por páginas"}},
+    summary="Registro de actividad de todas las personas (administración y auditoría completa)")
+def registro(usuario_id: uuid.UUID | None = None, accion: str | None = None, modulo: str | None = None,
+             desde: date | None = None, hasta: date | None = None, pagina: int = Query(1, ge=1),
+             por_pagina: int = Query(25, ge=5, le=100), actor: Actor = Depends(usuario_actual), db: Session = Depends(get_db)):
+    if not actor.ve_toda_la_auditoria:
+        raise sin_permiso()
+    if desde and hasta and desde > hasta:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La fecha inicial es posterior a la final.")
+    return trazabilidad.registro(db, usuario_id=usuario_id, accion=accion, modulo=modulo, desde=desde, hasta=hasta,
+                                 pagina=pagina, por_pagina=por_pagina)
+
+
+@router.get("/registro/exportar", responses={200: {"content": {XLSX: {}}, "description": "Hoja de cálculo con el registro"}},
+    summary="Todo el registro de actividad que cumple los filtros, en Excel")
+def registro_xlsx(usuario_id: uuid.UUID | None = None, accion: str | None = None, modulo: str | None = None,
+                  desde: date | None = None, hasta: date | None = None, actor: Actor = Depends(usuario_actual),
+                  db: Session = Depends(get_db)):
+    if not actor.ve_toda_la_auditoria:
+        raise sin_permiso()
+    return _xlsx(trazabilidad.hoja_propia(db, usuario_id, accion=accion, modulo=modulo, desde=desde, hasta=hasta),
+                 "registro-de-actividad.xlsx")
+
+
 @router.get("/entidad/{entidad_id}", responses={200: {"model": ra.TrazabilidadEntidadOut, "description": "Historial de la entidad"}},
     summary="Historial de auditoría de una entidad")
 def entidad(entidad_id: str, tipo: str = Query(..., max_length=60), actor: Actor = Depends(usuario_actual),

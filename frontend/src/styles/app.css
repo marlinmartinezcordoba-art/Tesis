@@ -1056,3 +1056,99 @@ a.boton { text-decoration: none; }
   background-repeat: no-repeat; background-position: center; background-size: 24px; }
 .acceso-tarjeta .marca span { margin-top: 0; }
 .acceso-tarjeta h1 { font-size: 1.25rem; margin-top: 26px; }
+
+/* =====================================================================================================
+ * Reglas visuales comunes a todos los módulos (rediseño fase 3)
+ * Menú lateral · encabezado compartido · un título por pantalla · botones (azul principal, neutros
+ * secundarios, rojo solo destructivo) · filtros agrupados con «Limpiar» · tablas con paginación y
+ * acciones en ⋯ · estados que no dependen solo del color (llevan texto y, si aplica, ícono).
+ * ===================================================================================================== */
+
+/* Menú lateral: estado activo como pastilla azul, igual en todos los módulos. */
+.navegacion a.active, .rama.en-modulo > .rama-cab { background: var(--accent); color: #fff; box-shadow: none; font-weight: 600; }
+.navegacion a.active svg, .rama.en-modulo > .rama-cab svg { color: #fff; }
+.rama.en-modulo > .rama-cab .rama-nombre small { color: rgb(255 255 255 / .8); }
+.navegacion a:hover:not(.active), .rama-cab:hover { background: rgb(255 255 255 / .06); }
+.subvistas a.active { background: rgb(255 255 255 / .08); box-shadow: inset 2px 0 0 #9bb8f5; }
+
+/* Encabezado compartido */
+.selector-fondo { gap: 8px; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
+.selector-fondo .icono-fondo { width: 17px; height: 17px; color: #e0a526; flex: 0 0 17px; }
+.selector-fondo span { overflow: hidden; text-overflow: ellipsis; }
+.superior > .pastilla:first-child { display: inline-flex; }
+.caja-busqueda { position: relative; }
+.atajo-lanzador { border: 0; background: none; padding: 0; cursor: pointer; flex: 0 0 auto; }
+.atajo-lanzador kbd { font-size: .68rem; }
+.campana { position: relative; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; color: var(--muted); border: 1px solid transparent; }
+.campana:hover, .campana.active { background: var(--surface); border-color: var(--line-fuerte); color: var(--ink); }
+.campana svg { width: 20px; height: 20px; }
+.campana .contador { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+  background: #e0861f; color: #fff; font-size: .64rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid var(--bg); }
+.campana.con-alertas { color: var(--ink); }
+.persona > button { padding: 2px; border-radius: 99px; }
+.persona .avatar { width: 36px; height: 36px; border-radius: 99px; background: var(--accent-bg); color: var(--accent); display: inline-flex;
+  align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; }
+.menu-persona { display: flex; flex-direction: column; padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.menu-persona span { font-size: .78rem; color: var(--muted); }
+
+/* Barra de filtros: agrupados, alineados y con «Limpiar filtros». */
+.barra-filtros { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.barra-filtros .filtro { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
+.barra-filtros .filtro > span { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.barra-filtros .filtro.ancho { flex: 1; min-width: 220px; }
+.barra-filtros .filtro .buscador { position: relative; }
+.barra-filtros .filtro .buscador svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); }
+.barra-filtros .filtro .buscador .entrada { padding-left: 36px; }
+.barra-filtros .empujar { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.enlace-limpiar { background: none; border: 0; color: var(--accent); font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer; padding: 10px 4px; }
+.enlace-limpiar:disabled { color: var(--muted); opacity: .6; cursor: default; }
+
+/* Tablas de datos */
+.tabla-datos { width: 100%; border-collapse: collapse; font-size: .87rem; }
+.tabla-datos th { text-align: left; font-size: .76rem; font-weight: 700; color: var(--muted); padding: 11px 16px; background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+  border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tabla-datos td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tabla-datos tbody tr:hover { background: color-mix(in srgb, var(--accent-bg) 30%, var(--surface)); }
+.tabla-datos tbody tr:last-child td { border-bottom: 0; }
+.tabla-datos .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla-datos .acciones-celda { width: 56px; text-align: right; }
+.tabla-datos .celda-nombre { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; }
+.tabla-datos .celda-nombre:hover { color: var(--accent); }
+.tabla-datos .celda-nombre svg { width: 18px; height: 18px; color: var(--muted); flex: 0 0 18px; }
+.tabla-datos .secundario { display: block; font-size: .76rem; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.cabecera-tabla { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line);
+  font-weight: 650; }
+.cabecera-tabla .meta { font-weight: 400; }
+
+/* Paginación */
+.paginacion { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line);
+  font-size: .82rem; color: var(--muted); flex-wrap: wrap; }
+.paginacion nav { display: flex; gap: 4px; align-items: center; }
+.paginacion button { min-width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line-fuerte); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: .82rem; cursor: pointer; padding: 0 8px; }
+.paginacion button[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.paginacion button:disabled { opacity: .45; cursor: default; }
+.paginacion .salto { padding: 0 4px; }
+
+/* Insignias de resultado y de tipo: siempre con texto, nunca solo color. */
+.insignia.neutra { background: var(--proc-bg); color: var(--proc); }
+.icono-indicador { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px;
+  background: var(--accent-bg); color: var(--accent); }
+.icono-indicador svg { width: 22px; height: 22px; }
+.icono-indicador.bien { background: var(--ok-bg); color: var(--ok); }
+.indicador.con-icono { display: flex; gap: 14px; align-items: center; }
+.indicador.con-icono strong { margin: 0; }
+@media (max-width: 760px) {
+  .tabla-desplazable .tabla-datos { min-width: 640px; }
+  .persona .avatar { width: 32px; height: 32px; }
+}
+.siguiente-paso { border-left: 4px solid var(--accent); justify-content: flex-start; }
+.icono-siguiente { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-bg); color: var(--accent); display: inline-flex;
+  align-items: center; justify-content: center; flex: 0 0 52px; }
+.icono-siguiente svg { width: 28px; height: 28px; }
+.barra-filtros .filtro { flex: 0 1 210px; min-width: 150px; }
+.barra-filtros .filtro .selector, .barra-filtros .filtro .entrada { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.barra-filtros .filtro.ancho { flex: 1 1 260px; }
+.tabla-desplazable { position: relative; overflow-x: auto; max-width: 100%; }

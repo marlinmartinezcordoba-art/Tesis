@@ -328,3 +328,15 @@ class CodigosRespaldoOut(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     codigos_respaldo: list[str]
+
+
+class RegistroActividadOut(BaseModel):
+    """Acciones de todas las personas, por páginas, con su resultado (realizada o fallida)."""
+    model_config = ConfigDict(extra="allow")
+
+    eventos: list[dict]
+    total: int
+    pagina: int
+    paginas: int
+    por_pagina: int
+    personas: list[dict]

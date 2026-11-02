@@ -347,3 +347,39 @@ filas, la tipografía y el marco.
 | Acciones por fila | (a) Todos los botones visibles; (b) una principal y las demás en ⋯ | (b) | Antes había tres botones del mismo peso por fila, con «Eliminar» a la vista. Ahora la acción destructiva queda en el menú, en rojo, solo para la administración. | Una acción menos visible. «Previsualizar» está a un clic, en el menú. |
 | Títulos | (a) Serif; (b) sans | (b) para la interfaz, serif solo para la marca | La lectura es más técnica y actual; la serif conserva la identidad de RICORA. | Ninguno. |
 | Barra lateral compacta | (a) Fija; (b) compactable | (b), y la preferencia se guarda en el navegador | Gana espacio para el visor y las listas largas. | Sin nombres visibles: cada ícono lleva su nombre como título. |
+
+## Rediseño fase 3: reglas visuales comunes a todos los módulos
+
+| Elemento | Regla | Dónde se cumple |
+|---|---|---|
+| Menú lateral | Mismo ancho, íconos y estado activo en todas las pantallas: una pastilla azul con texto blanco. Se puede compactar a solo íconos. | `Marco.tsx`, estilos `.navegacion a.active` y `.rama.en-modulo` |
+| Encabezado | Una sola barra compartida con el fondo activo, la búsqueda (con el atajo Ctrl K adentro), las alertas (campana con contador) y la persona (avatar con su menú). | `Marco.tsx` y `Buscar.tsx` (`CajaBusqueda`) |
+| Títulos | Un solo título principal por pantalla, con la ceja del fondo activo y un subtítulo breve. | `Encabezado` |
+| Botones | Azul para la acción principal; neutros para las secundarias; rojo solo para las destructivas, y estas dentro del menú ⋯. | `.boton`, `.boton.primario` y `MenuAcciones` |
+| Filtros | Agrupados en una barra, con su etiqueta, alineados, y con «Limpiar filtros». | `.barra-filtros`: Autoridades y Auditoría |
+| Tablas | Encabezados iguales, columnas legibles, conteo de registros, paginación y acciones en ⋯. En pantallas angostas, la tabla se desplaza dentro de su caja. | `.tabla-datos` y `Paginacion`: Autoridades y Auditoría |
+| Indicadores | Siempre cifras medidas, nunca ilustrativas. | `Indicadores`: Inicio y Descripción |
+| Accesibilidad | Los estados llevan texto y signo («✓ Realizada», «✕ Fallida», «Pendiente»), no solo color. Los íconos llevan nombre accesible. Contraste AA en textos. | Insignias, `aria-label` en campana, avatar y menús |
+
+### Pantallas rehechas en esta fase
+
+- **Inicio:**
+  - tres indicadores medidos (por describir, descripciones publicadas, archivos descritos);
+  - el siguiente paso recomendado con su ícono;
+  - el recorrido del fondo, con la acción del paso siguiente en azul.
+- **Autoridades y términos:**
+  - barra de filtros (tipo, buscar, ordenar, más filtros, limpiar);
+  - tabla con nombre, tipo, documentos vinculados y ficha;
+  - acciones en ⋯ (ficha, historial) y paginación de 25.
+  - No hay botón «Nueva autoridad», porque las autoridades nacen al describir. La acción principal es importar EAC-CPF.
+- **Auditoría (Registro de actividad):** sin el selector «Todas las personas · Mis acciones · Equipo por semana», a pedido de la autora;
+  - la administración ve las acciones de todas las personas (`GET /api/auditoria/registro`), con fecha y hora, usuario, acción, módulo y resultado;
+  - filtros de acción, usuario y fechas;
+  - Excel con el mismo filtro (`/api/auditoria/registro/exportar`) y paginación del servidor.
+  - El resultado es real: «Fallida» para los intentos que no se cumplieron (por ejemplo, un ingreso fallido) y «Realizada» para el resto, porque el registro solo guarda lo que se hizo.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Columna «Resultado» de la auditoría | (a) «Exitoso» para todo; (b) derivarlo de la acción | (b) | El registro solo anota lo que ocurrió; los intentos fallidos tienen su propia acción. Ponerle «Exitoso» a todo sería un dato inventado. | Una acción fallida nueva debe nombrarse con «fallida» o «rechazada», o agregarse a `RESULTADO_FALLIDO`. |
+| Botón «Nueva autoridad» de la maqueta | (a) Agregarlo; (b) no | (b) | En RICORA una autoridad nace al describir, con su documento de respaldo. Un botón que crea autoridades sueltas contradice ese principio. | Ninguno: la importación EAC-CPF cubre la carga masiva. |
+| Lanzador «¿Qué quiere hacer?» | (a) Botón aparte; (b) dentro del buscador | (b) | Una sola caja para buscar y para ir a cualquier pantalla. El encabezado queda en una línea. | Quien no tiene acceso al catálogo no ve el buscador: para esa persona se mantiene el botón. |
