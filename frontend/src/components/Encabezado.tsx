@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useFondo } from "@/lib/fondo";
 
 // Piezas del rediseño: encabezado de pantalla, indicadores medidos y menú de acciones secundarias.
 
@@ -7,8 +6,8 @@ import { useFondo } from "@/lib/fondo";
 export function Encabezado({ titulo, descripcion, acciones, ceja }: {
   titulo: string; descripcion?: ReactNode; acciones?: ReactNode; ceja?: string | null;
 }) {
-  const { fondo } = useFondo();
-  const textoCeja = ceja === undefined ? fondo?.titulo : ceja;
+  // La ceja del fondo activo la pone el marco en todas las pantallas; aquí solo una ceja distinta.
+  const textoCeja = ceja ?? null;
   return (
     <header className="encabezado">
       <div>

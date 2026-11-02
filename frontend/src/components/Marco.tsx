@@ -528,6 +528,7 @@ export function Marco({ children }: { children: ReactNode }) {
         </div>
         <AvisoSinCifrar />
         <PestanasModulo />
+        {fondo && <p className="ceja ceja-global">{fondo.titulo}</p>}
         {children}
       </main>
     </div>

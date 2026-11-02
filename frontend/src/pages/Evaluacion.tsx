@@ -2,6 +2,8 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
+import { Encabezado } from "@/components/Encabezado";
+import { Ventana } from "@/components/Ventana";
 
 // Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
 // La archivista describe a ciegas (sin ver nunca la propuesta del motor),
@@ -123,6 +125,7 @@ export function EvaluacionCiega() {
   const esAdmin = !!usuario?.es_administrador;
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionBreve[] | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
@@ -136,42 +139,56 @@ export function EvaluacionCiega() {
   const actual = evaluaciones?.find((e) => e.id === abierta);
   return (
     <>
-      <h1>Evaluación ciega</h1>
-      <p className="sub">
-        Mide la calidad del motor de análisis frente a archivistas: cada documento se describe primero a ciegas, sin ver
-        nunca la propuesta del motor; después con ella delante; y al final se califica la propuesta. Es la evidencia del
-        objetivo 3 de la tesis.
-      </p>
+      {!actual && (
+        <Encabezado titulo="Evaluación"
+                    descripcion="Mide la calidad del motor de análisis frente a expertas: cada documento se describe primero a ciegas, sin ver la propuesta del motor; después con ella delante; y al final se califica la propuesta. Es la evidencia del objetivo 3."
+                    acciones={esAdmin ? <button type="button" className="boton primario" onClick={() => setCreando(true)}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                      Nueva evaluación</button> : undefined} />
+      )}
+      {creando && (
+        <Ventana titulo="Nueva evaluación" alCerrar={() => setCreando(false)}>
+          <NuevaEvaluacion fondoId={fondo.id} creada={() => { setCreando(false); cargar(); }} />
+        </Ventana>
+      )}
       {error && <div className="aviso error" role="alert">{error}</div>}
       {actual ? (
         <DetalleEvaluacion ev={actual} esAdmin={esAdmin} volver={() => { setAbierta(null); cargar(); }} cambio={cargar} />
+      ) : !evaluaciones ? <div className="cargando">Cargando…</div> : evaluaciones.length === 0 ? (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">{esAdmin ? "Todavía no hay evaluaciones: así funciona el protocolo" : "No hay evaluaciones en curso: así funciona el protocolo"}</div>
+          <ol className="pasos-inicio">
+            <li><strong>Descripción a ciegas.</strong> La experta describe cada documento sin ver nunca la propuesta del
+              motor: esa es la referencia humana independiente.</li>
+            <li><strong>Descripción asistida.</strong> Después, el mismo documento con la propuesta del motor delante.</li>
+            <li><strong>Calificación.</strong> Se ve la propuesta y se califica de 1 a 5 en exactitud, completitud y
+              pertinencia. Al cerrar, el sistema calcula precisión, exhaustividad y F1 de entidades y de relaciones RiC
+              frente a la descripción a ciegas, la conformidad con RiC-O 1.1 y el acuerdo entre expertas.</li>
+          </ol>
+          {esAdmin && <p className="pista" style={{ padding: "0 18px 14px", margin: 0 }}>Para empezar, pulse «Nueva evaluación», agregue los documentos y registre a las expertas.</p>}
+        </div>
       ) : (
-        <>
-          {esAdmin && <NuevaEvaluacion fondoId={fondo.id} creada={cargar} />}
-          {!evaluaciones ? <div className="cargando">Cargando…</div> : evaluaciones.length === 0 ? (
-            <div className="tarjeta">
-              <div className="tarjeta-cab">{esAdmin ? "Todavía no hay evaluaciones: así funciona el protocolo" : "No hay evaluaciones en curso: así funciona el protocolo"}</div>
-              <ol className="pasos-inicio">
-                <li><strong>Descripción a ciegas.</strong> La archivista describe cada documento sin ver nunca la propuesta del
-                  motor: esa es la referencia humana independiente.</li>
-                <li><strong>Descripción asistida.</strong> Después, el mismo documento con la propuesta del motor delante.</li>
-                <li><strong>Calificación.</strong> Se ve la propuesta y se califica de 1 a 5 en exactitud, completitud y
-                  pertinencia. Al cerrar, el sistema calcula precisión, exhaustividad y F1 de entidades y de relaciones RiC
-                  frente a la descripción a ciegas, la conformidad con RiC-O 1.1 y el acuerdo entre archivistas.</li>
-              </ol>
-              {esAdmin && <p className="pista" style={{ padding: "0 18px 14px", margin: 0 }}>Para empezar, cree una evaluación con el formulario de arriba y agregue los documentos.</p>}
-            </div>
-          ) : evaluaciones.map((e) => (
-            <div key={e.id} className="fila">
-              <div className="fila-principal">
-                <div className="nombre">{e.nombre}</div>
-                <div className="meta">{e.documentos} documento(s) · umbral de similitud {e.umbral_similitud}</div>
-              </div>
-              <span className={`insignia ${ESTADO_EV[e.estado].clase}`}>{ESTADO_EV[e.estado].texto}</span>
-              <button type="button" className="boton chico" onClick={() => setAbierta(e.id)}>Abrir</button>
-            </div>
-          ))}
-        </>
+        <div className="tarjeta">
+          <div className="cabecera-tabla"><span>{evaluaciones.length} evaluaci{evaluaciones.length === 1 ? "ón" : "ones"}</span></div>
+          <div className="tabla-desplazable">
+            <table className="tabla-datos">
+              <thead><tr><th>Evaluación</th><th className="num">Documentos</th><th className="num">Con propuesta</th><th>Umbral</th><th>Estado</th>
+                <th className="acciones-celda"><span className="sr-only">Abrir</span></th></tr></thead>
+              <tbody>
+                {evaluaciones.map((e) => (
+                  <tr key={e.id}>
+                    <td><strong>{e.nombre}</strong></td>
+                    <td className="num">{e.documentos}</td>
+                    <td className="num">{e.con_propuesta}</td>
+                    <td>{e.umbral_similitud}</td>
+                    <td><span className={`insignia ${ESTADO_EV[e.estado].clase}`}>{ESTADO_EV[e.estado].texto}</span></td>
+                    <td className="acciones-celda" style={{ width: 90 }}><button type="button" className="boton chico" onClick={() => setAbierta(e.id)}>Abrir</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </>
   );
@@ -195,23 +212,17 @@ function NuevaEvaluacion({ fondoId, creada }: { fondoId: string; creada: () => v
     }
   }
   return (
-    <form className="tarjeta" onSubmit={crear}>
-      <div className="tarjeta-cab">Nueva evaluación</div>
-      <div className="tarjeta-cuerpo">
-        <label className="meta" htmlFor="ev-nombre">Nombre</label>
-        <input id="ev-nombre" className="campo" style={{ width: "100%" }} required minLength={3} value={nombre}
-               onChange={(e) => setNombre(e.target.value)} />
-        <label className="meta" htmlFor="ev-protocolo" style={{ display: "block", marginTop: 8 }}>
-          Protocolo (quiénes describen, instrucciones, criterios)</label>
-        <textarea id="ev-protocolo" className="campo" rows={3} style={{ width: "100%" }} value={protocolo}
-                  onChange={(e) => setProtocolo(e.target.value)} />
-        <label className="meta" htmlFor="ev-umbral" style={{ display: "block", marginTop: 8 }}>
-          Umbral de similitud para la medida flexible (1 = solo valores iguales)</label>
-        <input id="ev-umbral" className="campo" type="number" min={0.5} max={1} step={0.05} value={umbral}
-               onChange={(e) => setUmbral(Number(e.target.value))} />
-        {error && <div className="aviso error">{error}</div>}
-        <div className="acciones"><button type="submit" className="boton chico primario">Crear</button></div>
-      </div>
+    <form onSubmit={crear}>
+      <div className="campo"><label htmlFor="ev-nombre">Nombre</label>
+        <input id="ev-nombre" className="entrada" required minLength={3} value={nombre} placeholder="Humano frente a máquina · resoluciones"
+               onChange={(e) => setNombre(e.target.value)} /></div>
+      <div className="campo"><label htmlFor="ev-protocolo">Protocolo (quiénes describen, instrucciones, criterios)</label>
+        <textarea id="ev-protocolo" className="entrada" rows={4} value={protocolo} onChange={(e) => setProtocolo(e.target.value)} /></div>
+      <div className="campo"><label htmlFor="ev-umbral">Umbral de similitud para la medida flexible (1 = solo valores iguales)</label>
+        <input id="ev-umbral" className="entrada" style={{ maxWidth: 140 }} type="number" min={0.5} max={1} step={0.05} value={umbral}
+               onChange={(e) => setUmbral(Number(e.target.value))} /></div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      <div className="acciones"><button type="submit" className="boton primario">Crear la evaluación</button></div>
     </form>
   );
 }

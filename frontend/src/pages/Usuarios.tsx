@@ -1,7 +1,9 @@
 import { confirmar } from "@/lib/dialogos";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { EnlaceHistoria } from "@/components/Historia";
-import { claseRol, ErrorAPI, pedir, type Rol } from "@/lib/api";
+import { enlaceHistoria } from "@/lib/auditoria";
+import { MenuAcciones, type Accion } from "@/components/Encabezado";
+import { useNavigate } from "react-router-dom";
+import { claseRol, ErrorAPI, pedir, puede, type Rol } from "@/lib/api";
 import { PanelRoles, type RolInfo } from "@/pages/Roles";
 import { fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
@@ -129,6 +131,8 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
   alCambiar: (mensaje: string) => void;
   alEntregar: (e: Entrega) => void;
 }) {
+  const { usuario: usuarioSesion } = useSesion();
+  const navegar = useNavigate();
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(u.nombre);
   const [rol, setRol] = useState<Rol>(u.rol);
@@ -154,92 +158,87 @@ function FilaUsuario({ u, propio, alCambiar, alEntregar, roles }: {
       alCambiar(mensaje);
     });
 
+  const enviarEnlace = () => accion(async () => {
+    const e = await pedir<Entrega>(`/api/auth/usuarios/${u.id}/enlace`, { method: "POST" });
+    alEntregar(e);
+  });
+  const secundarias: Accion[] = [];
+  if (puede(usuarioSesion, "auditoria")) {
+    secundarias.push({ texto: "Ver su historial de auditoría", alHacer: () => navegar(enlaceHistoria("usuario", u.id, u.nombre, "/usuarios")) });
+  }
+  if (!propio && u.activo) {
+    secundarias.push({ texto: u.invitacion_pendiente ? "Reenviar invitación" : "Enviar enlace de contraseña", alHacer: enviarEnlace, deshabilitada: ocupado });
+  }
+  if (u.sesiones_abiertas > 0 && !propio) {
+    secundarias.push({ texto: "Cerrar sus sesiones", deshabilitada: ocupado, alHacer: () => accion(async () => {
+      const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/cerrar-sesiones`, { method: "POST" });
+      alCambiar(r.mensaje);
+    }) });
+  }
+  if (u.doble_factor && !propio) {
+    secundarias.push({ texto: "Restablecer segundo factor", deshabilitada: ocupado, alHacer: async () => {
+      if (await confirmar(`¿Quitar el segundo factor de ${u.nombre}? Úselo si perdió el teléfono: se cierran sus `
+          + "sesiones y deberá configurarlo de nuevo.")) {
+        accion(async () => {
+          const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/doble-factor/restablecer`, { method: "POST" });
+          alCambiar(r.mensaje);
+        });
+      }
+    } });
+  }
+  if (!propio) {
+    secundarias.push(u.activo ? { texto: "Desactivar la cuenta", peligro: true, deshabilitada: ocupado, alHacer: async () => {
+      if (await confirmar(`¿Desactivar la cuenta de ${u.nombre}? No podrá ingresar; sus datos y su trazabilidad se conservan.`)) {
+        editar({ activo: false }, `Se desactivó la cuenta de ${u.nombre}.`);
+      }
+    } } : { texto: "Reactivar la cuenta", deshabilitada: ocupado, alHacer: () => editar({ activo: true }, `Se reactivó la cuenta de ${u.nombre}.`) });
+  }
+
   return (
-    <div className="fila">
-      <span className="avatar">{u.iniciales}</span>
-      <div className="fila-principal">
-        <div className="nombre">{u.nombre}{propio && <span className="meta"> (usted)</span>}</div>
-        <div className="meta">{u.correo} · último ingreso: {fecha(u.ultimo_ingreso)}</div>
-        {error && <div className="aviso error" style={{ margin: "8px 0 0" }} role="alert">{error}</div>}
-        {editando && (
-          <div className="rejilla" style={{ marginTop: 10 }}>
-            <input className="entrada" aria-label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-            <select className="selector" aria-label="Rol" value={rol} disabled={propio} onChange={(e) => setRol(e.target.value as Rol)}
-                    title={propio ? "Nadie puede cambiar su propio rol" : undefined}>
-              {roles.filter((r) => r.activo || r.clave === u.rol).map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
-            </select>
-            <div className="acciones">
-              <button type="button" className="boton chico primario" disabled={ocupado}
-                      onClick={() => editar({ nombre, ...(propio ? {} : { rol }) }, `Se guardaron los cambios de ${nombre}.`)}>
-                Guardar
-              </button>
-              <button type="button" className="boton chico" onClick={() => { setEditando(false); setNombre(u.nombre); setRol(u.rol); }}>
-                Cancelar
-              </button>
-            </div>
+    <>
+      <tr>
+        <td>
+          <div className="celda-usuario">
+            <span className="avatar">{u.iniciales}</span>
+            <span><strong>{u.nombre}</strong>{propio && <span className="meta"> (usted)</span>}<span className="secundario">{u.correo}</span></span>
           </div>
-        )}
-      </div>
-      <div className="insignias">
-        <span className={`insignia ${claseRol(u.rol)}`}>{u.rol_nombre}</span>
-        <span className={`insignia ${u.activo ? "bien" : "error"}`}>{u.activo ? "Activo" : "Inactivo"}</span>
-        {u.invitacion_pendiente && u.activo && <span className="insignia acento">Invitación pendiente</span>}
-        {u.recuperacion_solicitada && u.activo && <span className="insignia alerta">Pidió recuperar contraseña</span>}
-      </div>
-      {!editando && (
-        <div className="acciones">
-          <button type="button" className="boton chico" onClick={() => setEditando(true)}>Editar</button>
-          <EnlaceHistoria tipo="usuario" id={u.id} nombre={u.nombre} />
-          {!propio && u.activo && (
-            <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={() => accion(async () => {
-                      const e = await pedir<Entrega>(`/api/auth/usuarios/${u.id}/enlace`, { method: "POST" });
-                      alEntregar(e);
-                    })}>
-              {u.invitacion_pendiente ? "Reenviar invitación" : "Enviar enlace de contraseña"}
-            </button>
-          )}
-          {u.sesiones_abiertas > 0 && !propio && (
-            <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={() => accion(async () => {
-                      const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/cerrar-sesiones`, { method: "POST" });
-                      alCambiar(r.mensaje);
-                    })}>
-              Cerrar sesiones
-            </button>
-          )}
-          {u.doble_factor && !propio && (
-            <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={async () => {
-                      if (await confirmar(`¿Quitar el segundo factor de ${u.nombre}? Úselo si perdió el teléfono: se cierran sus `
-                          + "sesiones y deberá configurarlo de nuevo.")) {
-                        accion(async () => {
-                          const r = await pedir<{ mensaje: string }>(`/api/auth/usuarios/${u.id}/doble-factor/restablecer`, { method: "POST" });
-                          alCambiar(r.mensaje);
-                        });
-                      }
-                    }}>
-              Restablecer segundo factor
-            </button>
-          )}
-          {!propio && (u.activo ? (
-            <button type="button" className="boton chico peligro" disabled={ocupado}
-                    onClick={async () => {
-                      if (await confirmar(`¿Desactivar la cuenta de ${u.nombre}? No podrá ingresar; sus datos y su trazabilidad se conservan.`)) {
-                        editar({ activo: false }, `Se desactivó la cuenta de ${u.nombre}.`);
-                      }
-                    }}>
-              Desactivar
-            </button>
-          ) : (
-            <button type="button" className="boton chico" disabled={ocupado}
-                    onClick={() => editar({ activo: true }, `Se reactivó la cuenta de ${u.nombre}.`)}>
-              Reactivar
-            </button>
-          ))}
-        </div>
+        </td>
+        <td><span className={`insignia ${claseRol(u.rol)}`}>{u.rol_nombre}</span></td>
+        <td>
+          <span className={`insignia ${u.activo ? "bien" : "error"}`}>{u.activo ? "✓ Activo" : "✕ Inactivo"}</span>
+          {u.invitacion_pendiente && u.activo && <span className="secundario">Invitación pendiente</span>}
+          {u.recuperacion_solicitada && u.activo && <span className="secundario">Pidió recuperar la contraseña</span>}
+        </td>
+        <td style={{ whiteSpace: "nowrap" }}>{u.ultimo_ingreso ? fecha(u.ultimo_ingreso) : <span className="meta">Nunca</span>}</td>
+        <td className="acciones-celda" style={{ width: 150 }}>
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+            {!editando && <button type="button" className="boton chico" onClick={() => setEditando(true)}>Editar</button>}
+            <MenuAcciones etiqueta={`Más acciones para ${u.nombre}`} acciones={secundarias} />
+          </div>
+        </td>
+      </tr>
+      {(editando || error) && (
+        <tr className="fila-edicion">
+          <td colSpan={5}>
+            {error && <div className="aviso error" style={{ margin: "0 0 8px" }} role="alert">{error}</div>}
+            {editando && (
+              <div className="rejilla">
+                <input className="entrada" aria-label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                <select className="selector" aria-label="Rol" value={rol} disabled={propio} onChange={(e) => setRol(e.target.value as Rol)}
+                        title={propio ? "Nadie puede cambiar su propio rol" : undefined}>
+                  {roles.filter((r) => r.activo || r.clave === u.rol).map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
+                </select>
+                <div className="acciones">
+                  <button type="button" className="boton chico primario" disabled={ocupado}
+                          onClick={() => editar({ nombre, ...(propio ? {} : { rol }) }, `Se guardaron los cambios de ${nombre}.`)}>Guardar</button>
+                  <button type="button" className="boton chico" onClick={() => { setEditando(false); setNombre(u.nombre); setRol(u.rol); }}>Cancelar</button>
+                </div>
+              </div>
+            )}
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
@@ -377,9 +376,16 @@ export function Usuarios() {
         ) : usuarios.length === 0 ? (
           <div className="vacio">Ningún usuario coincide con los filtros.</div>
         ) : (
-          usuarios.map((u) => (
-            <FilaUsuario key={u.id} roles={roles || []} u={u} propio={u.id === usuario?.id} alCambiar={alCambiar} alEntregar={alEntregar} />
-          ))
+          <div className="tabla-desplazable">
+            <table className="tabla-datos">
+              <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th className="acciones-celda"><span className="sr-only">Acciones</span></th></tr></thead>
+              <tbody>
+                {usuarios.map((u) => (
+                  <FilaUsuario key={u.id} roles={roles || []} u={u} propio={u.id === usuario?.id} alCambiar={alCambiar} alEntregar={alEntregar} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       </>)}

@@ -1152,3 +1152,44 @@ a.boton { text-decoration: none; }
 .barra-filtros .filtro .selector, .barra-filtros .filtro .entrada { width: 100%; min-width: 0; text-overflow: ellipsis; }
 .barra-filtros .filtro.ancho { flex: 1 1 260px; }
 .tabla-desplazable { position: relative; overflow-x: auto; max-width: 100%; }
+
+/* =====================================================================================================
+ * Rediseño fase 4: lo que queda de cada pantalla toma el mismo lenguaje, sin reescribirla.
+ * ===================================================================================================== */
+/* Títulos de tarjeta: legibles, en oración, como encabezados de sección (no rótulos en mayúscula). */
+.tarjeta-cab { text-transform: none; letter-spacing: 0; font-size: .95rem; font-weight: 650; color: var(--ink); padding: 15px 18px; }
+.tarjeta-cab .meta, .tarjeta-cab .enlace { font-weight: 500; font-size: .82rem; }
+.tarjeta { box-shadow: var(--sombra); }
+/* Cifras antiguas con el estilo de los indicadores. */
+.resumen-preservacion { gap: 14px; }
+.cifra { border-radius: var(--radio); padding: 16px 18px; box-shadow: var(--sombra); gap: 6px; }
+.cifra strong { font-family: "Inter", system-ui, sans-serif; font-weight: 700; font-size: 1.75rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.cifra span { font-size: .8rem; line-height: 1.4; }
+.resumen-preservacion.compacto { padding: 14px 18px; }
+.resumen-preservacion.compacto .cifra { box-shadow: none; }
+/* Filtros antiguos: mismos controles y alineación que la barra nueva. */
+.filtros { gap: 10px; align-items: center; margin-bottom: 16px; }
+.filtros .entrada, .filtros .selector { min-height: 40px; }
+.filtros .entrada { max-width: 340px; }
+.filtros .pastilla { min-height: 40px; }
+/* Opciones tipo pastilla y control segmentado, más firmes. */
+.opciones label { padding: 7px 13px; font-size: .82rem; border-color: var(--line-fuerte); }
+.opciones label.elegida { background: var(--accent); border-color: var(--accent); color: #fff; }
+.segmentado { border-radius: var(--radio-control); border-color: var(--line-fuerte); }
+.segmentado a, .segmentado button { padding: 9px 14px; }
+.segmentado a.elegido, .segmentado button.elegido { background: var(--accent); color: #fff; }
+/* Campos de formulario: rótulos en oración, no en mayúscula. */
+.campo label { text-transform: none; letter-spacing: 0; font-size: .82rem; color: var(--ink); font-weight: 600; }
+fieldset.campo legend { text-transform: none; letter-spacing: 0; font-size: .82rem; color: var(--ink); }
+/* Estados vacíos y avisos */
+.vacio { padding: 34px 18px; }
+.aviso { border-radius: var(--radio-control); border: 1px solid transparent; }
+.aviso.error { border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
+.aviso.bien { border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+.aviso.alerta { border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+/* Ceja global con el fondo activo (la pone el marco en todas las pantallas). */
+.ceja-global { margin: 0 0 4px; }
+.celda-usuario { display: flex; align-items: center; gap: 12px; }
+.celda-usuario .avatar { width: 36px; height: 36px; flex-basis: 36px; }
+.tabla-datos .fila-edicion td { background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.indicador .barra { width: 100%; flex: none; }

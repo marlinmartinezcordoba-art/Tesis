@@ -1,7 +1,8 @@
 import { confirmar } from "@/lib/dialogos";
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ICONOS, useVista } from "@/components/Marco";
+import { Encabezado, Indicadores } from "@/components/Encabezado";
 import { LotesDelFondo, NuevoLote, type Lote } from "@/components/Lotes";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { Ventana } from "@/components/Ventana";
@@ -75,7 +76,8 @@ function seriesDe(nodos: NodoCuadro[], camino: string[] = []): SerieCuadro[] {
   });
 }
 
-function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void }) {
+function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fondo; alTerminar: () => void;
+  accionesEncabezado?: ReactNode; version: number }) {
   const { usuario } = useSesion();
   const esAdmin = !!usuario?.es_administrador;
   const [limite, setLimite] = useState<number | null>(null);
@@ -211,11 +213,10 @@ function Cargar({ fondo, alTerminar }: { fondo: Fondo; alTerminar: () => void })
 
   return (
     <>
-      <h1>Cargar documentos</h1>
-      <p className="sub">
-        Cualquier formato, sin restricción. El sistema calcula la huella digital y reconoce el formato de cada archivo
-        apenas termina de subir.
-      </p>
+      <Encabezado titulo="Carga documental"
+                  descripcion="Cualquier formato, sin restricción. El sistema calcula la huella digital y reconoce el formato de cada archivo apenas termina de subir."
+                  acciones={accionesEncabezado} />
+      <IndicadoresIngesta fondo={fondo} version={version} />
       {error && <div className="aviso error" role="alert">{error}</div>}
 
       <div className="linea-campo" style={{ alignItems: "flex-start" }}>
@@ -473,11 +474,14 @@ function VistaCola({ cola, puedeDecidir, alCambiar }: { cola: Cola | null; puede
   const vacia = !cola.procesando.length && !cola.duplicados.length && !cola.errores.length;
   return (
     <>
-      <h1>Revisar lo cargado</h1>
-      <p className="sub">
-        Solo se muestra aquí lo que todavía necesita algo de usted. Lo que ya quedó listo pasó de forma automática al
-        módulo de descripción.
-      </p>
+      <Encabezado titulo="Revisar lo cargado"
+                  descripcion="Solo se muestra aquí lo que todavía necesita algo de usted. Lo que ya quedó listo pasó de forma automática al módulo de descripción." />
+      <Indicadores etiqueta="Estado de la cola" items={[
+        { etiqueta: "Procesando", valor: cola.procesando.length },
+        { etiqueta: "Posibles duplicados", valor: cola.duplicados.length, nota: "Requieren su decisión", tono: cola.duplicados.length ? "alerta" : undefined },
+        { etiqueta: "Con error", valor: cola.errores.length, tono: cola.errores.length ? "alerta" : undefined },
+        { etiqueta: "Listos en 24 horas", valor: cola.listos_hoy, nota: "Pasaron a descripción", tono: "bien" },
+      ]} />
       {vacia && (
         <div className="tarjeta">
           <div className="vacio-grande">
@@ -589,6 +593,23 @@ function ResumenIngesta({ fondo }: { fondo: Fondo }) {
   );
 }
 
+// Arriba de la carga: las cifras medidas del fondo (los mismos datos del resumen de ingesta).
+function IndicadoresIngesta({ fondo, version }: { fondo: Fondo; version: number }) {
+  const [r, setR] = useState<{ documentos: number; con_texto: number } | null>(null);
+  useEffect(() => {
+    pedir<{ documentos: number; con_texto: number }>(`/api/ingesta/resumen?fondo_id=${fondo.id}`).then(setR).catch(() => setR(null));
+  }, [fondo.id, version]);
+  if (!r) return null;
+  return (
+    <Indicadores etiqueta="Cifras de la ingesta" items={[
+      { etiqueta: "Documentos ingresados", valor: r.documentos.toLocaleString("es-CO") },
+      { etiqueta: "Con texto reconocido", valor: r.con_texto.toLocaleString("es-CO"), tono: "bien",
+        avance: r.documentos ? r.con_texto / r.documentos : null,
+        nota: r.documentos ? `${Math.round((r.con_texto / r.documentos) * 100)} % del total` : undefined },
+    ]} />
+  );
+}
+
 // --- Pantalla -----------------------------------------------------------------------
 
 export function Ingesta() {
@@ -654,11 +675,6 @@ export function Ingesta() {
 
   return (
     <>
-      {usuario?.es_administrador && (
-        <div className="acciones-vista">
-          <button type="button" className="enlace" onClick={() => setRegistrando(!registrando)}>+ Registrar otro fondo</button>
-        </div>
-      )}
       {registrando && (
         <Ventana titulo="Registrar un fondo" alCerrar={() => setRegistrando(false)} ancha>
           <RegistrarFondo alTerminar={() => setRegistrando(false)} />
@@ -667,7 +683,9 @@ export function Ingesta() {
       {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
       {pestana === "cargar" && puedeCargar ? (
         <>
-          <Cargar fondo={fondo} alTerminar={() => { cargarCola(); setVersion((v) => v + 1); }} />
+          <Cargar fondo={fondo} version={version} alTerminar={() => { cargarCola(); setVersion((v) => v + 1); }}
+                  accionesEncabezado={usuario?.es_administrador ? (
+                    <button type="button" className="boton" onClick={() => setRegistrando(true)}>Registrar otro fondo</button>) : undefined} />
           <LotesDelFondo fondoId={fondo.id} version={version} puedeEscribir={puedeCargar} />
           <ActividadReciente fondo={fondo} version={version} />
         </>
