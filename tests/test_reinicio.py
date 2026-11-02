@@ -131,3 +131,33 @@ def test_solo_la_administracion_y_los_tesauros_se_conservan_si_no_se_piden(clien
     r = cliente.post("/api/sistema/reinicio", headers=cabeceras_admin,
                      json={"contrasena": CONTRASENA, "frase": reinicio.FRASE, "incluir_tesauros": True})
     assert r.status_code == 200 and r.json()["tesauros_borrados"] and _cuenta(db, "tesauros") == 0
+
+
+def test_el_respaldo_de_la_puesta_en_marcha_se_descarga_desde_la_pantalla(cliente, db, admin, cabeceras_admin, tmp_path):
+    """Con el módulo de preservación apagado, la administración baja el respaldo sin acceso al servidor."""
+    from app.models.preservacion import RespaldoBaseDatos
+
+    volcado = tmp_path / "ricora-reinicio.dump"
+    volcado.write_bytes(b"PGDMP respaldo de prueba")
+    propio = RespaldoBaseDatos(id=uuid.uuid4(), origen="reinicio", estado="correcto", archivo=str(volcado),
+                               tamano_bytes=24, huella="ab" * 32)
+    ajeno = RespaldoBaseDatos(id=uuid.uuid4(), origen="periodico", estado="correcto", archivo=str(volcado),
+                              tamano_bytes=24, huella="cd" * 32)
+    db.add_all([propio, ajeno])
+    db.commit()
+
+    inv = cliente.get("/api/sistema/reinicio", headers=cabeceras_admin).json()
+    assert [r["id"] for r in inv["respaldos"]] == [str(propio.id)] and inv["respaldos"][0]["disponible"]
+
+    r = cliente.get(f"/api/sistema/reinicio/respaldos/{propio.id}/descargar", headers=cabeceras_admin)
+    assert r.status_code == 200 and r.content == b"PGDMP respaldo de prueba"
+    assert r.headers["x-huella-sha256"] == "ab" * 32
+    db.refresh(propio)
+    assert propio.descargado_en is not None
+    assert db.scalar(select(RegistroAuditoria).where(RegistroAuditoria.accion == "respaldo_descargado",
+                                                     RegistroAuditoria.entidad_id == str(propio.id))) is not None
+    # Solo los de la puesta en marcha, y solo la administración.
+    assert cliente.get(f"/api/sistema/reinicio/respaldos/{ajeno.id}/descargar", headers=cabeceras_admin).status_code == 404
+    crear_usuario(db, "ana@correo.com", "archivista", nombre="Ana Ruiz")
+    ana = ingresar(cliente, "ana@correo.com")
+    assert cliente.get(f"/api/sistema/reinicio/respaldos/{propio.id}/descargar", headers=ana).status_code == 403

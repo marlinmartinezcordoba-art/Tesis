@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, descargar, pedir } from "@/lib/api";
+import { fecha, peso } from "@/lib/formato";
 import { useFondo } from "@/lib/fondo";
 
 // Puesta en marcha: dejar RICORA en blanco para empezar a usarlo de verdad.
@@ -13,10 +14,12 @@ interface Inventario {
   tesauros: number;
   se_conserva: string[];
   sin_clasificar: string[];
+  respaldos: { id: string; archivo: string | null; fecha: string; tamano_bytes: number | null; huella: string | null;
+    descargado_en: string | null; disponible: boolean }[];
 }
 interface Resultado {
   borrado: { que: string; cantidad: number }[];
-  respaldo: { archivo: string | null; huella: string | null };
+  respaldo: { id: string; archivo: string | null; huella: string | null };
   archivos_apartados: { movidos: number; destino: string | null };
   aviso_grafos: string | null;
   tesauros_borrados: boolean;
@@ -31,6 +34,8 @@ export function PuestaEnMarcha() {
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState<Resultado | null>(null);
+  const bajar = (id: string) => descargar(`/api/sistema/reinicio/respaldos/${id}/descargar`)
+    .then(() => cargar()).catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo descargar el respaldo."));
 
   const cargar = () => pedir<Inventario>("/api/sistema/reinicio").then(setInv)
     .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo leer el inventario."));
@@ -68,6 +73,9 @@ export function PuestaEnMarcha() {
             (<code>_retirado</code>), no se eliminaron.</>}
           {hecho.aviso_grafos && <> · Aviso: el almacén del grafo no se pudo vaciar ({hecho.aviso_grafos}); no queda visible.</>}
           {" "}Para empezar, cree el primer fondo en Instrumentos o cargue el CCD y la TRD.
+          <div className="acciones" style={{ marginTop: 10 }}>
+            <button type="button" className="boton primario" onClick={() => bajar(hecho.respaldo.id)}>Descargar el respaldo a este equipo</button>
+          </div>
         </div>
       )}
       <div className="tarjeta">
@@ -90,6 +98,31 @@ export function PuestaEnMarcha() {
             salvo que marque la casilla de abajo.</p>}
         </div>
       </div>
+      {inv.respaldos.length > 0 && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Respaldos de puestas en marcha anteriores</div>
+          <div className="tabla-desplazable">
+            <table className="tabla-datos">
+              <thead><tr><th>Fecha</th><th>Archivo</th><th className="num">Tamaño</th><th>Copia fuera del servidor</th><th /></tr></thead>
+              <tbody>
+                {inv.respaldos.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fecha(r.fecha)}</td>
+                    <td><code>{r.archivo}</code><span className="secundario" title="Huella SHA-256 para comprobar que la copia llegó entera">SHA-256 {r.huella?.slice(0, 16)}…</span></td>
+                    <td className="num">{r.tamano_bytes ? peso(r.tamano_bytes) : "—"}</td>
+                    <td>{r.descargado_en ? <span className="insignia bien">✓ Descargado {fecha(r.descargado_en)}</span>
+                      : <span className="insignia alerta">Sin copia todavía</span>}</td>
+                    <td className="acciones-celda" style={{ width: 120 }}>
+                      {r.disponible ? <button type="button" className="boton chico" onClick={() => bajar(r.id)}>Descargar</button>
+                        : <span className="meta">Ya no está en el servidor</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {inv.sin_clasificar.length > 0 && (
         <div className="aviso error" role="alert">Hay tablas sin clasificar ({inv.sin_clasificar.join(", ")}). No se puede dejar en blanco
           hasta corregirlo en el sistema.</div>
@@ -98,7 +131,7 @@ export function PuestaEnMarcha() {
         <div className="tarjeta-cab">Dejar el sistema en blanco</div>
         <div className="tarjeta-cuerpo">
           <div className="aviso alerta" role="note">Antes de borrar, RICORA hace un respaldo completo de la base de datos. Si el respaldo
-            falla, no se borra nada. El archivo del respaldo queda en el servidor: pida a quien lo opera que lo copie a un lugar seguro.</div>
+            falla, no se borra nada. Después podrá descargar ese respaldo desde esta misma pantalla y guardarlo fuera del servidor.</div>
           {total === 0 && <p className="meta">El sistema ya está en blanco.</p>}
           <div className="casillas" style={{ margin: "10px 0 14px" }}><label><input type="checkbox" checked={tesauros} onChange={(e) => setTesauros(e.target.checked)} />
             Borrar también los tesauros cargados</label></div>

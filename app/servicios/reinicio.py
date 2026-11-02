@@ -95,7 +95,20 @@ def inventario(db: Session) -> dict:
         "se_conserva": ["Usuarios y roles", "Parámetros y datos de la institución", "Respaldos de la base de datos",
                         "Registro de auditoría (no se puede borrar)"],
         "sin_clasificar": sorted(sin_clasificar(db)),
+        "respaldos": _respaldos_de_reinicio(db),
     }
+
+
+def _respaldos_de_reinicio(db: Session) -> list[dict]:
+    """Los respaldos hechos antes de cada puesta en marcha, para descargarlos desde la pantalla."""
+    from app.models.preservacion import RespaldoBaseDatos
+
+    filas = db.scalars(select(RespaldoBaseDatos).where(RespaldoBaseDatos.origen == "reinicio",
+                                                       RespaldoBaseDatos.estado == "correcto")
+                       .order_by(RespaldoBaseDatos.iniciado_en.desc()).limit(5)).all()
+    return [{"id": str(r.id), "archivo": Path(r.archivo).name if r.archivo else None, "fecha": r.iniciado_en,
+             "tamano_bytes": r.tamano_bytes, "huella": r.huella, "descargado_en": r.descargado_en,
+             "disponible": bool(r.archivo and Path(r.archivo).exists() and r.depurado_en is None)} for r in filas]
 
 
 def _apartar_archivos(marca: str) -> dict:
