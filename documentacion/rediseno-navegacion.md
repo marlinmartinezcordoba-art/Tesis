@@ -383,3 +383,17 @@ filas, la tipografía y el marco.
 | Columna «Resultado» de la auditoría | (a) «Exitoso» para todo; (b) derivarlo de la acción | (b) | El registro solo anota lo que ocurrió; los intentos fallidos tienen su propia acción. Ponerle «Exitoso» a todo sería un dato inventado. | Una acción fallida nueva debe nombrarse con «fallida» o «rechazada», o agregarse a `RESULTADO_FALLIDO`. |
 | Botón «Nueva autoridad» de la maqueta | (a) Agregarlo; (b) no | (b) | En RICORA una autoridad nace al describir, con su documento de respaldo. Un botón que crea autoridades sueltas contradice ese principio. | Ninguno: la importación EAC-CPF cubre la carga masiva. |
 | Lanzador «¿Qué quiere hacer?» | (a) Botón aparte; (b) dentro del buscador | (b) | Una sola caja para buscar y para ir a cualquier pantalla. El encabezado queda en una línea. | Quien no tiene acceso al catálogo no ve el buscador: para esa persona se mantiene el botón. |
+
+## Fase 5: módulos interactivos (evaluación y ficha de autoridad)
+
+Cambios visuales y de estructura. La lógica y las reglas del servidor no cambian: el servidor sigue impidiendo describir a ciegas un documento cuya propuesta ya se vio.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| «Mis tareas» de la experta | Tres botones por fila / tabla por pasos | Tabla con columnas 1. A ciegas, 2. Con la propuesta, 3. Calificación, indicadores de avance y la tarea siguiente resaltada | El orden del protocolo queda a la vista y se reduce el riesgo de abrir la propuesta antes de tiempo | Ninguno: las condiciones para habilitar cada paso son las mismas de antes |
+| Abrir la propuesta sin haber descrito a ciegas | Sin aviso / con confirmación | Confirmación que explica que el documento ya no se podrá describir a ciegas | Un clic equivocado invalida la referencia humana de ese documento | Un paso más para la experta |
+| Formulario de descripción en RiC | Campos sin estilo / campos del sistema | Campos `.entrada`, bloques numerados con contador, filas de entidad y de relación en recuadros (origen → relación → destino), barra fija con Guardar y Enviar | Es la pantalla donde la experta pasa más tiempo; el aspecto debe ser el mismo que en Descripción | Ninguno |
+| Enviar la descripción | Envío directo / con confirmación | Confirmación: una vez enviada no se cambia y el tiempo deja de contar | El envío es definitivo y cierra la medición del tiempo | Un paso más |
+| Rúbrica | Lista de radios / dos columnas | La propuesta a la izquierda y la escala de 1 a 5 a la derecha, en tarjetas seleccionables | Se califica mirando lo que se califica | Ninguno |
+| Vínculos en la ficha de autoridad | Una nube de 16 botones / un selector | Un selector «Declarar un vínculo…» cuando hay más de tres clases; botones cuando hay tres o menos | La nube de botones ocupaba media pantalla | Una clase de vínculo queda a un clic más |
+| Campos con la clase «campo» | Corregir uno por uno / regla común | Regla CSS común para `input/textarea/select.campo` | Corrige de una vez Hallazgos, Auditoría y Desacuerdos | Ninguno |

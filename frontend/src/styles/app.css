@@ -1193,3 +1193,61 @@ fieldset.campo legend { text-transform: none; letter-spacing: 0; font-size: .82r
 .celda-usuario .avatar { width: 36px; height: 36px; flex-basis: 36px; }
 .tabla-datos .fila-edicion td { background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
 .indicador .barra { width: 100%; flex: none; }
+
+/* ── Rediseño fase 5: módulos interactivos (evaluación, ficha de autoridad) ── */
+/* Campos escritos con la clase «campo» en un input: mismo aspecto que .entrada. */
+input.campo, textarea.campo, select.campo {
+  width: 100%; font: inherit; font-size: .9rem; padding: 10px 12px; border-radius: 8px; margin: 0;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.entrada:focus-visible, .selector:focus-visible, input.campo:focus-visible, textarea.campo:focus-visible, select.campo:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent);
+}
+textarea.entrada { resize: vertical; line-height: 1.5; }
+.campo label code.rico { text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 4px; }
+
+/* Mis tareas */
+.orden-tareas { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: .84rem; color: var(--muted); }
+.orden-tareas b, .numero-bloque, .clave-entidad {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; font-size: .74rem; font-weight: 700;
+  background: var(--accent-bg); color: var(--accent); margin-right: 6px; flex: none;
+}
+.tabla-tareas td { vertical-align: middle; }
+.paso-tarea { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.paso-tarea.bloqueado { color: var(--muted); font-size: .8rem; font-style: italic; }
+
+/* Formulario de descripción en RiC */
+.texto-documento { white-space: pre-wrap; max-height: 70vh; overflow: auto; line-height: 1.6; font-size: .92rem; }
+@media (min-width: 861px) { .columna-documento { position: sticky; top: 12px; align-self: start; } }
+.bloque-ric { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 6px; }
+.bloque-ric h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
+.bloque-ric h4 .insignia { margin-left: auto; }
+.fila-entidad, .fila-relacion {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; margin-bottom: 6px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.fila-entidad .selector, .fila-relacion .selector { width: auto; max-width: 100%; padding: 7px 8px; }
+.fila-entidad .entrada { padding: 7px 10px; }
+.fila-entidad .entrada.valor { flex: 1 1 160px; width: auto; }
+.fila-entidad .entrada.edtf { width: 150px; }
+.fila-relacion .selector { flex: 1 1 120px; }
+.fila-relacion .selector.propiedad { flex: 2 1 180px; }
+.fila-relacion .flecha { color: var(--muted); }
+.boton-icono.quitar { font-size: 1.1rem; line-height: 1; color: var(--muted); margin-left: auto; }
+.boton-icono.quitar:hover { color: var(--danger); }
+.boton.agregar { border-style: dashed; }
+.confirmacion { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0; }
+
+/* Rúbrica */
+.criterio-rubrica { border: 0; padding: 0; margin: 0 0 16px; }
+.criterio-rubrica legend { margin-bottom: 6px; }
+.escala { display: grid; gap: 6px; }
+.escala label { display: grid; grid-template-columns: auto 22px 1fr; gap: 8px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: .86rem; }
+.escala label:hover { border-color: var(--muted); }
+.escala label.elegida { border-color: var(--accent); background: var(--accent-bg); }
+.escala label b { color: var(--accent); }
+.lista-propuesta { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+
+/* Ficha de autoridad: un selector en lugar de la nube de botones de vínculos */
+.agregar-vinculo { display: flex; align-items: center; gap: 8px; margin-top: 8px; max-width: 420px; color: var(--accent); }
+.agregar-vinculo svg { width: 18px; height: 18px; flex: none; }

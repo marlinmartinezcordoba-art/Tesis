@@ -2,7 +2,8 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
-import { Encabezado } from "@/components/Encabezado";
+import { Encabezado, Indicadores } from "@/components/Encabezado";
+import { confirmar } from "@/lib/dialogos";
 import { Ventana } from "@/components/Ventana";
 
 // Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
@@ -260,43 +261,97 @@ function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBrev
   if (verResultados) {
     return <Resultados evId={ev.id} volver={() => setVerResultados(false)} />;
   }
+  async function abrirAsistida(t: Tarea) {
+    // Abrir la propuesta cierra para siempre la descripción a ciegas de ese documento: se advierte antes.
+    if (t.puede_ciega && t.ciega?.estado !== "enviada" && !await confirmar(
+      `Todavía no ha descrito a ciegas «${t.nombre}». Si abre la propuesta del motor, ese documento ya no se podrá describir a ciegas. ¿Continuar?`)) return;
+    abrir(t.instanciacion_id, "asistida");
+  }
+
+  const lista = tareas || [];
+  const completas = lista.filter((t) => t.ciega?.estado === "enviada" && t.asistida?.estado === "enviada" && t.calificado).length;
   return (
     <>
-      <button type="button" className="boton chico" onClick={volver}>← Evaluaciones</button>
-      <h2>{ev.nombre} <span className={`insignia ${ESTADO_EV[ev.estado].clase}`}>{ESTADO_EV[ev.estado].texto}</span></h2>
-      {ev.protocolo && <p className="meta" style={{ whiteSpace: "pre-wrap" }}>{ev.protocolo}</p>}
+      <Encabezado titulo={ev.nombre} ceja="Evaluación humano frente a máquina"
+                  descripcion={ev.protocolo ? <span style={{ whiteSpace: "pre-wrap" }}>{ev.protocolo}</span> : undefined}
+                  acciones={<>
+                    <span className={`insignia ${ESTADO_EV[ev.estado].clase}`}>{ESTADO_EV[ev.estado].texto}</span>
+                    <button type="button" className="boton" onClick={volver}>← Evaluaciones</button>
+                  </>} />
       {error && <div className="aviso error" role="alert">{error}</div>}
       {esAdmin && <Administracion ev={ev} cambio={() => { cambio(); cargar(); }} resultados={() => setVerResultados(true)} />}
       {ev.estado === "en_curso" && (
-        <div className="tarjeta">
-          <div className="tarjeta-cab">Mis tareas</div>
-          <div className="tarjeta-cuerpo">
-            <p className="meta">
-              El orden importa: primero a ciegas, luego asistida, luego calificar. Una vez vista la propuesta del motor, ese
-              documento ya no se puede describir a ciegas.
-            </p>
-            {!tareas ? <div className="cargando">Cargando…</div> : tareas.map((t) => (
-              <div key={t.instanciacion_id} className="fila" style={{ flexWrap: "wrap", gap: 8 }}>
-                <div className="fila-principal"><div className="nombre">{t.nombre}</div></div>
-                <button type="button" className="boton chico" disabled={!t.puede_ciega || t.ciega?.estado === "enviada"}
-                        title={!t.puede_ciega ? "Ya vio la propuesta de este documento" : undefined}
-                        onClick={() => abrir(t.instanciacion_id, "ciega")}>
-                  {t.ciega?.estado === "enviada" ? "A ciegas ✓" : !t.puede_ciega ? "A ciegas (no disponible)" : "Describir a ciegas"}
-                </button>
-                <button type="button" className="boton chico" disabled={t.asistida?.estado === "enviada" || t.ciega?.estado === "en_curso"}
-                        onClick={() => abrir(t.instanciacion_id, "asistida")}>
-                  {t.asistida?.estado === "enviada" ? "Asistida ✓" : "Describir con la propuesta"}
-                </button>
-                <button type="button" className="boton chico" disabled={t.ciega?.estado === "en_curso"}
-                        onClick={() => setCalificando(t.instanciacion_id)}>
-                  {t.calificado ? "Calificada ✓ (cambiar)" : "Calificar la propuesta"}
-                </button>
+        <>
+          {tareas && tareas.length > 0 && (
+            <Indicadores etiqueta="Mi avance en la evaluación" items={[
+              { etiqueta: "Documentos terminados", valor: `${completas} de ${lista.length}`, avance: completas / lista.length,
+                tono: completas === lista.length ? "bien" : undefined, nota: "Las tres tareas hechas" },
+              { etiqueta: "1. A ciegas", valor: lista.filter((t) => t.ciega?.estado === "enviada").length, nota: "enviadas" },
+              { etiqueta: "2. Con la propuesta", valor: lista.filter((t) => t.asistida?.estado === "enviada").length, nota: "enviadas" },
+              { etiqueta: "3. Calificación", valor: lista.filter((t) => t.calificado).length, nota: "propuestas calificadas" },
+            ]} />
+          )}
+          <div className="tarjeta">
+            <div className="tarjeta-cab">Mis tareas</div>
+            <ol className="orden-tareas" aria-label="Orden de trabajo por documento">
+              <li><b>1</b> Describir a ciegas, sin ver la propuesta</li>
+              <li><b>2</b> Describir con la propuesta del motor</li>
+              <li><b>3</b> Calificar la propuesta de 1 a 5</li>
+            </ol>
+            {!tareas ? <div className="cargando">Cargando…</div> : (
+              <div className="tabla-desplazable">
+                <table className="tabla-datos tabla-tareas">
+                  <thead><tr><th>Documento</th><th>1. A ciegas</th><th>2. Con la propuesta</th><th>3. Calificación</th></tr></thead>
+                  <tbody>
+                    {tareas.map((t) => {
+                      const ciegaHecha = t.ciega?.estado === "enviada";
+                      const asistidaHecha = t.asistida?.estado === "enviada";
+                      const ciegaAbierta = t.ciega?.estado === "en_curso";
+                      // La tarea que sigue, en el orden del protocolo, va resaltada.
+                      const sigue = !ciegaHecha && t.puede_ciega ? "ciega" : !asistidaHecha ? "asistida" : !t.calificado ? "calificar" : null;
+                      return (
+                        <tr key={t.instanciacion_id}>
+                          <td><strong>{t.nombre}</strong>
+                            <span className="secundario">{sigue ? "En proceso" : "Terminado"}</span></td>
+                          <td><PasoTarea hecho={ciegaHecha} sigue={sigue === "ciega"} textoHecho="Enviada"
+                                         bloqueo={!t.puede_ciega && !ciegaHecha ? "No disponible: ya vio la propuesta" : null}
+                                         boton={ciegaAbierta ? "Continuar" : "Describir a ciegas"}
+                                         alHacer={() => abrir(t.instanciacion_id, "ciega")} /></td>
+                          <td><PasoTarea hecho={asistidaHecha} sigue={sigue === "asistida"} textoHecho="Enviada"
+                                         bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
+                                         boton={t.asistida?.estado === "en_curso" ? "Continuar" : "Describir con la propuesta"}
+                                         alHacer={() => abrirAsistida(t)} /></td>
+                          <td><PasoTarea hecho={t.calificado} sigue={sigue === "calificar"} textoHecho="Calificada"
+                                         bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
+                                         boton={t.calificado ? "Cambiar" : "Calificar"} botonSiHecho
+                                         alHacer={() => setCalificando(t.instanciacion_id)} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </div>
-        </div>
+        </>
       )}
     </>
+  );
+}
+
+// Una celda de la tabla de tareas: el estado del paso y, si corresponde, el botón para hacerlo.
+function PasoTarea({ hecho, sigue, bloqueo, boton, textoHecho, alHacer, botonSiHecho }: {
+  hecho: boolean; sigue: boolean; bloqueo: string | null; boton: string; textoHecho: string; alHacer: () => void;
+  botonSiHecho?: boolean;
+}) {
+  if (bloqueo) return <span className="paso-tarea bloqueado">{bloqueo}</span>;
+  return (
+    <span className="paso-tarea">
+      {hecho && <span className="insignia bien">✓ {textoHecho}</span>}
+      {(!hecho || botonSiHecho) && (
+        <button type="button" className={`boton chico${sigue ? " primario" : ""}`} onClick={alHacer}>{boton}</button>
+      )}
+    </span>
   );
 }
 
@@ -546,7 +601,7 @@ function CriterioComparabilidad({ ev, cambio }: { ev: EvaluacionBreve; cambio: (
 
   const campo = (k: keyof Criterio, texto: string, paso: number, min: number, max: number) => (
     <label className="meta" style={{ display: "grid", gap: 2 }}>{texto}
-      <input className="campo" type="number" step={paso} min={min} max={max} value={c[k]} disabled={!editable}
+      <input className="entrada" type="number" step={paso} min={min} max={max} value={c[k]} disabled={!editable}
              onChange={(e) => setC({ ...c, [k]: Number(e.target.value) })} />
     </label>
   );
@@ -621,102 +676,127 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
     }
   }
 
+  async function enviarFinal() {
+    if (!await confirmar("¿Enviar la descripción? Una vez enviada ya no se puede cambiar y el tiempo deja de contar.")) return;
+    guardar(true);
+  }
+
   const extremos = [DOCUMENTO, ...datos.entidades.map((e) => e.clave)];
+  const ciega = a.condicion === "ciega";
   return (
     <>
-      <button type="button" className="boton chico" onClick={cerrar}>← Volver</button>
-      <h2>{a.documento.nombre} · {a.condicion === "ciega" ? "a ciegas" : "con la propuesta del motor"}</h2>
-      {a.condicion === "ciega" && (
-        <div className="aviso">Describa solo a partir del documento. El tiempo se mide desde que lo abrió hasta que lo envía.</div>
+      <Encabezado ceja={ciega ? "Paso 1 de 3 · Descripción a ciegas" : "Paso 2 de 3 · Descripción con la propuesta del motor"}
+                  titulo={a.documento.nombre}
+                  acciones={<button type="button" className="boton" onClick={cerrar}>← Volver a mis tareas</button>} />
+      {ciega ? (
+        <div className="aviso" role="note"><strong>A ciegas.</strong> Describa solo a partir del documento: no abra este documento en
+          Descripción ni mire la pantalla de otra experta. El tiempo se mide desde que lo abrió hasta que lo envía.</div>
+      ) : (
+        <div className="aviso" role="note">Revise la propuesta del motor: confirme, corrija o quite lo que no corresponda.</div>
       )}
+      {soloLectura && <div className="aviso bien" role="status">Esta descripción ya fue enviada. Se muestra solo para consulta.</div>}
       <div className="evaluacion-columnas">
-        <div className="tarjeta"><div className="tarjeta-cab">Documento</div>
-          <div className="tarjeta-cuerpo" style={{ whiteSpace: "pre-wrap", maxHeight: 520, overflow: "auto" }}>
+        <div className="tarjeta columna-documento"><div className="tarjeta-cab">Documento</div>
+          <div className="tarjeta-cuerpo texto-documento">
             {a.documento.texto || <span className="meta">Sin texto extraído.</span>}</div></div>
-        <div className="tarjeta"><div className="tarjeta-cab">Descripción en RiC</div>
+        <div className="tarjeta formulario-ric"><div className="tarjeta-cab">Descripción en RiC</div>
           <div className="tarjeta-cuerpo">
-            <label className="meta" htmlFor="an-titulo">Título (rico:title)</label>
-            <input id="an-titulo" className="campo" style={{ width: "100%" }} disabled={soloLectura} value={datos.titulo || ""}
-                   onChange={(e) => setDatos({ ...datos, titulo: e.target.value })} />
-            <label className="meta" htmlFor="an-alcance" style={{ display: "block", marginTop: 8 }}>
-              Alcance y contenido (rico:scopeAndContent)</label>
-            <textarea id="an-alcance" className="campo" rows={3} style={{ width: "100%" }} disabled={soloLectura}
-                      value={datos.alcance || ""} onChange={(e) => setDatos({ ...datos, alcance: e.target.value })} />
+            <div className="campo">
+              <label htmlFor="an-titulo">Título <code className="rico">rico:title</code></label>
+              <input id="an-titulo" className="entrada" disabled={soloLectura} value={datos.titulo || ""}
+                     onChange={(e) => setDatos({ ...datos, titulo: e.target.value })} />
+            </div>
+            <div className="campo">
+              <label htmlFor="an-alcance">Alcance y contenido <code className="rico">rico:scopeAndContent</code></label>
+              <textarea id="an-alcance" className="entrada" rows={4} disabled={soloLectura}
+                        value={datos.alcance || ""} onChange={(e) => setDatos({ ...datos, alcance: e.target.value })} />
+            </div>
 
-            <h4>1. Entidades</h4>
-            <p className="meta">Quién, dónde, cuándo, qué actividad y qué norma aparecen en el documento. El papel de cada una
-              (productor, destinatario…) no va aquí: es una relación.</p>
-            {datos.entidades.map((e, i) => (
-              <div key={e.clave} className="fila-entidad" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-                <select className="selector" aria-label="Tipo" disabled={soloLectura} value={e.tipo}
-                        onChange={(x) => cambiar(i, "tipo", x.target.value)}>
-                  {TIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-                {e.tipo === "agente" && (
-                  <select className="selector" aria-label="Clase de agente" disabled={soloLectura} value={e.subtipo || ""}
-                          onChange={(x) => cambiar(i, "subtipo", x.target.value)}>
-                    <option value="">Clase de agente…</option>
-                    {SUBTIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            <section className="bloque-ric">
+              <h4><span className="numero-bloque">1</span> Entidades <span className="insignia acento">{datos.entidades.length}</span></h4>
+              <p className="meta">Quién, dónde, cuándo, qué actividad y qué norma aparecen en el documento. El papel de cada una
+                (productor, destinatario…) no va aquí: es una relación.</p>
+              {datos.entidades.map((e, i) => (
+                <div key={e.clave} className="fila-entidad">
+                  <span className="clave-entidad" title="Clave de la entidad">{i + 1}</span>
+                  <select className="selector" aria-label="Tipo" disabled={soloLectura} value={e.tipo}
+                          onChange={(x) => cambiar(i, "tipo", x.target.value)}>
+                    {TIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                )}
-                <input className="campo" aria-label="Nombre o valor" placeholder="Nombre o valor" disabled={soloLectura}
-                       value={e.valor} onChange={(x) => cambiar(i, "valor", x.target.value)} style={{ flex: "1 1 160px" }} />
-                {e.tipo === "fecha" && (
-                  <input className="campo" aria-label="EDTF" placeholder="EDTF (1948-03, 1948~…)" disabled={soloLectura}
-                         value={e.edtf || ""} onChange={(x) => cambiar(i, "edtf", x.target.value)} style={{ width: 150 }} />
-                )}
-                {!soloLectura && (
-                  <button type="button" className="boton chico" aria-label={`Quitar ${e.valor || "entidad"}`}
-                          onClick={() => quitarEntidad(e.clave)}>×</button>
-                )}
-              </div>
-            ))}
-            {!soloLectura && <button type="button" className="boton chico" onClick={nuevaEntidad}>+ Entidad</button>}
-
-            <h4>2. Relaciones (RiC-O)</h4>
-            <p className="meta">Cómo se conectan el documento y las entidades. Solo se ofrecen las relaciones que RiC-O admite
-              entre esos dos extremos.</p>
-            {datos.relaciones.map((r, i) => {
-              const opciones = validas(r.origen, r.destino);
-              return (
-                <div key={i} className="fila-relacion" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-                  <select className="selector" aria-label="Origen" disabled={soloLectura} value={r.origen}
-                          onChange={(x) => cambiarRelacion(i, "origen", x.target.value)}>
-                    {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
-                  </select>
-                  <select className="selector" aria-label="Relación" disabled={soloLectura} value={r.propiedad}
-                          onChange={(x) => cambiarRelacion(i, "propiedad", x.target.value)} style={{ flex: "1 1 200px" }}>
-                    {!opciones.some((p) => p.codigo === r.propiedad) && (
-                      <option value={r.propiedad}>{r.propiedad ? `${nombrePropiedad(r.propiedad, catalogo)} — no admitida` : "Ninguna relación de RiC-O une estos extremos"}</option>
-                    )}
-                    {opciones.map((p) => <option key={p.codigo} value={p.codigo}>{nombrePropiedad(p.codigo, catalogo)}</option>)}
-                  </select>
-                  <select className="selector" aria-label="Destino" disabled={soloLectura} value={r.destino}
-                          onChange={(x) => cambiarRelacion(i, "destino", x.target.value)}>
-                    {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
-                  </select>
+                  {e.tipo === "agente" && (
+                    <select className="selector" aria-label="Clase de agente" disabled={soloLectura} value={e.subtipo || ""}
+                            onChange={(x) => cambiar(i, "subtipo", x.target.value)}>
+                      <option value="">Clase de agente…</option>
+                      {SUBTIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  )}
+                  <input className="entrada valor" aria-label="Nombre o valor" placeholder="Nombre o valor" disabled={soloLectura}
+                         value={e.valor} onChange={(x) => cambiar(i, "valor", x.target.value)} />
+                  {e.tipo === "fecha" && (
+                    <input className="entrada edtf" aria-label="EDTF" placeholder="EDTF (1948-03, 1948~…)" disabled={soloLectura}
+                           value={e.edtf || ""} onChange={(x) => cambiar(i, "edtf", x.target.value)} />
+                  )}
                   {!soloLectura && (
-                    <button type="button" className="boton chico" aria-label="Quitar relación"
-                            onClick={() => setDatos({ ...datos, relaciones: datos.relaciones.filter((_, j) => j !== i) })}>×</button>
+                    <button type="button" className="boton-icono quitar" aria-label={`Quitar ${e.valor || "entidad"}`} title="Quitar"
+                            onClick={() => quitarEntidad(e.clave)}>×</button>
                   )}
                 </div>
-              );
-            })}
-            {!soloLectura && (
-              <button type="button" className="boton chico" disabled={!datos.entidades.length} onClick={nuevaRelacion}>
-                + Relación</button>
-            )}
+              ))}
+              {!soloLectura && <button type="button" className="boton chico agregar" onClick={nuevaEntidad}>+ Entidad</button>}
+            </section>
+
+            <section className="bloque-ric">
+              <h4><span className="numero-bloque">2</span> Relaciones RiC-O <span className="insignia acento">{datos.relaciones.length}</span></h4>
+              <p className="meta">Cómo se conectan el documento y las entidades. Solo se ofrecen las relaciones que RiC-O admite
+                entre esos dos extremos.</p>
+              {datos.relaciones.map((r, i) => {
+                const opciones = validas(r.origen, r.destino);
+                return (
+                  <div key={i} className="fila-relacion">
+                    <select className="selector" aria-label="Origen" disabled={soloLectura} value={r.origen}
+                            onChange={(x) => cambiarRelacion(i, "origen", x.target.value)}>
+                      {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
+                    </select>
+                    <span className="flecha" aria-hidden="true">→</span>
+                    <select className="selector propiedad" aria-label="Relación" disabled={soloLectura} value={r.propiedad}
+                            onChange={(x) => cambiarRelacion(i, "propiedad", x.target.value)}>
+                      {!opciones.some((p) => p.codigo === r.propiedad) && (
+                        <option value={r.propiedad}>{r.propiedad ? `${nombrePropiedad(r.propiedad, catalogo)} — no admitida` : "Ninguna relación de RiC-O une estos extremos"}</option>
+                      )}
+                      {opciones.map((p) => <option key={p.codigo} value={p.codigo}>{nombrePropiedad(p.codigo, catalogo)}</option>)}
+                    </select>
+                    <span className="flecha" aria-hidden="true">→</span>
+                    <select className="selector" aria-label="Destino" disabled={soloLectura} value={r.destino}
+                            onChange={(x) => cambiarRelacion(i, "destino", x.target.value)}>
+                      {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
+                    </select>
+                    {!soloLectura && (
+                      <button type="button" className="boton-icono quitar" aria-label="Quitar relación" title="Quitar"
+                              onClick={() => setDatos({ ...datos, relaciones: datos.relaciones.filter((_, j) => j !== i) })}>×</button>
+                    )}
+                  </div>
+                );
+              })}
+              {!soloLectura && (
+                <button type="button" className="boton chico agregar" disabled={!datos.entidades.length} onClick={nuevaRelacion}
+                        title={datos.entidades.length ? undefined : "Agregue primero una entidad"}>+ Relación</button>
+              )}
+            </section>
             <AvisoConformidad c={conformidad} />
             {error && <div className="aviso error" role="alert">{error}</div>}
-            {!soloLectura && (
-              <div className="acciones">
-                <button type="button" className="boton chico" onClick={() => guardar(false)}>Guardar y revisar conformidad</button>
-                <button type="button" className="boton chico primario" onClick={() => guardar(true)}>Enviar</button>
-              </div>
-            )}
           </div>
         </div>
       </div>
+      {!soloLectura && (
+        <div className="barra-publicar">
+          <span>{datos.entidades.length} entidad{datos.entidades.length === 1 ? "" : "es"} · {datos.relaciones.length} relaci{datos.relaciones.length === 1 ? "ón" : "ones"}
+            {conformidad && <> · {conformidad.conforme ? "conforme con RiC-O" : "con observaciones de conformidad"}</>}</span>
+          <div className="acciones" style={{ margin: 0 }}>
+            <button type="button" className="boton" onClick={() => guardar(false)}>Guardar y revisar conformidad</button>
+            <button type="button" className="boton primario" onClick={enviarFinal}>Enviar descripción</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -745,46 +825,62 @@ function Rubrica({ evId, inst, cerrar }: { evId: string; inst: string; cerrar: (
     }
   }
 
+  const faltan = CRITERIOS.filter(([k]) => !notas[k]).length;
   return (
     <>
-      <button type="button" className="boton chico" onClick={cerrar}>← Volver</button>
-      <h2>Calificar la propuesta del motor</h2>
-      {error && <div className="aviso error">{error}</div>}
+      <Encabezado ceja="Paso 3 de 3 · Calificación" titulo="Calificar la propuesta del motor"
+                  acciones={<button type="button" className="boton" onClick={cerrar}>← Volver a mis tareas</button>} />
+      {error && <div className="aviso error" role="alert">{error}</div>}
       {!propuesta ? (
         <div className="tarjeta"><div className="tarjeta-cuerpo">
-          <p>Para calificarla hay que verla. <strong>Después, este documento ya no se puede describir a ciegas.</strong></p>
-          <label style={{ display: "flex", gap: 8 }}>
+          <div className="aviso alerta" role="note">Para calificarla hay que verla. <strong>Después, este documento ya no se puede
+            describir a ciegas.</strong></div>
+          <label className="confirmacion">
             <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />
             Entiendo; ya describí este documento a ciegas o no lo voy a hacer.
           </label>
-          <div className="acciones"><button type="button" className="boton chico primario" disabled={!confirmado} onClick={ver}>
+          <div className="acciones"><button type="button" className="boton primario" disabled={!confirmado} onClick={ver}>
             Ver la propuesta</button></div>
         </div></div>
       ) : (
-        <div className="tarjeta"><div className="tarjeta-cuerpo">
-          <p><strong>{propuesta.titulo}</strong></p>
-          {propuesta.alcance && <p>{propuesta.alcance}</p>}
-          <h4>Entidades</h4>
-          <ul>{propuesta.entidades.map((e) => <li key={e.clave}>{TIPOS.find(([k]) => k === e.tipo)?.[1]}: {e.valor}
-            {e.subtipo && ` · ${SUBTIPOS.find(([k]) => k === e.subtipo)?.[1] ?? e.subtipo}`}{e.edtf && ` · ${e.edtf}`}</li>)}</ul>
-          <h4>Relaciones (RiC-O)</h4>
-          <ListaRelaciones datos={propuesta} catalogo={catalogo} />
-          {CRITERIOS.map(([k, nombre, pista]) => (
-            <fieldset key={k} style={{ border: 0, padding: 0, margin: "10px 0" }}>
-              <legend><strong>{nombre}</strong> <span className="meta">{pista}</span></legend>
-              <div style={{ display: "grid", gap: 4 }}>
-                {[5, 4, 3, 2, 1].map((n) => (
-                  <label key={n} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                    <input type="radio" name={k} checked={notas[k] === n} onChange={() => setNotas({ ...notas, [k]: n })} />
-                    <span><strong>{n}</strong> · {DESCRIPTORES[k][n - 1]}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ))}
-          <div className="acciones"><button type="button" className="boton chico primario" disabled={Object.keys(notas).length < 3}
-                                            onClick={guardar}>Guardar calificación</button></div>
-        </div></div>
+        <div className="evaluacion-columnas">
+          <div className="tarjeta"><div className="tarjeta-cab">Propuesta del motor</div>
+            <div className="tarjeta-cuerpo">
+              <dl className="par-dato">
+                <dt>Título</dt><dd><strong>{propuesta.titulo || "—"}</strong></dd>
+                <dt>Alcance y contenido</dt><dd>{propuesta.alcance || "—"}</dd>
+              </dl>
+              <h4>Entidades <span className="insignia acento">{propuesta.entidades.length}</span></h4>
+              <ul className="lista-propuesta">{propuesta.entidades.map((e) => <li key={e.clave}>
+                <span className="insignia contexto">{TIPOS.find(([k]) => k === e.tipo)?.[1]}</span> {e.valor}
+                {e.subtipo && <span className="meta"> · {SUBTIPOS.find(([k]) => k === e.subtipo)?.[1] ?? e.subtipo}</span>}
+                {e.edtf && <span className="meta"> · {e.edtf}</span>}</li>)}</ul>
+              <h4>Relaciones RiC-O <span className="insignia acento">{propuesta.relaciones.length}</span></h4>
+              <ListaRelaciones datos={propuesta} catalogo={catalogo} />
+            </div>
+          </div>
+          <div className="tarjeta"><div className="tarjeta-cab">Rúbrica de 1 a 5</div>
+            <div className="tarjeta-cuerpo">
+              {CRITERIOS.map(([k, nombre, pista]) => (
+                <fieldset key={k} className="criterio-rubrica">
+                  <legend><strong>{nombre}</strong> <span className="meta">{pista}</span></legend>
+                  <div className="escala">
+                    {[5, 4, 3, 2, 1].map((n) => (
+                      <label key={n} className={notas[k] === n ? "elegida" : undefined}>
+                        <input type="radio" name={k} checked={notas[k] === n} onChange={() => setNotas({ ...notas, [k]: n })} />
+                        <b>{n}</b><span>{DESCRIPTORES[k][n - 1]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+              <div className="acciones">
+                <span className="meta">{faltan ? `Faltan ${faltan} criterio${faltan === 1 ? "" : "s"}` : "Los tres criterios calificados"}</span>
+                <button type="button" className="boton primario" disabled={Object.keys(notas).length < 3}
+                        onClick={guardar}>Guardar calificación</button></div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

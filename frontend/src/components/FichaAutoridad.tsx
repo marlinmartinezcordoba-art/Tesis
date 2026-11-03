@@ -392,6 +392,7 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
   const [nota, setNota] = useState("");
   const [error, setError] = useState("");
   const propios = vinculos.filter((v) => tipos.includes(v.vinculo));
+  const visibles = opciones.filter((o) => !o.subtipos || o.subtipos.includes(entidad.subtipo || ""));
 
   function cerrar() {
     setAbierta(null); setElegida(null); setVigencia(null); setNota(""); setError(""); setControl(controlInicial("rango"));
@@ -443,15 +444,25 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
         </div>
       ))}
       {error && !abierta && <div className="aviso error" role="alert">{error}</div>}
-      {puede && !abierta && (
+      {puede && !abierta && visibles.length > 0 && (visibles.length > 3 ? (
+        // Muchas clases de vínculo: un solo selector en lugar de una nube de botones.
+        <div className="agregar-vinculo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          <select className="selector" aria-label="Declarar un vínculo" value=""
+                  onChange={(ev) => { const o = visibles[Number(ev.target.value)]; if (o) setAbierta(o); }}>
+            <option value="">Declarar un vínculo…</option>
+            {visibles.map((o, i) => <option key={`${o.tipo}-${o.invertir ? "i" : "d"}`} value={i}>{o.etiqueta}</option>)}
+          </select>
+        </div>
+      ) : (
         <div className="acciones" style={{ marginTop: 6, flexWrap: "wrap" }}>
-          {opciones.filter((o) => !o.subtipos || o.subtipos.includes(entidad.subtipo || "")).map((o) => (
+          {visibles.map((o) => (
             <button key={`${o.tipo}-${o.invertir ? "i" : "d"}`} type="button" className="boton chico" onClick={() => setAbierta(o)}>
               + {o.etiqueta}
             </button>
           ))}
         </div>
-      )}
+      ))}
       {abierta && (
         <div className="tarjeta" style={{ marginTop: 10 }}>
           <div className="tarjeta-cab">
