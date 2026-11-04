@@ -1719,3 +1719,26 @@ body {
 .acceso { min-height: 0; padding: 44px 14px 12px; }
 .acceso::before { width: 24px; height: 24px; top: 12px; left: 14px; border-radius: 7px; }
 .acceso strong { font-size: .88rem; }
+/* Recorrido en una sola fila y lateral más compacto */
+.recorrido-horizontal { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .recorrido-horizontal { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); } }
+.recorrido-horizontal li { padding: 10px; }
+.recorrido-horizontal strong { font-size: .8rem; line-height: 1.25; }
+.recorrido-horizontal .meta { font-size: .72rem; line-height: 1.35; }
+.recorrido-horizontal .insignia { font-size: .66rem; padding: 2px 8px; }
+.recorrido-horizontal .boton.chico { font-size: .72rem; padding: 6px 9px; }
+.inicio-tablero .tarjeta-cab { padding-top: 12px; padding-bottom: 12px; font-size: .9rem; }
+.avance-general { gap: 14px; padding: 12px 16px; }
+.dona { width: 92px; height: 92px; }
+.dona b { font-size: 1.1rem; }
+.avance-general ul { font-size: .8rem; gap: 7px; }
+.actividad-reciente { padding: 4px 16px 10px; }
+.actividad-reciente li { padding: 7px 0; gap: 10px; }
+.actividad-reciente strong { font-size: .8rem; }
+.actividad-reciente .meta { font-size: .7rem; }
+.accesos-rapidos { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .accesos-rapidos { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); } }
+.acceso { padding: 40px 12px 10px; }
+.acceso strong { font-size: .82rem; }
+.acceso span { font-size: .7rem; padding-right: 10px; }
+.acceso i { right: 8px; bottom: 8px; font-size: 1rem; }
