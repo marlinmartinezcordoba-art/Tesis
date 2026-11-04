@@ -192,11 +192,10 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
               const idLista = `submodulos-${e.ruta.slice(1)}`;
               return (
                 <div key={e.ruta} className={`rama${enModulo ? " en-modulo" : ""}`}>
-                  <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista} title={e.nombre}
+                  <button type="button" className="rama-cab" aria-expanded={abierto} aria-controls={idLista} title={e.pista ? `${e.nombre}: ${e.pista}` : e.nombre}
                           onClick={() => alternar(e.ruta)}>
                     {ICONOS[e.icono]}
-                    <span className="rama-nombre"><span>{e.nombre}</span>
-                      {e.pista && <small aria-hidden="true">{e.pista}</small>}</span>
+                    <span className="rama-nombre"><span>{e.nombre}</span></span>
                     <svg className="flecha-rama" viewBox="0 0 24 24" aria-hidden="true" {...trazo}><path d="M9 6l6 6-6 6" /></svg>
                   </button>
                   {abierto && (
@@ -210,7 +209,6 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
                                   aria-current={activa ? "page" : undefined} onClick={alNavegar}
                                   title={e.pistas?.[sm.nombre]}>
                               <span>{sm.nombre}</span>
-                              {e.pistas?.[sm.nombre] && <small aria-hidden="true">{e.pistas[sm.nombre]}</small>}
                             </Link>
                           </li>
                         );

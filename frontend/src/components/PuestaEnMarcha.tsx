@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { fecha, peso } from "@/lib/formato";
 import { useFondo } from "@/lib/fondo";
+import { useSesion } from "@/lib/sesion";
 
 // Puesta en marcha: dejar RICORA en blanco para empezar a usarlo de verdad.
 // Es la única excepción a «nada se borra, se anula»: por eso pide contraseña y frase,
@@ -27,6 +28,7 @@ interface Resultado {
 
 export function PuestaEnMarcha() {
   const { recargar } = useFondo();
+  const { usuario } = useSesion();
   const [inv, setInv] = useState<Inventario | null>(null);
   const [contrasena, setContrasena] = useState("");
   const [frase, setFrase] = useState("");
@@ -62,7 +64,8 @@ export function PuestaEnMarcha() {
 
   if (!inv) return error ? <div className="aviso error" role="alert">{error}</div> : <div className="cargando">Leyendo…</div>;
   const total = inv.se_borra.reduce((n, x) => n + x.cantidad, 0);
-  const listo = frase.trim().toUpperCase().replace(/\s+/g, " ") === inv.frase && contrasena.length > 0;
+  const fraseBien = frase.trim().toUpperCase().replace(/\s+/g, " ") === inv.frase;
+  const listo = fraseBien && contrasena.length > 0;
 
   return (
     <>
@@ -135,9 +138,17 @@ export function PuestaEnMarcha() {
           {total === 0 && <p className="meta">El sistema ya está en blanco.</p>}
           <div className="casillas" style={{ margin: "10px 0 14px" }}><label><input type="checkbox" checked={tesauros} onChange={(e) => setTesauros(e.target.checked)} />
             Borrar también los tesauros cargados</label></div>
+          {/* El navegador rellena el primer campo de texto antes de una contraseña con el correo guardado.
+              Este campo oculto recibe ese relleno para que no caiga en la frase. */}
+          <input type="text" name="username" autoComplete="username" value={usuario?.correo ?? ""} readOnly hidden aria-hidden="true" />
           <div className="campo">
             <label htmlFor="frase-reinicio">Escriba <strong>{inv.frase}</strong></label>
-            <input id="frase-reinicio" className="entrada" autoComplete="off" value={frase} onChange={(e) => setFrase(e.target.value)} />
+            <input id="frase-reinicio" name="frase-confirmacion" className="entrada" autoComplete="off" spellCheck={false}
+                   placeholder={inv.frase} value={frase} onChange={(e) => setFrase(e.target.value)} />
+            {frase.trim() !== "" && !fraseBien && (
+              <p className="meta" role="status" style={{ color: "var(--danger)", margin: "6px 0 0" }}>
+                La frase no coincide. Borre lo que hay y escriba exactamente {inv.frase}.</p>
+            )}
           </div>
           <div className="campo">
             <label htmlFor="clave-reinicio">Su contraseña</label>
