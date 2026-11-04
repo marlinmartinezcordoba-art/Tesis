@@ -31,12 +31,34 @@ export const ACCIONES_RAPIDAS = [
     icono: <svg viewBox="0 0 24 24" {...trazo}><path d="M5 20V12M10 20V6M15 20v-9M20 20V4" /></svg> },
 ];
 
-const SUGERENCIAS = [
+// Preguntas que suelen surgir en cada pantalla.
+const GENERALES = [
   "¿Qué diferencia hay entre la TRD y la TVD?",
   "¿Cómo describo un agente productor en RiC-O?",
   "¿Qué campos lleva el FUID?",
   "¿Qué documentos tienen reserva por la Ley 1712?",
 ];
+const PREGUNTAS: [string, string[]][] = [
+  ["/fondos", ["¿Qué diferencia hay entre el CCD y la TRD?", "¿Cuándo se elabora una TVD y no una TRD?",
+    "¿Qué significa conservación total, selección y eliminación?", "¿Quién aprueba la TRD y qué acto la adopta?"]],
+  ["/ingesta", ["¿Qué formatos se recomiendan para preservar un documento digital?", "¿Para qué sirve la huella SHA-256?",
+    "¿Qué hago si el OCR sale con confianza baja?", "¿Cómo asigno los documentos a un expediente?"]],
+  ["/descripcion", ["¿Qué va en «Alcance y contenido» según ISAD(G)?", "¿Cómo escribo el título de una unidad documental?",
+    "¿Cómo registro una fecha aproximada o incierta?", "¿Qué diferencia hay entre productor y destinatario en RiC-O?"]],
+  ["/vocabularios", ["¿Cómo se escribe la forma autorizada de un nombre?", "¿Cuándo dos autoridades son la misma y se fusionan?",
+    "¿Qué diferencia hay entre función, actividad y mandato?", "¿Qué es una ficha ISAAR(CPF)?"]],
+  ["/instrumentos", ["¿Qué diferencia hay entre inventario, guía e índice?", "¿Qué campos lleva el FUID?",
+    "¿Qué es RiC-O y para qué sirve publicarlo?", "¿Cómo consulto el grafo con SPARQL?"]],
+  ["/auditoria", ["¿Qué debe quedar registrado en la trazabilidad de un archivo?", "¿Por cuánto tiempo se conservan los registros de auditoría?",
+    "¿Qué significa que la cadena de huellas está íntegra?", "¿Cómo exporto el registro de actividad?"]],
+  ["/evaluacion", ["¿Por qué se describe primero a ciegas?", "¿Qué miden la precisión, la exhaustividad y F1?",
+    "¿Qué es el acuerdo entre expertas?", "¿Cómo califico exactitud, completitud y pertinencia?"]],
+  ["/usuarios", ["¿Qué permisos debe tener una archivista que describe?", "¿Qué hace el rol de revisor?",
+    "¿Qué borra la puesta en marcha y qué conserva?", "¿Cómo protejo los datos personales de las cuentas?"]],
+];
+function preguntasPara(ruta: string): string[] {
+  return PREGUNTAS.find(([prefijo]) => ruta.startsWith(prefijo))?.[1] ?? GENERALES;
+}
 
 interface Mensaje { rol: "persona" | "asistente"; texto: string; error?: boolean }
 interface Estado { disponible: boolean; modelo: string | null; aviso: string }
@@ -74,10 +96,8 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState(inicial || "");
   const [pensando, setPensando] = useState(false);
-  const [guiaAbierta, setGuiaAbierta] = useState<number | null>(null);
   const fin = useRef<HTMLDivElement>(null);
   const entrada = useRef<HTMLTextAreaElement>(null);
-  const acciones = ACCIONES_RAPIDAS.filter((a) => puede(usuario, a.modulo));
 
   useEffect(() => { pedir<Estado>("/api/asistente/estado").then(setEstado).catch(() => setEstado({ disponible: false, modelo: null, aviso: "" })); }, []);
   useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [mensajes, pensando]);
@@ -91,7 +111,12 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
   async function preguntar(pregunta: string) {
     const limpia = pregunta.trim();
     if (!limpia || pensando) return;
-    if (!estado?.disponible) { alCerrar(); abrirBuscador(limpia); return; }
+    if (!estado?.disponible) {
+      setMensajes([...mensajes, { rol: "persona", texto: limpia }, { rol: "asistente", error: true, texto:
+        "El asistente con IA todavía no está activo en este servidor: falta configurar el motor de análisis (GEMINI_API_KEY). Mientras tanto, use Ctrl + K para ir a cualquier pantalla." }]);
+      setTexto("");
+      return;
+    }
     const nuevos: Mensaje[] = [...mensajes, { rol: "persona", texto: limpia }];
     setMensajes(nuevos);
     setTexto("");
@@ -131,33 +156,10 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
             <h3>Hola{nombre ? `, ${nombre}` : ""}. ¿En qué le ayudo?</h3>
             <p>Pregunte por normas archivísticas, RiC-O, la TRD o cómo hacer algo en RICORA. Oriento; las decisiones
               son suyas.</p>
-            {estado?.disponible && (
-              <div className="chat-sugerencias">
-                {SUGERENCIAS.map((s) => <button type="button" key={s} onClick={() => preguntar(s)}>{s}</button>)}
-              </div>
-            )}
-            {acciones.length > 0 && (
-              <>
-                <span className="chat-seccion">Acciones rápidas</span>
-                <div className="chat-acciones">
-                  {acciones.map((a) => <Link key={a.texto} to={a.ruta} onClick={alCerrar}>{a.icono}<span>{a.texto}</span></Link>)}
-                </div>
-              </>
-            )}
-            {guia && (
-              <>
-                <span className="chat-seccion">En esta pantalla · {guia.titulo}</span>
-                <ol className="chat-guia">
-                  {guia.pasos.map((p, i) => (
-                    <li key={p.titulo}>
-                      <button type="button" aria-expanded={guiaAbierta === i} onClick={() => setGuiaAbierta(guiaAbierta === i ? null : i)}>
-                        <b>{i + 1}</b>{p.titulo}</button>
-                      {guiaAbierta === i && <p>{p.texto}</p>}
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
+            <span className="chat-seccion">Preguntas frecuentes</span>
+            <div className="chat-sugerencias">
+              {preguntasPara(pathname).map((q) => <button type="button" key={q} onClick={() => preguntar(q)}>{q}</button>)}
+            </div>
           </div>
         )}
         {mensajes.map((m, i) => (
@@ -176,7 +178,7 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
       <form className="chat-pie" onSubmit={enviar}>
         <div className="chat-entrada">
           <textarea ref={entrada} rows={1} aria-label="Escriba su pregunta" value={texto}
-                    placeholder={estado?.disponible ? "Escriba su pregunta…" : "¿Qué necesita? (lo llevo a la pantalla)"}
+                    placeholder="Escriba su pregunta…"
                     onChange={(e) => setTexto(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); preguntar(texto); } }} />
           <button type="submit" disabled={!texto.trim() || pensando} aria-label="Enviar">{I_ENVIAR}</button>
