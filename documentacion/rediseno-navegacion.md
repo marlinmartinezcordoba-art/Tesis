@@ -409,3 +409,15 @@ Paleta propuesta por la autora: azul noche `#091B43` para la navegación, azul e
 | Imágenes decorativas (paisaje, ave) | Incluirlas / no | No | Se pidió una interfaz minimalista; la imagen no aporta a la tarea archivística | Ninguno |
 | Gráficas pequeñas dentro de las cifras | Incluirlas / no | No | Las cifras de RICORA son medidas; una curva sin datos históricos sería ilustrativa | Ninguno |
 | Asistente RICORA con chat | Construirlo ahora / después | Después | Exige un servicio de lenguaje, reglas de uso y pruebas; hacerlo un día antes de la entrega pondría en riesgo la evaluación con expertas | Queda como trabajo futuro |
+
+### Fase 6b: decisiones revisadas por la autora
+
+La autora pidió incluir lo que la fase 6 había dejado fuera. Se incluye así:
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Paisaje de la portada | Fotografía / dibujo propio | Dibujo SVG propio (montañas, ondas y aves) en la paleta | Sin recursos de pago ni licencias, liviano y en los colores de RICORA | Ninguno |
+| Curvas en las cifras de Inicio | Curvas con datos / adorno | Adorno, solo en el tablero de Inicio | El sistema no guarda series diarias de esas cifras; la curva no representa datos y no se presenta como tal | Alguien podría leerla como tendencia |
+| Asistente RICORA | Chat con modelo de lenguaje / asistente guiado | Asistente guiado: lleva a la pantalla o acción buscada, muestra la guía de la pantalla actual y reúne las acciones rápidas | No inventa respuestas: todo lo que ofrece existe en el sistema; un chat con modelo queda como trabajo futuro | Se espera una conversación y no la hay |
+| Colores de estado | Verde, naranja y rojo / paleta | Turquesa = hecho, eléctrico = en proceso, violeta = pendiente; el rojo queda solo para errores y acciones irreversibles | Toda la interfaz en la paleta, sin perder la alerta de lo que no se puede deshacer | Ninguno |
+| Tablero de Inicio | Lista / tablero | Portada, cifras, siguiente paso, recorrido en tarjetas, accesos rápidos, asistente, dona de avance y actividad reciente | Las cifras, la dona y la actividad vienen de la base | Ninguno |

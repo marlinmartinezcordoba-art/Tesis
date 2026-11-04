@@ -6,6 +6,7 @@ import { MODULOS_TRABAJO, pedir, puede, type Modulo, type UsuarioBreve } from "@
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { Ayuda } from "@/components/Ayuda";
+import { BotonAsistente } from "@/components/Asistente";
 import { Ventana } from "@/components/Ventana";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -301,7 +302,12 @@ function Lanzador() {
         setAbierto(true);
       }
     };
-    const abrir = () => setAbierto(true);
+    // El asistente puede abrirlo con lo que la persona ya escribió.
+    const abrir = (e: Event) => {
+      const texto = (e as CustomEvent<{ q?: string }>).detail?.q;
+      if (texto) { setQ(texto); setMarcado(0); }
+      setAbierto(true);
+    };
     document.addEventListener("keydown", tecla);
     window.addEventListener("ricora:lanzador", abrir);
     return () => {
@@ -519,6 +525,7 @@ export function Marco({ children }: { children: ReactNode }) {
           <CajaBusqueda />
           <Lanzador />
           <div className="superior-derecha">
+            <BotonAsistente />
             <Ayuda />
             <AvisoAlertas />
             <MenuPersona />
