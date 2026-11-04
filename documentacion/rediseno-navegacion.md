@@ -397,3 +397,15 @@ Cambios visuales y de estructura. La lógica y las reglas del servidor no cambia
 | Rúbrica | Lista de radios / dos columnas | La propuesta a la izquierda y la escala de 1 a 5 a la derecha, en tarjetas seleccionables | Se califica mirando lo que se califica | Ninguno |
 | Vínculos en la ficha de autoridad | Una nube de 16 botones / un selector | Un selector «Declarar un vínculo…» cuando hay más de tres clases; botones cuando hay tres o menos | La nube de botones ocupaba media pantalla | Una clase de vínculo queda a un clic más |
 | Campos con la clase «campo» | Corregir uno por uno / regla común | Regla CSS común para `input/textarea/select.campo` | Corrige de una vez Hallazgos, Auditoría y Desacuerdos | Ninguno |
+
+## Fase 6: identidad visual 2026
+
+Paleta propuesta por la autora: azul noche `#091B43` para la navegación, azul eléctrico `#147DCE` para las acciones, turquesa `#16C6C1` para la interacción, violeta `#8555E8` para el motor y los agentes, azul hielo `#EAF1FC` para las superficies y blanco `#FFFFFF` para el contenido. Se aplica como tokens de color al final de `app.css`, así cambian las 14 pantallas a la vez sin tocar su funcionamiento.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Aplicar la paleta | Pantalla por pantalla / tokens comunes | Tokens comunes | Las 14 pantallas cambian igual y no se toca su lógica la víspera de la entrega | Algún color fijo antiguo puede quedar sin cambiar |
+| Efectos | Ninguno / degradados fuertes / sutiles | Sombras suaves, elevación de 2 px al pasar el cursor, entrada suave de ventanas y menús, foco en turquesa | Minimalista: el efecto acompaña, no distrae del documento | Se desactivan si el equipo pide reducir el movimiento |
+| Imágenes decorativas (paisaje, ave) | Incluirlas / no | No | Se pidió una interfaz minimalista; la imagen no aporta a la tarea archivística | Ninguno |
+| Gráficas pequeñas dentro de las cifras | Incluirlas / no | No | Las cifras de RICORA son medidas; una curva sin datos históricos sería ilustrativa | Ninguno |
+| Asistente RICORA con chat | Construirlo ahora / después | Después | Exige un servicio de lenguaje, reglas de uso y pruebas; hacerlo un día antes de la entrega pondría en riesgo la evaluación con expertas | Queda como trabajo futuro |

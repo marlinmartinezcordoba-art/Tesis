@@ -1251,3 +1251,235 @@ textarea.entrada { resize: vertical; line-height: 1.5; }
 /* Ficha de autoridad: un selector en lugar de la nube de botones de vínculos */
 .agregar-vinculo { display: flex; align-items: center; gap: 8px; margin-top: 8px; max-width: 420px; color: var(--accent); }
 .agregar-vinculo svg { width: 18px; height: 18px; flex: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Identidad visual 2026: azul noche, azul eléctrico, turquesa y violeta.
+   Minimalista: superficies blancas sobre azul hielo, sombras suaves y
+   transiciones cortas. Va al final para que gane sobre las fases anteriores;
+   solo cambia el aspecto, nunca la estructura ni lo que hace cada pantalla.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --noche: #091b43;      /* navegación */
+  --electrico: #147dce;  /* acciones */
+  --turquesa: #16c6c1;   /* interacción: foco, avance, selección */
+  --violeta: #8555e8;    /* motor de análisis y agentes */
+  --hielo: #eaf1fc;      /* superficies */
+  --bg: var(--hielo);
+  --surface: #ffffff;
+  --ink: #0e1b36;
+  --muted: #5b6883;
+  --line: #dbe5f4;
+  --line-fuerte: #c9d7ec;
+  --accent: var(--electrico);
+  --accent-hover: #0f68ad;
+  --accent-ink: #ffffff;
+  --accent-bg: #e1eefb;
+  --agent: var(--violeta);
+  --agent-bg: #efe8fd;
+  --interaccion: var(--turquesa);
+  --interaccion-bg: #dcf7f6;
+  --side-bg: var(--noche);
+  --side-fg: #ffffff;
+  --side-muted: #a9b8d6;
+  --side-active: rgba(255, 255, 255, .08);
+  --side-line: rgba(255, 255, 255, .12);
+  --radio: 16px;
+  --sombra: 0 1px 2px rgb(9 27 67 / .04), 0 4px 14px rgb(9 27 67 / .06);
+  --sombra-alta: 0 2px 4px rgb(9 27 67 / .05), 0 12px 28px rgb(9 27 67 / .10);
+  --transicion: 160ms cubic-bezier(.2, .7, .3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #070f24; --surface: #0f1a36; --ink: #e8eefa; --muted: #9eaccb; --line: #1f2c4d; --line-fuerte: #2b3a60;
+    --accent: #4aa6ec; --accent-hover: #6db8f0; --accent-ink: #061229; --accent-bg: #12294d;
+    --agent: #a988f2; --agent-bg: #261c48; --interaccion-bg: #0d3436; --side-bg: #050b1c;
+    --sombra: 0 1px 2px rgb(0 0 0 / .3), 0 4px 14px rgb(0 0 0 / .25); --sombra-alta: 0 12px 28px rgb(0 0 0 / .4);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #070f24; --surface: #0f1a36; --ink: #e8eefa; --muted: #9eaccb; --line: #1f2c4d; --line-fuerte: #2b3a60;
+  --accent: #4aa6ec; --accent-hover: #6db8f0; --accent-ink: #061229; --accent-bg: #12294d;
+  --agent: #a988f2; --agent-bg: #261c48; --interaccion-bg: #0d3436; --side-bg: #050b1c;
+  --sombra: 0 1px 2px rgb(0 0 0 / .3), 0 4px 14px rgb(0 0 0 / .25); --sombra-alta: 0 12px 28px rgb(0 0 0 / .4);
+}
+
+/* Tipografía: títulos en Inter, más limpios; la marca conserva su serifa. */
+h1, h2, h3 { font-family: "Inter", system-ui, sans-serif; letter-spacing: -.02em; }
+.encabezado h1 { font-size: 1.7rem; font-weight: 750; }
+.lateral .marca { font-family: "Source Serif 4", Georgia, serif; }
+
+/* Menú lateral: azul noche con un brillo muy sutil arriba. */
+.lateral {
+  background: radial-gradient(120% 40% at 0% 0%, rgb(20 125 206 / .22), transparent 70%),
+              linear-gradient(180deg, #0b2152 0%, var(--side-bg) 45%);
+  border-right: 1px solid rgb(255 255 255 / .04);
+}
+.emblema { background: linear-gradient(135deg, var(--electrico), var(--turquesa)); box-shadow: 0 4px 12px rgb(22 198 193 / .25); }
+.navegacion a, .rama-cab { transition: background var(--transicion), color var(--transicion); }
+.navegacion a:hover, .rama-cab:hover { background: rgb(255 255 255 / .06); color: #fff; }
+.navegacion a.active {
+  background: linear-gradient(90deg, var(--electrico), #1a8fd9); color: #fff;
+  box-shadow: 0 6px 16px rgb(20 125 206 / .35);
+}
+.rama.en-modulo > .rama-cab { background: rgb(255 255 255 / .06); color: #fff; }
+.subvistas a.active { background: rgb(22 198 193 / .14); box-shadow: inset 3px 0 0 var(--turquesa); }
+
+/* Barra superior */
+.superior { border-bottom-color: var(--line); }
+.superior .caja-busqueda, .pastilla { background: var(--surface); box-shadow: var(--sombra); border-color: var(--line); }
+.superior .caja-busqueda:focus-within { border-color: var(--turquesa); box-shadow: 0 0 0 3px var(--interaccion-bg); }
+
+/* Tarjetas: profundidad suave; las cifras reaccionan al cursor. */
+.tarjeta, .indicador { border-color: var(--line); border-radius: var(--radio); box-shadow: var(--sombra); }
+.indicador, .tarjeta-acceso, .acceso, a.tarjeta {
+  transition: transform var(--transicion), box-shadow var(--transicion), border-color var(--transicion);
+}
+.indicador:hover, .tarjeta-acceso:hover, .acceso:hover, a.tarjeta:hover {
+  transform: translateY(-2px); box-shadow: var(--sombra-alta); border-color: var(--line-fuerte);
+}
+.tarjeta-cab { border-bottom-color: var(--line); }
+.icono-indicador { background: linear-gradient(135deg, var(--accent-bg), #d6f3f2); color: var(--electrico); border-radius: 14px; }
+.icono-indicador.bien { background: linear-gradient(135deg, #dcf3e6, var(--interaccion-bg)); color: var(--ok); }
+.indicador .barra { background: var(--hielo); }
+.indicador .barra i { background: linear-gradient(90deg, var(--electrico), var(--turquesa)); }
+
+/* Botones */
+.boton { border-radius: 10px; transition: background var(--transicion), border-color var(--transicion), box-shadow var(--transicion), transform var(--transicion); }
+.boton:hover:not(:disabled) { border-color: var(--electrico); color: var(--electrico); }
+.boton.primario { background: linear-gradient(180deg, #1b8ad8, var(--electrico)); border-color: var(--electrico); color: #fff;
+  box-shadow: 0 4px 12px rgb(20 125 206 / .28); }
+.boton.primario:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff;
+  transform: translateY(-1px); box-shadow: 0 8px 18px rgb(20 125 206 / .32); }
+.boton.primario.peligro { background: var(--danger); border-color: var(--danger); box-shadow: 0 4px 12px rgb(179 54 59 / .25); }
+.boton.primario.peligro:hover:not(:disabled) { background: #9a2c31; border-color: #9a2c31; }
+
+/* Campos: foco en turquesa */
+.entrada, .selector, input.campo, textarea.campo, select.campo { border-radius: 10px; border-color: var(--line-fuerte); background: var(--surface);
+  transition: border-color var(--transicion), box-shadow var(--transicion); }
+.entrada:focus-visible, .selector:focus-visible, input.campo:focus-visible, textarea.campo:focus-visible, select.campo:focus-visible {
+  outline: none; border-color: var(--turquesa); box-shadow: 0 0 0 3px var(--interaccion-bg);
+}
+
+/* Tablas: cabecera azul hielo y filas que se resaltan al pasar el cursor */
+.tabla-datos thead th { background: color-mix(in srgb, var(--hielo) 70%, var(--surface)); color: var(--muted); }
+.tabla-datos tbody tr { transition: background var(--transicion); }
+.tabla-datos tbody tr:hover { background: color-mix(in srgb, var(--accent-bg) 45%, transparent); }
+
+/* Insignias del motor y de agentes en violeta */
+.insignia.agente { background: var(--agent-bg); color: var(--agent); }
+
+/* Ventanas flotantes y menús contextuales: entrada suave */
+.ventana-fondo { background: rgb(9 27 67 / .45); backdrop-filter: blur(3px); }
+.ventana { border-radius: 18px; box-shadow: 0 24px 60px rgb(9 27 67 / .28); animation: ricora-entrar 180ms ease-out; }
+.menu-acciones .menu { border-radius: 12px; box-shadow: var(--sombra-alta); animation: ricora-entrar 140ms ease-out; }
+@keyframes ricora-entrar { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* Avisos */
+.aviso { border-radius: 12px; }
+
+/* Pasos del recorrido */
+.paso-recorrido.hecho .marca-paso { background: var(--turquesa); border-color: var(--turquesa); }
+.paso-recorrido.en-curso .marca-paso { border-color: var(--electrico); color: var(--electrico); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .indicador:hover, .tarjeta-acceso:hover, .acceso:hover, a.tarjeta:hover, .boton.primario:hover:not(:disabled) { transform: none; }
+}
+.barra-avance { background: var(--hielo); }
+.barra-avance > *, .barra-avance i, .barra-avance span { background: linear-gradient(90deg, var(--electrico), var(--turquesa)) !important; }
+
+/* ── Identidad 2026, segunda pasada: más color y profundidad ── */
+body {
+  background:
+    radial-gradient(900px 500px at 100% -10%, rgb(133 85 232 / .10), transparent 60%),
+    radial-gradient(800px 500px at 20% -20%, rgb(22 198 193 / .12), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Menú: azul noche profundo con resplandor violeta y turquesa */
+.lateral {
+  background:
+    radial-gradient(140% 30% at 0% 100%, rgb(133 85 232 / .38), transparent 70%),
+    radial-gradient(120% 30% at 100% 0%, rgb(22 198 193 / .22), transparent 70%),
+    linear-gradient(180deg, #0c2560 0%, #091b43 55%, #0a1a4a 100%);
+  box-shadow: 4px 0 24px rgb(9 27 67 / .18);
+}
+.navegacion a.active {
+  background: linear-gradient(90deg, var(--electrico) 0%, var(--violeta) 100%);
+  box-shadow: 0 8px 20px rgb(133 85 232 / .35);
+}
+.subvistas a.active { background: rgb(22 198 193 / .18); color: #fff; }
+
+/* Encabezado de cada pantalla sobre una franja de color suave */
+.encabezado {
+  background: linear-gradient(120deg, #ffffff 0%, #f3f8ff 45%, #efe9fd 100%);
+  border: 1px solid var(--line); border-radius: 20px; padding: 22px 26px;
+  box-shadow: var(--sombra); position: relative; overflow: hidden;
+}
+.encabezado::after {
+  content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgb(22 198 193 / .22), transparent 70%); pointer-events: none;
+}
+.encabezado > * { position: relative; z-index: 1; }
+.encabezado h1 {
+  background: linear-gradient(90deg, var(--noche), var(--electrico)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Cifras: cada tarjeta con su color (eléctrico, turquesa, violeta, noche) */
+.indicadores > .indicador { position: relative; overflow: hidden; border: 0; box-shadow: var(--sombra-alta); }
+.indicadores > .indicador::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--tono-indicador, var(--electrico));
+}
+.indicadores > .indicador:nth-child(4n+1) { --tono-indicador: linear-gradient(90deg, #147dce, #3aa0ea); --suave: #e3f0fc; --fuerte: #147dce; }
+.indicadores > .indicador:nth-child(4n+2) { --tono-indicador: linear-gradient(90deg, #11a9a5, #16c6c1); --suave: #daf6f5; --fuerte: #0f9a96; }
+.indicadores > .indicador:nth-child(4n+3) { --tono-indicador: linear-gradient(90deg, #6f3fd6, #8555e8); --suave: #eee6fd; --fuerte: #7041d9; }
+.indicadores > .indicador:nth-child(4n+4) { --tono-indicador: linear-gradient(90deg, #091b43, #24427f); --suave: #e4e9f4; --fuerte: #1b3266; }
+.indicadores > .indicador { background: linear-gradient(160deg, #ffffff 55%, var(--suave, #f3f8ff) 100%); }
+.indicadores > .indicador .icono-indicador { background: var(--tono-indicador); color: #fff; box-shadow: 0 6px 14px rgb(9 27 67 / .18); }
+.indicadores > .indicador .barra i { background: var(--tono-indicador); }
+
+/* Tarjetas con más profundidad y cabecera con tinte */
+.tarjeta { border: 0; box-shadow: var(--sombra-alta); }
+.tarjeta-cab { background: linear-gradient(90deg, #f6f9ff, #ffffff); }
+.cabecera-tabla { background: linear-gradient(90deg, #f6f9ff, #ffffff); }
+
+/* Siguiente paso recomendado: banda de color */
+.siguiente-paso {
+  border: 0; border-left: 0;
+  background: linear-gradient(110deg, var(--noche) 0%, #12357f 55%, var(--violeta) 120%);
+  color: #fff; box-shadow: 0 14px 32px rgb(9 27 67 / .25);
+}
+.siguiente-paso h2, .siguiente-paso strong { color: #fff; }
+.siguiente-paso p, .siguiente-paso .meta { color: #c9d6f2; }
+.siguiente-paso .ceja, .siguiente-paso small { color: var(--turquesa); }
+.siguiente-paso svg { color: var(--turquesa); }
+.siguiente-paso .boton.primario { background: linear-gradient(90deg, var(--turquesa), var(--electrico)); border: 0; box-shadow: 0 8px 20px rgb(22 198 193 / .35); }
+
+/* Botón principal: eléctrico hacia violeta */
+.boton.primario { background: linear-gradient(90deg, var(--electrico), #4a6fe0 60%, var(--violeta)); border-color: transparent; }
+.boton.primario:hover:not(:disabled) { background: linear-gradient(90deg, #0f68ad, #3d5fd1 60%, #7041d9); border-color: transparent; }
+
+/* Pestañas activas con subrayado de color */
+.pestanas a.active, .pestanas button.active, .pestanas [aria-selected="true"] { color: var(--electrico); border-bottom-color: var(--turquesa); }
+
+/* Íconos de las filas */
+.icono-fila, .fila .icono-documento { background: linear-gradient(135deg, #e3f0fc, #eee6fd); color: var(--electrico); }
+
+/* Insignias más vivas */
+.insignia.bien { background: #d9f6ee; color: #0b8a6a; }
+.insignia.proceso { background: #e3f0fc; color: #0f68ad; }
+.insignia.acento { background: #eee6fd; color: #7041d9; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .encabezado { background: linear-gradient(120deg, #0f1a36, #12234a 60%, #221a47); }
+  :root:not([data-theme="light"]) .indicadores > .indicador { background: linear-gradient(160deg, #0f1a36 55%, #16264c); }
+  :root:not([data-theme="light"]) .tarjeta-cab, :root:not([data-theme="light"]) .cabecera-tabla { background: #12203f; }
+  :root:not([data-theme="light"]) .encabezado h1 { background: linear-gradient(90deg, #ffffff, #7cc4f5); -webkit-background-clip: text; background-clip: text; }
+}
+:root[data-theme="dark"] .encabezado { background: linear-gradient(120deg, #0f1a36, #12234a 60%, #221a47); }
+:root[data-theme="dark"] .indicadores > .indicador { background: linear-gradient(160deg, #0f1a36 55%, #16264c); }
+:root[data-theme="dark"] .tarjeta-cab, :root[data-theme="dark"] .cabecera-tabla { background: #12203f; }
+:root[data-theme="dark"] .encabezado h1 { background: linear-gradient(90deg, #ffffff, #7cc4f5); -webkit-background-clip: text; background-clip: text; }
+.icono-archivo { background: linear-gradient(135deg, #e3f0fc, #eee6fd) !important; color: var(--electrico) !important; }
+.pestanas-modulo a.active, .pestanas-modulo a[aria-current="page"] { color: var(--electrico); border-bottom-color: var(--turquesa); }
