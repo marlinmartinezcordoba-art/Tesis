@@ -1690,3 +1690,32 @@ body {
 .chat-entrada button:disabled { opacity: .45; cursor: default; }
 .chat-entrada button svg { width: 18px; height: 18px; }
 .chat-aviso { margin: 8px 2px 0; font-size: .72rem; color: var(--muted); line-height: 1.4; }
+
+/* Inicio más compacto (pedido de la autora) */
+.inicio-hero { min-height: 0; padding: 20px 26px; border-radius: 18px; margin-bottom: 14px; }
+.hero-saludo { font-size: .9rem; }
+.inicio-hero h1 { font-size: 1.65rem; margin: 0 0 4px; }
+.inicio-hero p { font-size: .86rem; margin: 0 0 10px; max-width: 480px; }
+.hero-fecha { padding: 5px 10px; font-size: .76rem; }
+.hero-paisaje { width: 48%; }
+.inicio-tablero .indicadores { gap: 12px; margin-bottom: 14px; }
+.inicio-tablero .indicadores > .indicador { padding: 14px 14px 30px; }
+.inicio-tablero .indicador.con-icono { gap: 6px; }
+.inicio-tablero .icono-indicador { width: 34px; height: 34px; flex-basis: 34px; border-radius: 10px; }
+.inicio-tablero .icono-indicador svg { width: 18px; height: 18px; }
+.inicio-tablero .indicador strong { font-size: 1.45rem; }
+.inicio-tablero .indicador .etiqueta { font-size: .76rem; }
+.inicio-tablero .indicadores > .indicador::after { width: 70px; height: 20px; bottom: 8px; }
+.inicio-tablero .siguiente-paso { padding: 14px 18px; }
+.inicio-tablero .siguiente-paso h2 { font-size: 1.05rem; }
+.inicio-rejilla { gap: 14px; }
+.asistente-inicio { padding: 14px; gap: 10px; }
+.asistente-inicio .asistente-cab p { font-size: .76rem; }
+.recorrido-horizontal { padding: 14px; gap: 8px; }
+.recorrido-horizontal li { padding: 10px 12px; gap: 4px; }
+.recorrido-horizontal .marca-paso { width: 26px; height: 26px; font-size: .8rem; }
+.recorrido-horizontal strong { font-size: .85rem; }
+.accesos-rapidos { gap: 10px; padding: 12px 14px 14px; }
+.acceso { min-height: 0; padding: 44px 14px 12px; }
+.acceso::before { width: 24px; height: 24px; top: 12px; left: 14px; border-radius: 7px; }
+.acceso strong { font-size: .88rem; }
