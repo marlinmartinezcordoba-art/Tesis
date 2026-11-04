@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.routers import (alertas, auditoria, auth, busqueda, cuadro, descripcion, evaluacion, exportacion, fondos, ingesta, publico, sistema,
+from app.routers import (alertas, asistente, auditoria, auth, busqueda, cuadro, descripcion, evaluacion, exportacion, fondos, ingesta, publico, sistema,
                          disposicion, grafo, importacion, instrumentos, perfil_agn, preservacion, tesauros, trd, vocabulario)
 from app.schemas.respuestas_sistema import SaludOut
 
@@ -66,6 +66,7 @@ app.include_router(trd.router)
 app.include_router(importacion.router)
 app.include_router(disposicion.router)
 app.include_router(sistema.router)
+app.include_router(asistente.router)
 app.include_router(publico.router)  # datos abiertos: el subconjunto público (INS-01, INS-04, INS-05, INS-08)
 app.include_router(exportacion.uris)  # /id/…: antes de la interfaz, que atiende todo lo demás
 

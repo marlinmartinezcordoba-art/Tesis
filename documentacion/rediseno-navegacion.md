@@ -421,3 +421,13 @@ La autora pidió incluir lo que la fase 6 había dejado fuera. Se incluye así:
 | Asistente RICORA | Chat con modelo de lenguaje / asistente guiado | Asistente guiado: lleva a la pantalla o acción buscada, muestra la guía de la pantalla actual y reúne las acciones rápidas | No inventa respuestas: todo lo que ofrece existe en el sistema; un chat con modelo queda como trabajo futuro | Se espera una conversación y no la hay |
 | Colores de estado | Verde, naranja y rojo / paleta | Turquesa = hecho, eléctrico = en proceso, violeta = pendiente; el rojo queda solo para errores y acciones irreversibles | Toda la interfaz en la paleta, sin perder la alerta de lo que no se puede deshacer | Ninguno |
 | Tablero de Inicio | Lista / tablero | Portada, cifras, siguiente paso, recorrido en tarjetas, accesos rápidos, asistente, dona de avance y actividad reciente | Las cifras, la dona y la actividad vienen de la base | Ninguno |
+
+### Fase 6c: Asistente RICORA con IA
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Motor del asistente | Servicio nuevo / el mismo motor de la descripción | El mismo motor Gemini (`GEMINI_API_KEY`) | Una sola clave y un solo proveedor que la institución ya aceptó para describir | Si el motor no está configurado, el asistente queda en modo guiado |
+| Qué ve el asistente | Documentos y datos del fondo / solo orientación | Solo la pregunta, el nombre del fondo y la guía de la pantalla actual | No expone documentos ni datos personales a un servicio externo | Responde en general, sin cifras del fondo |
+| Qué guarda la auditoría | El texto / solo el hecho | Solo que se consultó, quién, cuándo y el modelo | La pregunta puede traer datos personales (Ley 1581 de 2012) | No se puede revisar después qué se preguntó |
+| Aspecto | Tarjeta flotante violeta / panel lateral | Panel lateral de conversación con sugerencias, acciones rápidas y la guía de la pantalla | Se trabaja sin salir de la pantalla y se lee como un chat | Ninguno |
+| Advertencia | Ninguna / visible | Debajo del campo: no escribir datos personales ni información con reserva; puede equivocarse | El servicio de IA es externo y no es infalible | Ninguno |

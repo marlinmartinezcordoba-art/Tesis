@@ -137,7 +137,7 @@ export function Inicio() {
         </div>
 
         <aside className="inicio-lateral">
-          <div className="tarjeta tarjeta-asistente"><PanelAsistente compacto /></div>
+          <div className="tarjeta tarjeta-asistente"><PanelAsistente /></div>
           {cifras && cifras.archivos_listos > 0 && (
             <div className="tarjeta">
               <div className="tarjeta-cab"><span>Avance general del fondo</span></div>

@@ -19,7 +19,9 @@ from tests.conftest import crear_usuario, ingresar
 PROPIAS = {"/api/auth/logout", "/api/auth/refresh", "/api/auth/perfil", "/api/auth/perfil/contrasena",
            # Segundo factor de la propia cuenta (brecha RF-SEC-003).
            "/api/auth/perfil/doble-factor", "/api/auth/perfil/doble-factor/iniciar",
-           "/api/auth/perfil/doble-factor/activar", "/api/auth/perfil/doble-factor/desactivar"}
+           "/api/auth/perfil/doble-factor/activar", "/api/auth/perfil/doble-factor/desactivar",
+           # Preguntar al Asistente RICORA: orienta, no cambia nada del archivo (solo queda en la auditoría).
+           "/api/asistente/preguntar"}
 
 
 @pytest.fixture()

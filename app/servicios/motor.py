@@ -273,6 +273,15 @@ class MotorGemini:
         }
         return self._llamar(cuerpo).strip()
 
+    def conversar(self, instruccion: str, contenido: list[dict]) -> str:
+        """Conversación del Asistente RICORA: turnos de la persona y del asistente, texto libre."""
+        cuerpo = {
+            "systemInstruction": {"parts": [{"text": instruccion}]},
+            "contents": contenido,
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
+        }
+        return self._llamar(cuerpo).strip()
+
     def _llamar(self, cuerpo: dict) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.modelo}:generateContent"
         # Un fallo pasajero (conexión, servicio saturado) se reintenta una vez; una espera

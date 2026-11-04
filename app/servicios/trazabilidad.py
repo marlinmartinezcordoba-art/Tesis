@@ -171,6 +171,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "datos_personales_revisados": ("Buscó posibles datos personales en los archivos del fondo", None),
     "segunda_copia_reposicion_encargada": ("Encargó rehacer una segunda copia", None),
     "respaldo_bd": ("Respaldó la base de datos", "Respaldos de la base de datos"),
+    "asistente_consultado": ("Consultó al Asistente RICORA", None),
     "sistema_reiniciado": ("Dejó el sistema en blanco (puesta en marcha, con respaldo previo)", "Respaldos de la base de datos"),
     "simulacro_restauracion": ("Probó restaurar un respaldo de la base", None),
     "respaldo_descargado": ("Descargó un respaldo fuera del servidor", None),

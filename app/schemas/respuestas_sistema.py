@@ -161,3 +161,20 @@ class ReinicioOut(BaseModel):
     archivos_apartados: dict
     aviso_grafos: str | None
     tesauros_borrados: bool
+
+
+class EstadoAsistenteOut(BaseModel):
+    """Si el asistente con IA está disponible (hay motor de análisis configurado)."""
+    model_config = ConfigDict(extra="allow")
+
+    disponible: bool
+    modelo: str | None
+    aviso: str
+
+
+class RespuestaAsistenteOut(BaseModel):
+    """La respuesta del asistente a la última pregunta."""
+    model_config = ConfigDict(extra="allow")
+
+    respuesta: str
+    modelo: str
