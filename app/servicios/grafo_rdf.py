@@ -107,7 +107,10 @@ class Embebido:
         """Sobre un grafo o, con una lista, sobre su unión como un solo grafo (el acervo)."""
         ox = self._ox
         grafos = [grafo] if isinstance(grafo, str) else grafo
-        resultado = self.store.query(consulta, default_graph=[ox.NamedNode(validar_nombre(g)) for g in grafos])
+        permitidos = [ox.NamedNode(validar_nombre(g)) for g in grafos]
+        # named_graphs también acotado: sin él, Oxigraph deja leer con GRAPH ?g todos los grafos del
+        # almacén, incluidos los «completo» con lo clasificado o reservado.
+        resultado = self.store.query(consulta, default_graph=permitidos, named_graphs=permitidos)
         if isinstance(resultado, ox.QueryBoolean):
             return json.dumps({"head": {}, "boolean": bool(resultado)}).encode(), "application/sparql-results+json"
         if isinstance(resultado, ox.QueryTriples):

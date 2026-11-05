@@ -113,7 +113,7 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
     if (!limpia || pensando) return;
     if (!estado?.disponible) {
       setMensajes([...mensajes, { rol: "persona", texto: limpia }, { rol: "asistente", error: true, texto:
-        "El asistente con IA todavía no está activo en este servidor: falta configurar el motor de análisis (GEMINI_API_KEY). Mientras tanto, use Ctrl + K para ir a cualquier pantalla." }]);
+        "El asistente con IA todavía no está disponible en este servidor. Mientras tanto, use Ctrl + K para ir a cualquier pantalla." }]);
       setTexto("");
       return;
     }

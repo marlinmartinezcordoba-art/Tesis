@@ -82,8 +82,8 @@ def _contexto(pantalla: dict | None, fondo: str | None) -> str:
 def preguntar(db: Session, usuario_id, mensajes: list[dict], pantalla: dict | None = None, fondo: str | None = None) -> dict:
     m = servicio_motor.motor_activo()
     if m is None:
-        raise AsistenteNoDisponible("El asistente con IA necesita el motor de análisis configurado en el servidor "
-                                    "(GEMINI_API_KEY). Mientras tanto, use la búsqueda y la guía de cada pantalla.")
+        raise AsistenteNoDisponible("El asistente con IA necesita el motor de análisis, que no está configurado en este "
+                                    "servidor. Mientras tanto, use la búsqueda y la guía de cada pantalla.")
     turnos = [x for x in mensajes if str(x.get("texto") or "").strip()][-MAX_TURNOS:]
     if not turnos or turnos[-1].get("rol") != "persona":
         raise ValueError("Falta la pregunta.")

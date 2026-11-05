@@ -75,8 +75,9 @@ def main() -> None:
                 verificadas = preservacion.verificacion_periodica(db) if settings.preservacion_activa else None
                 if verificadas is not None:
                     log.info("Preservación: %s instanciación(es) verificadas.", verificadas)
-                # Respaldo de la base con su simulacro de restauración.
-                hecho = respaldo.periodico(db) if settings.preservacion_activa else None
+                # Respaldo de la base con su simulacro de restauración: siempre, aunque el módulo de
+                # preservación esté apagado (proteger la base no es preservación digital).
+                hecho = respaldo.periodico(db)
                 if hecho is not None:
                     log.info("Respaldo de la base: %s, simulacro %s.", hecho.estado, hecho.simulacro_estado)
                 # Recuperación ante desastres: paquete completo y su simulacro (NFR-07).

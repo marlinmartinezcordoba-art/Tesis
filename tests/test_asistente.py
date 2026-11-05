@@ -39,7 +39,7 @@ def test_sin_motor_queda_en_modo_guiado(cliente, db, monkeypatch):
     e = cliente.get("/api/asistente/estado", headers=ana).json()
     assert e["disponible"] is False and "reserva legal" in e["aviso"]
     r = cliente.post("/api/asistente/preguntar", headers=ana, json={"mensajes": [{"rol": "persona", "texto": "Hola"}]})
-    assert r.status_code == 503 and "GEMINI_API_KEY" in r.json()["detail"]
+    assert r.status_code == 503 and "motor de análisis" in r.json()["detail"]
 
 
 def test_responde_con_contexto_y_audita_sin_guardar_la_pregunta(cliente, db, falso):

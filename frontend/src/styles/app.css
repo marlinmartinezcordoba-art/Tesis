@@ -1815,3 +1815,18 @@ body {
 .opcion-icono svg { width: 22px; height: 22px; }
 .opcion-icono.electrico { background: linear-gradient(135deg, var(--electrico), #3aa0ea); }
 .opcion-icono.violeta { background: linear-gradient(135deg, #6f3fd6, var(--violeta)); }
+
+/* Auditoría de accesibilidad (WCAG 2.2 AA): contraste del texto de estado, enlaces y botones, y foco visible */
+:root {
+  --ok: #0a7773;          /* 5,0:1 sobre su fondo; antes 2,9:1 */
+  --accent: #1170bf;      /* enlaces 4,9:1 sobre blanco; antes 4,3:1 */
+  --line-fuerte: #8a9bb8; /* borde de campos ≥ 3:1 (WCAG 1.4.11) */
+}
+.boton.primario { background: linear-gradient(90deg, #1170bf, #4a6fe0 60%, #7041d9); }
+.siguiente-paso .boton.primario, .chat-ia { color: var(--noche); }
+.recorrido-horizontal li.hecho .marca-paso, .paso-recorrido.hecho .marca-paso { color: var(--noche); }
+.entrada:focus-visible, .selector:focus-visible, input.campo:focus-visible, textarea.campo:focus-visible, select.campo:focus-visible {
+  outline: 2px solid var(--electrico); outline-offset: 1px;
+}
+.asistente-inicio .asistente-cab p { color: #ffffff; }
+.asistente-pregunta input::placeholder { color: #ece6fd; }

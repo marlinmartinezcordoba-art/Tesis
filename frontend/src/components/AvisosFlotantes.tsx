@@ -15,7 +15,8 @@ import { useEffect, useRef, useState } from "react";
 type Tipo = "bien" | "error" | "info";
 interface Aviso { id: number; tipo: Tipo; texto: string }
 
-const SELECTOR = ".aviso.bien, .aviso.error, .aviso[role='status']:not(.alerta)";
+// Solo confirmaciones y errores: los avisos informativos (role="status") son pistas que deben quedarse.
+const SELECTOR = ".aviso.bien, .aviso.error";
 const EXCLUIR = ".ventana, .ventana-fondo, .chat-panel, .ayuda-tarjeta, [role='dialog'], [data-fijo]";
 const SEGUNDOS = 5;
 
@@ -79,7 +80,7 @@ export function AvisosFlotantes() {
 
   const cerrar = (id: number) => setAvisos((l) => l.filter((x) => x.id !== id));
   return (
-    <div className="avisos-flotantes" aria-live="polite">
+    <div className="avisos-flotantes">
       {avisos.map((a) => (
         <div key={a.id} className={`aviso-flotante ${a.tipo}`} role={a.tipo === "error" ? "alert" : "status"}>
           <span className="aviso-flotante-icono" aria-hidden="true">{a.tipo === "error" ? "!" : a.tipo === "bien" ? "✓" : "i"}</span>
