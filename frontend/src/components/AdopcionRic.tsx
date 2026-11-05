@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
+import { useFondo } from "@/lib/fondo";
 
 // Adopción de RiC: el sistema se evalúa a sí mismo contra los siete criterios de un sistema nativo
 // y contra la escala de niveles de adopción, con datos reales de la base y del almacén del grafo.
@@ -129,10 +130,74 @@ export function AdopcionRic() {
         </div>
       ))}
 
+      <Interoperabilidad />
+
       <h3>Compruébelo usted: consultas sobre todo el acervo</h3>
       <p className="meta">Cada consulta se ejecuta en el punto SPARQL público, sobre la unión de los grafos de todos los fondos.
         Nunca incluye lo clasificado o reservado.</p>
       {a.consultas.map((q) => <Consulta key={q.titulo} {...q} />)}
+    </>
+  );
+}
+
+interface Prueba { prueba: string; norma: string; superada: boolean; detalle: string }
+interface Informe { fondo: { titulo: string }; tripletas: number; clases: string[]; superadas: number; total: number; pruebas: Prueba[] }
+
+// Prueba de interoperabilidad: lo que RICORA publica del fondo activo, ¿lo puede leer otro sistema?
+// Se ejecuta en el servidor sobre lo público (sin lo restringido) y no guarda nada.
+function Interoperabilidad() {
+  const { fondo } = useFondo();
+  const [inf, setInf] = useState<Informe | null>(null);
+  const [probando, setProbando] = useState(false);
+  const [error, setError] = useState("");
+  async function probar() {
+    if (!fondo) return;
+    setError(""); setProbando(true);
+    try {
+      setInf(await pedir<Informe>(`/api/exportacion/interoperabilidad?fondo_id=${fondo.id}`));
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo hacer la prueba.");
+    } finally {
+      setProbando(false);
+    }
+  }
+  return (
+    <>
+      <h3>Prueba de interoperabilidad</h3>
+      <div className="tarjeta">
+        <div className="tarjeta-cab">
+          <span>¿Otro sistema puede leer lo que RICORA publica{fondo ? ` de «${fondo.titulo}»` : ""}?</span>
+          <button type="button" className="boton chico primario" disabled={!fondo || probando} onClick={probar}>
+            {probando ? "Probando…" : inf ? "Volver a probar" : "Hacer la prueba"}</button>
+        </div>
+        <div className="tarjeta-cuerpo">
+          {!inf && !error && <p className="meta" style={{ margin: 0 }}>Comprueba lo público del fondo frente a RiC-O 1.1, el perfil SHACL,
+            cuatro formatos de la web de datos, el importador de RiC-O, EAD3 y EAC-CPF, y los enlaces con Wikidata o VIAF.
+            No guarda nada; queda en la auditoría que se hizo.</p>}
+          {error && <div className="aviso error" role="alert">{error}</div>}
+          {inf && (
+            <>
+              <p style={{ marginTop: 0 }}><strong>{inf.superadas} de {inf.total} pruebas superadas</strong>
+                <span className="meta"> · {inf.tripletas.toLocaleString("es-CO")} tripletas · {inf.clases.length} clases de RiC-O</span></p>
+              <div className="tabla-desplazable">
+                <table className="tabla-datos">
+                  <thead><tr><th>Prueba</th><th>Norma</th><th>Resultado</th><th>Detalle</th></tr></thead>
+                  <tbody>
+                    {inf.pruebas.map((p) => (
+                      <tr key={p.prueba}>
+                        <td><strong>{p.prueba}</strong></td>
+                        <td className="meta">{p.norma}</td>
+                        <td>{p.superada ? <span className="insignia bien">✓ Superada</span> : <span className="insignia alerta">Pendiente</span>}</td>
+                        <td>{p.detalle}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </>
   );
 }

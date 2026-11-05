@@ -82,3 +82,25 @@ class AdopcionRicOut(BaseModel):
     cobertura: dict
     perfil_agn: dict
     consultas: list[dict]
+
+
+class PruebaInteroperabilidad(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    prueba: str
+    norma: str
+    resultado: str
+    superada: bool
+    detalle: str
+
+
+class InteroperabilidadOut(BaseModel):
+    """Si lo que RICORA publica de un fondo lo puede leer otro sistema."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    tripletas: int
+    clases: list[str]
+    superadas: int
+    total: int
+    pruebas: list[PruebaInteroperabilidad]

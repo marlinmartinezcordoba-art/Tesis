@@ -228,3 +228,22 @@ class ImportacionEac(BaseModel):
     completadas: int
     avisos: list[str]
     omitidas: dict[str, int]
+
+
+class CandidatoWikidata(BaseModel):
+    """Una entidad de Wikidata que podría ser la misma; la archivista decide."""
+    model_config = ConfigDict(extra="allow")
+
+    qid: str
+    etiqueta: str
+    descripcion: str | None
+    viaf: str | None
+    url: str
+    ya_enlazado: bool
+
+
+class CandidatosWikidata(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    consulta: str
+    candidatos: list[CandidatoWikidata]

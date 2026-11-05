@@ -1742,3 +1742,11 @@ body {
 .acceso strong { font-size: .82rem; }
 .acceso span { font-size: .7rem; padding-right: 10px; }
 .acceso i { right: 8px; bottom: 8px; font-size: 1rem; }
+
+/* Búsqueda asistida en Wikidata */
+.buscar-externo { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
+.buscar-externo-cab { display: flex; gap: 8px; flex-wrap: wrap; }
+.buscar-externo-cab .entrada { flex: 1 1 220px; width: auto; padding: 7px 10px; }
+.candidatos-externos { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.candidatos-externos li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }

@@ -322,6 +322,27 @@ def agregar_nombre(entidad_id: uuid.UUID, datos: NombreIn, request: Request,
     return detalle(entidad_id, db)
 
 
+@router.get("/{entidad_id}/candidatos-wikidata",
+            responses={200: {"model": rv.CandidatosWikidata, "description": "Candidatos de Wikidata para que la archivista confirme el enlace"}},
+            summary="Buscar en Wikidata la misma entidad (la archivista confirma; nada se enlaza solo)")
+def candidatos_wikidata(entidad_id: uuid.UUID, q: str | None = None, actor: Actor = Depends(acceso_modulo("vocabularios")),
+                        db: Session = Depends(get_db)):
+    from app.models.descripcion import IdentificadorEntidad
+    from app.servicios import wikidata
+
+    e = _entidad_o_404(db, entidad_id)
+    if not vocabulario.compartida(e.clase, e.subtipo):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Solo las autoridades de la institución se enlazan con Wikidata.")
+    ya = set(db.scalars(select(IdentificadorEntidad.valor).where(IdentificadorEntidad.entidad_id == e.id,
+                                                                 IdentificadorEntidad.esquema == "wikidata",
+                                                                 IdentificadorEntidad.estado == "vigente")).all())
+    try:
+        return {"consulta": q or e.nombre, "candidatos": wikidata.candidatos(q or e.nombre, ya)}
+    except wikidata.ErrorWikidata as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
 @router.post("/{entidad_id}/identificadores", status_code=status.HTTP_201_CREATED,
              responses={201: {"model": rv.DetalleEntidad, "description": "Identificador agregado: detalle de la entidad actualizado"}},
              summary="Agregar un identificador con su esquema (interno, VIAF, Wikidata, ISNI, LCNAF, ORCID, ROR, GeoNames)")

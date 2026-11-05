@@ -92,6 +92,24 @@ def adopcion_ric(actor: Actor = Depends(lectura_catalogo), db: Session = Depends
     return adopcion.evaluar(db)
 
 
+@router.get("/interoperabilidad", summary="Prueba de interoperabilidad de lo público de un fondo (RiC-O, SHACL, formatos RDF, reimportación, EAD3, EAC-CPF)",
+            responses={200: {"model": RG.InteroperabilidadOut, "description": "Las pruebas, cada una con su norma y su resultado"}})
+def interoperabilidad(request: Request, fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo),
+                      db: Session = Depends(get_db)):
+    from app.servicios import interoperabilidad as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    try:
+        informe = servicio.informe(db, fondo)
+    except grafo_rdf.ErrorGrafo as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    registrar(db, modulo="instrumentos", accion="interoperabilidad_probada", usuario_id=actor.id,
+              entidad_tipo="recurso_documental", entidad_id=fondo.id, ip=ip_de(request), detalle=fondo.titulo,
+              nuevo={"superadas": informe["superadas"], "total": informe["total"], "tripletas": informe["tripletas"]})
+    db.commit()
+    return informe
+
+
 @router.get("/conformidad", summary="Conformidad de la exportación con RiC-O 1.1 (OWL y SHACL)",
             responses={200: {"model": R.ReporteConformidad, "description": "Reporte de conformidad con RiC-O 1.1"}})
 def conformidad(request: Request, fondo_id: uuid.UUID, incluir_restringidos: bool = False,

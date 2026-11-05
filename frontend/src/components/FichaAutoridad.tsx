@@ -582,6 +582,83 @@ function FormasDelNombre({ ficha, entidad, puede, alCambiar, historicos }: {
   );
 }
 
+interface CandidatoWikidata { qid: string; etiqueta: string; descripcion: string | null; viaf: string | null; url: string; ya_enlazado: boolean }
+
+// Enlace con la web de datos: RICORA busca en Wikidata y la archivista confirma cuál es la misma entidad.
+// Se registra como cualquier identificador (owl:sameAs en el grafo, con auditoría); nada se enlaza solo.
+function BuscarWikidata({ entidad, alCambiar }: { entidad: EntidadVocabulario; alCambiar: Props["alCambiar"] }) {
+  const [abierta, setAbierta] = useState(false);
+  const [q, setQ] = useState(entidad.nombre);
+  const [lista, setLista] = useState<CandidatoWikidata[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [error, setError] = useState("");
+  const [conViaf, setConViaf] = useState(true);
+
+  async function buscar(e?: FormEvent) {
+    e?.preventDefault();
+    setError(""); setBuscando(true);
+    try {
+      const r = await pedir<{ candidatos: CandidatoWikidata[] }>(`/api/vocabulario/${entidad.id}/candidatos-wikidata?q=${encodeURIComponent(q)}`);
+      setLista(r.candidatos);
+    } catch (err) {
+      setError(mensaje(err, "No se pudo consultar Wikidata."));
+    } finally {
+      setBuscando(false);
+    }
+  }
+  async function enlazar(c: CandidatoWikidata) {
+    if (!await confirmarDialogo(`¿«${entidad.nombre}» es la misma entidad que «${c.etiqueta}» (${c.qid}) de Wikidata?`
+      + (c.viaf && conViaf ? ` También se registrará su VIAF ${c.viaf}.` : ""))) return;
+    setError("");
+    try {
+      await enviar(`/api/vocabulario/${entidad.id}/identificadores`, "POST", { esquema: "wikidata", valor: c.qid });
+      if (c.viaf && conViaf) {
+        await enviar(`/api/vocabulario/${entidad.id}/identificadores`, "POST", { esquema: "viaf", valor: c.viaf }).catch(() => undefined);
+      }
+      setAbierta(false); setLista(null);
+      alCambiar("Enlazada con Wikidata. En el grafo queda como owl:sameAs y en la auditoría.");
+    } catch (err) {
+      setError(mensaje(err, "No se pudo registrar el enlace."));
+    }
+  }
+
+  if (!abierta) {
+    return <button type="button" className="boton chico" onClick={() => { setAbierta(true); buscar(); }}>Buscar en Wikidata</button>;
+  }
+  return (
+    <div className="buscar-externo">
+      <form className="buscar-externo-cab" onSubmit={buscar}>
+        <input className="entrada" aria-label="Nombre para buscar en Wikidata" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="submit" className="boton chico primario" disabled={buscando || q.trim().length < 2}>{buscando ? "Buscando…" : "Buscar"}</button>
+        <button type="button" className="boton chico" onClick={() => { setAbierta(false); setLista(null); }}>Cerrar</button>
+      </form>
+      <p className="meta" style={{ margin: "6px 0" }}>Solo se envía el nombre a Wikidata. Confirme el candidato que corresponde: si ninguno es la misma entidad, no enlace.</p>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      {lista && lista.length === 0 && <p className="meta">Wikidata no tiene candidatos con ese nombre.</p>}
+      {lista && lista.length > 0 && (
+        <>
+          <label className="meta" style={{ display: "flex", gap: 6, alignItems: "center", margin: "4px 0 8px" }}>
+            <input type="checkbox" checked={conViaf} onChange={(e) => setConViaf(e.target.checked)} /> Registrar también su VIAF cuando lo tenga
+          </label>
+          <ul className="candidatos-externos">
+            {lista.map((c) => (
+              <li key={c.qid}>
+                <div>
+                  <strong>{c.etiqueta}</strong> <a href={c.url} target="_blank" rel="noreferrer" className="meta">{c.qid}</a>
+                  {c.viaf && <span className="insignia agente" style={{ marginLeft: 6 }}>VIAF {c.viaf}</span>}
+                  <span className="meta" style={{ display: "block" }}>{c.descripcion || "Sin descripción en Wikidata"}</span>
+                </div>
+                {c.ya_enlazado ? <span className="insignia bien">✓ Enlazada</span>
+                  : <button type="button" className="boton chico" onClick={() => enlazar(c)}>Es la misma</button>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Identificadores({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; entidad: EntidadVocabulario; puede: boolean; alCambiar: Props["alCambiar"] }) {
   const [esquema, setEsquema] = useState("interno");
   const [valor, setValor] = useState("");
@@ -618,7 +695,12 @@ function Identificadores({ ficha, entidad, puede, alCambiar }: { ficha: Ficha; e
           {puede && <button type="button" className="enlace" onClick={() => anular(i.id)}>Anular</button>}
         </div>
       ))}
-      {puede && !abierta && <button type="button" className="boton chico" style={{ marginTop: 6 }} onClick={() => setAbierta(true)}>+ Identificador</button>}
+      {puede && !abierta && (
+        <div className="acciones" style={{ marginTop: 6 }}>
+          <button type="button" className="boton chico" onClick={() => setAbierta(true)}>+ Identificador</button>
+          <BuscarWikidata entidad={entidad} alCambiar={alCambiar} />
+        </div>
+      )}
       {abierta && (
         <form className="form-entidad" onSubmit={agregar}>
           <div className="rejilla">
