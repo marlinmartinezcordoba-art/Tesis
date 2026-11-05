@@ -53,6 +53,13 @@ services:
       # Arrancada, no sana: si el grafo falla, la web sigue y la salud lo informa.
       grafo:
         condition: service_started
+    # Lista cuando responde la API (migraciones hechas y uvicorn arriba).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/salud', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 120s
 
   # Grafo RiC-O persistente: almacén de tripletas Oxigraph (SPARQL 1.1) con
   # un grafo por fondo. Es el único proceso que escribe en él; la web y el

@@ -121,7 +121,34 @@ def validar_shacl(datos: Graph) -> dict:
                        "forma": _corto(str(forma)) if not isinstance(forma, BNode) else None,
                        "valor": uno(SH.value)})
     salida.sort(key=lambda x: (x["forma"] or "", x["foco"] or ""))
-    return {"conforme": bool(conforme), "resultados": salida}
+    # Las advertencias (p. ej. los elementos esenciales de ISAD(G) del fondo) van aparte: no son
+    # incumplimientos y no cuentan como tales en ninguna parte del sistema.
+    advertencias = [x for x in salida if x["severidad"] in ("sh:Warning", "sh:Info")] + advertencias_isadg(datos)
+    return {"conforme": bool(conforme), "resultados": [x for x in salida if x not in advertencias],
+            "advertencias": advertencias}
+
+
+# Elementos esenciales de ISAD(G) en el fondo (auditoría 5-11-2026): advertencias, no
+# incumplimientos. Se revisan aquí y no como forma SHACL con destino SPARQL, que en grafos
+# grandes hacía lenta cada validación.
+ESENCIALES_FONDO = (
+    ("3.1.1", "el fondo no tiene código de referencia", ("identifier",)),
+    ("3.1.3", "el fondo no tiene fechas", ("hasCreationDate", "isAssociatedWithDate")),
+    ("3.1.5", "el fondo no declara su volumen o extensión", ("hasExtent", "recordResourceExtent")),
+    ("3.2.1", "el fondo no tiene productor (rico:hasCreator) ni acumulador",
+     ("hasCreator", "hasAccumulator", "hasOrganicProvenance")),
+)
+
+
+def advertencias_isadg(datos: Graph) -> list[dict]:
+    fondos = set(datos.subjects(RICO.hasRecordSetType, URIRef(ric_o.RST + "Fonds")))
+    salida = []
+    for fondo in sorted(fondos, key=str):
+        for codigo, texto, propiedades in ESENCIALES_FONDO:
+            if not any((fondo, RICO[p], None) in datos for p in propiedades):
+                salida.append({"foco": str(fondo), "ruta": None, "mensaje": f"ISAD(G) {codigo}: {texto}.",
+                               "severidad": "sh:Warning", "forma": "pr:FondoEsencial", "valor": None})
+    return salida
 
 
 def _corto(valor: str | None) -> str | None:

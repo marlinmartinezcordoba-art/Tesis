@@ -412,3 +412,33 @@ def exigir_revision(db: Session, documentos: list[Instanciacion], recurso, usuar
                   "menores": "datos de niños, niñas o adolescentes"}[nivel]
         raise ErrorDescripcion(f"Confirmó {nombre} en el documento, pero la descripción declara menos. "
                                "Corrija el campo «Datos personales» o revise los hallazgos.")
+
+
+def anonimizar_para_motor(texto: str) -> tuple[str, int]:
+    """El texto que sale hacia el motor de análisis, sin los identificadores personales.
+
+    Cédulas, tarjetas de identidad, NUIP, pasaportes, fechas de nacimiento, correos,
+    celulares, direcciones, cuentas, tarjetas e historias clínicas se reemplazan por
+    su tipo entre corchetes («[Cédula de ciudadanía o de extranjería]»), con las mismas
+    reglas locales del detector (sin IA). Así el motor, que es un servicio externo,
+    nunca recibe el dato (Ley 1581 de 2012, art. 4 y 26). Las palabras de las
+    categorías sensibles (salud, religión, política…) se dejan: quitarlas cambiaría
+    el sentido del documento; su tratamiento lo decide la archivista.
+    Devuelve el texto y cuántos datos se reemplazaron.
+    """
+    texto = texto or ""
+    tramos: list[tuple[int, int, str]] = []
+    for regla in REGLAS:
+        if regla.agrupar_por_tipo:
+            continue
+        for m in regla.patron.finditer(texto):
+            g = regla.grupo if m.group(regla.grupo) else 0
+            inicio, fin = m.span(g)
+            if regla.valida and not regla.valida(m.group(g)):
+                continue
+            if any(inicio < f and i < fin for i, f, _ in tramos):
+                continue
+            tramos.append((inicio, fin, regla.nombre))
+    for inicio, fin, nombre in sorted(tramos, reverse=True):
+        texto = texto[:inicio] + f"[{nombre}]" + texto[fin:]
+    return texto, len(tramos)

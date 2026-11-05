@@ -73,6 +73,10 @@ def _parrafos(padre, ns: str, contenedor: str, texto: str | None):
 # --- EAD3 ---------------------------------------------------------------------------------------
 
 
+# Clase de agente → elemento de nombre de EAD3.
+ELEMENTO_AGENTE = {"persona": "persname", "familia": "famname"}
+
+
 def _did(db: Session, padre, r: RecursoDocumental, ficha: dict):
     did = _sub(padre, EAD, "did")
     if r.codigo_referencia:
@@ -80,10 +84,18 @@ def _did(db: Session, padre, r: RecursoDocumental, ficha: dict):
     _sub(did, EAD, "unittitle", r.titulo)
     if ficha.get("3.1.3"):
         _sub(did, EAD, "unitdate", ficha["3.1.3"])
-    if ficha.get("3.2.1"):
+    # Productores y acumuladores desde las relaciones de RiC, cada uno con su elemento según su clase
+    # (persname, famname o corpname): partir el texto de la ficha por comas rompía «Apellidos, Nombres».
+    agentes = isadg._agentes(db, r, "has_creator") + [a for a in isadg._agentes(db, r, "has_accumulator")]
+    if agentes:
         origen = _sub(did, EAD, "origination")
-        for nombre in ficha["3.2.1"].split(", "):
-            _sub(_sub(origen, EAD, "corpname"), EAD, "part", nombre)
+        vistos = set()
+        for a in agentes:
+            if a.id in vistos:
+                continue
+            vistos.add(a.id)
+            elemento = ELEMENTO_AGENTE.get(a.subtipo or "", "corpname")
+            _sub(_sub(origen, EAD, elemento), EAD, "part", a.nombre)
     if r.idiomas or r.escrituras:
         lm = _sub(did, EAD, "langmaterial")
         for codigo in r.idiomas or []:

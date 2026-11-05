@@ -313,7 +313,11 @@ function Buscador({ fondoId, busca, excluir, alElegir }: {
 // `subtipos`: solo se ofrece si la entidad que se edita es de uno de esos tipos de agente.
 interface OpcionVinculo {
   tipo: string; etiqueta: string; busca: ClaseVocabulario | "serie" | "fondo"; conFecha?: boolean; invertir?: boolean; subtipos?: string[];
+  /** Relación de RiC poco usual en un fondo institucional: se ofrece solo si se pide (auditoría 5-11-2026). */
+  poco_usual?: boolean;
 }
+// Tipos de vínculo que RiC admite pero que casi nunca usa un archivo institucional.
+const POCO_USUALES = new Set(["ascendiente_de", "conoce_a", "sabe_de", "maestro_de", "adyacente_a", "se_superpone_con"]);
 const GRUPOS = ["grupo", "entidad_corporativa", "familia"];
 
 const OPCIONES: Record<string, OpcionVinculo[]> = {
@@ -392,7 +396,10 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
   const [nota, setNota] = useState("");
   const [error, setError] = useState("");
   const propios = vinculos.filter((v) => tipos.includes(v.vinculo));
-  const visibles = opciones.filter((o) => !o.subtipos || o.subtipos.includes(entidad.subtipo || ""));
+  const [todas, setTodas] = useState(false);
+  const aplicables = opciones.filter((o) => !o.subtipos || o.subtipos.includes(entidad.subtipo || ""));
+  const ocultas = aplicables.filter((o) => o.poco_usual || POCO_USUALES.has(o.tipo)).length;
+  const visibles = todas ? aplicables : aplicables.filter((o) => !(o.poco_usual || POCO_USUALES.has(o.tipo)));
 
   function cerrar() {
     setAbierta(null); setElegida(null); setVigencia(null); setNota(""); setError(""); setControl(controlInicial("rango"));
@@ -444,6 +451,10 @@ function Vinculos({ vinculos, tipos, puede, entidad, fondoId, alCambiar, opcione
         </div>
       ))}
       {error && !abierta && <div className="aviso error" role="alert">{error}</div>}
+      {puede && !abierta && ocultas > 0 && (
+        <button type="button" className="enlace" style={{ fontSize: ".78rem", marginTop: 6 }} onClick={() => setTodas(!todas)}>
+          {todas ? "Ocultar las relaciones poco usuales de RiC" : `Mostrar relaciones poco usuales de RiC (${ocultas})`}</button>
+      )}
       {puede && !abierta && visibles.length > 0 && (visibles.length > 3 ? (
         // Muchas clases de vínculo: un solo selector en lugar de una nube de botones.
         <div className="agregar-vinculo">

@@ -3,7 +3,12 @@
 # para ese nombre.
 {$RICORA_DOMINIO} {
 	encode gzip
-	reverse_proxy web:8000
+	# Mientras la web se reinicia en un despliegue, Caddy retiene la petición y reintenta
+	# cada segundo hasta 90 s en lugar de responder 502 (auditoría 5-11-2026).
+	reverse_proxy web:8000 {
+		lb_try_duration 90s
+		lb_try_interval 1s
+	}
 }
 
 # Quien entre por la dirección numérica (http://IP, enlaces antiguos) se

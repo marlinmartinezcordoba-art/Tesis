@@ -156,7 +156,9 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
         inst.mecanismo_identificacion_id = mecanismos.de_identificacion(db, inst.fondo_id, f.herramienta).id
         inst.formato_en = ahora()
         # 3 bis. Validación formal de lo que dice ser PDF/A o TIFF (veraPDF, JHOVE; hallazgo PRE-09).
-        comprobaciones.validar(db, inst, "ingesta")
+        # Solo con el módulo de preservación encendido: apagado, la imagen no trae los validadores.
+        if settings.preservacion_activa:
+            comprobaciones.validar(db, inst, "ingesta")
 
         # 4. Texto para el motor de descripción.
         _avance(db, inst, "texto", 0, "Extrayendo texto")

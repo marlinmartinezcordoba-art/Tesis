@@ -45,6 +45,7 @@ from app.models.evaluacion import (CRITERIOS, Anotacion, Calificacion, Evaluacio
                                    Exposicion)
 from app.models.instanciacion import Instanciacion
 from app.servicios.auditoria import registrar
+from app.servicios.datos_personales import anonimizar_para_motor
 
 # Los tipos de entidad que se comparan (los seis reutilizables y la fecha).
 TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental")
@@ -222,7 +223,8 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
                                                           EvaluacionDocumento.propuesta.is_(None))).all():
         inst = db.get(Instanciacion, d.instanciacion_id)
         contexto = vocabulario.contexto_para_motor(db, ev.fondo_id, inst.texto_extraido or "")
-        p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original, texto=inst.texto_extraido)],
+        p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original,
+                                         texto=anonimizar_para_motor(inst.texto_extraido or "")[0])],
                            "unidad_documental", contexto)
         # La propuesta queda como registro inalterable (RF-AI-002), también si falló.
         propuestas_ia.ubicar_fragmentos(db, p)

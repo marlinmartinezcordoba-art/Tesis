@@ -1,4 +1,5 @@
 import { confirmar } from "@/lib/dialogos";
+import { unoOVarios } from "@/lib/zip";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
@@ -202,8 +203,8 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
                 onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>Descargar la plantilla Excel</button>
         <label className="boton chico primario">
           {ocupado ? "Leyendo…" : "Leer un archivo"}
-          <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                 onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
+          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+                 onChange={async (e) => { const a = await unoOVarios(e.target.files, "TVD.zip"); if (a) leer(a); e.target.value = ""; }} />
         </label>
       </div>
       {vista && (

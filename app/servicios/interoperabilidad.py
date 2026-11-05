@@ -125,7 +125,7 @@ def informe(db: Session, fondo: RecursoDocumental) -> dict:
     g = ex.grafo
     owl = conformidad_rico.verificar_owl(g)
     shacl = conformidad_rico.validar_shacl(g)
-    violaciones = [r for r in shacl["resultados"] if r.get("severidad") == "Violation"]
+    violaciones = [r for r in shacl["resultados"] if r.get("severidad") == "sh:Violation"]
     clases = {str(o)[len(ric_o.RICO):] for o in g.objects(None, RDF.type) if str(o).startswith(ric_o.RICO)}
     pruebas = [
         _prueba("Términos de RiC-O 1.1", "RiC-O 1.1 (ICA-EGAD)", not owl,

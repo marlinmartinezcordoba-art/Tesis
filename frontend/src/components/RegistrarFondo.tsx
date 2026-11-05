@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { unoOVarios } from "@/lib/zip";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { ResultadoValidacion, TablaVistaPrevia, type Informe, type Validacion, type Vista } from "@/components/CuadroClasificacion";
@@ -147,8 +148,8 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
               Descargar la plantilla Excel</button>
             <label className="boton chico primario">
               {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el cuadro"}
-              <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                     onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
+              <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+                     onChange={async (e) => { const a = await unoOVarios(e.target.files, "TRD.zip"); if (a) leer(a); e.target.value = ""; }} />
             </label>
           </div>
           {vista && (

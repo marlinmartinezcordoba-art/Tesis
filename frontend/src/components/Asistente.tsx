@@ -18,18 +18,6 @@ export const I_CHISPA = (
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 const I_ENVIAR = <svg viewBox="0 0 24 24" {...trazo}><path d="M4 12h15M13 6l6 6-6 6" /></svg>;
 
-export const ACCIONES_RAPIDAS = [
-  { texto: "Nueva carga", ruta: "/ingesta?vista=cargar", modulo: "ingesta" as const,
-    icono: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg> },
-  { texto: "Describir", ruta: "/descripcion", modulo: "descripcion" as const,
-    icono: <svg viewBox="0 0 24 24" {...trazo}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13 7l4 4" /></svg> },
-  { texto: "Consultar", ruta: "/instrumentos?vista=catalogo", modulo: "catalogo" as const,
-    icono: <svg viewBox="0 0 24 24" {...trazo}><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></svg> },
-  { texto: "Exportar RiC-O", ruta: "/instrumentos?vista=rico", modulo: "catalogo" as const,
-    icono: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg> },
-  { texto: "Auditoría", ruta: "/auditoria", modulo: "auditoria" as const,
-    icono: <svg viewBox="0 0 24 24" {...trazo}><path d="M5 20V12M10 20V6M15 20v-9M20 20V4" /></svg> },
-];
 
 // Preguntas que suelen surgir en cada pantalla.
 const GENERALES = [
@@ -63,9 +51,6 @@ function preguntasPara(ruta: string): string[] {
 interface Mensaje { rol: "persona" | "asistente"; texto: string; error?: boolean }
 interface Estado { disponible: boolean; modelo: string | null; aviso: string }
 
-export function abrirBuscador(q?: string) {
-  window.dispatchEvent(new CustomEvent("ricora:lanzador", { detail: { q } }));
-}
 /** Abre el panel del asistente, opcionalmente con una pregunta ya escrita. */
 export function abrirAsistente(q?: string) {
   window.dispatchEvent(new CustomEvent("ricora:asistente", { detail: { q } }));

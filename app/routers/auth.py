@@ -156,6 +156,16 @@ def _intentos_fallidos_recientes(db: Session, correo_normalizado: str, usuario: 
     ) or 0
 
 
+INTENTOS_POR_IP = 20
+
+
+def _fallidos_desde_ip(db: Session, ip: str) -> int:
+    desde = ahora() - timedelta(minutes=settings.minutos_bloqueo)
+    return db.scalar(select(func.count(RegistroAuditoria.id)).where(
+        RegistroAuditoria.accion == Accion.INGRESO_FALLIDO, RegistroAuditoria.ip == ip,
+        RegistroAuditoria.fecha > desde)) or 0
+
+
 def _administradores_activos(db: Session) -> int:
     return db.scalar(
         select(func.count(Usuario.id)).where(Usuario.rol == ADMINISTRADOR, Usuario.activo.is_(True))
@@ -211,6 +221,16 @@ def ingresar(datos: IngresoIn, request: Request, response: Response, db: Session
     correo_normalizado = _normalizar(datos.correo)
     usuario = db.scalar(select(Usuario).where(Usuario.correo == correo_normalizado))
     ip = ip_de(request)
+
+    # Límite por dirección: frena el ensayo de contraseñas sobre muchas cuentas desde un mismo equipo,
+    # que el bloqueo por cuenta no ve (auditoría de seguridad, 5-11-2026).
+    if ip and _fallidos_desde_ip(db, ip) >= INTENTOS_POR_IP:
+        registrar(db, modulo="autenticacion", accion=Accion.INGRESO_BLOQUEADO, entidad_tipo="ip",
+                  entidad_id=huella(ip), ip=ip, detalle="Demasiados intentos fallidos desde esta dirección")
+        db.commit()
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"Demasiados intentos fallidos desde este equipo. Espere {settings.minutos_bloqueo} "
+                                   "minutos e intente de nuevo.")
 
     if _intentos_fallidos_recientes(db, correo_normalizado, usuario) >= settings.intentos_fallidos_maximos:
         registrar(db, modulo="autenticacion", accion=Accion.INGRESO_BLOQUEADO,

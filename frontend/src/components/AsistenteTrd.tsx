@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { unoOVarios } from "@/lib/zip";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { confirmar } from "@/lib/dialogos";
@@ -125,14 +126,15 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
   const paquete = !!vista?.partes && vista.partes.length > 1;
   return (
     <>
-      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF con texto, Word o CSV. También un .zip con varios
-        archivos (la TRD, el CCD, una TVD): el sistema le pregunta qué es cada uno.</p>
+      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF con texto, Word o CSV. Si viene en un archivo por
+        dependencia, <strong>seleccione todos a la vez</strong> (Ctrl + clic o Ctrl + E en la ventana de archivos); también
+        sirve un .zip. El sistema le pregunta qué es cada uno.</p>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="acciones">
         <label className="boton primario">
-          {ocupado && !vista ? "Leyendo…" : vista ? "Elegir otro archivo" : "Elegir el archivo"}
-          <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                 onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
+          {ocupado && !vista ? "Leyendo…" : vista ? "Elegir otros archivos" : "Elegir los archivos"}
+          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+                 onChange={async (e) => { const a = await unoOVarios(e.target.files, "TRD.zip"); if (a) leer(a); e.target.value = ""; }} />
         </label>
         <button type="button" className="enlace" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
           ¿No tiene el archivo? Descargue la plantilla Excel</button>

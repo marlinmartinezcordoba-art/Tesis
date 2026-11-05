@@ -12,7 +12,7 @@ interface Reporte {
   conforme: boolean;
   ontologia: string;
   owl: { conforme: boolean; problemas: string[] };
-  shacl: { conforme: boolean; resultados: ResultadoShacl[]; perfil: string; formas: number };
+  shacl: { conforme: boolean; resultados: ResultadoShacl[]; advertencias?: ResultadoShacl[]; perfil: string; formas: number };
   mapeo: { problemas: string[] };
   sin_propiedad: Record<string, string>;
   tripletas: number;
@@ -326,12 +326,20 @@ function ReporteConformidad({ r }: { r: Reporte }) {
         {r.owl.problemas.length > 0 && (
           <ul>{r.owl.problemas.map((p) => <li key={p}>{p}</li>)}</ul>
         )}
+        {(r.shacl.advertencias || []).length > 0 && (
+          <div className="aviso alerta" role="note">
+            <strong>Advertencias de ISAD(G)</strong> (no impiden la conformidad):
+            <ul style={{ margin: "6px 0 0" }}>{(r.shacl.advertencias || []).slice(0, 20).map((x, i) => <li key={i}>{x.mensaje}</li>)}</ul>
+          </div>
+        )}
         {r.shacl.resultados.length > 0 && (
           <table className="tabla">
-            <thead><tr><th>Nodo</th><th>Propiedad</th><th>Qué falla</th></tr></thead>
+            <thead><tr><th>Nodo</th><th>Propiedad</th><th>Tipo</th><th>Qué falla</th></tr></thead>
             <tbody>
               {r.shacl.resultados.slice(0, 50).map((x, i) => (
-                <tr key={i}><td><code>{x.foco?.split("/id/")[1] || x.foco}</code></td><td>{x.ruta || x.forma}</td><td>{x.mensaje}</td></tr>
+                <tr key={i}><td><code>{x.foco?.split("/id/")[1] || x.foco}</code></td><td>{x.ruta || x.forma}</td>
+                  <td>{x.severidad === "sh:Warning" ? <span className="insignia alerta">Advertencia</span> : <span className="insignia error">Incumplimiento</span>}</td>
+                  <td>{x.mensaje}</td></tr>
               ))}
             </tbody>
           </table>

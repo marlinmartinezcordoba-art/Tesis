@@ -177,7 +177,10 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
 
 async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID) -> None:
     # El motor se consulta con la marca ya tomada (puede tardar unos segundos).
-    documentos = [motor.Documento(id=d.id, nombre=d.nombre_original, texto=d.texto_extraido or "")
+    # Antes de salir hacia el motor (un servicio externo), el texto pierde los identificadores personales.
+    from app.servicios.datos_personales import anonimizar_para_motor
+
+    documentos = [motor.Documento(id=d.id, nombre=d.nombre_original, texto=anonimizar_para_motor(d.texto_extraido or "")[0])
                   for d in descripcion.documentos_de(db, trabajo)]
     # El motor no propone a ciegas: recibe las entidades del vocabulario del
     # fondo que ya aparecen en el texto, para poder reutilizarlas.
