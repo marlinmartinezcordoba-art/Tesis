@@ -57,15 +57,34 @@ export function Inicio() {
 
   if (!fondo) {
     return (
-      <div className="inicio">
-        <h1>{saludo()}, {nombre}</h1>
-        <div className="tarjeta inicio-bienvenida">
-          <h2>Empecemos por el fondo</h2>
-          <p>En RICORA todo nace de los instrumentos archivísticos: cargue el cuadro de clasificación (CCD) y la tabla de
-            retención (TRD) y el sistema arma el fondo, sus dependencias, series y subseries.</p>
-          {usuario?.es_administrador
-            ? <Link className="boton primario" to="/fondos?vista=cargar">Cargar el CCD y la TRD</Link>
-            : <p className="meta">Pídale a la administración que registre el primer fondo.</p>}
+      <div className="inicio inicio-sin-fondo">
+        <section className="inicio-hero">
+          <div className="hero-texto">
+            <span className="hero-saludo">{saludo()},</span>
+            <h1 className="titulo-entidad">{nombre || "bienvenida"}</h1>
+            <p>Empecemos por el fondo. Elija el instrumento con el que la institución organizó sus documentos.</p>
+          </div>
+          <Paisaje />
+        </section>
+        <div className="opciones-inicio">
+          <div className="tarjeta opcion-inicio">
+            <span className="opcion-icono electrico" aria-hidden="true">{I_CARPETA}</span>
+            <h2>Con tabla de retención (TRD)</h2>
+            <p>Para los documentos producidos con TRD. Cargue el cuadro de clasificación (CCD) y la TRD: el sistema arma el
+              fondo, sus dependencias, series y subseries, con su retención y su disposición final.</p>
+            {usuario?.es_administrador
+              ? <Link className="boton primario" to="/fondos?vista=cargar">Cargar el CCD y la TRD</Link>
+              : <p className="meta">Pídale a la administración que registre el primer fondo.</p>}
+          </div>
+          <div className="tarjeta opcion-inicio">
+            <span className="opcion-icono violeta" aria-hidden="true">{I_CAPAS}</span>
+            <h2>Fondo acumulado (TVD)</h2>
+            <p>Para los documentos producidos sin TRD. Registre el fondo con su cuadro de clasificación y después cargue la
+              tabla de valoración (TVD) de cada periodo institucional en Instrumentos → TVD.</p>
+            {usuario?.es_administrador
+              ? <Link className="boton" to="/fondos?vista=cargar">Registrar el fondo acumulado</Link>
+              : <p className="meta">Pídale a la administración que registre el primer fondo.</p>}
+          </div>
         </div>
       </div>
     );

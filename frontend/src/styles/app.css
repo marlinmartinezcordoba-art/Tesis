@@ -1803,3 +1803,15 @@ body {
 .cifra { padding: 10px 12px; gap: 3px; border-radius: 12px; }
 .cifra strong { font-family: "Inter", system-ui, sans-serif; font-size: 1.3rem; font-weight: 700; }
 .cifra span { font-size: .72rem; line-height: 1.3; }
+
+/* Ancho completo: el contenido y el buscador se adaptan al tamaño de la pantalla */
+.inicio { max-width: none; }
+.superior .caja-busqueda { flex: 1 1 auto; max-width: none; }
+.opciones-inicio { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.opcion-inicio { padding: 20px 22px; margin: 0; display: grid; gap: 10px; align-content: start; justify-items: start; }
+.opcion-inicio h2 { margin: 4px 0 0; font-size: 1.1rem; }
+.opcion-inicio p { margin: 0; color: var(--muted); line-height: 1.55; font-size: .9rem; }
+.opcion-icono { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; }
+.opcion-icono svg { width: 22px; height: 22px; }
+.opcion-icono.electrico { background: linear-gradient(135deg, var(--electrico), #3aa0ea); }
+.opcion-icono.violeta { background: linear-gradient(135deg, #6f3fd6, var(--violeta)); }
