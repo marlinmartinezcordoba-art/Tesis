@@ -1769,3 +1769,24 @@ body {
 .indicador .barra { height: 5px; margin-top: 6px; }
 .icono-indicador { width: 32px; height: 32px; flex-basis: 32px; border-radius: 9px; }
 .icono-indicador svg { width: 17px; height: 17px; }
+
+/* ══ Avisos flotantes ══ */
+.aviso-en-flotante { display: none !important; }
+.avisos-flotantes { position: fixed; right: 20px; bottom: 20px; z-index: 300; display: flex; flex-direction: column; gap: 10px;
+  width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.aviso-flotante { pointer-events: auto; position: relative; overflow: hidden; display: grid; grid-template-columns: 28px 1fr auto; gap: 10px;
+  align-items: start; padding: 12px 12px 14px; border-radius: 14px; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); box-shadow: 0 14px 36px rgb(9 27 67 / .18); animation: ricora-flotar 220ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes ricora-flotar { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+.aviso-flotante p { margin: 3px 0 0; font-size: .86rem; line-height: 1.45; }
+.aviso-flotante button { background: none; border: 0; color: var(--muted); font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 2px 4px; }
+.aviso-flotante button:hover { color: var(--ink); }
+.aviso-flotante-icono { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: .85rem; }
+.aviso-flotante.bien .aviso-flotante-icono { background: linear-gradient(135deg, var(--turquesa), #0e9f9a); }
+.aviso-flotante.info .aviso-flotante-icono { background: linear-gradient(135deg, var(--electrico), var(--violeta)); }
+.aviso-flotante.error { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+.aviso-flotante.error .aviso-flotante-icono { background: var(--danger); }
+.aviso-flotante-tiempo { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; transform-origin: left;
+  background: linear-gradient(90deg, var(--turquesa), var(--electrico)); animation: ricora-tiempo linear forwards; }
+@keyframes ricora-tiempo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 600px) { .avisos-flotantes { right: 16px; left: 16px; width: auto; bottom: 16px; } }

@@ -431,3 +431,13 @@ La autora pidió incluir lo que la fase 6 había dejado fuera. Se incluye así:
 | Qué guarda la auditoría | El texto / solo el hecho | Solo que se consultó, quién, cuándo y el modelo | La pregunta puede traer datos personales (Ley 1581 de 2012) | No se puede revisar después qué se preguntó |
 | Aspecto | Tarjeta flotante violeta / panel lateral | Panel lateral de conversación con sugerencias, acciones rápidas y la guía de la pantalla | Se trabaja sin salir de la pantalla y se lee como un chat | Ninguno |
 | Advertencia | Ninguna / visible | Debajo del campo: no escribir datos personales ni información con reserva; puede equivocarse | El servicio de IA es externo y no es infalible | Ninguno |
+
+## Fase 7: avisos flotantes
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Cómo llegar a las 142 pantallas con mensajes | Cambiar cada pantalla / un componente común que detecta los avisos | Componente común (`AvisosFlotantes`): detecta los avisos que aparecen en el contenido, los muestra flotando y oculta la copia en la página | Todas las pantallas cambian a la vez, sin tocar su lógica, el día de la entrega | Un aviso nuevo con otra clase no se detecta; queda en la página como antes |
+| Confirmaciones | Fijas / se van solas | Se van solas a los 5 segundos, con barra de tiempo | No interrumpen el trabajo | Ninguno: se pueden cerrar antes |
+| Errores | Se van solos / se quedan | Se quedan hasta que la persona los cierra | Un error que se va solo se pierde | Ninguno |
+| Qué no se vuelve flotante | — | Notas de guía (`role="note"`, avisos de advertencia), avisos con botones o enlaces (p. ej. «Descargar el respaldo») y lo que está dentro de ventanas, del asistente o de la ayuda | Ahí el mensaje debe quedar junto a lo que se hace | Ninguno |
+| Accesibilidad | — | Contenedor `aria-live`; los errores con `role="alert"` | Los lectores de pantalla los anuncian igual que antes | Ninguno |

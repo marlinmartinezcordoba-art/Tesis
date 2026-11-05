@@ -7,6 +7,7 @@ import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { Ayuda } from "@/components/Ayuda";
 import { BotonAsistente } from "@/components/Asistente";
+import { AvisosFlotantes } from "@/components/AvisosFlotantes";
 import { Ventana } from "@/components/Ventana";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -535,6 +536,7 @@ export function Marco({ children }: { children: ReactNode }) {
         <PestanasModulo />
         {children}
       </main>
+      <AvisosFlotantes />
     </div>
   );
 }
