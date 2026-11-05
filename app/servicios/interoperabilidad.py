@@ -6,7 +6,8 @@ Se hace sobre lo público del fondo (sin lo restringido) y sin guardar nada:
 1. Términos de RiC-O 1.1: toda clase y propiedad existe en la ontología oficial.
 2. Perfil SHACL: el grafo cumple las reglas de RICORA.
 3. Formatos de la web de datos: el grafo se escribe en Turtle, JSON-LD, RDF/XML y
-   N-Triples y otro analizador lo vuelve a leer idéntico (isomorfismo de grafos).
+   N-Triples y se vuelve a leer idéntico (isomorfismo de grafos); además lo lee
+   otro motor RDF, Oxigraph, distinto del que lo escribe.
 4. Reimportación: el importador de RiC-O, el mismo que recibe fondos de otros
    sistemas, reconoce el fondo, sus unidades y sus entidades.
 5. EAD3 y EAC-CPF: los archivos XML validan contra los esquemas oficiales de la SAA.
@@ -46,6 +47,24 @@ def _formatos(g: Graph) -> dict:
             fallas.append(f"{nombre}: {str(exc)[:120]}")
     return _prueba("Formatos de la web de datos", "W3C RDF 1.1 (Turtle, JSON-LD, RDF/XML, N-Triples)", not fallas,
                    "; ".join(fallas) if fallas else "Se escribe y se relee idéntico en los cuatro formatos (" + ", ".join(pesos) + ").")
+
+
+def _segundo_motor(g: Graph) -> dict:
+    """El mismo grafo leído por otro motor RDF, Oxigraph (Rust), independiente de rdflib, que es con el que RICORA lo escribe."""
+    try:
+        import pyoxigraph as ox
+
+        fallas = []
+        for nombre, formato, tipo in (("Turtle", "turtle", ox.RdfFormat.TURTLE), ("JSON-LD", "json-ld", ox.RdfFormat.JSON_LD)):
+            datos = exportacion_rico.serializar(g, "jsonld") if formato == "json-ld" else g.serialize(format="turtle", encoding="utf-8")
+            leido = ox.serialize(list(ox.parse(datos, format=tipo)), format=ox.RdfFormat.N_TRIPLES)
+            if not isomorphic(g, Graph().parse(data=leido, format="nt")):
+                fallas.append(f"{nombre}: Oxigraph lo lee distinto")
+        return _prueba(f"Lectura con otro motor RDF (Oxigraph {ox.__version__})", "W3C RDF 1.1", not fallas,
+                       "; ".join(fallas) if fallas else "Oxigraph, un motor distinto del que escribe el grafo, lee el Turtle y el "
+                       "JSON-LD con exactamente las mismas tripletas.")
+    except Exception as exc:  # noqa: BLE001
+        return _prueba("Lectura con otro motor RDF (Oxigraph)", "W3C RDF 1.1", False, f"No se pudo leer: {str(exc)[:160]}")
 
 
 def _reimportar(g: Graph, ex) -> dict:
@@ -114,6 +133,7 @@ def informe(db: Session, fondo: RecursoDocumental) -> dict:
         _prueba("Perfil SHACL de RICORA", "W3C SHACL", shacl["conforme"],
                 "Sin violaciones." if shacl["conforme"] else f"{len(violaciones)} violación(es); la primera: {violaciones[0]['mensaje'] if violaciones else '—'}"),
         _formatos(g),
+        _segundo_motor(g),
         _reimportar(g, ex),
         *_xml(db, fondo),
         _enlaces(g),

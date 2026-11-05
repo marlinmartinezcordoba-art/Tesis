@@ -277,7 +277,7 @@ export function RegistroDescripcion() {
         <button type="button" className="enlace" onClick={() => navegar("/descripcion")}>← Volver a Descripción</button>
         <EnlaceHistoria tipo="recurso_documental" id={registro.id} nombre={registro.titulo} />
       </div>
-      <h1 style={{ marginTop: 10 }}>{registro.titulo}</h1>
+      <h1 className="titulo-entidad" style={{ marginTop: 10 }}>{registro.titulo}</h1>
       <p className="sub">
         {NIVEL_NOMBRE[registro.nivel]} <NivelRiC nivel={registro.nivel} /> · publicada {fecha(registro.publicado_en)}
         {registro.actualizado_en && ` · corregida ${fecha(registro.actualizado_en)}`} · {registro.instanciaciones.map((i) => i.nombre).join(", ")}

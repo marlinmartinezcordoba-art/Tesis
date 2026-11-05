@@ -6,14 +6,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 export function Encabezado({ titulo, descripcion, acciones, ceja }: {
   titulo: string; descripcion?: ReactNode; acciones?: ReactNode; ceja?: string | null;
 }) {
-  // La ceja del fondo activo la pone el marco en todas las pantallas; aquí solo una ceja distinta.
-  const textoCeja = ceja ?? null;
+  // Decisión de la autora: las pantallas no muestran su nombre ni su descripción; el menú ya dice dónde se está.
+  // El título queda para los lectores de pantalla y la ceja solo cuando dice algo propio (p. ej. «Paso 1 de 3»).
+  void descripcion;
   return (
-    <header className="encabezado">
+    <header className={`encabezado${acciones || ceja ? "" : " solo-titulo"}`}>
       <div>
-        {textoCeja && <p className="ceja">{textoCeja}</p>}
-        <h1>{titulo}</h1>
-        {descripcion && <p className="sub">{descripcion}</p>}
+        {ceja && <p className="ceja">{ceja}</p>}
+        <h1 className="sr-only">{titulo}</h1>
       </div>
       {acciones && <div className="encabezado-acciones">{acciones}</div>}
     </header>

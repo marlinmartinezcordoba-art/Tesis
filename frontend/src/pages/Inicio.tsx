@@ -80,7 +80,7 @@ export function Inicio() {
       <section className="inicio-hero">
         <div className="hero-texto">
           <span className="hero-saludo">{saludo()},</span>
-          <h1>{nombre || "bienvenida"}</h1>
+          <h1 className="titulo-entidad">{nombre || "bienvenida"}</h1>
           <p>Gestione el archivo histórico, los instrumentos archivísticos y la descripción documental de forma integral.</p>
           <span className="hero-fecha">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>
@@ -133,7 +133,6 @@ export function Inicio() {
               </ol>
             </div>
           )}
-          <AccesosRapidos />
         </div>
 
         <aside className="inicio-lateral">

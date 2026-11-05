@@ -325,7 +325,7 @@ export function InstanciacionPreservacion() {
       <div className="ficha-titulo">
         <div>
           <span className="insignia proceso">Instanciación{recurso && ` de ${NIVEL_NOMBRE[recurso.nivel]?.toLowerCase()}`}</span>
-          <h1 style={{ marginTop: 8 }}>{d.nombre}</h1>
+          <h1 className="titulo-entidad" style={{ marginTop: 8 }}>{d.nombre}</h1>
         </div>
         <div className="insignias">
           <EnlaceHistoria tipo="instanciacion" id={d.id} nombre={d.nombre} />

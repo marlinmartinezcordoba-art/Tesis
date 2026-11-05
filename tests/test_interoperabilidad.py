@@ -19,6 +19,7 @@ def test_lo_publicado_lo_puede_leer_otro_sistema(cliente, db, fondo, archivista)
     assert r.status_code == 200, r.text
     inf = r.json()
     pruebas = {p["prueba"]: p for p in inf["pruebas"]}
+    assert any(p.startswith("Lectura con otro motor RDF (Oxigraph") and pruebas[p]["superada"] for p in pruebas)
     for nombre in ("Términos de RiC-O 1.1", "Perfil SHACL de RICORA", "Formatos de la web de datos",
                    "Reimportación en RiC-O", "EAD3 del fondo", "EAC-CPF de los agentes"):
         assert pruebas[nombre]["superada"], (nombre, pruebas[nombre]["detalle"])

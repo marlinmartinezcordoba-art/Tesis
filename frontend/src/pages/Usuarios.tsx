@@ -321,22 +321,7 @@ export function Usuarios() {
         </>
       ) : (<>
 
-      {!correoConfigurado ? (
-        avisoCerrado ? (
-          // Leído: queda un aviso discreto mientras el correo siga sin configurar.
-          <div className="aviso-discreto" role="status">
-            ⚠ Correo sin configurar: los enlaces se muestran en pantalla.
-            <button type="button" className="enlace" onClick={() => recordarAviso(false)}>Ver detalle</button>
-          </div>
-        ) : (
-          <div className="aviso alerta">
-            <button type="button" className="cerrar-aviso" aria-label="Cerrar el aviso (queda una versión breve)"
-                    onClick={() => recordarAviso(true)}>×</button>
-            El envío de correo aún no está configurado en el servidor. Mientras tanto, al crear un usuario o enviarle un
-            enlace, el sistema le muestra el enlace a usted una sola vez para que se lo haga llegar a la persona.
-          </div>
-        )
-      ) : (
+      {correoConfigurado && (
         <div className="filtros" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="boton chico" onClick={probarCorreo}>Enviar correo de prueba a mi cuenta</button>
         </div>

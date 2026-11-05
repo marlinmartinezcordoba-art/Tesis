@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<eac xmlns="https://archivists.org/ns/eac/v2">
+  <control maintenanceStatus="derived">
+    <recordId>urn:uuid:f86233db-9ca2-4ada-8e66-d7ad1359b0bb</recordId>
+    <maintenanceAgency>
+      <agencyName>RICORA</agencyName>
+    </maintenanceAgency>
+    <maintenanceHistory>
+      <maintenanceEvent maintenanceEventType="derived">
+        <agent agentType="machine">RICORA (desde la ficha ISAAR)</agent>
+        <eventDateTime standardDateTime="2026-11-05T00:48:52.888360+00:00">05/11/2026 00:48</eventDateTime>
+      </maintenanceEvent>
+    </maintenanceHistory>
+    <conventionDeclaration>
+      <reference>ISAAR (CPF), 2.ª edición (Consejo Internacional de Archivos, 2004)</reference>
+    </conventionDeclaration>
+    <languageDeclaration languageCode="spa" scriptCode="Latn"/>
+  </control>
+  <cpfDescription>
+    <identity>
+      <entityType value="corporateBody"/>
+      <nameEntry status="authorized">
+        <part>Ministerio de Ambiente</part>
+      </nameEntry>
+    </identity>
+    <description/>
+  </cpfDescription>
+</eac>

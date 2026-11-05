@@ -250,7 +250,7 @@ export function EntidadVocabularioDetalle() {
           <EnlaceHistoria tipo="entidad_vocabulario" id={e.id} nombre={e.nombre} />
         </div>
       </div>
-      <h1 style={{ marginTop: 10 }}>
+      <h1 className="titulo-entidad" style={{ marginTop: 10 }}>
         {e.nombre}{" "}
         {e.nivel_detalle && (
           <span className={`insignia ${e.nivel_detalle === "completo" ? "bien" : "proceso"}`} style={{ verticalAlign: "middle" }}>

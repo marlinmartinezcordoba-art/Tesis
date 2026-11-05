@@ -1,0 +1,61 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ead xmlns="http://ead3.archivists.org/schema/">
+  <control>
+    <recordid>urn:uuid:0d866fa9-d76b-4151-a2d4-7aa0f70f6de6</recordid>
+    <filedesc>
+      <titlestmt>
+        <titleproper>Instituto de los Recursos Naturales Renovables</titleproper>
+      </titlestmt>
+    </filedesc>
+    <maintenancestatus value="derived"/>
+    <maintenanceagency>
+      <agencyname>RICORA</agencyname>
+    </maintenanceagency>
+    <languagedeclaration>
+      <language langcode="spa">español</language>
+      <script scriptcode="Latn">latina</script>
+    </languagedeclaration>
+    <conventiondeclaration>
+      <citation>ISAD(G), 2.ª ed.; RiC-CM 1.0</citation>
+    </conventiondeclaration>
+    <maintenancehistory>
+      <maintenanceevent>
+        <eventtype value="derived"/>
+        <eventdatetime standarddatetime="2026-11-05T00:49:00.983639+00:00">05/11/2026 00:49</eventdatetime>
+        <agenttype value="machine"/>
+        <agent>RICORA (exportación EAD3 desde la descripción publicada)</agent>
+      </maintenanceevent>
+    </maintenancehistory>
+  </control>
+  <archdesc level="fonds">
+    <did>
+      <unittitle>Instituto de los Recursos Naturales Renovables</unittitle>
+    </did>
+    <dsc>
+      <c level="item" id="r-84365a1c-9af2-4a0b-b5e1-e013ec94c208">
+        <did>
+          <unittitle>Resolución 100 de 1972</unittitle>
+        </did>
+        <otherfindaid>
+          <p>Inventario documental (FUID) y guía del fondo, generados por el sistema</p>
+        </otherfindaid>
+      </c>
+      <c level="item" id="r-6e6de54d-3aca-4f28-8768-5401ca6f54bc">
+        <did>
+          <unittitle>Resolución 101 de 1972</unittitle>
+        </did>
+        <otherfindaid>
+          <p>Inventario documental (FUID) y guía del fondo, generados por el sistema</p>
+        </otherfindaid>
+      </c>
+      <c level="item" id="r-bb96bb49-e8ba-478a-b853-f7d6b08ff13d">
+        <did>
+          <unittitle>Resolución 102 de 1972</unittitle>
+        </did>
+        <otherfindaid>
+          <p>Inventario documental (FUID) y guía del fondo, generados por el sistema</p>
+        </otherfindaid>
+      </c>
+    </dsc>
+  </archdesc>
+</ead>

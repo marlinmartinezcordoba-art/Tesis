@@ -1750,3 +1750,22 @@ body {
 .candidatos-externos { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .candidatos-externos li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px;
   border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+
+/* Sin nombre ni descripción de módulo en las pantallas (decisión de la autora): el menú dice dónde se está. */
+.contenido h1:not(.titulo-entidad) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.contenido h1:not(.titulo-entidad) + p.sub { display: none; }
+.encabezado.solo-titulo { display: none; }
+.encabezado { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: 14px; justify-content: flex-end; }
+.encabezado::after { display: none; }
+.cabecera-nivel h1 + p.sub { display: none; }
+.migas:has(> strong:only-child) { display: none; }
+
+/* Cifras más pequeñas en todas las pantallas */
+.indicadores { gap: 12px; margin-bottom: 14px; }
+.indicadores > .indicador { padding: 12px 14px; }
+.indicador .etiqueta { font-size: .74rem; }
+.indicador strong { font-size: 1.4rem; margin: 2px 0 0; }
+.indicador .nota { font-size: .7rem; }
+.indicador .barra { height: 5px; margin-top: 6px; }
+.icono-indicador { width: 32px; height: 32px; flex-basis: 32px; border-radius: 9px; }
+.icono-indicador svg { width: 17px; height: 17px; }
