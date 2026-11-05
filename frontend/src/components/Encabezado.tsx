@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 // Piezas del rediseño: encabezado de pantalla, indicadores medidos y menú de acciones secundarias.
 
@@ -9,6 +10,12 @@ export function Encabezado({ titulo, descripcion, acciones, ceja }: {
   // Decisión de la autora: las pantallas no muestran su nombre ni su descripción; el menú ya dice dónde se está.
   // El título queda para los lectores de pantalla y la ceja solo cuando dice algo propio (p. ej. «Paso 1 de 3»).
   void descripcion;
+  // Sin ceja, las acciones suben a la fila de las pestañas del módulo para aprovechar el espacio.
+  const [hueco, setHueco] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHueco(document.getElementById("acciones-pantalla")); }, []);
+  if (acciones && !ceja && hueco) {
+    return <><h1 className="sr-only">{titulo}</h1>{createPortal(<div className="encabezado-acciones">{acciones}</div>, hueco)}</>;
+  }
   return (
     <header className={`encabezado${acciones || ceja ? "" : " solo-titulo"}`}>
       <div>

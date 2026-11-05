@@ -533,7 +533,10 @@ export function Marco({ children }: { children: ReactNode }) {
           </div>
         </div>
         <AvisoSinCifrar />
-        <PestanasModulo />
+        <div className="fila-pestanas">
+          <PestanasModulo />
+          <div id="acciones-pantalla" className="acciones-pantalla" />
+        </div>
         {children}
       </main>
       <AvisosFlotantes />

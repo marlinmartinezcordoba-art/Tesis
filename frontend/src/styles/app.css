@@ -1790,3 +1790,16 @@ body {
   background: linear-gradient(90deg, var(--turquesa), var(--electrico)); animation: ricora-tiempo linear forwards; }
 @keyframes ricora-tiempo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (max-width: 600px) { .avisos-flotantes { right: 16px; left: 16px; width: auto; bottom: 16px; } }
+
+/* Acciones de la pantalla en la fila de las pestañas */
+.fila-pestanas { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fila-pestanas > .pestanas-modulo { flex: 1 1 auto; }
+.acciones-pantalla { display: flex; gap: 8px; margin-left: auto; padding-bottom: 8px; }
+.acciones-pantalla:empty { display: none; }
+.acciones-pantalla .encabezado-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Cifras de resumen (Decisiones de IA, preservación…): pequeñas y en una sola línea */
+.resumen-preservacion { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.cifra { padding: 10px 12px; gap: 3px; border-radius: 12px; }
+.cifra strong { font-family: "Inter", system-ui, sans-serif; font-size: 1.3rem; font-weight: 700; }
+.cifra span { font-size: .72rem; line-height: 1.3; }

@@ -261,7 +261,7 @@ export function Usuarios() {
   };
   const [q, setQ] = useState("");
   const [rol, setRol] = useState("");
-  const [estado, setEstado] = useState("");
+  const [estado, setEstado] = useState("true");
   const [nuevo, setNuevo] = useState(false);
   const [entrega, setEntrega] = useState<Entrega | null>(null);
   const [mensaje, setMensaje] = useState("");

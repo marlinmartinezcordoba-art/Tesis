@@ -273,23 +273,10 @@ export function AsistenteTrd() {
         </div></div>
       ) : (
         <>
-          <div className="tarjeta estado-trd">
-            <div className="tarjeta-cab">TRD de «{fondo.titulo}»</div>
-            <div className="tarjeta-cuerpo">
-              <dl className="par-dato" style={{ margin: 0 }}>
-                <dt>Rige hoy</dt>
-                <dd>{vigente ? <>{vigente.nombre}{vigente.acto_aprobacion && ` · ${vigente.acto_aprobacion}`}
-                  {vigente.vigente_desde && ` · desde ${vigente.vigente_desde}`} · {vigente.filas} serie(s) y subserie(s)</>
-                  : <span className="meta">Ninguna todavía</span>}</dd>
-                <dt>En preparación</dt>
-                <dd>{borrador ? <>{borrador.nombre} · {borrador.filas} serie(s) y subserie(s)
-                  {esAdmin && <> · <button type="button" className="enlace" onClick={descartar}>Descartar</button></>}</>
-                  : <span className="meta">Ninguna</span>}</dd>
-              </dl>
-              {vigente && <Link className="boton chico" to="/fondos?vista=versiones" style={{ marginTop: 8 }}>
-                Ver el cuadro de clasificación y el historial de versiones</Link>}
-            </div>
-          </div>
+          {borrador && esAdmin && (
+            <p className="meta" style={{ margin: "0 0 10px" }}>En preparación: {borrador.nombre} · {borrador.filas} serie(s) y
+              subserie(s) · <button type="button" className="enlace" onClick={descartar}>Descartar</button></p>
+          )}
 
           {aplicada && (
             <div className="aviso bien" role="status">
