@@ -24,11 +24,6 @@ function Tvd({ fondoId }: { fondoId: string }) {
         aprobación y su convalidación. Sus reglas rigen los documentos producidos en ese periodo: un expediente de 2008 se
         valora con la TVD 2006–2011 y uno de 2020 con la TRD. Al aplicarla se arma el cuadro del periodo en RiC-O.
       </p>
-      <div className="aviso" role="note">
-        Abra la TVD del periodo, cárguela desde el archivo (Excel, PDF con texto, Word, CSV o .zip) o llene la matriz a
-        mano, y aplíquela. Las dependencias y las series del periodo se revisan en el paso 3 de{" "}
-        <Link to="/fondos?vista=dependencias">TRD y CCD</Link>.
-      </div>
       <VersionesTrd fondoId={fondoId} instrumento="tvd" />
       <details className="seccion-ajuste tarjeta" open>
         <summary><strong>Matriz de la TVD</strong> <span className="meta">Por dependencia del periodo: series, tipos,
