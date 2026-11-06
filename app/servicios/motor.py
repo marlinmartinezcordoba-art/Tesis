@@ -273,6 +273,18 @@ class MotorGemini:
         }
         return self._llamar(cuerpo).strip()
 
+    def estructurar(self, instruccion: str, texto: str, esquema: dict) -> dict:
+        """Datos estructurados (JSON con el esquema dado) a partir de un texto, p. ej. una TRD en cualquier formato."""
+        cuerpo = {
+            "systemInstruction": {"parts": [{"text": instruccion}]},
+            "contents": [{"role": "user", "parts": [{"text": texto}]}],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "responseSchema": esquema},
+        }
+        try:
+            return json.loads(self._llamar(cuerpo))
+        except ValueError as exc:
+            raise MotorError("La respuesta del motor no se pudo leer.") from exc
+
     def conversar(self, instruccion: str, contenido: list[dict]) -> str:
         """Conversación del Asistente RICORA: turnos de la persona y del asistente, texto libre."""
         cuerpo = {

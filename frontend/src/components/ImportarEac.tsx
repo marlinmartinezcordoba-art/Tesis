@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ErrorAPI, subir } from "@/lib/api";
+import { unoOVarios } from "@/lib/zip";
 
 // Autoridades en EAC-CPF (2.0 o 2010), una o varias en un .zip, a la ficha ISAAR del
 // fondo. La vista previa dice qué se crea y qué se completa; lo que la ficha ya tenía
@@ -70,8 +71,8 @@ export function ImportarEac({ fondoId, alTerminar }: { fondoId: string; alTermin
       {error && <div className="aviso error" role="alert">{error}</div>}
       <label className="boton chico primario">
         {ocupado && !previa ? "Leyendo…" : previa ? "Leer otro archivo" : "Leer el EAC-CPF (.xml o .zip)"}
-        <input type="file" accept=".xml,.zip" hidden disabled={ocupado}
-               onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
+        <input type="file" accept=".xml,.zip" multiple hidden disabled={ocupado}
+               onChange={(e) => void unoOVarios(e.target.files, "EAC-CPF.zip").then((f) => f && leer(f))} />
       </label>
       {previa && (
         <>

@@ -255,6 +255,38 @@ SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto
              "plantilla del sistema.")
 
 
+_SOSPECHOSO = re.compile(r"vigencia|tabla de retenci|tabla de valoraci|cuadro de clasificaci|\bsecci[oó]n\b|"
+                         r"subsecci[oó]n|n[oó]icces|oficina productora|dependencia|convenciones|\bc[oó]digo\b|firma",
+                         re.I)
+
+
+def _sospechosa(f: "FilaCuadro") -> bool:
+    """Una fila que parece un encabezado o un título leído como serie (o texto girado al revés)."""
+    nombre = " ".join(x for x in ((f.serie.nombre if f.serie else ""), (f.subserie.nombre if f.subserie else "")) if x)
+    return bool(f.problemas) or not nombre or bool(_SOSPECHOSO.search(nombre))
+
+
+def _lectura_floja(filas: list["FilaCuadro"]) -> bool:
+    return not filas or sum(1 for f in filas if _sospechosa(f)) >= 0.3 * len(filas)
+
+
+def _con_ia(contenido: bytes | None, nombre: str, hojas, filas: list["FilaCuadro"]) -> tuple[list["FilaCuadro"], bool, str | None]:
+    """Si la lectura por reglas salió floja, la del motor (si hay motor y saca más filas limpias)."""
+    from app.servicios import trd_ia
+    from app.servicios.motor import MotorError
+
+    if contenido is None or not _lectura_floja(filas) or not trd_ia.disponible():
+        return filas, False, None
+    try:
+        leidas = trd_ia.extraer(contenido, nombre, hojas)
+    except (MotorError, ErrorCuadro, Exception) as exc:  # noqa: BLE001 — sin motor se queda la lectura por reglas
+        return filas, False, f"El motor de análisis no pudo leerlo ({str(exc)[:120]})."
+    limpias = lambda xs: sum(1 for f in xs if not _sospechosa(f))  # noqa: E731
+    if leidas and limpias(leidas) >= limpias(filas):
+        return leidas, True, None
+    return filas, False, None
+
+
 def _motivo_legible(motivo: str | None) -> str | None:
     """Sin el detalle técnico de la librería entre paréntesis («No /Root object!…»)."""
     if not motivo:
@@ -262,7 +294,8 @@ def _motivo_legible(motivo: str | None) -> str | None:
     return re.sub(r"\s*\([^)]*\)", "", motivo).strip() or motivo
 
 
-def _filas_zip(contenido: bytes, motivos: dict | None = None) -> list[tuple[str, list[list[list[str]]]]]:
+def _filas_zip(contenido: bytes, motivos: dict | None = None, contenidos: dict | None = None
+               ) -> list[tuple[str, list[list[list[str]]]]]:
     """Una TRD que se publica en un .zip (una tabla por dependencia): se leen
     todos los archivos que el sistema entiende, en orden de nombre."""
     import zipfile
@@ -282,7 +315,10 @@ def _filas_zip(contenido: bytes, motivos: dict | None = None) -> list[tuple[str,
         if info.file_size > MAX_BYTES or total > 4 * MAX_BYTES:
             raise ErrorCuadro("El .zip descomprimido es demasiado grande para leerlo de una vez: súbalo por partes.", 413)
         try:
-            salida.append((nombre, _hojas(paquete.read(info), nombre)))
+            datos = paquete.read(info)
+            if contenidos is not None:
+                contenidos[nombre] = datos
+            salida.append((nombre, _hojas(datos, nombre)))
         except ErrorCuadro as exc:
             salida.append((nombre, []))  # se informa como no leído
             if motivos is not None:
@@ -706,27 +742,35 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
         raise ErrorCuadro(f"El archivo pasa de {limite // (1024 * 1024)} MB.", 413)
     if nombre.endswith(".zip"):
         motivos: dict[str, str] = {}
-        partes = _filas_zip(contenido, motivos)
+        contenidos: dict[str, bytes] = {}
+        partes = _filas_zip(contenido, motivos, contenidos)
         filas, leidos, sin_leer = [], [], []
         archivos = informe.setdefault("archivos", [])
         for parte, hojas in partes:
             corto = parte.rsplit("/", 1)[-1][:300]
             try:
-                de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
+                try:
+                    de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
+                except ErrorCuadro:
+                    de_la_parte = []
+                de_la_parte, con_ia, aviso_ia = _con_ia(contenidos.get(parte), corto, hojas, de_la_parte)
+                if not de_la_parte and not hojas and not con_ia:
+                    raise ErrorCuadro(motivos.get(parte) or SIN_TEXTO)
+                if not de_la_parte and not con_ia:
+                    raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga "
+                                      "un encabezado con «Serie», o use la plantilla del sistema.")
                 for f in de_la_parte:
                     f.parte = corto
                 filas += de_la_parte
                 (leidos if hojas else sin_leer).append(parte)
-                if hojas and de_la_parte:
-                    archivos.append({"archivo": corto, "estado": "leido", "filas": len(de_la_parte),
-                                     "con_problemas": sum(1 for f in de_la_parte if f.problemas), "motivo": None})
-                else:
-                    archivos.append({"archivo": corto, "estado": "sin_leer", "filas": 0, "con_problemas": 0,
-                                     "motivo": _motivo_legible(motivos.get(parte)) or SIN_TEXTO})
+                archivos.append({"archivo": corto, "estado": "leido_ia" if con_ia else "leido", "filas": len(de_la_parte),
+                                 "con_problemas": sum(1 for f in de_la_parte if f.problemas), "motivo": aviso_ia})
             except ErrorCuadro as exc:
                 sin_leer.append(parte)
-                archivos.append({"archivo": corto, "estado": "sin_tabla", "filas": 0, "con_problemas": 0,
-                                 "motivo": str(exc)})
+                sin_texto = not hojas
+                archivos.append({"archivo": corto, "estado": "sin_leer" if sin_texto else "sin_tabla", "filas": 0,
+                                 "con_problemas": 0,
+                                 "motivo": (_motivo_legible(motivos.get(parte)) or SIN_TEXTO) if sin_texto else str(exc)})
         if not filas:
             raise ErrorCuadro("Ningún archivo del .zip tiene una tabla de CCD o TRD reconocible (" +
                               ", ".join(p.rsplit("/", 1)[-1] for p in sin_leer[:5]) + ").")
@@ -736,9 +780,28 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
                       + ("…" if len(sin_leer) > 3 else "") + ")"
         return filas, origen
     origen = {".pdf": "pdf", ".csv": "csv", ".docx": "word"}.get("." + nombre.rsplit(".", 1)[-1], "excel")
-    filas, forma = _interpretar_hojas(_hojas(contenido, nombre))
-    informe["archivos"] = [{"archivo": archivo, "estado": "leido", "filas": len(filas),
-                            "con_problemas": sum(1 for f in filas if f.problemas), "motivo": None}]
+    try:
+        hojas = _hojas(contenido, nombre)
+    except ErrorCuadro:
+        # Un PDF con texto pero sin tablas que pdfplumber reconozca: lo intenta el motor, si lo hay.
+        from app.servicios import trd_ia
+
+        if not (nombre.endswith(".pdf") and trd_ia.disponible()):
+            raise
+        hojas = []
+    try:
+        filas, forma = _interpretar_hojas(hojas)
+    except ErrorCuadro:
+        filas, forma = [], ""
+    filas, con_ia, aviso_ia = _con_ia(contenido, archivo, hojas, filas)
+    if not filas:
+        raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga un encabezado "
+                          "con «Serie» (y, si es una TRD, la retención y la disposición final), o use la plantilla del "
+                          "sistema." + (f" {aviso_ia}" if aviso_ia else ""))
+    if con_ia:
+        forma = "leído con el motor de análisis (revise cada fila)"
+    informe["archivos"] = [{"archivo": archivo, "estado": "leido_ia" if con_ia else "leido", "filas": len(filas),
+                            "con_problemas": sum(1 for f in filas if f.problemas), "motivo": aviso_ia}]
     return filas, f"{origen} · {forma}"
 
 

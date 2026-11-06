@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ErrorAPI, pedir, subir } from "@/lib/api";
+import { unoOVarios } from "@/lib/zip";
 
 // Cotejo del cuadro de clasificación (CCD) con la versión de la TRD (fase C). Se compara por
 // código: series del CCD sin retención en la TRD (lo más grave), series de la TRD que el CCD no
@@ -99,8 +100,8 @@ export function CotejoCcd({ versionId }: { versionId: string }) {
         {c && <ResultadoCotejo c={c} />}
         <div className="acciones">
           <label className="boton chico">{ocupado ? "Cotejando…" : c ? "Cotejar con otro CCD" : "Subir el CCD"}
-            <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                   onChange={(e) => e.target.files?.[0] && cotejar(e.target.files[0])} /></label>
+            <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" multiple hidden disabled={ocupado}
+                   onChange={(e) => void unoOVarios(e.target.files, "CCD.zip").then((f) => f && cotejar(f))} /></label>
           {c && <button type="button" className="boton chico" disabled={ocupado} onClick={repetir}>Volver a cotejar</button>}
         </div>
       </div>
