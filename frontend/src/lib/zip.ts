@@ -61,7 +61,7 @@ export async function empaquetar(archivos: File[], nombre = "archivos.zip"): Pro
 }
 
 /** Un archivo tal cual, o varios empaquetados en un .zip. */
-export async function unoOVarios(lista: FileList | null, nombre: string): Promise<File | null> {
+export async function unoOVarios(lista: FileList | File[] | null, nombre: string): Promise<File | null> {
   const archivos = Array.from(lista || []);
   if (archivos.length === 0) return null;
   if (archivos.length === 1) return archivos[0];

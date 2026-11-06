@@ -251,7 +251,18 @@ def _filas_word(contenido: bytes) -> list[list[list[str]]]:
 EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip")
 
 
-def _filas_zip(contenido: bytes) -> list[tuple[str, list[list[list[str]]]]]:
+SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto). Súbalo en Excel o use la "
+             "plantilla del sistema.")
+
+
+def _motivo_legible(motivo: str | None) -> str | None:
+    """Sin el detalle técnico de la librería entre paréntesis («No /Root object!…»)."""
+    if not motivo:
+        return None
+    return re.sub(r"\s*\([^)]*\)", "", motivo).strip() or motivo
+
+
+def _filas_zip(contenido: bytes, motivos: dict | None = None) -> list[tuple[str, list[list[list[str]]]]]:
     """Una TRD que se publica en un .zip (una tabla por dependencia): se leen
     todos los archivos que el sistema entiende, en orden de nombre."""
     import zipfile
@@ -272,8 +283,10 @@ def _filas_zip(contenido: bytes) -> list[tuple[str, list[list[list[str]]]]]:
             raise ErrorCuadro("El .zip descomprimido es demasiado grande para leerlo de una vez: súbalo por partes.", 413)
         try:
             salida.append((nombre, _hojas(paquete.read(info), nombre)))
-        except ErrorCuadro:
+        except ErrorCuadro as exc:
             salida.append((nombre, []))  # se informa como no leído
+            if motivos is not None:
+                motivos[nombre] = str(exc)
     if not salida:
         raise ErrorCuadro("El .zip no trae archivos de Excel, PDF, Word ni CSV.")
     return salida
@@ -680,7 +693,11 @@ def _desde_tabla(hojas: list[list[list[str]]]) -> list[FilaCuadro]:
     return salida
 
 
-def interpretar(contenido: bytes, archivo: str) -> tuple[list[FilaCuadro], str]:
+def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> tuple[list[FilaCuadro], str]:
+    """Las filas del CCD o la TRD. Si se pasa `informe`, deja en informe["archivos"] el resultado de
+    cada archivo (leído o no, cuántas filas y por qué no), para mostrarlo a la persona."""
+    if informe is None:
+        informe = {}
     if not contenido:
         raise ErrorCuadro("El archivo está vacío.")
     nombre = archivo.lower()
@@ -688,17 +705,28 @@ def interpretar(contenido: bytes, archivo: str) -> tuple[list[FilaCuadro], str]:
     if len(contenido) > limite:
         raise ErrorCuadro(f"El archivo pasa de {limite // (1024 * 1024)} MB.", 413)
     if nombre.endswith(".zip"):
-        partes = _filas_zip(contenido)
+        motivos: dict[str, str] = {}
+        partes = _filas_zip(contenido, motivos)
         filas, leidos, sin_leer = [], [], []
+        archivos = informe.setdefault("archivos", [])
         for parte, hojas in partes:
+            corto = parte.rsplit("/", 1)[-1][:300]
             try:
                 de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
                 for f in de_la_parte:
-                    f.parte = parte.rsplit("/", 1)[-1][:300]
+                    f.parte = corto
                 filas += de_la_parte
                 (leidos if hojas else sin_leer).append(parte)
-            except ErrorCuadro:
+                if hojas and de_la_parte:
+                    archivos.append({"archivo": corto, "estado": "leido", "filas": len(de_la_parte),
+                                     "con_problemas": sum(1 for f in de_la_parte if f.problemas), "motivo": None})
+                else:
+                    archivos.append({"archivo": corto, "estado": "sin_leer", "filas": 0, "con_problemas": 0,
+                                     "motivo": _motivo_legible(motivos.get(parte)) or SIN_TEXTO})
+            except ErrorCuadro as exc:
                 sin_leer.append(parte)
+                archivos.append({"archivo": corto, "estado": "sin_tabla", "filas": 0, "con_problemas": 0,
+                                 "motivo": str(exc)})
         if not filas:
             raise ErrorCuadro("Ningún archivo del .zip tiene una tabla de CCD o TRD reconocible (" +
                               ", ".join(p.rsplit("/", 1)[-1] for p in sin_leer[:5]) + ").")
@@ -709,6 +737,8 @@ def interpretar(contenido: bytes, archivo: str) -> tuple[list[FilaCuadro], str]:
         return filas, origen
     origen = {".pdf": "pdf", ".csv": "csv", ".docx": "word"}.get("." + nombre.rsplit(".", 1)[-1], "excel")
     filas, forma = _interpretar_hojas(_hojas(contenido, nombre))
+    informe["archivos"] = [{"archivo": archivo, "estado": "leido", "filas": len(filas),
+                            "con_problemas": sum(1 for f in filas if f.problemas), "motivo": None}]
     return filas, f"{origen} · {forma}"
 
 
@@ -753,8 +783,11 @@ def _partes(filas: list[FilaCuadro]) -> list[dict]:
 
 
 def vista_previa(contenido: bytes, archivo: str) -> dict:
-    filas, origen = interpretar(contenido, archivo)
+    informe: dict = {}
+    filas, origen = interpretar(contenido, archivo, informe)
     return {"origen": origen, "filas": [f.a_dict() for f in filas],
+            # Resultado de cada archivo subido (leído, sin tabla o sin texto), para mostrarlo uno por uno.
+            "archivos": informe.get("archivos", []),
             # En un .zip, cada archivo con lo que parece ser (CCD, TRD o TVD): la persona lo confirma.
             "partes": _partes(filas),
             "resumen": {"filas": len(filas), "con_problemas": sum(1 for f in filas if f.problemas),

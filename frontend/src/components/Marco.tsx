@@ -8,6 +8,7 @@ import { useSesion } from "@/lib/sesion";
 import { Ayuda } from "@/components/Ayuda";
 import { BotonAsistente } from "@/components/Asistente";
 import { AvisosFlotantes } from "@/components/AvisosFlotantes";
+import { Emblema } from "@/components/Logo";
 import { Ventana } from "@/components/Ventana";
 
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -361,10 +362,11 @@ function Lanzador() {
   );
 }
 
-export function Marca() {
+export function Marca({ conEmblema = true }: { conEmblema?: boolean }) {
   return (
     <div className="marca">
-      RICORA
+      {conEmblema && <Emblema tamano={44} />}
+      <span className="marca-texto">RICORA</span>
     </div>
   );
 }
@@ -473,11 +475,6 @@ function AvisoAlertas() {
 }
 
 // Emblema de la institución archivística: un edificio con columnas.
-const EMBLEMA = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M3 9.5L12 4l9 5.5" /><path d="M4.5 10v8M9 10v8M15 10v8M19.5 10v8" /><path d="M3 20h18" />
-  </svg>
-);
 const CLAVE_COMPACTA = "ricora:lateral-compacta";
 
 export function Marco({ children }: { children: ReactNode }) {
@@ -497,8 +494,8 @@ export function Marco({ children }: { children: ReactNode }) {
       <aside className="lateral">
         <div className="lateral-cab">
           <div className="marca-bloque">
-            <span className="emblema">{EMBLEMA}</span>
-            <Marca />
+            <span className="emblema"><Emblema tamano={40} /></span>
+            <Marca conEmblema={false} />
           </div>
           <button type="button" className="boton-compacto" onClick={alternarCompacta}
                   aria-label={compacta ? "Expandir la barra lateral" : "Compactar la barra lateral"}

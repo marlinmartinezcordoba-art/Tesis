@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { unoOVarios } from "@/lib/zip";
+import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { confirmar } from "@/lib/dialogos";
@@ -73,17 +74,21 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
 
+  const carga = useCarga();
+
   async function leer(archivo: File) {
     setError("");
     const datos = new FormData();
     datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<VistaPaquete>("/api/cuadro/vista-previa", datos, () => undefined);
+      const v = await subir<VistaPaquete & { archivos?: ArchivoLeido[] }>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      carga.terminar(v.archivos);
       setVista(v);
       setRoles(Object.fromEntries((v.partes || []).map((x) => [x.archivo, x.sugerido])));
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
     } catch (err) {
+      carga.fallar(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
       setError(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
     } finally {
       setOcupado(false);
@@ -134,8 +139,14 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
         <label className="boton primario">
           {ocupado && !vista ? "Leyendo…" : vista ? "Elegir otros archivos" : "Elegir los archivos"}
           <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                 onChange={async (e) => { const a = await unoOVarios(e.target.files, "TRD.zip"); if (a) leer(a); e.target.value = ""; }} />
+                 onChange={async (e) => {
+                   const lista = Array.from(e.target.files || []); e.target.value = "";
+                   if (!lista.length) return;
+                   carga.empezar(lista);
+                   const a = await unoOVarios(lista, "TRD.zip"); if (a) leer(a);
+                 }} />
         </label>
+          <PanelCarga estado={carga.estado} />
         <button type="button" className="enlace" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
           ¿No tiene el archivo? Descargue la plantilla Excel</button>
       </div>

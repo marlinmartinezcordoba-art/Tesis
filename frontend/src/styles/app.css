@@ -1331,10 +1331,10 @@ h1, h2, h3 { font-family: "Inter", system-ui, sans-serif; letter-spacing: -.02em
 
 /* Tarjetas: profundidad suave; las cifras reaccionan al cursor. */
 .tarjeta, .indicador { border-color: var(--line); border-radius: var(--radio); box-shadow: var(--sombra); }
-.indicador, .tarjeta-acceso, .acceso, a.tarjeta {
+.indicador, .tarjeta-acceso, a.tarjeta {
   transition: transform var(--transicion), box-shadow var(--transicion), border-color var(--transicion);
 }
-.indicador:hover, .tarjeta-acceso:hover, .acceso:hover, a.tarjeta:hover {
+.indicador:hover, .tarjeta-acceso:hover, a.tarjeta:hover {
   transform: translateY(-2px); box-shadow: var(--sombra-alta); border-color: var(--line-fuerte);
 }
 .tarjeta-cab { border-bottom-color: var(--line); }
@@ -1383,7 +1383,7 @@ h1, h2, h3 { font-family: "Inter", system-ui, sans-serif; letter-spacing: -.02em
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
-  .indicador:hover, .tarjeta-acceso:hover, .acceso:hover, a.tarjeta:hover, .boton.primario:hover:not(:disabled) { transform: none; }
+  .indicador:hover, .tarjeta-acceso:hover, a.tarjeta:hover, .boton.primario:hover:not(:disabled) { transform: none; }
 }
 .barra-avance { background: var(--hielo); }
 .barra-avance > *, .barra-avance i, .barra-avance span { background: linear-gradient(90deg, var(--electrico), var(--turquesa)) !important; }
@@ -1567,16 +1567,6 @@ body {
 .recorrido-horizontal .meta { font-size: .78rem; }
 
 /* Accesos rápidos */
-.accesos-rapidos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; padding: 16px 18px 18px; }
-.acceso { position: relative; display: grid; gap: 4px; padding: 16px; border-radius: 14px; text-decoration: none; color: var(--ink); min-height: 96px; align-content: end; }
-.acceso strong { font-size: .95rem; }
-.acceso span { font-size: .76rem; color: var(--muted); }
-.acceso i { position: absolute; right: 12px; bottom: 10px; font-style: normal; font-size: 1.2rem; color: var(--electrico); }
-.acceso::before { content: ""; position: absolute; left: 16px; top: 14px; width: 30px; height: 30px; border-radius: 9px; }
-.acceso.tono-electrico { background: linear-gradient(160deg, #e3f0fc, #ffffff); } .acceso.tono-electrico::before { background: linear-gradient(135deg, #147dce, #3aa0ea); }
-.acceso.tono-turquesa { background: linear-gradient(160deg, #daf6f5, #ffffff); } .acceso.tono-turquesa::before { background: linear-gradient(135deg, #0f9a96, #16c6c1); }
-.acceso.tono-violeta { background: linear-gradient(160deg, #eee6fd, #ffffff); } .acceso.tono-violeta::before { background: linear-gradient(135deg, #6f3fd6, #8555e8); }
-.acceso.tono-noche { background: linear-gradient(160deg, #e4e9f4, #ffffff); } .acceso.tono-noche::before { background: linear-gradient(135deg, #091b43, #24427f); }
 
 /* Avance general (dona) */
 .avance-general { display: flex; align-items: center; gap: 18px; }
@@ -1604,7 +1594,6 @@ body {
 @media (max-width: 1000px) { .inicio-tablero .indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .inicio-tablero .indicadores > .indicador { padding-bottom: 40px; align-items: flex-start; }
 .inicio-tablero .indicador.con-icono { flex-direction: column; gap: 10px; }
-.acceso { padding-top: 56px; }
 
 /* ══ Asistente RICORA con IA: panel lateral de conversación ══ */
 .asistente-inicio { background: linear-gradient(150deg, #2a1d6b 0%, #4b2fb0 50%, var(--violeta) 100%); color: #fff; padding: 18px; display: grid; gap: 14px; border-radius: inherit; }
@@ -1683,10 +1672,6 @@ body {
 .recorrido-horizontal li { padding: 10px 12px; gap: 4px; }
 .recorrido-horizontal .marca-paso { width: 26px; height: 26px; font-size: .8rem; }
 .recorrido-horizontal strong { font-size: .85rem; }
-.accesos-rapidos { gap: 10px; padding: 12px 14px 14px; }
-.acceso { min-height: 0; padding: 44px 14px 12px; }
-.acceso::before { width: 24px; height: 24px; top: 12px; left: 14px; border-radius: 7px; }
-.acceso strong { font-size: .88rem; }
 /* Recorrido en una sola fila y lateral más compacto */
 .recorrido-horizontal { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .recorrido-horizontal { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); } }
@@ -1704,12 +1689,6 @@ body {
 .actividad-reciente li { padding: 7px 0; gap: 10px; }
 .actividad-reciente strong { font-size: .8rem; }
 .actividad-reciente .meta { font-size: .7rem; }
-.accesos-rapidos { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-@media (max-width: 1100px) { .accesos-rapidos { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); } }
-.acceso { padding: 40px 12px 10px; }
-.acceso strong { font-size: .82rem; }
-.acceso span { font-size: .7rem; padding-right: 10px; }
-.acceso i { right: 8px; bottom: 8px; font-size: 1rem; }
 
 /* Búsqueda asistida en Wikidata */
 .buscar-externo { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
@@ -1798,3 +1777,32 @@ body {
 }
 .asistente-inicio .asistente-cab p { color: #ffffff; }
 .asistente-pregunta input::placeholder { color: #ece6fd; }
+
+/* Avance de la carga de TRD, CCD y TVD */
+.panel-carga { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.panel-carga-cab { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: .86rem; margin-bottom: 8px; }
+.barra-carga { position: relative; height: 8px; border-radius: 99px; background: var(--hielo); overflow: hidden; }
+.barra-carga i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--electrico), var(--turquesa)); transition: width .25s; }
+.barra-carga.indeterminada i { width: 35%; animation: ricora-indeterminada 1.2s ease-in-out infinite; }
+.barra-carga.con-error i { background: var(--danger); }
+@keyframes ricora-indeterminada { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.texto-error { color: var(--danger); }
+.tabla-carga td .secundario { display: block; font-size: .74rem; color: var(--muted); }
+.acciones > .panel-carga { flex-basis: 100%; }
+
+/* Logo de RICORA (5-11-2026): emblema SVG propio y marca en Inter, sobria */
+.emblema { background: none !important; box-shadow: none !important; width: 40px; height: 40px; }
+.logo-emblema { display: block; border-radius: 12px; box-shadow: 0 6px 16px rgb(9 27 67 / .35); }
+.marca { display: flex; align-items: center; gap: 12px; font-family: "Inter", system-ui, sans-serif !important; }
+.marca-texto { font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: .14em; font-size: 1.05rem; }
+.lateral .marca-texto { color: #ffffff; }
+.acceso-tarjeta .marca { display: flex; grid-template-columns: none; }
+.acceso-tarjeta .marca::before { display: none; }
+.acceso-tarjeta .marca-texto { color: var(--noche); font-size: 1.3rem; }
+.emblema svg.logo-emblema, .marca svg.logo-emblema { width: 40px; height: 40px; flex: 0 0 40px; }
+.acceso-tarjeta .marca svg.logo-emblema { width: 44px; height: 44px; flex-basis: 44px; }
+.marca span.marca-texto, .lateral .marca span.marca-texto, .acceso-tarjeta .marca span.marca-texto {
+  display: inline; margin: 0; font-family: "Inter", system-ui, sans-serif; font-weight: 800; letter-spacing: .14em;
+  text-transform: none; font-size: 1.12rem; }
+.lateral .marca span.marca-texto { color: #ffffff; }
+.acceso-tarjeta .marca span.marca-texto { color: var(--noche); font-size: 1.35rem; }

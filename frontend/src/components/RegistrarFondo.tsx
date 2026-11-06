@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { unoOVarios } from "@/lib/zip";
+import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { ResultadoValidacion, TablaVistaPrevia, type Informe, type Validacion, type Vista } from "@/components/CuadroClasificacion";
@@ -37,17 +38,21 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
     fondo: { titulo, fechas_extremas: fechas || null }, filas: vista?.filas.filter((f) => incluir.has(f.fila)) || [], crear,
     version: acto.trim() ? { acto_aprobacion: acto.trim(), fecha_aprobacion: fechaActo || null, vigente_desde: desde || null } : null });
 
+  const carga = useCarga();
+
   async function leer(archivo: File) {
     setError("");
     const datos = new FormData();
     datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<Vista>("/api/cuadro/vista-previa", datos, () => undefined);
+      const v = await subir<Vista & { archivos?: ArchivoLeido[] }>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      carga.terminar(v.archivos);
       setVista(v);
       setPrueba(null);
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
     } catch (err) {
+      carga.fallar(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
       setError(mensaje(err, "No se pudo leer el archivo."));
     } finally {
       setOcupado(false);
@@ -149,8 +154,14 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
             <label className="boton chico primario">
               {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el cuadro"}
               <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                     onChange={async (e) => { const a = await unoOVarios(e.target.files, "TRD.zip"); if (a) leer(a); e.target.value = ""; }} />
+                     onChange={async (e) => {
+                   const lista = Array.from(e.target.files || []); e.target.value = "";
+                   if (!lista.length) return;
+                   carga.empezar(lista);
+                   const a = await unoOVarios(lista, "TRD.zip"); if (a) leer(a);
+                 }} />
             </label>
+          <PanelCarga estado={carga.estado} />
           </div>
           {vista && (
             <div className="tabla-desplazable" style={{ marginTop: 10 }}>

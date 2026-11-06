@@ -218,29 +218,6 @@ function Dona({ proporcion }: { proporcion: number }) {
   );
 }
 
-const ACCESOS = [
-  { texto: "TRD y CCD", nota: "Cuadro y retención", ruta: "/fondos?vista=cargar", tono: "electrico" },
-  { texto: "TVD", nota: "Fondos acumulados", ruta: "/fondos?vista=tvd", tono: "turquesa" },
-  { texto: "Disposición final", nota: "Conservar, eliminar", ruta: "/fondos?vista=disposicion", tono: "violeta" },
-  { texto: "FUID", nota: "Inventario", ruta: "/instrumentos?vista=inventario", tono: "noche" },
-  { texto: "RiC-O", nota: "Datos enlazados", ruta: "/instrumentos?vista=rico", tono: "electrico" },
-];
-
-function AccesosRapidos() {
-  return (
-    <div className="tarjeta">
-      <div className="tarjeta-cab"><span>Accesos rápidos</span></div>
-      <div className="accesos-rapidos">
-        {ACCESOS.map((a) => (
-          <Link key={a.texto} to={a.ruta} className={`acceso tono-${a.tono}`}>
-            <strong>{a.texto}</strong><span>{a.nota}</span><i aria-hidden="true">›</i>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ActividadReciente() {
   const { usuario } = useSesion();
   const [eventos, setEventos] = useState<Evento[] | null>(null);
