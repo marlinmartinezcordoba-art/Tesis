@@ -88,3 +88,33 @@ def test_la_s_suelta_entre_ct_e_m_es_seleccion_y_no_codigo_de_serie():
     assert fila["disposicion"] == "s"
     assert fila["codigos"]["serie"] == "100.2"
     assert not fila["problemas"]
+
+
+def test_sin_motor_explica_por_que_no_se_leyo_un_formato_distinto():
+    """Un archivo del .zip sin tabla reconocible, y sin motor: el motivo dice qué hacer."""
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("TRD.csv", CSV.decode())
+        z.writestr("otra.csv", "Lo que sea,Otra cosa\nuno,dos\n")
+    v = cuadro.vista_previa(buf.getvalue(), "TRD.zip")
+    otra = next(a for a in v["archivos"] if a["archivo"] == "otra.csv")
+    assert otra["estado"] == "sin_tabla"
+    assert "motor de análisis" in otra["motivo"]
+
+
+def test_en_el_zip_cada_fila_tiene_su_numero_aunque_los_archivos_repitan():
+    """Dos dependencias en archivos distintos traen «fila 2»: se numeran de corrido para marcarlas por separado."""
+    import io
+    import zipfile
+
+    cab = "Código,Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,Procedimiento\n"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("a.csv", cab + "100,Despacho,1,Actas,,Acta,2,8,X,,,,C\n")
+        z.writestr("b.csv", cab + "200,Comunicaciones,1,Informes,,Informe,2,5,,,X,,S\n")
+    filas = cuadro.vista_previa(buf.getvalue(), "TRD.zip")["filas"]
+    assert len({f["fila"] for f in filas}) == 2
+    assert {f["parte"] for f in filas} == {"a.csv", "b.csv"}

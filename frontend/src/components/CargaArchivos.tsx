@@ -22,6 +22,7 @@ export function useCarga() {
       ? { ...e, avance: f, fase: f >= 0.999 ? "leyendo" : "subiendo" } : e),
     terminar: (archivos?: ArchivoLeido[]) => setEstado((e) => e && { ...e, fase: "listo", avance: 1, archivos }),
     fallar: (error: string) => setEstado((e) => e && { ...e, fase: "error", error }),
+    reiniciar: () => setEstado(null),
   };
 }
 

@@ -251,6 +251,8 @@ def _filas_word(contenido: bytes) -> list[list[list[str]]]:
 EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip")
 
 
+SIN_MOTOR = ("El formato de esta tabla no es el habitual. Con el motor de análisis activado, RICORA intenta leerla; "
+             "sin él, pásela a la plantilla Excel del sistema.")
 SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto). Súbalo en Excel o use la "
              "plantilla del sistema.")
 
@@ -275,8 +277,11 @@ def _con_ia(contenido: bytes | None, nombre: str, hojas, filas: list["FilaCuadro
     from app.servicios import trd_ia
     from app.servicios.motor import MotorError
 
-    if contenido is None or not _lectura_floja(filas) or not trd_ia.disponible():
+    if contenido is None or not _lectura_floja(filas):
         return filas, False, None
+    if not trd_ia.disponible():
+        # Solo se explica cuando no salió ninguna fila: si algo se leyó, la persona revisa las marcadas.
+        return filas, False, None if filas else SIN_MOTOR
     try:
         leidas = trd_ia.extraer(contenido, nombre, hojas)
     except (MotorError, ErrorCuadro, Exception) as exc:  # noqa: BLE001 — sin motor se queda la lectura por reglas
@@ -784,7 +789,8 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
                     raise ErrorCuadro(motivos.get(parte) or SIN_TEXTO)
                 if not de_la_parte and not con_ia:
                     raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga "
-                                      "un encabezado con «Serie», o use la plantilla del sistema.")
+                                      "un encabezado con «Serie», o use la plantilla del sistema." +
+                                      (f" {aviso_ia}" if aviso_ia else ""))
                 if not informe.get("entidad"):
                     informe["entidad"] = _entidad(hojas)
                 for f in de_la_parte:
@@ -802,6 +808,11 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
         if not filas:
             raise ErrorCuadro("Ningún archivo del .zip tiene una tabla de CCD o TRD reconocible (" +
                               ", ".join(p.rsplit("/", 1)[-1] for p in sin_leer[:5]) + ").")
+        # Cada archivo numera sus filas desde el principio: en el .zip la fila 2 de una dependencia y la de otra
+        # deben poder marcarse por separado, así que se numeran de corrido (el archivo queda en `parte`).
+        if len({f.fila for f in filas}) < len(filas):
+            for i, f in enumerate(filas, start=1):
+                f.fila = i
         origen = f"zip · {len(leidos)} archivo(s) leídos"
         if sin_leer:
             origen += f", {len(sin_leer)} sin tabla reconocible ({', '.join(p.rsplit('/', 1)[-1] for p in sin_leer[:3])}" \

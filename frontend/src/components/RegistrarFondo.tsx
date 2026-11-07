@@ -29,6 +29,8 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [encima, setEncima] = useState(false);
+  // Los archivos ya subidos: «Agregar» suma a estos (el del mismo nombre se reemplaza) y se leen todos juntos.
+  const [subidos, setSubidos] = useState<File[]>([]);
   const carga = useCarga();
   const entrada = useRef<HTMLInputElement>(null);
 
@@ -36,10 +38,12 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
   const conProblemas = vista ? vista.filas.filter((f) => f.problemas.length).length : 0;
   const faltaActo = !!acto.trim() && (!fechaActo || !desde);
 
-  async function recibir(lista: File[]) {
-    if (!lista.length || ocupado) return;
+  async function recibir(nuevos: File[], reemplazar = false) {
+    if (!nuevos.length || ocupado) return;
     setError("");
     setRechazo(null);
+    const nombres = new Set(nuevos.map((f) => f.name));
+    const lista = reemplazar ? nuevos : [...subidos.filter((f) => !nombres.has(f.name)), ...nuevos];
     carga.empezar(lista);
     const archivo = await unoOVarios(lista, "TRD.zip");
     if (!archivo) return;
@@ -49,6 +53,7 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
     try {
       const v = await subir<VistaLeida>("/api/cuadro/vista-previa", datos, carga.avanzar);
       carga.terminar(v.archivos);
+      setSubidos(lista);
       setVista(v);
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
       if (!titulo.trim() && v.entidad) setTitulo(v.entidad);
@@ -97,11 +102,17 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
              onDrop={(e) => { e.preventDefault(); setEncima(false); void recibir(Array.from(e.dataTransfer.files)); }}>
         <input ref={entrada} type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
                onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void recibir(l); }} />
-        <strong>{ocupado ? "Leyendo…" : vista ? "Agregar o cambiar archivos" : "Suba la TRD y el CCD"}</strong>
+        <strong>{ocupado ? "Leyendo…" : vista ? `Agregar más archivos (${subidos.length} subidos)` : "Suba la TRD y el CCD"}</strong>
         <span className="meta">Arrástrelos aquí o haga clic. Uno o varios: Excel, PDF con texto, Word, CSV o .zip, tal como
           los tiene la entidad.</span>
       </label>
       <PanelCarga estado={carga.estado} />
+      {vista && subidos.length > 0 && (
+        <p className="meta">Los archivos nuevos se suman a los ya leídos.{" "}
+          <button type="button" className="enlace" disabled={ocupado}
+                  onClick={() => { setSubidos([]); setVista(null); setIncluir(new Set()); setTitulo(""); carga.reiniciar(); }}>
+            Empezar de nuevo</button></p>
+      )}
       {!vista && (
         <p className="meta">¿No tiene el archivo en un formato legible?{" "}
           <button type="button" className="enlace" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
