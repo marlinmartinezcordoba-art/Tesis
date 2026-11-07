@@ -96,6 +96,14 @@ class Settings:
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     modelo_ia: str = os.getenv("RICORA_MODELO_IA", "gemini-3.5-flash")
     segundos_motor: int = _entero("RICORA_SEGUNDOS_MOTOR", 90)
+    # Motor de IA: «gemini» (en la nube, con GEMINI_API_KEY) o «local» (Ollama en el mismo servidor:
+    # ningún texto sale de él, Ley 1581). El despliegue elige «local» si el servidor tiene memoria.
+    motor_ia: str = os.getenv("RICORA_MOTOR_IA", "gemini").strip().lower()
+    ollama_url: str = os.getenv("RICORA_OLLAMA_URL", "http://ia_local:11434").rstrip("/")
+    modelo_local: str = os.getenv("RICORA_MODELO_LOCAL", "qwen2.5:7b")
+    # Sin tarjeta gráfica, un modelo de 7B tarda minutos en una página: se le da más tiempo.
+    segundos_motor_local: int = _entero("RICORA_SEGUNDOS_MOTOR_LOCAL", 900)
+    contexto_local: int = _entero("RICORA_CONTEXTO_LOCAL", 16384)
     # Por debajo de esta confianza, una propuesta se marca «confianza baja».
     umbral_confianza: float = float(os.getenv("UMBRAL_CONFIANZA_REVISION", "0.70"))
     # Similitud por trigramas desde la cual el vocabulario sugiere «¿es la misma?».

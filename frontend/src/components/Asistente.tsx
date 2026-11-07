@@ -6,7 +6,7 @@ import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 
 // Asistente RICORA con IA: un panel lateral de conversación. Responde preguntas de archivística
-// y de uso del sistema con el motor de análisis (Gemini). No lee documentos ni cambia nada.
+// y de uso del sistema con el motor de análisis (Gemini o la IA local). No lee documentos ni cambia nada.
 // Sin motor configurado queda en modo guiado: búsqueda, acciones rápidas y la guía de la pantalla.
 
 export const I_CHISPA = (

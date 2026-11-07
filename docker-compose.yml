@@ -106,6 +106,23 @@ services:
       web:
         condition: service_started
 
+  # IA local (Ollama): el motor de análisis corre en este mismo servidor y ningún
+  # texto sale de él (Ley 1581, art. 26). Solo se levanta con el perfil «ia-local»,
+  # que el despliegue activa si el servidor tiene 12 GB de memoria o más. No
+  # publica ningún puerto: la web y el trabajador lo usan por la red interna.
+  ia_local:
+    image: ${RICORA_OLLAMA_IMAGEN:-ollama/ollama:0.6.5}
+    restart: unless-stopped
+    profiles: ["ia-local"]
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - ia_local:/root/.ollama
+    # Deja memoria para la base, la web, el grafo y el OCR.
+    mem_limit: ${RICORA_IA_LOCAL_MEMORIA:-10g}
+
   # HTTPS con certificado gratuito (Let's Encrypt) para RICORA_DOMINIO. Solo
   # se levanta con COMPOSE_PROFILES=https.
   caddy:
@@ -141,3 +158,5 @@ volumes:
   grafo:
   caddy_data:
   caddy_config:
+  # Modelos de la IA local (unos 5 GB el de 7B). Se descargan una sola vez.
+  ia_local:

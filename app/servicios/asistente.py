@@ -19,6 +19,8 @@ from app.servicios.auditoria import registrar
 MAX_TURNOS = 10
 MAX_CARACTERES = 1500
 
+AVISO_LOCAL = ("La IA corre en este mismo servidor: lo que escriba no sale de él. Aun así, no escriba datos personales "
+               "ni información con reserva legal.")
 AVISO = ("Lo que escriba se envía al servicio de IA del motor de análisis. No escriba datos personales ni información "
          "con reserva legal.")
 
@@ -64,7 +66,9 @@ class AsistenteNoDisponible(Exception):
 
 def estado() -> dict:
     m = servicio_motor.motor_activo()
-    return {"disponible": m is not None, "modelo": getattr(m, "modelo", None) if m else None, "aviso": AVISO}
+    local = isinstance(m, servicio_motor.MotorLocal)
+    return {"disponible": m is not None, "modelo": getattr(m, "modelo", None) if m else None,
+            "aviso": AVISO_LOCAL if local else AVISO, "local": local}
 
 
 def _contexto(pantalla: dict | None, fondo: str | None) -> str:

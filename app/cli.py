@@ -104,7 +104,8 @@ def probar_motor() -> int:
 
     activo = motor.motor_activo()
     if activo is None:
-        print("  Motor de análisis: no configurado (falta GEMINI_API_KEY). La descripción funciona a mano.")
+        print("  Motor de análisis: no configurado (falta GEMINI_API_KEY o RICORA_MOTOR_IA=local). "
+              "La descripción funciona a mano.")
         return 0
     prueba = motor.Documento(id=uuid.uuid4(), nombre="prueba.txt",
                              texto="Acta del Concejo Municipal de Tunja, sesión del 20 de julio de 1948.")

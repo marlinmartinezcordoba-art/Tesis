@@ -112,6 +112,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RICORA_MOTOR_IA: ${{ secrets.RICORA_MOTOR_IA }}
           RICORA_ADMIN_CORREO: ${{ secrets.RICORA_ADMIN_CORREO }}
           RICORA_ADMIN_USER: ${{ secrets.RICORA_ADMIN_USER }}
           RICORA_ADMIN_PASSWORD: ${{ secrets.RICORA_ADMIN_PASSWORD }}
@@ -126,8 +127,8 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,RICORA_ADMIN_RESTABLECER,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
-          command_timeout: 25m
+          envs: GEMINI_API_KEY,RICORA_MOTOR_IA,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,RICORA_ADMIN_RESTABLECER,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
+          command_timeout: 45m
           script: |
             set -e
             cd /root/ricora
@@ -218,6 +219,25 @@ jobs:
               if [ "$puerto" = "80" ]; then poner RICORA_URL_PUBLICA "http://$DROPLET_HOST"; else poner RICORA_URL_PUBLICA "http://$DROPLET_HOST:$puerto"; fi
             fi
 
+            # IA local (Ollama) si el servidor tiene memoria (12 GB o más): los textos no salen del
+            # servidor. El secreto RICORA_MOTOR_IA («local» o «gemini») obliga una u otra.
+            memoria=$(free -m | awk '/^Mem:/{print $2}')
+            motor="$RICORA_MOTOR_IA"
+            if [ -z "$motor" ]; then
+              if [ "${memoria:-0}" -ge 12000 ]; then motor=local; else motor=gemini; fi
+            fi
+            imagen_ia="$(valor RICORA_OLLAMA_IMAGEN || true)"; imagen_ia="${imagen_ia:-ollama/ollama:0.6.5}"
+            if [ "$motor" = "local" ] && ! docker pull -q "$imagen_ia" >/dev/null 2>&1; then
+              echo "::warning title=IA local::No se pudo descargar la imagen de Ollama; RICORA sigue con Gemini."
+              motor=gemini
+            fi
+            perfiles=$(valor COMPOSE_PROFILES | tr ',' '\n' | grep -v '^ia-local$' | grep -v '^$' | paste -sd, - || true)
+            if [ "$motor" = "local" ]; then perfiles="${perfiles:+$perfiles,}ia-local"; fi
+            if [ -n "$perfiles" ]; then poner COMPOSE_PROFILES "$perfiles"; else quitar COMPOSE_PROFILES; fi
+            poner RICORA_MOTOR_IA "$motor"
+            echo "  Motor de IA: $motor (memoria del servidor: ${memoria:-?} MB)"
+            if [ "$motor" != "local" ]; then docker compose --profile ia-local rm -sf ia_local >/dev/null 2>&1 || true; fi
+
             # Se retiran los contenedores de la versión anterior (Django,
             # trabajador, Redis, Ollama). Sus volúmenes de datos se conservan.
             # El volumen del grafo debe ser del usuario de la aplicación (uid 1000),
@@ -231,6 +251,15 @@ jobs:
               exit 1
             fi
             docker image prune -f >/dev/null || true
+
+            # El modelo de la IA local se descarga una sola vez (unos 5 GB); después solo se comprueba.
+            if [ "$(valor RICORA_MOTOR_IA)" = "local" ]; then
+              modelo="$(valor RICORA_MODELO_LOCAL)"; modelo="${modelo:-qwen2.5:7b}"
+              echo "== IA local: modelo $modelo =="
+              for i in 1 2 3 4 5 6; do docker compose exec -T ia_local ollama list >/dev/null 2>&1 && break; sleep 5; done
+              timeout 20m docker compose exec -T ia_local ollama pull "$modelo" | tail -2 \
+                || echo "::warning title=IA local::No se pudo descargar $modelo; RICORA lo intentará de nuevo en el próximo despliegue."
+            fi
 
             echo "== Estado de los contenedores =="
             docker compose ps

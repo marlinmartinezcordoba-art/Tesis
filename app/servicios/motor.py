@@ -354,8 +354,81 @@ def idiomas_validos(valores) -> list[str]:
     return salida[:5]
 
 
+def _esquema_json(esquema):
+    """El esquema de Gemini («OBJECT», «STRING»…) en JSON Schema estándar, como lo pide Ollama."""
+    if isinstance(esquema, dict):
+        salida = {}
+        for k, v in esquema.items():
+            if k == "type" and isinstance(v, str):
+                salida[k] = v.lower()
+            elif k == "nullable":
+                continue
+            else:
+                salida[k] = _esquema_json(v)
+        return salida
+    if isinstance(esquema, list):
+        return [_esquema_json(x) for x in esquema]
+    return esquema
+
+
+class MotorLocal(MotorGemini):
+    """IA local con Ollama en el mismo servidor: los textos no salen de él (Ley 1581, art. 26).
+    Recibe los mismos pedidos que Gemini y los traduce a la API de Ollama (/api/chat)."""
+
+    # Un modelo de 7B con 16 000 tokens de contexto: el texto de una TRD se recorta a lo que cabe.
+    max_caracteres = 30_000
+
+    def __init__(self, url: str, modelo: str):
+        super().__init__("", modelo)
+        self.url = url
+        self.nombre = f"{modelo} (local)"
+
+    def _llamar(self, cuerpo: dict) -> str:
+        mensajes = []
+        sistema = " ".join(p.get("text", "") for p in (cuerpo.get("systemInstruction") or {}).get("parts", []))
+        if sistema:
+            mensajes.append({"role": "system", "content": sistema})
+        for turno in cuerpo.get("contents", []):
+            texto = "".join(p.get("text", "") for p in turno.get("parts", []))
+            mensajes.append({"role": "assistant" if turno.get("role") == "model" else "user", "content": texto})
+        config = cuerpo.get("generationConfig") or {}
+        opciones = {"temperature": config.get("temperature", TEMPERATURA), "num_ctx": settings.contexto_local}
+        if config.get("maxOutputTokens"):
+            opciones["num_predict"] = config["maxOutputTokens"]
+        pedido = {"model": self.modelo, "messages": mensajes, "stream": False, "options": opciones,
+                  "keep_alive": "30m"}
+        if config.get("responseSchema"):
+            pedido["format"] = _esquema_json(config["responseSchema"])
+        elif config.get("responseMimeType") == "application/json":
+            pedido["format"] = "json"
+        try:
+            r = httpx.post(f"{self.url}/api/chat", json=pedido, timeout=settings.segundos_motor_local)
+        except httpx.TimeoutException as exc:
+            raise MotorError(f"La IA local tardó más de {settings.segundos_motor_local} segundos. Pruebe con un "
+                             "archivo más corto (una dependencia).") from exc
+        except httpx.HTTPError as exc:
+            raise MotorError("La IA local no responde: puede estar arrancando o descargando el modelo. Intente en "
+                             "unos minutos.") from exc
+        if r.status_code == 404:
+            raise MotorError(f"La IA local todavía no tiene el modelo {self.modelo}: se está descargando. "
+                             "Intente en unos minutos.")
+        if r.status_code != 200:
+            log.warning("Ollama respondió %s: %s", r.status_code, r.text[:300])
+            raise MotorError(f"La IA local respondió con un error ({r.status_code}).")
+        try:
+            datos = r.json()
+            self.ultima = {"version_modelo": datos.get("model"),
+                           "uso": {"promptTokenCount": datos.get("prompt_eval_count"),
+                                   "candidatesTokenCount": datos.get("eval_count")}}
+            return datos["message"]["content"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise MotorError("La respuesta de la IA local no se pudo leer.") from exc
+
+
 def motor_activo():
     """El motor configurado, o None si no hay ninguno."""
+    if settings.motor_ia == "local":
+        return MotorLocal(settings.ollama_url, settings.modelo_local)
     if settings.gemini_api_key:
         return MotorGemini(settings.gemini_api_key, settings.modelo_ia)
     return None

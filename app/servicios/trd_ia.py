@@ -79,7 +79,7 @@ def extraer(contenido: bytes, nombre: str, hojas: list | None = None):
     m = servicio_motor.motor_activo()
     if m is None:
         return []
-    texto = texto_de(contenido, nombre, hojas)
+    texto = texto_de(contenido, nombre, hojas)[: getattr(m, "max_caracteres", MAX_CARACTERES)]
     if len(texto.strip()) < 40:
         return []
     datos = m.estructurar(INSTRUCCION, f"Archivo: {nombre}\n\n{anonimizar_para_motor(texto)[0]}", ESQUEMA)

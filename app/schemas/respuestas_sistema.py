@@ -170,6 +170,7 @@ class EstadoAsistenteOut(BaseModel):
     disponible: bool
     modelo: str | None
     aviso: str
+    local: bool = False  # la IA corre en el mismo servidor (los textos no salen de él)
 
 
 class RespuestaAsistenteOut(BaseModel):

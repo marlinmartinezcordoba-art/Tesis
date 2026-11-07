@@ -30,7 +30,10 @@ Elija una de las dos opciones:
 
 - **Hoy: Gemini**, con la clave en el secreto `GEMINI_API_KEY` de GitHub. El despliegue la escribe en el `.env` del servidor.
 - **Protección de datos (Ley 1581, art. 26).** Antes de enviar un texto al motor, RICORA quita localmente los identificadores personales: cédulas, tarjetas de identidad, NUIP, pasaportes, fechas de nacimiento, correos, celulares, direcciones, cuentas e historias clínicas. Los reemplaza por su tipo entre corchetes. Aun así, no use el motor con documentos reservados, y para uso real use una clave de pago, cuyos datos no se usan para entrenar.
-- **Más adelante: IA local.** El motor está aislado en `app/servicios/motor.py` (`motor_activo()`). Una IA local, por ejemplo con Ollama, entra como otra clase con el mismo método `proponer()`, sin cambiar la descripción ni la evaluación. Con IA local los textos no salen del servidor.
+- **IA local (Ollama), desde el 7-11-2026.** Si el servidor tiene 12 GB de memoria o más, el despliegue la enciende sola: levanta el servicio `ia_local` (perfil `ia-local` de docker-compose), descarga el modelo `qwen2.5:7b` (unos 5 GB, una sola vez) y pone `RICORA_MOTOR_IA=local`. Con IA local **ningún texto sale del servidor** (Ley 1581, art. 26). El motor está en `app/servicios/motor.py` (`MotorLocal`): recibe los mismos pedidos que Gemini, así que la descripción, la lectura de TRD y el asistente no cambian.
+  - **Forzar un motor:** cree el secreto `RICORA_MOTOR_IA` en GitHub con `local` o `gemini`.
+  - **Velocidad:** sin tarjeta gráfica, un modelo de 7B tarda de 1 a 3 minutos por página. El límite de espera es de 15 minutos (`RICORA_SEGUNDOS_MOTOR_LOCAL`).
+  - **Servidor:** 4 vCPU y 16 GB (DigitalOcean, 84 USD al mes, noviembre de 2026). Con menos de 12 GB, RICORA sigue con Gemini.
 
 ## Segundo factor de la administración
 
