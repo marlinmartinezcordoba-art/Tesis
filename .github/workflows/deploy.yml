@@ -252,9 +252,9 @@ jobs:
             fi
             docker image prune -f >/dev/null || true
 
-            # El modelo de la IA local se descarga una sola vez (unos 5 GB); después solo se comprueba.
+            # El modelo de la IA local se descarga una sola vez (unos 9 GB el de 14B); después solo se comprueba.
             if [ "$(valor RICORA_MOTOR_IA)" = "local" ]; then
-              modelo="$(valor RICORA_MODELO_LOCAL)"; modelo="${modelo:-qwen2.5:7b}"
+              modelo="$(valor RICORA_MODELO_LOCAL)"; modelo="${modelo:-qwen2.5:14b}"
               echo "== IA local: modelo $modelo =="
               for i in 1 2 3 4 5 6; do docker compose exec -T ia_local ollama list >/dev/null 2>&1 && break; sleep 5; done
               timeout 20m docker compose exec -T ia_local ollama pull "$modelo" | tail -2 \

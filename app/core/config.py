@@ -100,10 +100,15 @@ class Settings:
     # ningún texto sale de él, Ley 1581). El despliegue elige «local» si el servidor tiene memoria.
     motor_ia: str = os.getenv("RICORA_MOTOR_IA", "gemini").strip().lower()
     ollama_url: str = os.getenv("RICORA_OLLAMA_URL", "http://ia_local:11434").rstrip("/")
-    modelo_local: str = os.getenv("RICORA_MODELO_LOCAL", "qwen2.5:7b")
+    modelo_local: str = os.getenv("RICORA_MODELO_LOCAL", "qwen2.5:14b")
+    # Con la IA local y la clave de Gemini: «consenso» (los dos proponen y se combinan) o «solo_local».
+    motor_ia_descripcion: str = os.getenv("RICORA_MOTOR_DESCRIPCION", "consenso").strip().lower()
     # Sin tarjeta gráfica, un modelo de 7B tarda minutos en una página: se le da más tiempo.
     segundos_motor_local: int = _entero("RICORA_SEGUNDOS_MOTOR_LOCAL", 900)
-    contexto_local: int = _entero("RICORA_CONTEXTO_LOCAL", 16384)
+    contexto_local: int = _entero("RICORA_CONTEXTO_LOCAL", 12288)
+    # Las propuestas de una evaluación se generan en segundo plano (cada documento tarda minutos con
+    # dos motores). Las pruebas lo apagan para comprobar el resultado en la misma petición.
+    propuestas_en_segundo_plano: bool = os.getenv("RICORA_PROPUESTAS_SEGUNDO_PLANO", "1") == "1"
     # Por debajo de esta confianza, una propuesta se marca «confianza baja».
     umbral_confianza: float = float(os.getenv("UMBRAL_CONFIANZA_REVISION", "0.70"))
     # Similitud por trigramas desde la cual el vocabulario sugiere «¿es la misma?».

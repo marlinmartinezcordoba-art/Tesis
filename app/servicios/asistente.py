@@ -21,7 +21,7 @@ MAX_CARACTERES = 1500
 
 AVISO_LOCAL = ("La IA corre en este mismo servidor: lo que escriba no sale de él. Aun así, no escriba datos personales "
                "ni información con reserva legal.")
-AVISO = ("Lo que escriba se envía al servicio de IA del motor de análisis. No escriba datos personales ni información "
+AVISO = ("Lo que escriba se envía a Gemini, que busca en Google para responder con fuentes. No escriba datos personales ni información "
          "con reserva legal.")
 
 # Pantallas de RICORA, para que el asistente indique dónde se hace cada cosa.
@@ -56,6 +56,7 @@ Reglas:
 5. Cuando la pregunta sea cómo hacer algo en RICORA, indica la pantalla y los pasos según el mapa de abajo.
 6. Las decisiones archivísticas (clasificar, valorar, eliminar) las toma la archivista o el comité: tú orientas.
 7. Si te escriben datos personales o información reservada, no los repitas y recuerda no compartirlos.
+8. Si buscas en internet, prefiere fuentes oficiales: el Archivo General de la Nación de Colombia (archivogeneral.gov.co), el Consejo Internacional de Archivos (ica.org, para RiC), la Función Pública y las normas colombianas (Ley 594 de 2000, Acuerdo 001 de 2024). No inventes normas ni números de acuerdos.
 
 {MAPA}"""
 
@@ -66,6 +67,7 @@ class AsistenteNoDisponible(Exception):
 
 def estado() -> dict:
     m = servicio_motor.motor_activo()
+    # Solo con la IA local sola, la pregunta no sale del servidor; con Gemini, responde Gemini con Google Search.
     local = isinstance(m, servicio_motor.MotorLocal)
     return {"disponible": m is not None, "modelo": getattr(m, "modelo", None) if m else None,
             "aviso": AVISO_LOCAL if local else AVISO, "local": local}
@@ -98,9 +100,17 @@ def preguntar(db: Session, usuario_id, mensajes: list[dict], pantalla: dict | No
         if i == len(turnos) - 1 and contexto:
             texto = f"{contexto}\n\nPregunta: {texto}"
         contenido.append({"role": "user" if t.get("rol") == "persona" else "model", "parts": [{"text": texto}]})
-    respuesta = m.conversar(INSTRUCCION, contenido)
+    # Gemini consulta Google Search (respuestas al día y con fuentes); la pregunta va sin datos personales.
+    from app.servicios.datos_personales import anonimizar_para_motor
+
+    for turno in contenido:
+        turno["parts"] = [{"text": anonimizar_para_motor(p["text"])[0]} for p in turno["parts"]]
+    respuesta = m.conversar(INSTRUCCION, contenido, buscar=True)
+    fuentes = (getattr(m, "ultima", None) or {}).get("fuentes") or []
+    modelo = getattr(m, "respondio", None) or m.modelo
     # Se registra que se consultó y con qué modelo; el texto no se guarda (puede traer datos personales).
     registrar(db, modulo="sistema", accion="asistente_consultado", usuario_id=usuario_id, entidad_tipo="asistente",
-              detalle="Consultó al Asistente RICORA", nuevo={"modelo": m.modelo, "turnos": len(turnos)})
+              detalle="Consultó al Asistente RICORA", nuevo={"modelo": modelo, "turnos": len(turnos),
+                                                           "fuentes_web": len(fuentes)})
     db.commit()
-    return {"respuesta": respuesta.replace("**", "").strip(), "modelo": m.modelo}
+    return {"respuesta": respuesta.replace("**", "").strip(), "modelo": modelo, "fuentes": fuentes}

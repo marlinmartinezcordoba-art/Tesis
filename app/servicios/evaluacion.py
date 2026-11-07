@@ -210,7 +210,7 @@ def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuari
     return nuevos
 
 
-def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
+def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID, al_avanzar=None) -> dict:
     """El motor propone cada documento como lo haría en Descripción (con el
     vocabulario del fondo como contexto). Nadie ve el resultado aquí: queda
     guardado y se compara al final."""
@@ -219,8 +219,13 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
     if ev.estado != "preparacion":
         raise ErrorEvaluacion("Las propuestas se generan antes de iniciar la evaluación.", 409)
     hechas, avisos = 0, []
-    for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id,
-                                                          EvaluacionDocumento.propuesta.is_(None))).all():
+    activo = motor.motor_activo()
+    actual = activo.nombre if activo else None
+    # Una evaluación mide un solo motor: las propuestas hechas con otro (o a medias, si en el consenso
+    # respondió uno solo) se rehacen con el actual mientras la evaluación está en preparación.
+    for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all():
+        if d.propuesta is not None and (actual is None or d.motor == actual):
+            continue
         inst = db.get(Instanciacion, d.instanciacion_id)
         contexto = vocabulario.contexto_para_motor(db, ev.fondo_id, inst.texto_extraido or "")
         p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original,
@@ -237,6 +242,8 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> di
         d.propuesta, d.motor, d.version_prompt, d.generada_en = p.a_dict(), p.motor, p.version_prompt, ahora()
         d.propuesta_id = registro.id if registro else None
         hechas += 1
+        if al_avanzar:
+            al_avanzar(hechas, avisos)  # p. ej. guardar cada documento: con dos motores, cada uno tarda minutos
     db.flush()
     registrar(db, modulo="evaluacion", accion="propuestas_generadas", usuario_id=usuario_id, entidad_tipo="evaluacion",
               entidad_id=ev.id, nuevo={"generadas": hechas, "sin_propuesta": len(avisos)})
@@ -268,6 +275,11 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
             raise ErrorEvaluacion("Solo se inicia una evaluación en preparación.", 409)
         if not documentos or any(d.propuesta is None for d in documentos):
             raise ErrorEvaluacion("Antes de iniciar, cada documento necesita la propuesta del motor.", 409)
+        motores = sorted({d.motor or "?" for d in documentos})
+        if len(motores) > 1:
+            raise ErrorEvaluacion("Las propuestas se hicieron con motores distintos (" + ", ".join(motores) + "). Una "
+                                  "evaluación mide un solo motor: pulse «Generar las propuestas del motor» para rehacerlas con el "
+                                  "mismo.", 409)
         from app.servicios import evaluacion_participantes as participantes
 
         if participantes.listas_para_iniciar(db, ev) == 0:

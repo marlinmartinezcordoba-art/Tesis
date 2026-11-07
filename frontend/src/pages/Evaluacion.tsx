@@ -361,6 +361,27 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
   const [elegidos, setElegidos] = useState<string[]>([]);
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  // Generación de propuestas en segundo plano: con dos motores, cada documento tarda minutos.
+  const [generando, setGenerando] = useState(false);
+
+  useEffect(() => {
+    if (ev.estado !== "preparacion") return;
+    let vivo = true;
+    const preguntar = () => pedir<{ generando: boolean; generadas: number; avisos: string[]; error?: string | null }>(
+      `/api/evaluacion/${ev.id}/propuestas`).then((r) => {
+      if (!vivo) return;
+      setGenerando(r.generando);
+      if (r.generando) setAviso(`Generando las propuestas con el motor… ${r.generadas} nueva(s) hasta ahora. Puede salir de esta pantalla: sigue en el servidor.`);
+      else if (generando) {
+        setAviso(r.error || `${r.generadas} propuesta(s) generadas, sin mostrarlas.${r.avisos?.length ? ` ${r.avisos.join(" · ")}` : ""}`);
+        cambio();
+      }
+    }).catch(() => undefined);
+    preguntar();
+    const t = window.setInterval(preguntar, generando ? 5000 : 30000);
+    return () => { vivo = false; window.clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ev.id, ev.estado, generando]);
 
   useEffect(() => {
     if (ev.estado === "preparacion" && fondo) {
@@ -372,9 +393,12 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
     setOcupado(true);
     setAviso("");
     try {
-      const r = await pedir<{ generadas?: number; avisos?: string[] }>(`/api/evaluacion/${ev.id}/${ruta}`,
+      const r = await pedir<{ generadas?: number; avisos?: string[]; generando?: boolean }>(`/api/evaluacion/${ev.id}/${ruta}`,
         { method: "POST", body: cuerpo ? JSON.stringify(cuerpo) : undefined });
-      if (r.generadas !== undefined) {
+      if (r.generando) {
+        setGenerando(true);
+        setAviso("Generando las propuestas con el motor… Puede salir de esta pantalla: sigue en el servidor.");
+      } else if (r.generadas !== undefined) {
         setAviso(`${r.generadas} propuesta(s) generadas, sin mostrarlas.${r.avisos?.length ? ` ${r.avisos.join(" · ")}` : ""}`);
       }
       setElegidos([]);
@@ -411,9 +435,10 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
             <div className="acciones">
               <button type="button" className="boton chico" disabled={!elegidos.length || ocupado}
                       onClick={() => accion("documentos", { instanciacion_ids: elegidos })}>Agregar {elegidos.length || ""}</button>
-              <button type="button" className="boton chico" disabled={!ev.documentos || ocupado}
-                      onClick={() => accion("propuestas")}>{ocupado ? "Trabajando…" : "Generar las propuestas del motor"}</button>
-              <button type="button" className="boton chico primario" disabled={!ev.documentos || ev.con_propuesta < ev.documentos || ocupado}
+              <button type="button" className="boton chico" disabled={!ev.documentos || ocupado || generando}
+                      onClick={() => accion("propuestas")}>{ocupado ? "Trabajando…" : generando ? "Generando…"
+                        : "Generar las propuestas del motor"}</button>
+              <button type="button" className="boton chico primario" disabled={!ev.documentos || ev.con_propuesta < ev.documentos || ocupado || generando}
                       onClick={() => accion("estado", { estado: "en_curso" })}>Iniciar la evaluación</button>
             </div>
           </>

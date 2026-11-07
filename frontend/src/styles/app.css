@@ -1826,3 +1826,9 @@ body {
 /* Resultado de la carga archivo por archivo: altura fija con desplazamiento (paquetes de 100 archivos o más). */
 .panel-carga .tabla-desplazable { max-height: 280px; overflow-y: auto; }
 .panel-carga .tabla-carga thead th { position: sticky; top: 0; z-index: 1; }
+
+/* Fuentes de Google Search bajo la respuesta del asistente. */
+.burbuja-fuentes { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: .76rem; color: var(--muted);
+  display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.burbuja-fuentes a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.burbuja-fuentes a:hover { text-decoration: underline; }

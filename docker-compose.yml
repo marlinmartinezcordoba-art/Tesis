@@ -121,7 +121,7 @@ services:
     volumes:
       - ia_local:/root/.ollama
     # Deja memoria para la base, la web, el grafo y el OCR.
-    mem_limit: ${RICORA_IA_LOCAL_MEMORIA:-10g}
+    mem_limit: ${RICORA_IA_LOCAL_MEMORIA:-13g}
 
   # HTTPS con certificado gratuito (Let's Encrypt) para RICORA_DOMINIO. Solo
   # se levanta con COMPOSE_PROFILES=https.
@@ -158,5 +158,5 @@ volumes:
   grafo:
   caddy_data:
   caddy_config:
-  # Modelos de la IA local (unos 5 GB el de 7B). Se descargan una sola vez.
+  # Modelos de la IA local (unos 9 GB el de 14B). Se descargan una sola vez.
   ia_local:

@@ -20,7 +20,7 @@ class MotorFalso:
     def __init__(self):
         self.recibido = None
 
-    def conversar(self, instruccion, contenido):
+    def conversar(self, instruccion, contenido, buscar=False):
         self.recibido = (instruccion, contenido)
         return "**Respuesta** de prueba: vaya a Instrumentos > TRD y CCD."
 
@@ -58,7 +58,9 @@ def test_responde_con_contexto_y_audita_sin_guardar_la_pregunta(cliente, db, fal
     assert "RiC-O" in instruccion and "Ley 594" in instruccion
     assert [c["role"] for c in contenido] == ["user", "model", "user"]
     ultimo = contenido[-1]["parts"][0]["text"]
-    assert "Instituto de prueba" in ultimo and "Cargar CCD y TRD" in ultimo and pregunta in ultimo
+    assert "Instituto de prueba" in ultimo and "Cargar CCD y TRD" in ultimo and "¿Cómo cargo la TRD de la cédula" in ultimo
+    # La cédula no sale del servidor (Ley 1581): llega al motor reemplazada por su tipo.
+    assert "1234567" not in ultimo and "[Cédula" in ultimo
     evento = db.scalar(select(RegistroAuditoria).where(RegistroAuditoria.accion == "asistente_consultado"))
     assert evento.usuario_id == usuario.id and evento.valor_nuevo["modelo"] == "modelo-de-prueba"
     assert "1234567" not in str(evento.valor_nuevo) and "1234567" not in (evento.detalle or "")

@@ -76,6 +76,8 @@ class EntidadPropuesta:
     # fracciones de la página. Lo agrega servicios/propuestas_ia.
     pagina: int | None = None
     zona: dict | None = None
+    # Con dos motores (consenso): «ambos» si los dos la propusieron, o el único que la propuso.
+    acuerdo: str | None = None
 
 
 @dataclass
@@ -123,10 +125,13 @@ class Propuesta:
     # La respuesta del motor tal como llegó. Va al registro de la propuesta,
     # no a la pantalla.
     respuesta: dict | None = field(default=None, repr=False)
+    # Con dos motores: la respuesta de cada uno por separado (para medir cada motor solo y el consenso).
+    por_motor: dict | None = field(default=None, repr=False)
 
     def a_dict(self) -> dict:
         datos = asdict(self)
         datos.pop("respuesta", None)
+        datos.pop("por_motor", None)
         return datos
 
 
@@ -285,13 +290,16 @@ class MotorGemini:
         except ValueError as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
 
-    def conversar(self, instruccion: str, contenido: list[dict]) -> str:
-        """Conversación del Asistente RICORA: turnos de la persona y del asistente, texto libre."""
+    def conversar(self, instruccion: str, contenido: list[dict], buscar: bool = False) -> str:
+        """Conversación del Asistente RICORA: turnos de la persona y del asistente, texto libre. Con
+        `buscar`, Gemini consulta Google Search (grounding) y deja las fuentes en self.ultima["fuentes"]."""
         cuerpo = {
             "systemInstruction": {"parts": [{"text": instruccion}]},
             "contents": contenido,
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 900},
         }
+        if buscar:
+            cuerpo["tools"] = [{"google_search": {}}]
         return self._llamar(cuerpo).strip()
 
     def _llamar(self, cuerpo: dict) -> str:
@@ -322,7 +330,15 @@ class MotorGemini:
         try:
             datos = r.json()
             self.ultima = {"version_modelo": datos.get("modelVersion"), "uso": datos.get("usageMetadata")}
-            return datos["candidates"][0]["content"]["parts"][0]["text"]
+            candidato = datos["candidates"][0]
+            fuentes = []
+            for trozo in (candidato.get("groundingMetadata") or {}).get("groundingChunks") or []:
+                web = trozo.get("web") or {}
+                if web.get("uri") and not any(f["url"] == web["uri"] for f in fuentes):
+                    fuentes.append({"titulo": (web.get("title") or web["uri"])[:200], "url": web["uri"]})
+            self.ultima["fuentes"] = fuentes[:6]
+            # Con búsqueda, la respuesta puede venir en varias partes de texto.
+            return "".join(p.get("text", "") for p in candidato["content"]["parts"])
         except (KeyError, IndexError, ValueError) as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
 
@@ -372,6 +388,10 @@ def _esquema_json(esquema):
 
 
 class MotorLocal(MotorGemini):
+    def conversar(self, instruccion: str, contenido: list[dict], buscar: bool = False) -> str:
+        # La IA local no busca en internet: responde con lo que sabe y con la guía de RICORA.
+        return MotorGemini.conversar(self, instruccion, contenido)
+
     """IA local con Ollama en el mismo servidor: los textos no salen de él (Ley 1581, art. 26).
     Recibe los mismos pedidos que Gemini y los traduce a la API de Ollama (/api/chat)."""
 
@@ -425,13 +445,155 @@ class MotorLocal(MotorGemini):
             raise MotorError("La respuesta de la IA local no se pudo leer.") from exc
 
 
+# --- Consenso de dos motores -----------------------------------------------------------------
+#
+# Gemini y la IA local proponen la misma descripción por separado. Lo que proponen los dos
+# sube su confianza; lo que propone uno solo queda por debajo del umbral de revisión, para que
+# la archivista lo mire con cuidado. Las dos respuestas se guardan enteras: así se puede medir
+# cada motor solo y el consenso con la misma corrida (objetivo 3 de la tesis).
+
+CONFIANZA_UN_MOTOR = 0.6  # por debajo del umbral de revisión (0,70): lo propuso un solo motor
+SIMILITUD_ACUERDO = 0.85
+
+
+def _clave_acuerdo(e: dict) -> tuple[str, str]:
+    import unicodedata
+
+    tipo = str(e.get("tipo") or "").strip().lower()
+    if tipo in ("fecha",) and e.get("edtf"):
+        return tipo, str(e["edtf"]).strip()
+    valor = "".join(c for c in unicodedata.normalize("NFKD", _norm(e.get("valor") or "")) if not unicodedata.combining(c))
+    return tipo, re.sub(r"[^\w\s]", "", valor)
+
+
+def combinar(a: dict, b: dict, nombre_a: str = "gemini", nombre_b: str = "local") -> dict:
+    """Una sola propuesta con las dos: el título y el alcance de la primera (si los trae), y las
+    entidades de las dos, marcadas por acuerdo. Se empareja por tipo y nombre (o fecha EDTF)."""
+    from difflib import SequenceMatcher
+
+    salida = {k: v for k, v in (a or {}).items() if k != "entidades"}
+    for campo in ("titulo", "alcance_contenido", "evidencia_titulo", "evidencia_alcance", "idiomas"):
+        if not salida.get(campo) and (b or {}).get(campo):
+            salida[campo] = b[campo]
+    de_b = [(e, _clave_acuerdo(e)) for e in (b or {}).get("entidades") or []]
+    usados: set[int] = set()
+    entidades = []
+    for e in (a or {}).get("entidades") or []:
+        tipo, valor = _clave_acuerdo(e)
+        par = None
+        for i, (otra, (tipo_b, valor_b)) in enumerate(de_b):
+            if i in usados or tipo_b != tipo:
+                continue
+            if valor_b == valor or (len(valor) > 3 and SequenceMatcher(None, valor, valor_b).ratio() >= SIMILITUD_ACUERDO):
+                par = i
+                break
+        nueva = dict(e)
+        if par is not None:
+            usados.add(par)
+            otra = de_b[par][0]
+            confianzas = [_confianza(e.get("confianza")), _confianza(otra.get("confianza"))]
+            nueva["confianza"] = min(0.98, max(confianzas) + 0.1)
+            nueva["acuerdo"] = "ambos"
+            # Si la primera no trae fragmento, se usa el de la otra.
+            if not nueva.get("fragmento") and otra.get("fragmento"):
+                nueva["fragmento"], nueva["documento"] = otra["fragmento"], otra.get("documento")
+        else:
+            nueva["confianza"] = min(_confianza(e.get("confianza")), CONFIANZA_UN_MOTOR)
+            nueva["acuerdo"] = nombre_a
+        entidades.append(nueva)
+    for i, (e, _) in enumerate(de_b):
+        if i not in usados:
+            nueva = dict(e)
+            nueva["confianza"] = min(_confianza(e.get("confianza")), CONFIANZA_UN_MOTOR)
+            nueva["acuerdo"] = nombre_b
+            entidades.append(nueva)
+    salida["entidades"] = entidades
+    salida["acuerdo"] = {"ambos": sum(1 for e in entidades if e["acuerdo"] == "ambos"),
+                         nombre_a: sum(1 for e in entidades if e["acuerdo"] == nombre_a),
+                         nombre_b: sum(1 for e in entidades if e["acuerdo"] == nombre_b)}
+    return salida
+
+
+class MotorConsenso:
+    """Gemini y la IA local juntos. En la descripción proponen los dos a la vez y se combinan;
+    en lo demás (leer una TRD, redactar, el asistente) responde la IA local y, si falla, Gemini."""
+
+    def __init__(self, nube: MotorGemini, local: MotorLocal):
+        self.nube, self.local = nube, local
+        self.modelo = f"{nube.modelo} + {local.modelo}"
+        self.nombre = f"consenso ({nube.modelo} + {local.modelo})"
+        self.ultima: dict = {}
+        self.por_motor: dict | None = None
+        self.respondio: str | None = None
+
+    def analizar(self, documentos, nivel, contexto=None) -> dict:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=2) as hilos:
+            tareas = {"gemini": hilos.submit(self.nube.analizar, documentos, nivel, contexto),
+                      "local": hilos.submit(self.local.analizar, documentos, nivel, contexto)}
+            respuestas, errores = {}, {}
+            for nombre, tarea in tareas.items():
+                try:
+                    respuestas[nombre] = tarea.result()
+                except MotorError as exc:
+                    errores[nombre] = str(exc)
+        self.por_motor = {**respuestas, **({"errores": errores} if errores else {})}
+        if len(respuestas) == 2:
+            self.nombre = f"consenso ({self.nube.modelo} + {self.local.modelo})"
+            self.ultima = {"version_modelo": f"{self.nube.ultima.get('version_modelo')} + "
+                                             f"{self.local.ultima.get('version_modelo')}",
+                           "uso": {"gemini": self.nube.ultima.get("uso"), "local": self.local.ultima.get("uso")}}
+            return combinar(respuestas["gemini"], respuestas["local"])
+        if not respuestas:
+            raise MotorError(" · ".join(f"{k}: {v}" for k, v in errores.items()))
+        # Respondió uno solo: la propuesta queda a nombre de ese motor, para no mezclar en la evaluación.
+        solo = next(iter(respuestas))
+        motor = self.nube if solo == "gemini" else self.local
+        self.nombre, self.ultima = motor.nombre, motor.ultima
+        return respuestas[solo]
+
+    def _local_y_si_no_nube(self, metodo: str, *args):
+        try:
+            respuesta = getattr(self.local, metodo)(*args)
+            self.ultima = self.local.ultima
+            return respuesta
+        except MotorError:
+            respuesta = getattr(self.nube, metodo)(*args)
+            self.ultima = self.nube.ultima
+            return respuesta
+
+    def redactar(self, instruccion: str, pedido: str) -> str:
+        return self._local_y_si_no_nube("redactar", instruccion, pedido)
+
+    def estructurar(self, instruccion: str, texto: str, esquema: dict) -> dict:
+        return self._local_y_si_no_nube("estructurar", instruccion, texto, esquema)
+
+    def conversar(self, instruccion: str, contenido: list[dict], buscar: bool = False) -> str:
+        """El asistente: Gemini con Google Search responde en segundos y cita fuentes; si no
+        responde (límite de uso, sin conexión), contesta la IA local."""
+        try:
+            respuesta = self.nube.conversar(instruccion, contenido, buscar=buscar)
+            self.ultima, self.respondio = self.nube.ultima, self.nube.modelo
+            return respuesta
+        except MotorError:
+            respuesta = self.local.conversar(instruccion, contenido)
+            self.ultima, self.respondio = self.local.ultima, self.local.modelo
+            return respuesta
+
+    @property
+    def max_caracteres(self) -> int:
+        return self.local.max_caracteres
+
+
 def motor_activo():
-    """El motor configurado, o None si no hay ninguno."""
-    if settings.motor_ia == "local":
-        return MotorLocal(settings.ollama_url, settings.modelo_local)
-    if settings.gemini_api_key:
-        return MotorGemini(settings.gemini_api_key, settings.modelo_ia)
-    return None
+    """El motor configurado, o None si no hay ninguno. Con la IA local y la clave de Gemini, los
+    dos trabajan juntos (consenso), salvo que RICORA_MOTOR_IA diga solo uno."""
+    local = MotorLocal(settings.ollama_url, settings.modelo_local) if settings.motor_ia in ("local", "consenso") else None
+    nube = MotorGemini(settings.gemini_api_key, settings.modelo_ia) if settings.gemini_api_key else None
+    if local and nube and settings.motor_ia_descripcion != "solo_local":
+        return MotorConsenso(nube, local)
+    return local or nube
 
 
 # --- Normalización y control de la propuesta ----------------------------------------------
@@ -541,6 +703,7 @@ def normalizar(crudo: dict, documentos: list[Documento], motor: str,
             edtf=edtf, fecha_subtipo=fecha_subtipo, fecha_legible=fecha_legible,
             fragmento=fragmento, documento_id=str(documento.id) if documento and inicio is not None else None,
             inicio=inicio, confianza=round(confianza, 2), fragmento_localizado=inicio is not None,
+            acuerdo=str(e.get("acuerdo")) if e.get("acuerdo") in ("ambos", "gemini", "local") else None,
         )
         # Reconocimiento de una entidad existente: el código que dio el motor,
         # si es del mismo tipo; si no dio ninguno, una coincidencia exacta
@@ -629,6 +792,7 @@ def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaCont
         crudo = motor.analizar(documentos, nivel, contexto) if contexto else motor.analizar(documentos, nivel)
         propuesta = normalizar(crudo, documentos, motor.nombre, contexto)
         propuesta.respuesta = crudo
+        propuesta.por_motor = getattr(motor, "por_motor", None)
     except MotorError as exc:
         propuesta = Propuesta(motor=motor.nombre, version_prompt=VERSION_PROMPT,
                               aviso=f"{exc} Puede volver a consultarlo con el botón «Volver a consultar el motor» o "

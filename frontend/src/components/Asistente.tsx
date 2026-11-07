@@ -48,7 +48,8 @@ function preguntasPara(ruta: string): string[] {
   return PREGUNTAS.find(([prefijo]) => ruta.startsWith(prefijo))?.[1] ?? GENERALES;
 }
 
-interface Mensaje { rol: "persona" | "asistente"; texto: string; error?: boolean }
+interface Fuente { titulo: string; url: string }
+interface Mensaje { rol: "persona" | "asistente"; texto: string; error?: boolean; fuentes?: Fuente[] }
 interface Estado { disponible: boolean; modelo: string | null; aviso: string }
 
 /** Abre el panel del asistente, opcionalmente con una pregunta ya escrita. */
@@ -107,11 +108,11 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
     setTexto("");
     setPensando(true);
     try {
-      const r = await pedir<{ respuesta: string }>("/api/asistente/preguntar", { method: "POST", body: JSON.stringify({
+      const r = await pedir<{ respuesta: string; fuentes?: Fuente[] }>("/api/asistente/preguntar", { method: "POST", body: JSON.stringify({
         mensajes: nuevos.filter((m) => !m.error).map(({ rol, texto: t }) => ({ rol, texto: t })),
         pantalla: guia ? { titulo: guia.titulo, pasos: guia.pasos.map((p) => `${p.titulo} ${p.texto}`) } : null,
         fondo: fondo?.titulo ?? null }) });
-      setMensajes([...nuevos, { rol: "asistente", texto: r.respuesta }]);
+      setMensajes([...nuevos, { rol: "asistente", texto: r.respuesta, fuentes: r.fuentes }]);
     } catch (err) {
       setMensajes([...nuevos, { rol: "asistente", error: true,
         texto: err instanceof ErrorAPI ? err.message : "No se pudo consultar al asistente. Intente de nuevo." }]);
@@ -150,7 +151,14 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
         {mensajes.map((m, i) => (
           <div key={i} className={`burbuja de-${m.rol}${m.error ? " error" : ""}`}>
             {m.rol === "asistente" && <span className="burbuja-icono">{I_CHISPA}</span>}
-            <div className="burbuja-texto">{m.rol === "asistente" ? <Texto texto={m.texto} /> : m.texto}</div>
+            <div className="burbuja-texto">{m.rol === "asistente" ? <Texto texto={m.texto} /> : m.texto}
+              {!!m.fuentes?.length && (
+                <div className="burbuja-fuentes">Fuentes:{" "}
+                  {m.fuentes.map((f, j) => (
+                    <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer">{j + 1}. {f.titulo}</a>))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
         {pensando && (

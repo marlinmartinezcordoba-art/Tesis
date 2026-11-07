@@ -144,9 +144,34 @@ def documentos(evaluacion_id: uuid.UUID, datos: DocumentosIn, actor: Actor = Dep
 @router.post("/{evaluacion_id}/propuestas", responses={200: {"model": re_.PropuestasGeneradasOut, "description": "Propuestas generadas y avisos"}},
     summary="Generar, sin mostrarlas, las propuestas del motor")
 def propuestas(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    """Empieza a generarlas en segundo plano (cada documento puede tardar minutos con dos motores)
+    y responde de una vez; el avance se consulta con GET /{id}/propuestas."""
+    from app.servicios import evaluacion_generacion
+
+    from app.core.config import settings
+
     ev = _ev(db, evaluacion_id)
-    resultado = _hecho(db, evaluacion.generar_propuestas, db, ev, actor.id)
-    return resultado | {"evaluacion": evaluacion.evaluacion_out(db, ev)}
+    if not settings.propuestas_en_segundo_plano:
+        resultado = _hecho(db, evaluacion.generar_propuestas, db, ev, actor.id)
+        return resultado | {"generando": False, "evaluacion": evaluacion.evaluacion_out(db, ev)}
+    if ev.estado != "preparacion":
+        raise _error(evaluacion.ErrorEvaluacion("Las propuestas se generan antes de iniciar la evaluación.", 409))
+    out = evaluacion.evaluacion_out(db, ev)
+    estado = evaluacion_generacion.empezar(ev.id, actor.id, out.get("documentos") or 0)
+    return {"generadas": estado["hechas"], "avisos": estado["avisos"], "generando": estado["estado"] == "generando",
+            "total": estado["total"], "evaluacion": out}
+
+
+@router.get("/{evaluacion_id}/propuestas", responses={200: {"model": re_.PropuestasGeneradasOut,
+                                                               "description": "Avance de la generación"}},
+            summary="Avance de la generación de propuestas: cuántas van y cuántas faltan")
+def avance_propuestas(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_generacion
+
+    ev = _ev(db, evaluacion_id)
+    e = evaluacion_generacion.avance(ev.id) or {"estado": "listo", "hechas": 0, "total": 0, "avisos": [], "error": None}
+    return {"generadas": e["hechas"], "avisos": e["avisos"], "generando": e["estado"] == "generando",
+            "total": e["total"], "error": e.get("error"), "evaluacion": evaluacion.evaluacion_out(db, ev)}
 
 
 @router.put("/{evaluacion_id}/criterio", responses={200: {"model": re_.EvaluacionOut, "description": "Evaluación con su criterio"}},

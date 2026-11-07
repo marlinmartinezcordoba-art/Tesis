@@ -28,12 +28,19 @@ Elija una de las dos opciones:
 
 ## Motor de análisis (IA)
 
-- **Hoy: Gemini**, con la clave en el secreto `GEMINI_API_KEY` de GitHub. El despliegue la escribe en el `.env` del servidor.
-- **Protección de datos (Ley 1581, art. 26).** Antes de enviar un texto al motor, RICORA quita localmente los identificadores personales: cédulas, tarjetas de identidad, NUIP, pasaportes, fechas de nacimiento, correos, celulares, direcciones, cuentas e historias clínicas. Los reemplaza por su tipo entre corchetes. Aun así, no use el motor con documentos reservados, y para uso real use una clave de pago, cuyos datos no se usan para entrenar.
-- **IA local (Ollama), desde el 7-11-2026.** Si el servidor tiene 12 GB de memoria o más, el despliegue la enciende sola: levanta el servicio `ia_local` (perfil `ia-local` de docker-compose), descarga el modelo `qwen2.5:7b` (unos 5 GB, una sola vez) y pone `RICORA_MOTOR_IA=local`. Con IA local **ningún texto sale del servidor** (Ley 1581, art. 26). El motor está en `app/servicios/motor.py` (`MotorLocal`): recibe los mismos pedidos que Gemini, así que la descripción, la lectura de TRD y el asistente no cambian.
-  - **Forzar un motor:** cree el secreto `RICORA_MOTOR_IA` en GitHub con `local` o `gemini`.
-  - **Velocidad:** sin tarjeta gráfica, un modelo de 7B tarda de 1 a 3 minutos por página. El límite de espera es de 15 minutos (`RICORA_SEGUNDOS_MOTOR_LOCAL`).
-  - **Servidor:** 4 vCPU y 16 GB (DigitalOcean, 84 USD al mes, noviembre de 2026). Con menos de 12 GB, RICORA sigue con Gemini.
+Desde el 7-11-2026 RICORA trabaja con **dos motores juntos**: Gemini (en la nube, con la clave del secreto `GEMINI_API_KEY`) y una **IA local** (Ollama con Qwen 2.5 de 14B, en el mismo servidor).
+
+| Tarea | Cómo responde | Por qué |
+|---|---|---|
+| Descripción y evaluación | **Consenso**: proponen los dos por separado y RICORA los combina. Lo que proponen los dos sube su confianza; lo que propone uno solo queda en 0,6 (por debajo del umbral de revisión) y marcado con el motor que lo propuso | Más precisión, y cada motor revisa al otro. Las dos respuestas se guardan enteras: con una sola corrida se mide Gemini solo, la IA local sola y el consenso |
+| Asistente | **Gemini con Google Search** (grounding): responde en segundos y cita sus fuentes. Si Gemini no responde, contesta la IA local | Rapidez y respuestas al día; se prefieren fuentes oficiales (AGN, ICA) |
+| Lectura de TRD, CCD y TVD; guía del fondo | **IA local**; si falla, Gemini | Son instrumentos públicos y la lectura no debe detenerse |
+
+- **Evaluación con un solo motor.** La evaluación no se deja iniciar si sus propuestas se hicieron con motores distintos (por ejemplo, si en el consenso respondió uno solo). «Generar las propuestas del motor» rehace las que no coinciden. La generación corre en segundo plano y se guarda documento por documento.
+- **Velocidad.** Sin tarjeta gráfica, el modelo de 14B tarda de 5 a 10 minutos por documento. En la evaluación no afecta: las propuestas se generan antes de que entren los expertos.
+- **Protección de datos (Ley 1581, art. 26).** Antes de enviar un texto a Gemini (también la pregunta del asistente), RICORA quita localmente cédulas, tarjetas de identidad, NUIP, pasaportes, fechas de nacimiento, correos, celulares, direcciones, cuentas e historias clínicas. La IA local no envía nada fuera del servidor. Aun así, no use el motor con documentos reservados.
+- **Configuración.** El despliegue enciende la IA local si el servidor tiene 12 GB de memoria o más (perfil `ia-local`, servicio `ia_local`, 13 GB de límite) y descarga el modelo una sola vez (unos 9 GB). Variables: `RICORA_MODELO_LOCAL` (por defecto `qwen2.5:14b`), `RICORA_MOTOR_DESCRIPCION` (`consenso` o `solo_local`), y el secreto `RICORA_MOTOR_IA` (`local` o `gemini`) para forzar uno.
+- **Servidor.** 4 vCPU y 16 GB (DigitalOcean, 84 USD al mes, noviembre de 2026).
 
 ## Segundo factor de la administración
 
