@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { unoOVarios } from "@/lib/zip";
 import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
@@ -15,16 +15,49 @@ export interface Respuesta { creado: boolean; fondo: Fondo | null; informe: Info
 
 type VistaLeida = Vista & { archivos?: ArchivoLeido[]; entidad?: string | null };
 
+// Lo leído se guarda en este navegador como borrador hasta crear el fondo: si la persona cambia de
+// módulo o recarga, no pierde la lectura. Se borra al crear el fondo o con «Empezar de nuevo».
+const BORRADOR = "ricora.borrador-fondo";
+interface Borrador { vista: VistaLeida; incluir: number[]; titulo: string; fechas: string; acto: string;
+  fechaActo: string; desde: string }
+
+function leerBorrador(): Borrador | null {
+  try {
+    const b = JSON.parse(localStorage.getItem(BORRADOR) || "null") as Borrador | null;
+    return b && b.vista && Array.isArray(b.vista.filas) ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+function borrarBorrador() {
+  try { localStorage.removeItem(BORRADOR); } catch { /* sin almacenamiento: no hay nada que borrar */ }
+}
+
+// Une la lectura guardada con la de los archivos nuevos (sin los archivos ya subidos a mano tras recargar).
+function unir(antes: VistaLeida, nueva: VistaLeida): VistaLeida {
+  // Se numeran de corrido para que cada fila se marque por separado.
+  const filas = [...antes.filas, ...nueva.filas].map((f, i) => ({ ...f, fila: i + 1 }));
+  const nombres = new Set((nueva.archivos || []).map((a) => a.archivo));
+  return { ...nueva, filas, origen: `${antes.origen} + ${nueva.origen}`, entidad: antes.entidad || nueva.entidad,
+    archivos: [...(antes.archivos || []).filter((a) => !nombres.has(a.archivo)), ...(nueva.archivos || [])],
+    resumen: { ...nueva.resumen, filas: filas.length, con_problemas: filas.filter((f) => f.problemas.length).length,
+      secciones: new Set(filas.map((f) => f.seccion?.nombre).filter(Boolean)).size,
+      series: new Set(filas.map((f) => `${f.seccion?.nombre}|${f.serie?.codigo || f.serie?.nombre}`).filter((x) => !x.endsWith("|"))).size,
+      subseries: filas.filter((f) => f.subserie).length } };
+}
+
 export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void; alCrear?: (r: Respuesta) => void }) {
   const { recargar, elegir } = useFondo();
-  const [titulo, setTitulo] = useState("");
-  const [fechas, setFechas] = useState("");
+  const [guardado] = useState(leerBorrador);
+  const [titulo, setTitulo] = useState(guardado?.titulo || "");
+  const [fechas, setFechas] = useState(guardado?.fechas || "");
   // La TRD aprobada: con el acto, su fecha y la vigencia, el fondo nace con la versión 1 vigente.
-  const [acto, setActo] = useState("");
-  const [fechaActo, setFechaActo] = useState("");
-  const [desde, setDesde] = useState("");
-  const [vista, setVista] = useState<VistaLeida | null>(null);
-  const [incluir, setIncluir] = useState<Set<number>>(new Set());
+  const [acto, setActo] = useState(guardado?.acto || "");
+  const [fechaActo, setFechaActo] = useState(guardado?.fechaActo || "");
+  const [desde, setDesde] = useState(guardado?.desde || "");
+  const [vista, setVista] = useState<VistaLeida | null>(guardado?.vista || null);
+  const [incluir, setIncluir] = useState<Set<number>>(new Set(guardado?.incluir || []));
   const [rechazo, setRechazo] = useState<Respuesta | null>(null);
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -33,6 +66,19 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
   const [subidos, setSubidos] = useState<File[]>([]);
   const carga = useCarga();
   const entrada = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!vista) return;
+    try {
+      localStorage.setItem(BORRADOR, JSON.stringify({ vista, incluir: [...incluir], titulo, fechas, acto, fechaActo, desde }));
+    } catch { /* sin almacenamiento (ventana privada o lleno): la lectura sigue en pantalla */ }
+  }, [vista, incluir, titulo, fechas, acto, fechaActo, desde]);
+
+  function empezarDeNuevo() {
+    borrarBorrador();
+    setSubidos([]); setVista(null); setIncluir(new Set()); setTitulo(""); setFechas(""); setActo(""); setFechaActo("");
+    setDesde(""); setRechazo(null); setError(""); carga.reiniciar();
+  }
 
   const mensaje = (err: unknown, por: string) => (err instanceof ErrorAPI ? err.message : por);
   const conProblemas = vista ? vista.filas.filter((f) => f.problemas.length).length : 0;
@@ -52,10 +98,12 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
     setOcupado(true);
     try {
       const v = await subir<VistaLeida>("/api/cuadro/vista-previa", datos, carga.avanzar);
-      carga.terminar(v.archivos);
+      // Tras volver al módulo, la lectura guardada no tiene sus archivos: lo nuevo se le suma.
+      const final = !reemplazar && vista && !subidos.length ? unir(vista, v) : v;
+      carga.terminar(final.archivos);
       setSubidos(lista);
-      setVista(v);
-      setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
+      setVista(final);
+      setIncluir(new Set(final.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
       if (!titulo.trim() && v.entidad) setTitulo(v.entidad);
     } catch (err) {
       carga.fallar(mensaje(err, "No se pudo leer el archivo."));
@@ -79,6 +127,7 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
         setError("No se creó nada: el cuadro no es conforme con RiC-O. Abajo está el motivo.");
         return;
       }
+      borrarBorrador();
       await recargar();
       elegir(r.fondo.id);
       if (alCrear) alCrear(r);
@@ -102,16 +151,19 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
              onDrop={(e) => { e.preventDefault(); setEncima(false); void recibir(Array.from(e.dataTransfer.files)); }}>
         <input ref={entrada} type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
                onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void recibir(l); }} />
-        <strong>{ocupado ? "Leyendo…" : vista ? `Agregar más archivos (${subidos.length} subidos)` : "Suba la TRD y el CCD"}</strong>
+        <strong>{ocupado ? "Leyendo…" : vista ? `Agregar más archivos (${vista.archivos?.length || subidos.length} leídos)` : "Suba la TRD y el CCD"}</strong>
         <span className="meta">Arrástrelos aquí o haga clic. Uno o varios: Excel, PDF con texto, Word, CSV o .zip, tal como
           los tiene la entidad.</span>
       </label>
       <PanelCarga estado={carga.estado} />
-      {vista && subidos.length > 0 && (
-        <p className="meta">Los archivos nuevos se suman a los ya leídos.{" "}
-          <button type="button" className="enlace" disabled={ocupado}
-                  onClick={() => { setSubidos([]); setVista(null); setIncluir(new Set()); setTitulo(""); carga.reiniciar(); }}>
-            Empezar de nuevo</button></p>
+      {vista && !subidos.length && guardado && (
+        <div className="aviso" role="note">Recuperé la lectura que dejó sin terminar ({vista.filas.length} filas). El fondo
+          todavía <b>no se ha creado</b>: revise y pulse «Crear el fondo».</div>
+      )}
+      {vista && (
+        <p className="meta">Los archivos nuevos se suman a los ya leídos. Lo leído queda guardado en este navegador hasta
+          crear el fondo.{" "}
+          <button type="button" className="enlace" disabled={ocupado} onClick={empezarDeNuevo}>Empezar de nuevo</button></p>
       )}
       {!vista && (
         <p className="meta">¿No tiene el archivo en un formato legible?{" "}
