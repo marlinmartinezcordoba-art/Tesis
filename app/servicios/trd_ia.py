@@ -59,7 +59,13 @@ def texto_de(contenido: bytes, nombre: str, hojas: list | None = None) -> str:
         import pdfplumber
 
         with pdfplumber.open(io.BytesIO(contenido)) as pdf:
-            texto = "\n\n".join(f"[Página {i}]\n{p.extract_text() or ''}" for i, p in enumerate(pdf.pages, start=1))
+            partes = []
+            for i, p in enumerate(pdf.pages, start=1):
+                partes.append(f"[Página {i}]\n{p.extract_text() or ''}")
+                p.close()  # libera la memoria de la página
+                if sum(len(x) for x in partes) > MAX_CARACTERES:
+                    break
+            texto = "\n\n".join(partes)
     else:
         texto = "\n".join(" | ".join(c for c in fila if c) for hoja in (hojas or []) for fila in hoja)
     return texto[:MAX_CARACTERES]

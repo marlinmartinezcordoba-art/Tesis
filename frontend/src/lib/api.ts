@@ -75,6 +75,11 @@ function mensajeDe(cuerpo: unknown, status: number): string {
       .filter(Boolean)
       .join(" ");
   }
+  if (status === 502 || status === 503 || status === 504) {
+    return "El servidor no respondió a tiempo: puede estar reiniciándose o el archivo es muy pesado. Espere un minuto e " +
+      "intente de nuevo; si vuelve a pasar con un archivo grande, súbalo por partes (un archivo por dependencia).";
+  }
+  if (status === 413) return "El archivo es demasiado grande. Súbalo por partes (un archivo por dependencia).";
   if (status >= 500) return "El servidor no pudo completar la acción. Intente de nuevo en un momento.";
   return "No se pudo completar la acción.";
 }

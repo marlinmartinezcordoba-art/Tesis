@@ -375,6 +375,8 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
                 filas.append(["__dependencia__", codigo or "", nombre])
             for tabla in pagina.extract_tables():
                 filas += [["" if c is None else str(c).strip() for c in fila] for fila in tabla]
+            # Suelta lo que la página guardó en memoria: una TRD de cientos de páginas no llena el servidor.
+            pagina.close()
     if not any(f and f[0] != "__dependencia__" for f in filas):
         raise ErrorCuadro("El PDF no tiene tablas con texto: parece escaneado (una imagen). Pida la TRD en Excel o en "
                           "PDF generado desde el original, o pásela a la plantilla del sistema.")
