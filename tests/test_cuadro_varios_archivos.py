@@ -66,3 +66,25 @@ def test_sin_motor_se_queda_la_lectura_por_reglas(monkeypatch):
     monkeypatch.setattr(motor, "motor_activo", lambda: None)
     v = cuadro.vista_previa(CSV, "TRD.csv")
     assert v["archivos"][0]["estado"] == "leido"
+
+
+def test_propone_el_nombre_de_la_entidad_del_encabezado():
+    """El encabezado «ENTIDAD: …» de la TRD se propone como nombre del fondo; si no está, no se inventa."""
+    from app.servicios.cuadro import _entidad
+
+    assert _entidad([[["ENTIDAD:", "", "Instituto Nacional de los Recursos Naturales (INDERENA)"], ["Serie"]]]) == \
+        "Instituto Nacional de los Recursos Naturales (INDERENA)"
+    assert _entidad([[["Nombre de la entidad: Alcaldía de Tunja"]]]) == "Alcaldía de Tunja"
+    assert _entidad([[["Serie", "Subserie"], ["Actas", ""]]]) is None
+
+
+def test_la_s_suelta_entre_ct_e_m_es_seleccion_y_no_codigo_de_serie():
+    """En «CT | E | S | M», la S es la selección de la disposición final, no el código de la serie."""
+    from app.servicios.cuadro import vista_previa
+
+    csv = ("Código,Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,Procedimiento\n"
+           "100,Dirección General,2,Informes,Informes de gestión,Informe,2,5,,,X,,Seleccionar muestra\n")
+    fila = vista_previa(csv.encode(), "trd.csv")["filas"][0]
+    assert fila["disposicion"] == "s"
+    assert fila["codigos"]["serie"] == "100.2"
+    assert not fila["problemas"]

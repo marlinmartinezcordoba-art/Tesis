@@ -1,72 +1,60 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { unoOVarios } from "@/lib/zip";
 import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { ResultadoValidacion, TablaVistaPrevia, type Informe, type Validacion, type Vista } from "@/components/CuadroClasificacion";
 
-// Solo el administrador registra fondos. Un fondo se configura desde su cuadro de
-// clasificación (CCD) y su tabla de retención (TRD): 1) datos del fondo, 2) el
-// cuadro leído del archivo, 3) validación en RiC-O 1.1, 4) creación (todo o nada).
-// La retención es opcional: un fondo histórico puede no tener TRD.
-
-const NOMBRE: Record<string, string> = { seccion: "sección(es)", subseccion: "subsección(es)", serie: "serie(s)",
-  subserie: "subserie(s)" };
-
-const PASOS = ["Datos del fondo", "Cuadro de clasificación y TRD", "Validación RiC-O", "Crear"];
+// Solo el administrador registra fondos. Todo en una pantalla: 1) suba la TRD y el CCD (uno o
+// varios archivos, o arrástrelos); 2) el sistema los lee y propone el nombre de la entidad;
+// 3) revise las filas marcadas y cree el fondo. Al crear se valida en RiC-O 1.1: si no es
+// conforme no se crea nada y se muestra por qué. La retención es opcional (fondo histórico).
 
 export interface Respuesta { creado: boolean; fondo: Fondo | null; informe: Informe; validacion: Validacion;
   parametrizacion: Record<string, number> | null; version: { nombre: string; estado: string } | null }
 
+type VistaLeida = Vista & { archivos?: ArchivoLeido[]; entidad?: string | null };
+
 export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void; alCrear?: (r: Respuesta) => void }) {
   const { recargar, elegir } = useFondo();
-  const [paso, setPaso] = useState(0);
   const [titulo, setTitulo] = useState("");
   const [fechas, setFechas] = useState("");
   // La TRD aprobada: con el acto, su fecha y la vigencia, el fondo nace con la versión 1 vigente.
   const [acto, setActo] = useState("");
   const [fechaActo, setFechaActo] = useState("");
   const [desde, setDesde] = useState("");
-  const [vista, setVista] = useState<Vista | null>(null);
+  const [vista, setVista] = useState<VistaLeida | null>(null);
   const [incluir, setIncluir] = useState<Set<number>>(new Set());
-  const [prueba, setPrueba] = useState<Respuesta | null>(null);
+  const [rechazo, setRechazo] = useState<Respuesta | null>(null);
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [encima, setEncima] = useState(false);
+  const carga = useCarga();
+  const entrada = useRef<HTMLInputElement>(null);
 
   const mensaje = (err: unknown, por: string) => (err instanceof ErrorAPI ? err.message : por);
-  const cuerpo = (crear: boolean) => JSON.stringify({
-    fondo: { titulo, fechas_extremas: fechas || null }, filas: vista?.filas.filter((f) => incluir.has(f.fila)) || [], crear,
-    version: acto.trim() ? { acto_aprobacion: acto.trim(), fecha_aprobacion: fechaActo || null, vigente_desde: desde || null } : null });
+  const conProblemas = vista ? vista.filas.filter((f) => f.problemas.length).length : 0;
+  const faltaActo = !!acto.trim() && (!fechaActo || !desde);
 
-  const carga = useCarga();
-
-  async function leer(archivo: File) {
+  async function recibir(lista: File[]) {
+    if (!lista.length || ocupado) return;
     setError("");
+    setRechazo(null);
+    carga.empezar(lista);
+    const archivo = await unoOVarios(lista, "TRD.zip");
+    if (!archivo) return;
     const datos = new FormData();
     datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<Vista & { archivos?: ArchivoLeido[] }>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      const v = await subir<VistaLeida>("/api/cuadro/vista-previa", datos, carga.avanzar);
       carga.terminar(v.archivos);
       setVista(v);
-      setPrueba(null);
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
+      if (!titulo.trim() && v.entidad) setTitulo(v.entidad);
     } catch (err) {
-      carga.fallar(err instanceof ErrorAPI ? err.message : "No se pudo leer el archivo.");
+      carga.fallar(mensaje(err, "No se pudo leer el archivo."));
       setError(mensaje(err, "No se pudo leer el archivo."));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function validar() {
-    setError("");
-    setOcupado(true);
-    try {
-      setPrueba(await pedir<Respuesta>("/api/fondos/configurar", { method: "POST", body: cuerpo(false) }));
-      setPaso(2);
-    } catch (err) {
-      setError(mensaje(err, "No se pudo validar."));
     } finally {
       setOcupado(false);
     }
@@ -74,12 +62,16 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
 
   async function crear() {
     setError("");
+    setRechazo(null);
     setOcupado(true);
     try {
-      const r = await pedir<Respuesta>("/api/fondos/configurar", { method: "POST", body: cuerpo(true) });
+      const r = await pedir<Respuesta>("/api/fondos/configurar", { method: "POST", body: JSON.stringify({
+        fondo: { titulo: titulo.trim(), fechas_extremas: fechas || null },
+        filas: vista?.filas.filter((f) => incluir.has(f.fila)) || [], crear: true,
+        version: acto.trim() ? { acto_aprobacion: acto.trim(), fecha_aprobacion: fechaActo || null, vigente_desde: desde || null } : null }) });
       if (!r.creado || !r.fondo) {
-        setPrueba(r);
-        setError("No se creó: el cuadro no es conforme con RiC-O. Revise el detalle.");
+        setRechazo(r);
+        setError("No se creó nada: el cuadro no es conforme con RiC-O. Abajo está el motivo.");
         return;
       }
       await recargar();
@@ -94,19 +86,44 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
   }
 
   return (
-    <div className="formulario-nuevo">
-      <ol className="pasos-asistente">
-        {PASOS.map((p, i) => <li key={p} className={i === paso ? "activo" : i < paso ? "hecho" : undefined}>{i + 1}. {p}</li>)}
-      </ol>
+    <div className="formulario-nuevo registro-rapido">
       {error && <div className="aviso error" role="alert">{error}</div>}
 
-      {paso === 0 && (
-        <form onSubmit={(e) => { e.preventDefault(); setPaso(1); }}>
+      <label className={`zona-soltar${encima ? " encima" : ""}${ocupado ? " ocupada" : ""}`}
+             tabIndex={0} role="button"
+             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); entrada.current?.click(); } }}
+             onDragOver={(e) => { e.preventDefault(); setEncima(true); }}
+             onDragLeave={() => setEncima(false)}
+             onDrop={(e) => { e.preventDefault(); setEncima(false); void recibir(Array.from(e.dataTransfer.files)); }}>
+        <input ref={entrada} type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+               onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void recibir(l); }} />
+        <strong>{ocupado ? "Leyendo…" : vista ? "Agregar o cambiar archivos" : "Suba la TRD y el CCD"}</strong>
+        <span className="meta">Arrástrelos aquí o haga clic. Uno o varios: Excel, PDF con texto, Word, CSV o .zip, tal como
+          los tiene la entidad.</span>
+      </label>
+      <PanelCarga estado={carga.estado} />
+      {!vista && (
+        <p className="meta">¿No tiene el archivo en un formato legible?{" "}
+          <button type="button" className="enlace" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
+            Descargue la plantilla Excel</button>.</p>
+      )}
+
+      {vista && (
+        <>
+          <div className="resumen-lectura">
+            <span><b>{vista.resumen.secciones ?? 0}</b> secciones</span>
+            <span><b>{vista.resumen.series ?? 0}</b> series</span>
+            <span><b>{vista.resumen.subseries ?? 0}</b> subseries</span>
+            <span><b>{incluir.size}</b> filas para crear</span>
+            {conProblemas > 0 && <span className="texto-error"><b>{conProblemas}</b> por revisar</span>}
+          </div>
+
           <div className="rejilla">
             <div className="campo">
               <label htmlFor="f-titulo">Nombre del fondo</label>
               <input id="f-titulo" className="entrada" required minLength={3} value={titulo}
-                     placeholder="Correspondencia municipal" onChange={(e) => setTitulo(e.target.value)} />
+                     placeholder="Nombre completo de la entidad productora" onChange={(e) => setTitulo(e.target.value)} />
+              {vista.entidad && titulo === vista.entidad && <span className="meta">Tomado del encabezado del archivo. Corríjalo si hace falta.</span>}
             </div>
             <div className="campo">
               <label htmlFor="f-fechas">Fechas extremas (opcional)</label>
@@ -114,82 +131,48 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
                      onChange={(e) => setFechas(e.target.value)} />
             </div>
           </div>
-          <p className="meta">Si la TRD ya está aprobada, registre su acto: el fondo nace con la versión 1 vigente. Si no,
-            queda en borrador y se completa en Fondos › Versiones de la TRD.</p>
-          <div className="rejilla">
-            <div className="campo">
-              <label htmlFor="f-acto">Acto que aprueba la TRD (opcional)</label>
-              <input id="f-acto" className="entrada" value={acto} placeholder="Resolución 045"
-                     onChange={(e) => setActo(e.target.value)} />
-            </div>
-            <div className="campo">
-              <label htmlFor="f-fecha-acto">Fecha de aprobación</label>
-              <input id="f-fecha-acto" className="entrada" type="date" value={fechaActo} required={!!acto.trim()}
-                     onChange={(e) => setFechaActo(e.target.value)} />
-            </div>
-            <div className="campo">
-              <label htmlFor="f-desde">Rige desde</label>
-              <input id="f-desde" className="entrada" type="date" value={desde} required={!!acto.trim()}
-                     onChange={(e) => setDesde(e.target.value)} />
-            </div>
-          </div>
-          <div className="acciones">
-            <button className="boton primario" type="submit">Siguiente: el cuadro de clasificación</button>
-            {!alCrear && <button className="boton" type="button" onClick={alTerminar}>Cancelar</button>}
-          </div>
-        </form>
-      )}
 
-      {paso === 1 && (
-        <>
-          <p className="meta">
-            El fondo se organiza desde su cuadro de clasificación: secciones (dependencias productoras), series,
-            subseries y tipos documentales, y, si los hay, los tiempos de retención y la disposición final de la TRD. Sirve
-            el archivo de la entidad tal como está (Excel, PDF con texto, Word, CSV o un .zip) o la plantilla del sistema. Si el fondo es histórico y no
-            tiene TRD, deje vacías las columnas de retención.
-          </p>
-          <div className="acciones">
-            <button type="button" className="boton chico" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
-              Descargar la plantilla Excel</button>
-            <label className="boton chico primario">
-              {ocupado ? "Leyendo…" : vista ? "Leer otro archivo" : "Leer el cuadro"}
-              <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
-                     onChange={async (e) => {
-                   const lista = Array.from(e.target.files || []); e.target.value = "";
-                   if (!lista.length) return;
-                   carga.empezar(lista);
-                   const a = await unoOVarios(lista, "TRD.zip"); if (a) leer(a);
-                 }} />
-            </label>
-          <PanelCarga estado={carga.estado} />
-          </div>
-          {vista && (
-            <div className="tabla-desplazable" style={{ marginTop: 10 }}>
-              <div className="meta">Vista previa · {vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas</div>
+          <details className="plegable" open={conProblemas > 0}>
+            <summary>{conProblemas > 0 ? `Revise las filas (${conProblemas} con problemas no se crearán si no las marca)`
+              : "Ver las filas leídas"}</summary>
+            <div className="tabla-desplazable">
+              <div className="meta">{vista.origen}</div>
               <TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={setIncluir} />
             </div>
-          )}
-          <div className="acciones">
-            <button type="button" className="boton primario" disabled={ocupado || !incluir.size} onClick={validar}>
-              {ocupado ? "Validando…" : "Siguiente: validar en RiC-O"}</button>
-            <button type="button" className="boton" onClick={() => setPaso(0)}>Atrás</button>
-          </div>
-        </>
-      )}
+          </details>
 
-      {paso >= 2 && prueba && (
-        <>
-          <p className="meta">
-            Así quedaría «{titulo}» en RiC-O 1.1: {Object.entries(prueba.informe.creados).map(([k, v]) => `${v} ${NOMBRE[k] || k}`).join(", ")};
-            {" "}{prueba.informe.reglas} regla(s) de retención; {prueba.informe.tipos_documentales} tipo(s) documental(es).
-            Todavía no se ha creado nada.
-          </p>
-          <ResultadoValidacion v={prueba.validacion} />
+          <details className="plegable">
+            <summary>La TRD ya está aprobada (opcional)</summary>
+            <p className="meta">Con el acto, el fondo nace con la versión 1 vigente. Sin él, queda en borrador.</p>
+            <div className="rejilla">
+              <div className="campo">
+                <label htmlFor="f-acto">Acto que la aprueba</label>
+                <input id="f-acto" className="entrada" value={acto} placeholder="Resolución 045"
+                       onChange={(e) => setActo(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label htmlFor="f-fecha-acto">Fecha de aprobación</label>
+                <input id="f-fecha-acto" className="entrada" type="date" value={fechaActo}
+                       onChange={(e) => setFechaActo(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label htmlFor="f-desde">Rige desde</label>
+                <input id="f-desde" className="entrada" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              </div>
+            </div>
+          </details>
+
+          {rechazo && <ResultadoValidacion v={rechazo.validacion} />}
+
           <div className="acciones">
-            <button type="button" className="boton primario" disabled={ocupado || !prueba.validacion.conforme} onClick={crear}>
-              {ocupado ? "Creando…" : "Crear el fondo con su cuadro"}</button>
-            <button type="button" className="boton" onClick={() => setPaso(1)}>Atrás</button>
+            <button type="button" className="boton primario"
+                    disabled={ocupado || !incluir.size || titulo.trim().length < 3 || faltaActo} onClick={crear}>
+              {ocupado ? "Creando…" : `Crear el fondo con ${incluir.size} fila(s)`}</button>
+            {!alCrear && <button className="boton" type="button" onClick={alTerminar}>Cancelar</button>}
           </div>
+          {titulo.trim().length < 3 && <p className="meta">Escriba el nombre del fondo para poder crearlo.</p>}
+          {faltaActo && <p className="meta">Si registra el acto, ponga también su fecha y desde cuándo rige.</p>}
+          <p className="meta">Antes de crear, el sistema valida todo en RiC-O 1.1; si algo no cumple, no se crea nada.</p>
         </>
       )}
     </div>

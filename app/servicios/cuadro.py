@@ -601,6 +601,12 @@ def _columnas_libres(top: list[str], sub: list[str] | None) -> dict:
         arriba = celda if _n(celda) else (arriba if sub else "")
         abajo = sub[j] if sub and j < len(sub) else ""
         clases.append(_clase_columna(celda or arriba, abajo))
+    # Una «S» suelta entre las columnas de la disposición final (CT, E, S, M) es «selección»,
+    # no el código de la serie.
+    for j, clase in enumerate(clases):
+        vecinas = {clases[k] for k in (j - 1, j + 1) if 0 <= k < len(clases)}
+        if clase == "codigo_serie" and _n(top[j] or "").strip(" :./") == "s" and vecinas & {"ct", "e", "m"}:
+            clases[j] = "s"
     for j, clase in enumerate(clases):
         if clase == "codigo":
             # Un «CÓDIGO» suelto es del nombre que lo antecede (dependencia, serie o subserie);
@@ -729,6 +735,26 @@ def _desde_tabla(hojas: list[list[list[str]]]) -> list[FilaCuadro]:
     return salida
 
 
+_ETIQUETA_ENTIDAD = re.compile(r"^\s*(nombre\s+de\s+la\s+)?entidad(\s+productora)?\s*[:.\-]?\s*(?P<resto>.*)$", re.I)
+
+
+def _entidad(hojas: list | None) -> str | None:
+    """El nombre de la entidad que trae el encabezado de la TRD o del CCD («ENTIDAD: …»), para
+    proponerlo como nombre del fondo. La persona lo confirma; si no aparece, no se inventa."""
+    for hoja in hojas or []:
+        for fila in hoja[:20]:
+            celdas = [str(c or "").strip() for c in fila]
+            for i, c in enumerate(celdas):
+                m = _ETIQUETA_ENTIDAD.match(c)
+                if not m:
+                    continue
+                valor = m.group("resto").strip() or next((x for x in celdas[i + 1:] if x), "")
+                valor = re.sub(r"\s+", " ", valor).strip(" :.-")
+                if 3 <= len(valor) <= 250 and not _ETIQUETA_ENTIDAD.match(valor):
+                    return valor
+    return None
+
+
 def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> tuple[list[FilaCuadro], str]:
     """Las filas del CCD o la TRD. Si se pasa `informe`, deja en informe["archivos"] el resultado de
     cada archivo (leído o no, cuántas filas y por qué no), para mostrarlo a la persona."""
@@ -759,6 +785,8 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
                 if not de_la_parte and not con_ia:
                     raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga "
                                       "un encabezado con «Serie», o use la plantilla del sistema.")
+                if not informe.get("entidad"):
+                    informe["entidad"] = _entidad(hojas)
                 for f in de_la_parte:
                     f.parte = corto
                 filas += de_la_parte
@@ -789,6 +817,7 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
         if not (nombre.endswith(".pdf") and trd_ia.disponible()):
             raise
         hojas = []
+    informe["entidad"] = _entidad(hojas)
     try:
         filas, forma = _interpretar_hojas(hojas)
     except ErrorCuadro:
@@ -851,6 +880,8 @@ def vista_previa(contenido: bytes, archivo: str) -> dict:
     return {"origen": origen, "filas": [f.a_dict() for f in filas],
             # Resultado de cada archivo subido (leído, sin tabla o sin texto), para mostrarlo uno por uno.
             "archivos": informe.get("archivos", []),
+            # El nombre de la entidad leído del encabezado («ENTIDAD: …»): se propone como nombre del fondo.
+            "entidad": informe.get("entidad"),
             # En un .zip, cada archivo con lo que parece ser (CCD, TRD o TVD): la persona lo confirma.
             "partes": _partes(filas),
             "resumen": {"filas": len(filas), "con_problemas": sum(1 for f in filas if f.problemas),
