@@ -383,6 +383,7 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
     except Exception as exc:  # noqa: BLE001
         raise ErrorCuadro(f"No se pudo abrir el PDF ({exc}).") from exc
     filas: list[list[str]] = []
+    hay_texto = False
     with pdf:
         for n_pagina, pagina in enumerate(pdf.pages):
             texto = pagina.extract_text() or ""
@@ -400,13 +401,20 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
                     codigo = m.group(1).strip(" .")
             if nombre:
                 filas.append(["__dependencia__", codigo or "", nombre])
-            for tabla in pagina.extract_tables():
+            tablas = pagina.extract_tables()
+            if not tablas and texto.strip():
+                # Tabla sin líneas dibujadas: las columnas se reconocen por cómo se alinea el texto.
+                tablas = pagina.extract_tables({"vertical_strategy": "text", "horizontal_strategy": "text"})
+            hay_texto = hay_texto or bool(texto.strip())
+            for tabla in tablas:
                 filas += [[_enderezar("" if c is None else str(c).strip()) for c in fila] for fila in tabla]
             # Suelta lo que la página guardó en memoria: una TRD de cientos de páginas no llena el servidor.
             pagina.close()
     if not any(len(f) > 1 and f[0] != "__dependencia__" for f in filas):
-        raise ErrorCuadro("El PDF no tiene tablas con texto: parece escaneado (una imagen). Pida la TRD en Excel o en "
-                          "PDF generado desde el original, o pásela a la plantilla del sistema.")
+        if hay_texto:
+            raise ErrorCuadro("El PDF trae texto, pero no se encontró una tabla en él. Súbalo en Excel o pase la TRD "
+                              "a la plantilla del sistema.")
+        raise ErrorCuadro(SIN_TEXTO)
     return [filas]
 
 
@@ -810,6 +818,15 @@ def _entidad(hojas: list | None) -> str | None:
     return None
 
 
+def _motivo_corto(a: dict) -> str:
+    m = a.get("motivo") or ""
+    if a.get("estado") == "sin_leer" and (not m or m == SIN_TEXTO or "escaneado" in m):
+        return "sin texto (parece escaneado, una imagen)"
+    if "columna de la serie" in m:
+        return "trae texto, pero no se reconoció la columna «Serie» del encabezado"
+    return _motivo_legible(m) or "no se pudo leer"
+
+
 def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> tuple[list[FilaCuadro], str]:
     """Las filas del CCD o la TRD. Si se pasa `informe`, deja en informe["archivos"] el resultado de
     cada archivo (leído o no, cuántas filas y por qué no), para mostrarlo a la persona."""
@@ -856,8 +873,10 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
                                  "con_problemas": 0,
                                  "motivo": (_motivo_legible(motivos.get(parte)) or SIN_TEXTO) if sin_texto else str(exc)})
         if not filas:
-            raise ErrorCuadro("Ningún archivo del .zip tiene una tabla de CCD o TRD reconocible (" +
-                              ", ".join(p.rsplit("/", 1)[-1] for p in sin_leer[:5]) + ").")
+            # Cada archivo con su motivo: sin texto (escaneado) no es lo mismo que una tabla que no se reconoce.
+            motivos_cortos = [f"{a['archivo']}: {_motivo_corto(a)}" for a in archivos[:4]]
+            mas = f" (y {len(archivos) - 4} más)" if len(archivos) > 4 else ""
+            raise ErrorCuadro("Ningún archivo tiene una tabla de CCD o TRD reconocible. " + " · ".join(motivos_cortos) + mas)
         # Cada archivo numera sus filas desde el principio: en el .zip la fila 2 de una dependencia y la de otra
         # deben poder marcarse por separado, así que se numeran de corrido (el archivo queda en `parte`).
         if len({f.fila for f in filas}) < len(filas):

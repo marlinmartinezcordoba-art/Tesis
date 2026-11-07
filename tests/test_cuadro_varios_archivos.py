@@ -146,3 +146,21 @@ def test_enderezar_solo_toca_encabezados_al_reves():
     assert _enderezar("Actas de Comité Directivo") == "Actas de Comité Directivo"
     assert _enderezar("SERIE") == "SERIE"
     assert _enderezar("2") == "2"
+
+
+def test_si_ningun_archivo_se_lee_dice_el_motivo_de_cada_uno():
+    """Cuando nada se lee, el aviso dice por qué cada archivo falló: escaneado no es lo mismo que una tabla sin «Serie»."""
+    import io
+    import zipfile
+
+    import pytest
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("otra.csv", "Lo que sea,Otra cosa\nuno,dos\n")
+        z.writestr("roto.pdf", "%PDF-1.4 nada")
+    with pytest.raises(cuadro.ErrorCuadro) as exc:
+        cuadro.vista_previa(buf.getvalue(), "TRD.zip")
+    texto = str(exc.value)
+    assert "otra.csv: trae texto, pero no se reconoció la columna «Serie»" in texto
+    assert "roto.pdf: No se pudo abrir el PDF" in texto
