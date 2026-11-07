@@ -1822,3 +1822,7 @@ body {
 .plegable { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--surface); }
 .plegable summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .plegable[open] summary { margin-bottom: 8px; }
+
+/* Resultado de la carga archivo por archivo: altura fija con desplazamiento (paquetes de 100 archivos o más). */
+.panel-carga .tabla-desplazable { max-height: 280px; overflow-y: auto; }
+.panel-carga .tabla-carga thead th { position: sticky; top: 0; z-index: 1; }

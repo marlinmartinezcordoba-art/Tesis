@@ -46,6 +46,23 @@ class VistaPreviaCuadro(BaseModel):
     resumen: dict[str, int]
 
 
+class LecturaCuadro(BaseModel):
+    """Avance de una lectura en segundo plano: cuántos archivos van y cuántos faltan."""
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    estado: str  # leyendo | listo | error
+    hechos: int
+    total: int
+    faltan: int
+    actual: str | None
+    archivos: list[dict[str, Any]]
+    segundos: int
+    error: str | None
+    codigo: int | None
+    resultado: dict[str, Any] | None  # la vista previa, cuando termina
+
+
 class InformeCuadro(BaseModel):
     """Lo que se creó, lo que ya existía y los avisos."""
     model_config = ConfigDict(extra="allow")

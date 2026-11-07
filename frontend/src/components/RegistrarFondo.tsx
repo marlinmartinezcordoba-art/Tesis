@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { unoOVarios } from "@/lib/zip";
-import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
+import { PanelCarga, leerConAvance, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { useFondo, type Fondo } from "@/lib/fondo";
 import { ResultadoValidacion, TablaVistaPrevia, type Informe, type Validacion, type Vista } from "@/components/CuadroClasificacion";
@@ -93,11 +93,9 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
     carga.empezar(lista);
     const archivo = await unoOVarios(lista, "TRD.zip");
     if (!archivo) return;
-    const datos = new FormData();
-    datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<VistaLeida>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      const v = await leerConAvance<VistaLeida>(archivo, carga);
       // Tras volver al módulo, la lectura guardada no tiene sus archivos: lo nuevo se le suma.
       const final = !reemplazar && vista && !subidos.length ? unir(vista, v) : v;
       carga.terminar(final.archivos);

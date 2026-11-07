@@ -61,6 +61,38 @@ async def vista_previa(request: Request, actor: Actor = Depends(solo_administrad
     return {**vista, "original": {k: original[k] for k in ("huella", "archivo", "tamano")}}
 
 
+@router.post("/lecturas", status_code=202, response_model=rc.LecturaCuadro,
+             summary="Empezar a leer en segundo plano un CCD, una TRD o una TVD (uno o varios archivos en un .zip)")
+async def empezar_lectura(request: Request, actor: Actor = Depends(solo_administrador)):
+    """Como la vista previa, pero la lectura corre aparte: la pantalla consulta su avance
+    (cuántos archivos van, cuántos faltan y cuál se lee) con GET /lecturas/{id}."""
+    from app.servicios import lecturas_cuadro
+
+    formulario = await request.form(max_files=1)
+    try:
+        archivo = formulario.get("archivo")
+        if not isinstance(archivo, StarletteUploadFile):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
+        contenido = await archivo.read(3 * cuadro.MAX_BYTES + 1)
+        nombre = archivo.filename or ""
+    finally:
+        await formulario.close()
+    if not contenido:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="El archivo está vacío.")
+    return lecturas_cuadro.empezar(contenido, nombre, actor.id)
+
+
+@router.get("/lecturas/{lectura_id}", response_model=rc.LecturaCuadro,
+            summary="Avance de una lectura: archivos leídos, los que faltan y, al terminar, la vista previa")
+def avance_lectura(lectura_id: str, actor: Actor = Depends(solo_administrador)):
+    from app.servicios import lecturas_cuadro
+
+    e = lecturas_cuadro.consultar(lectura_id, actor.id)
+    if e is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Esa lectura ya no existe: vuelva a subir los archivos.")
+    return e
+
+
 class AplicarIn(BaseModel):
     fondo_id: uuid.UUID
     filas: list[dict] = Field(min_length=1, max_length=3000)

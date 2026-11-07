@@ -299,7 +299,7 @@ def _motivo_legible(motivo: str | None) -> str | None:
     return re.sub(r"\s*\([^)]*\)", "", motivo).strip() or motivo
 
 
-def _filas_zip(contenido: bytes, motivos: dict | None = None, contenidos: dict | None = None
+def _filas_zip(contenido: bytes, motivos: dict | None = None, contenidos: dict | None = None, leer: bool = True
                ) -> list[tuple[str, list[list[list[str]]]]]:
     """Una TRD que se publica en un .zip (una tabla por dependencia): se leen
     todos los archivos que el sistema entiende, en orden de nombre."""
@@ -323,7 +323,8 @@ def _filas_zip(contenido: bytes, motivos: dict | None = None, contenidos: dict |
             datos = paquete.read(info)
             if contenidos is not None:
                 contenidos[nombre] = datos
-            salida.append((nombre, _hojas(datos, nombre)))
+            # Sin «leer», solo se listan: las hojas se leen después, una por una, para informar el avance.
+            salida.append((nombre, _hojas(datos, nombre) if leer else []))
         except ErrorCuadro as exc:
             salida.append((nombre, []))  # se informa como no leído
             if motivos is not None:
@@ -827,7 +828,8 @@ def _motivo_corto(a: dict) -> str:
     return _motivo_legible(m) or "no se pudo leer"
 
 
-def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> tuple[list[FilaCuadro], str]:
+def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
+                avance=None) -> tuple[list[FilaCuadro], str]:
     """Las filas del CCD o la TRD. Si se pasa `informe`, deja en informe["archivos"] el resultado de
     cada archivo (leído o no, cuántas filas y por qué no), para mostrarlo a la persona."""
     if informe is None:
@@ -841,11 +843,18 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
     if nombre.endswith(".zip"):
         motivos: dict[str, str] = {}
         contenidos: dict[str, bytes] = {}
-        partes = _filas_zip(contenido, motivos, contenidos)
+        partes = _filas_zip(contenido, motivos, contenidos, leer=False)
         filas, leidos, sin_leer = [], [], []
         archivos = informe.setdefault("archivos", [])
-        for parte, hojas in partes:
+        for n, (parte, _) in enumerate(partes):
             corto = parte.rsplit("/", 1)[-1][:300]
+            if avance:
+                avance(n, len(partes), corto, archivos)
+            try:
+                hojas = _hojas(contenidos[parte], parte)
+            except ErrorCuadro as exc:
+                hojas = []
+                motivos[parte] = str(exc)
             try:
                 try:
                     de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
@@ -872,6 +881,8 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None) -> 
                 archivos.append({"archivo": corto, "estado": "sin_leer" if sin_texto else "sin_tabla", "filas": 0,
                                  "con_problemas": 0,
                                  "motivo": (_motivo_legible(motivos.get(parte)) or SIN_TEXTO) if sin_texto else str(exc)})
+        if avance:
+            avance(len(partes), len(partes), None, archivos)
         if not filas:
             # Cada archivo con su motivo: sin texto (escaneado) no es lo mismo que una tabla que no se reconoce.
             motivos_cortos = [f"{a['archivo']}: {_motivo_corto(a)}" for a in archivos[:4]]
@@ -954,9 +965,15 @@ def _partes(filas: list[FilaCuadro]) -> list[dict]:
             for nombre, lista in grupos.items()]
 
 
-def vista_previa(contenido: bytes, archivo: str) -> dict:
+def vista_previa(contenido: bytes, archivo: str, avance=None) -> dict:
+    """Lo que se entendió del archivo. `avance(hechos, total, actual, archivos)` informa cada archivo
+    de un paquete mientras se lee, para mostrar cuántos van y cuántos faltan."""
     informe: dict = {}
-    filas, origen = interpretar(contenido, archivo, informe)
+    if avance:
+        avance(0, 1, archivo, [])
+    filas, origen = interpretar(contenido, archivo, informe, avance)
+    if avance and not archivo.lower().endswith(".zip"):
+        avance(1, 1, None, informe.get("archivos", []))
     return {"origen": origen, "filas": [f.a_dict() for f in filas],
             # Resultado de cada archivo subido (leído, sin tabla o sin texto), para mostrarlo uno por uno.
             "archivos": informe.get("archivos", []),

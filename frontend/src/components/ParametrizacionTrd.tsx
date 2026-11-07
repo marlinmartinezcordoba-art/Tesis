@@ -1,6 +1,6 @@
 import { confirmar } from "@/lib/dialogos";
 import { unoOVarios } from "@/lib/zip";
-import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
+import { PanelCarga, leerConAvance, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
@@ -164,11 +164,9 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
 
   async function leer(archivo: File) {
     setError("");
-    const datos = new FormData();
-    datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<Vista & { archivos?: ArchivoLeido[] }>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      const v = await leerConAvance<Vista & { archivos?: ArchivoLeido[] }>(archivo, carga);
       carga.terminar(v.archivos);
       setVista(v);
       setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));

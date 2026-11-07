@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { unoOVarios } from "@/lib/zip";
-import { PanelCarga, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
+import { PanelCarga, leerConAvance, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorAPI, descargar, pedir, subir } from "@/lib/api";
 import { confirmar } from "@/lib/dialogos";
@@ -78,11 +78,9 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
 
   async function leer(archivo: File) {
     setError("");
-    const datos = new FormData();
-    datos.append("archivo", archivo, archivo.name);
     setOcupado(true);
     try {
-      const v = await subir<VistaPaquete & { archivos?: ArchivoLeido[] }>("/api/cuadro/vista-previa", datos, carga.avanzar);
+      const v = await leerConAvance<VistaPaquete & { archivos?: ArchivoLeido[] }>(archivo, carga);
       carga.terminar(v.archivos);
       setVista(v);
       setRoles(Object.fromEntries((v.partes || []).map((x) => [x.archivo, x.sugerido])));
