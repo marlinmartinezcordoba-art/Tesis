@@ -53,8 +53,84 @@ def disponible() -> bool:
     return servicio_motor.motor_activo() is not None
 
 
+def _tesseract(imagen, *opciones: str, segundos: int = 120) -> str:
+    import os
+    import subprocess
+
+    from app.servicios.texto import ENTORNO_TESSERACT
+
+    try:
+        r = subprocess.run(["tesseract", str(imagen), "-", *opciones], capture_output=True, timeout=segundos,
+                           env=os.environ | ENTORNO_TESSERACT, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
+
+
+def _giro(imagen) -> int:
+    """Grados que hay que girar la página escaneada (0, 90, 180 o 270), según la detección de
+    orientación de Tesseract. Las TRD antiguas se escanean a menudo de lado."""
+    import re
+
+    salida = _tesseract(imagen, "--psm", "0", segundos=60)
+    m = re.search(r"Rotate:\s*(\d+)", salida)
+    return int(m.group(1)) % 360 if m else 0
+
+
+def _ocr_pdf(contenido: bytes) -> str:
+    """El texto de un PDF escaneado (imágenes sin texto). Cada página se endereza si vino de lado
+    y se lee conservando la disposición de las filas (cada fila de la tabla en su renglón, con
+    sus espacios), para que la IA pueda rearmar las columnas. Se lee una copia temporal: el
+    original no se modifica, así su huella y su autenticidad se conservan."""
+    import tempfile
+    from pathlib import Path
+
+    import pypdfium2 as pdfium
+
+    from app.core.config import settings
+
+    partes = []
+    documento = pdfium.PdfDocument(contenido)
+    try:
+        with tempfile.TemporaryDirectory(prefix="ricora-trd-ocr-") as tmp:
+            ruta = Path(tmp) / "pagina.png"
+            for i in range(len(documento)):
+                imagen = documento[i].render(scale=settings.dpi_ocr / 72, grayscale=True).to_pil()
+                imagen.save(ruta)
+                giro = _giro(ruta)
+                if giro:
+                    imagen.rotate(-giro, expand=True).save(ruta)
+                imagen.close()
+                texto = _tesseract(ruta, "-l", settings.idioma_ocr, "--psm", "6", "-c", "preserve_interword_spaces=1")
+                partes.append(f"[Página {i + 1}]\n{texto.strip()}")
+                if sum(len(x) for x in partes) > MAX_CARACTERES:
+                    break
+    finally:
+        documento.close()
+    return "\n\n".join(partes)
+
+
+def es_escaneado(contenido: bytes) -> bool:
+    """Si el PDF casi no trae texto: son imágenes y hay que pasarle OCR."""
+    import pdfplumber
+
+    try:
+        with pdfplumber.open(io.BytesIO(contenido)) as pdf:
+            paginas = len(pdf.pages) or 1
+            caracteres = 0
+            for p in pdf.pages:
+                caracteres += len((p.extract_text() or "").strip())
+                p.close()
+    except Exception:  # noqa: BLE001 — un PDF que ni se abre no es «escaneado»
+        return False
+    return caracteres < 40 * paginas
+
+
 def texto_de(contenido: bytes, nombre: str, hojas: list | None = None) -> str:
-    """El texto del archivo: el de cada página de un PDF; en Excel, Word o CSV, sus celdas por fila."""
+    """El texto del archivo: el de cada página de un PDF (con OCR si es escaneado); en Excel,
+    Word o CSV, sus celdas por fila."""
+    if nombre.lower().endswith(".pdf") and es_escaneado(contenido):
+        return _ocr_pdf(contenido)[:MAX_CARACTERES]
     if nombre.lower().endswith(".pdf"):
         import pdfplumber
 

@@ -164,3 +164,45 @@ def test_si_ningun_archivo_se_lee_dice_el_motivo_de_cada_uno():
     texto = str(exc.value)
     assert "otra.csv: trae texto, pero no se reconoció la columna «Serie»" in texto
     assert "roto.pdf: No se pudo abrir el PDF" in texto
+
+
+def test_pdf_escaneado_de_lado_se_lee_con_ocr_y_la_ia(monkeypatch):
+    """Un PDF escaneado (solo imagen, sin texto) y girado 90°, como muchas TRD antiguas: se endereza,
+    se le pasa OCR conservando las filas y la IA arma la tabla. El original no se modifica."""
+    import io
+    import shutil
+    import zipfile
+    from pathlib import Path
+
+    import pytest
+
+    from app.servicios import motor
+
+    if not shutil.which("tesseract"):
+        pytest.skip("Sin Tesseract en este equipo")
+    m = MotorFalso()
+    monkeypatch.setattr(motor, "motor_activo", lambda: m)
+    pdf = (Path(__file__).parent / "datos" / "trd_escaneada_de_lado.pdf").read_bytes()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("1000_TRD-V2_Despacho del Ministro.pdf", pdf)
+    v = cuadro.vista_previa(buf.getvalue(), "TRD.zip")
+    a = v["archivos"][0]
+    assert a["estado"] == "leido_ia" and a["filas"] == 2
+    assert "escaneado" in a["motivo"] and "OCR" in a["motivo"]
+    # A la IA le llegó el texto del OCR, enderezado y con la fila de la serie en su renglón.
+    assert "MINISTERIO DE AMBIENTE" in m.textos[0]
+    assert any("Actas de Comit" in linea and "1000" in linea for linea in m.textos[0].splitlines())
+
+
+def test_pdf_escaneado_sin_motor_explica_que_hacer(monkeypatch):
+    from pathlib import Path
+
+    import pytest
+
+    from app.servicios import motor
+
+    monkeypatch.setattr(motor, "motor_activo", lambda: None)
+    pdf = (Path(__file__).parent / "datos" / "trd_escaneada_de_lado.pdf").read_bytes()
+    with pytest.raises(cuadro.ErrorCuadro, match="OCR"):
+        cuadro.vista_previa(pdf, "TRD.pdf")

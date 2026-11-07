@@ -253,8 +253,10 @@ EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip")
 
 SIN_MOTOR = ("El formato de esta tabla no es el habitual. Con el motor de análisis activado, RICORA intenta leerla; "
              "sin él, pásela a la plantilla Excel del sistema.")
-SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto). Súbalo en Excel o use la "
-             "plantilla del sistema.")
+ESCANEADO_CON_IA = ("PDF escaneado: se leyó con OCR y la IA. Compare cada fila con el original, porque el OCR puede "
+                    "confundir letras y números.")
+SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto). Con el motor de análisis activado, "
+             "RICORA le pasa OCR y lo lee; sin él, súbalo en Excel o use la plantilla del sistema.")
 
 
 _SOSPECHOSO = re.compile(r"vigencia|tabla de retenci|tabla de valoraci|cuadro de clasificaci|\bsecci[oó]n\b|"
@@ -872,7 +874,9 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                 for f in de_la_parte:
                     f.parte = corto
                 filas += de_la_parte
-                (leidos if hojas else sin_leer).append(parte)
+                (leidos if hojas or con_ia else sin_leer).append(parte)
+                if con_ia and not hojas:
+                    aviso_ia = ESCANEADO_CON_IA
                 archivos.append({"archivo": corto, "estado": "leido_ia" if con_ia else "leido", "filas": len(de_la_parte),
                                  "con_problemas": sum(1 for f in de_la_parte if f.problemas), "motivo": aviso_ia})
             except ErrorCuadro as exc:
