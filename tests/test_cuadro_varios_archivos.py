@@ -118,3 +118,31 @@ def test_en_el_zip_cada_fila_tiene_su_numero_aunque_los_archivos_repitan():
     filas = cuadro.vista_previa(buf.getvalue(), "TRD.zip")["filas"]
     assert len({f["fila"] for f in filas}) == 2
     assert {f["parte"] for f in filas} == {"a.csv", "b.csv"}
+
+
+def test_trd_en_pdf_con_el_encabezado_en_vertical():
+    """Una TRD en PDF con el encabezado girado 90° (sale al revés: «EIRES», «OGIDÓC», «TC»), los nombres completos
+    en la fila de abajo («DEPENDENCIA», «ARCHIVO GESTIÓN») y palabras partidas («RETENCI/ÓN»): se lee completa."""
+    from pathlib import Path
+
+    contenido = (Path(__file__).parent / "datos" / "trd_encabezado_vertical.pdf").read_bytes()
+    v = cuadro.vista_previa(contenido, "1000_TRD-V2_Despacho del Ministro.pdf")
+    assert v["entidad"] == "MINISTERIO DE AMBIENTE Y DESARROLLO SOSTENIBLE"
+    filas = v["filas"]
+    assert [(f["serie"]["nombre"], f["subserie"]["nombre"]) for f in filas] == [
+        ("ACTAS", "Actas de Comité Directivo"), ("INFORMES", "Informes de Gestión")]
+    assert {f["seccion"]["nombre"] for f in filas} == {"DESPACHO DEL MINISTRO"}
+    assert [(f["gestion"], f["central"], f["disposicion"]) for f in filas] == [(2, 8, "ct"), (2, 5, "s")]
+    assert filas[0]["tipos"] == ["Acta", "Citación"]
+    assert not any(f["problemas"] for f in filas)
+
+
+def test_enderezar_solo_toca_encabezados_al_reves():
+    from app.servicios.cuadro import _enderezar
+
+    assert _enderezar("EIRES") == "SERIE"
+    assert _enderezar("NÓITSEG\nOVIHCRA") == "ARCHIVO\nGESTIÓN"
+    assert _enderezar("TC") == "CT"
+    assert _enderezar("Actas de Comité Directivo") == "Actas de Comité Directivo"
+    assert _enderezar("SERIE") == "SERIE"
+    assert _enderezar("2") == "2"

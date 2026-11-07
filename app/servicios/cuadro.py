@@ -348,8 +348,29 @@ def _hojas(contenido: bytes, nombre: str) -> list[list[list[str]]]:
     raise ErrorCuadro("Formatos que se leen: Excel (.xlsx), PDF con texto, Word (.docx), CSV o un .zip con ellos.")
 
 
-DEPENDENCIA = re.compile(r"dependencia(?:\s+productora)?\s*[:.]?\s*(.+)", re.I)
+DEPENDENCIA = re.compile(r"(?:dependencia(?:\s+productora)?\s*[:.]?|(?:oficina|unidad\s+administrativa)"
+                         r"(?:\s+productora)?\s*[:.])\s*(.+)", re.I)
 CODIGO_DEP = re.compile(r"c[oó]digo(?:\s+(?:de\s+la\s+)?dependencia)?\s*[:.]?\s*([0-9][\w.\-]*)", re.I)
+
+
+# Muchas TRD en PDF traen el encabezado en vertical (girado 90°): al leerlo sale al revés
+# («EIRES», «OGIDÓC», «NÓITSEG\nOVIHCRA», «TC»). Esas celdas se enderezan antes de interpretar.
+_PALABRAS_ENCABEZADO = ("codigo", "serie", "subserie", "dependencia", "seccion", "subseccion", "archivo", "gestion",
+                        "central", "retencion", "disposicion", "tipos", "documental", "procedimiento", "oficina",
+                        "conservacion", "eliminacion", "seleccion", "medio tecnico", "digitaliz", "soporte", "productora")
+_CORTAS_ENCABEZADO = {"ct", "ag", "ac", "sb", "ss", "dt", "mt", "c.t.", "p", "el"}
+
+
+def _enderezar(celda: str) -> str:
+    if not celda or len(celda) > 120:
+        return celda
+    al_derecho, al_reves = _n(celda), _n(celda[::-1])
+    tiene = lambda t: any(p in t for p in _PALABRAS_ENCABEZADO)  # noqa: E731
+    if tiene(al_reves) and not tiene(al_derecho):
+        return celda[::-1]
+    if al_reves.strip(" .") in _CORTAS_ENCABEZADO and al_derecho.strip(" .") not in _CORTAS_ENCABEZADO:
+        return celda[::-1]
+    return celda
 
 
 def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
@@ -363,8 +384,14 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
         raise ErrorCuadro(f"No se pudo abrir el PDF ({exc}).") from exc
     filas: list[list[str]] = []
     with pdf:
-        for pagina in pdf.pages:
+        for n_pagina, pagina in enumerate(pdf.pages):
             texto = pagina.extract_text() or ""
+            if n_pagina == 0:
+                # «ENTIDAD: …» del encabezado, fuera de la tabla: se guarda para proponer el nombre del fondo.
+                for linea in texto.splitlines()[:15]:
+                    if _ETIQUETA_ENTIDAD.match(linea) and len(linea.split(":", 1)[-1].strip()) >= 3:
+                        filas.append([linea.strip()])
+                        break
             nombre = codigo = None
             for linea in texto.splitlines():
                 if nombre is None and (m := DEPENDENCIA.search(linea)):
@@ -374,10 +401,10 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
             if nombre:
                 filas.append(["__dependencia__", codigo or "", nombre])
             for tabla in pagina.extract_tables():
-                filas += [["" if c is None else str(c).strip() for c in fila] for fila in tabla]
+                filas += [[_enderezar("" if c is None else str(c).strip()) for c in fila] for fila in tabla]
             # Suelta lo que la página guardó en memoria: una TRD de cientos de páginas no llena el servidor.
             pagina.close()
-    if not any(f and f[0] != "__dependencia__" for f in filas):
+    if not any(len(f) > 1 and f[0] != "__dependencia__" for f in filas):
         raise ErrorCuadro("El PDF no tiene tablas con texto: parece escaneado (una imagen). Pida la TRD en Excel o en "
                           "PDF generado desde el original, o pásela a la plantilla del sistema.")
     return [filas]
@@ -419,17 +446,37 @@ def _desde_plantilla(filas: list[list[str]], cabecera: int) -> list[FilaCuadro]:
     return salida
 
 
+# En la fila de abajo del encabezado, algunas TRD escriben el nombre completo en vez de la sigla.
+CODIGO_LARGO = {"dependencia": "d", "seccion": "d", "oficina": "d", "oficina productora": "d", "serie": "s",
+                "subserie": "sb"}
+SIGLA_LARGA = {"archivo gestion": "ag", "archivo de gestion": "ag", "gestion": "ag", "archivo central": "ac",
+               "central": "ac", "conservacion total": "ct", "conservacion": "ct", "eliminacion": "e", "seleccion": "s",
+               "medio tecnico": "m", "microfilmacion": "m", "digitalizacion": "m"}
+
+
+def _encabezado(celda) -> str:
+    """El texto de una celda del encabezado, normalizado. En un PDF, las columnas angostas parten las
+    palabras («RETENCI\nÓN», «DIS\nPOS\nICIÓ\nN»): si así no se reconoce, se prueba sin los saltos."""
+    con, sin = _n(celda), _n(str(celda or "").replace("\n", ""))
+    tiene = lambda t: any(p in t for p in _PALABRAS_ENCABEZADO)  # noqa: E731
+    return sin if tiene(sin) and not tiene(con) else con
+
+
 def _columnas_agn(top: list[str], sub: list[str] | None) -> dict[str, int]:
     """Columnas del formato del AGN: el encabezado suele ocupar dos filas
     (CÓDIGO sobre D S Sb; RETENCIÓN sobre AG AC; DISPOSICIÓN FINAL sobre CT E M S)."""
     columnas, arriba = {}, ""
     for j, celda in enumerate(top):
-        arriba = _n(celda) or arriba  # celdas combinadas: el título sigue hacia la derecha
-        abajo = _n(sub[j]) if sub and j < len(sub) else ""
+        arriba = _encabezado(celda) or arriba  # celdas combinadas: el título sigue hacia la derecha
+        abajo = _encabezado(sub[j]) if sub and j < len(sub) else ""
         if "codigo" in arriba or arriba in ("d", "s", "sb"):
-            clave = {"d": "d", "dep": "d", "s": "s", "sb": "sb", "ss": "sb", "subs": "sb"}.get(abajo or arriba)
+            clave = {"d": "d", "dep": "d", "s": "s", "sb": "sb", "ss": "sb", "subs": "sb"}.get(abajo or arriba) \
+                or CODIGO_LARGO.get(abajo)
             columnas.setdefault(clave or "codigo", j)
-        elif "serie" in arriba:
+            continue
+        # «ARCHIVO GESTIÓN», «CONSERVACIÓN TOTAL»…: los nombres completos de la fila de abajo, en su sigla.
+        abajo = SIGLA_LARGA.get(abajo, abajo)
+        if "serie" in arriba:
             columnas.setdefault("texto", j)
         elif "retencion" in arriba or abajo in ("ag", "ac"):
             if abajo in ("ag", "ac"):
@@ -465,7 +512,8 @@ def _dependencia_en(fila: list[str]) -> Nodo | None:
 def _desde_agn(filas: list[list[str]], cabecera: int) -> list[FilaCuadro]:
     top = filas[cabecera]
     sub = filas[cabecera + 1] if cabecera + 1 < len(filas) else None
-    es_sub = sub is not None and any(_n(c) in ("d", "s", "sb", "ag", "ac", "ct", "e", "m") for c in sub)
+    es_sub = sub is not None and any(_encabezado(c) in ("d", "s", "sb", "ag", "ac", "ct", "e", "m")
+                                     or _encabezado(c) in SIGLA_LARGA or _encabezado(c) in CODIGO_LARGO for c in sub)
     col = _columnas_agn(top, sub if es_sub else None)
     if "texto" not in col:
         raise ErrorCuadro("No se encontró la columna «Series, subseries y tipos documentales».")
@@ -851,7 +899,7 @@ def _interpretar_hojas(hojas: list[list[list[str]]]) -> tuple[list[FilaCuadro], 
     plantilla = {_n(n) for n, _ in PLANTILLA}
     for filas in hojas:
         for i, fila in enumerate(filas[:60]):
-            celdas = {_n(c) for c in fila if c}
+            celdas = {_encabezado(c) for c in fila if c}
             # La plantilla del sistema: sus encabezados exactos, con «Sección (dependencia)».
             if {"serie", "codigo serie", "seccion (dependencia)"} <= celdas and len(celdas & plantilla) >= 4:
                 return _desde_plantilla(filas, i), "plantilla del sistema"
