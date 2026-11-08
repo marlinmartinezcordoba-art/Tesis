@@ -51,6 +51,9 @@ DEFINICIONES: dict[str, Definicion] = {
     "tipos_contenido_adicionales": Definicion([], _tipos_contenido,
                                               "Tipos de contenido que se agregan a los de RiC-CM (RiC-A10)."),
     "ingesta_limite_mb": Definicion(500, _entero_entre(1, 20000), "Tamaño máximo por archivo en la ingesta, en megabytes."),
+    "ingesta_copia_ocr": Definicion(True, lambda v: None if isinstance(v, bool) else "Debe ser verdadero o falso.",
+                                    "A lo que entra escaneado se le crea una copia en PDF con el OCR estampado "
+                                    "(el original no se modifica)."),
     "ingesta_umbral_ocr": Definicion(70, _entero_entre(0, 100),
                                      "Confianza mínima del OCR (sobre 100); por debajo, el documento se marca para "
                                      "leerlo con cuidado."),

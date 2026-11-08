@@ -177,6 +177,12 @@ def procesar(db: Session, instanciacion_id: uuid.UUID) -> None:
             inst.mecanismo_texto_id = mecanismos.obtener(db, inst.fondo_id, *programa).id
         umbral = int(parametros.leer(db, "ingesta_umbral_ocr"))
         inst.ocr_baja_confianza = t.confianza_ocr is not None and t.confianza_ocr < umbral
+        # 4 ter. Lo escaneado recibe una copia en PDF con el OCR estampado (buscable); el original no se toca.
+        if t.origen == "ocr":
+            _avance(db, inst, "texto", 100, "Estampando el OCR en una copia en PDF")
+            from app.servicios import copia_ocr
+
+            copia_ocr.crear_sin_detener(db, inst)
 
         # Listo: desde aquí lo muestra descripción, por su estado.
         inst.estado = "listo_para_descripcion"

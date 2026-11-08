@@ -108,6 +108,11 @@ def main() -> None:
                     log.info("Procesando %s", siguiente)
                     procesamiento.procesar(db, siguiente)
                     continue
+                # Sin nada nuevo: el OCR estampado de lo escaneado que entró antes (uno por vuelta).
+                from app.servicios import copia_ocr
+
+                if copia_ocr.una_pendiente(db):
+                    continue
         except (OperationalError, ProgrammingError) as exc:
             # Base de datos aún no disponible o migraciones pendientes.
             log.warning("Base de datos no disponible todavía: %s", type(exc).__name__)

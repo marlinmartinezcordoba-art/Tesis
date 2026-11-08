@@ -493,3 +493,50 @@ def test_reintento_recalcula_la_confianza(cliente, db, fondo, archivista):
     i = inst(db, r["id"])
     procesamiento.reiniciar(i)
     assert i.confianza_ocr is None and i.ocr_baja_confianza is False
+
+
+def test_lo_escaneado_recibe_una_copia_con_el_ocr_estampado(cliente, db, fondo, archivista):
+    """Un PDF escaneado: además de su texto, una copia en PDF con la capa de texto del OCR (buscable), derivada
+    del original (RiC-R014). El original no se modifica: conserva su huella."""
+    import pypdfium2 as pdfium
+
+    from app.models.descripcion import Relacion
+
+    contenido = archivos.pdf_escaneado()
+    [r] = cargar(cliente, archivista, fondo, ("escaneo_caja12.pdf", contenido))
+    procesamiento.procesar_pendientes(db)
+    original = inst(db, r["id"])
+    assert original.huella == hashlib.sha256(contenido).hexdigest()
+    assert almacen.ruta_absoluta(original.ruta).read_bytes() == contenido
+    copia = db.scalar(select(Instanciacion).where(Instanciacion.derivada_de_id == original.id))
+    assert copia is not None and copia.nombre_original == "escaneo_caja12 (con OCR).pdf"
+    assert copia.huella != original.huella and copia.formato_mime == "application/pdf"
+    # La copia trae la capa de texto: un lector de PDF la encuentra sin OCR.
+    texto_capa = pdfium.PdfDocument(str(almacen.ruta_absoluta(copia.ruta)))[0].get_textpage().get_text_range()
+    assert "ARCHIVO" in texto_capa.upper()
+    assert db.scalar(select(Relacion).where(Relacion.origen_id == original.id, Relacion.destino_id == copia.id,
+                                            Relacion.codigo_ric == "has_or_had_derived_instantiation"))
+    # Lo que ya trae texto no necesita copia.
+    [d] = cargar(cliente, archivista, fondo, ("oficio.pdf", archivos.pdf_con_texto()))
+    procesamiento.procesar_pendientes(db)
+    assert db.scalar(select(Instanciacion).where(Instanciacion.derivada_de_id == inst(db, d["id"]).id)) is None
+
+
+def test_lo_escaneado_que_entro_antes_tambien_recibe_su_copia(cliente, db, fondo, archivista):
+    from app.servicios import copia_ocr, parametros
+
+    parametros.cambiar(db, "ingesta_copia_ocr", False, archivista_id(db), "ingesta")
+    [r] = cargar(cliente, archivista, fondo, ("viejo.pdf", archivos.pdf_escaneado()))
+    procesamiento.procesar_pendientes(db)
+    original = inst(db, r["id"])
+    assert db.scalar(select(Instanciacion).where(Instanciacion.derivada_de_id == original.id)) is None
+    parametros.cambiar(db, "ingesta_copia_ocr", True, archivista_id(db), "ingesta")
+    assert copia_ocr.una_pendiente(db) is True
+    assert db.scalar(select(Instanciacion).where(Instanciacion.derivada_de_id == original.id)) is not None
+    assert copia_ocr.una_pendiente(db) is False  # ya no queda nada
+
+
+def archivista_id(db):
+    from app.models.usuario import Usuario
+
+    return db.scalars(select(Usuario.id)).first()
