@@ -257,8 +257,12 @@ SIN_MOTOR = ("El formato de esta tabla no es el habitual. Con el motor de análi
              "sin él, pásela a la plantilla Excel del sistema.")
 ESCANEADO_CON_IA = ("PDF escaneado: se leyó con OCR y la IA. Compare cada fila con el original, porque el OCR puede "
                     "confundir letras y números.")
-SIN_TEXTO = ("No se pudo leer: puede ser un PDF escaneado (una imagen, sin texto). Con el motor de análisis activado, "
-             "RICORA le pasa OCR y lo lee; sin él, súbalo en Excel o use la plantilla del sistema.")
+OCR_SIN_TABLA = ("PDF escaneado: se le pasó OCR, pero en su texto las reglas no reconocen las columnas de la tabla; "
+                 "las rearma el motor de análisis.")
+ESCANEADO_CON_OCR = ("PDF escaneado: se le estampó OCR y se leyó con las reglas. Compare cada fila con el original, "
+                     "porque el OCR puede confundir letras y números.")
+SIN_TEXTO = ("No se pudo leer: es un PDF escaneado y el OCR no sacó texto (la imagen puede estar muy borrosa, "
+             "en blanco o protegida). Súbalo con mejor resolución, en Excel o use la plantilla del sistema.")
 
 
 _SOSPECHOSO = re.compile(r"vigencia|tabla de retenci|tabla de valoraci|cuadro de clasificaci|\bsecci[oó]n\b|"
@@ -284,19 +288,25 @@ def _con_ia(contenido: bytes | None, nombre: str, hojas, filas: list["FilaCuadro
     from app.servicios import trd_ia
     from app.servicios.motor import MotorError
 
-    if contenido is None or not _lectura_floja(filas):
+    if contenido is None:
+        return filas, False, None
+    # Lo escaneado se leyó del OCR estampado: el OCR confunde letras y números, así que la IA (si la hay)
+    # también lo lee y se queda la lectura con más filas limpias.
+    escaneado = nombre.lower().endswith(".pdf") and trd_ia.es_escaneado(contenido)
+    aviso_ocr = (ESCANEADO_CON_OCR if filas else OCR_SIN_TABLA) if escaneado else None
+    if not escaneado and not _lectura_floja(filas):
         return filas, False, None
     if not trd_ia.disponible():
         # Solo se explica cuando no salió ninguna fila: si algo se leyó, la persona revisa las marcadas.
-        return filas, False, None if filas else SIN_MOTOR
+        return filas, False, aviso_ocr if filas else " ".join(x for x in (aviso_ocr, SIN_MOTOR) if x)
     try:
         leidas = trd_ia.extraer(contenido, nombre, hojas)
     except (MotorError, ErrorCuadro, Exception) as exc:  # noqa: BLE001 — sin motor se queda la lectura por reglas
-        return filas, False, f"El motor de análisis no pudo leerlo ({str(exc)[:120]})."
+        return filas, False, " ".join(x for x in (aviso_ocr, f"El motor de análisis no pudo leerlo ({str(exc)[:160]}).") if x)
     limpias = lambda xs: sum(1 for f in xs if not _sospechosa(f))  # noqa: E731
     if leidas and limpias(leidas) >= limpias(filas):
-        return leidas, True, None
-    return filas, False, None
+        return leidas, True, ESCANEADO_CON_IA if escaneado else None
+    return filas, False, aviso_ocr
 
 
 def _motivo_legible(motivo: str | None) -> str | None:
@@ -383,9 +393,10 @@ def _enderezar(celda: str) -> str:
     return celda
 
 
-def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
+def _filas_pdf(contenido: bytes, con_ocr: bool = False) -> list[list[list[str]]]:
     """Las tablas de cada página, con una fila marcadora de la dependencia
-    tomada del encabezado de la página («Dependencia productora: …», «Código: …»)."""
+    tomada del encabezado de la página («Dependencia productora: …», «Código: …»).
+    Un PDF escaneado (sin texto) recibe primero su OCR estampado y se lee esa copia."""
     import pdfplumber
 
     try:
@@ -420,7 +431,16 @@ def _filas_pdf(contenido: bytes) -> list[list[list[str]]]:
                 filas += [[_enderezar("" if c is None else str(c).strip()) for c in fila] for fila in tabla]
             # Suelta lo que la página guardó en memoria: una TRD de cientos de páginas no llena el servidor.
             pagina.close()
+    if not hay_texto and not con_ocr:
+        # Escaneado: se le estampa el OCR (en una copia; el original no cambia) y se lee con las mismas reglas.
+        from app.servicios import trd_ia
+
+        _, estampado = trd_ia.ocr_pdf(contenido)
+        if estampado:
+            return _filas_pdf(estampado, con_ocr=True)
     if not any(len(f) > 1 and f[0] != "__dependencia__" for f in filas):
+        if con_ocr and hay_texto:
+            raise ErrorCuadro(OCR_SIN_TABLA)
         if hay_texto:
             raise ErrorCuadro("El PDF trae texto, pero no se encontró una tabla en él. Súbalo en Excel o pase la TRD "
                               "a la plantilla del sistema.")
@@ -830,8 +850,12 @@ def _entidad(hojas: list | None) -> str | None:
 
 def _motivo_corto(a: dict) -> str:
     m = a.get("motivo") or ""
-    if a.get("estado") == "sin_leer" and (not m or m == SIN_TEXTO or "escaneado" in m):
-        return "sin texto (parece escaneado, una imagen)"
+    if "motor de análisis no pudo" in m:
+        return "escaneado, con OCR; la IA no pudo leerlo: " + m.split("no pudo leerlo", 1)[-1].strip(" ().")
+    if m.startswith(OCR_SIN_TABLA):
+        return "escaneado, con OCR, pero sin columnas reconocibles"
+    if a.get("estado") == "sin_leer" and (not m or m == SIN_TEXTO):
+        return "escaneado y el OCR no sacó texto"
     if "columna de la serie" in m:
         return "trae texto, pero no se reconoció la columna «Serie» del encabezado"
     return _motivo_legible(m) or "no se pudo leer"
@@ -888,6 +912,7 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
             except ErrorCuadro as exc:
                 hojas = []
                 motivos[parte] = str(exc)
+            aviso_ia = None
             try:
                 try:
                     de_la_parte = _interpretar_hojas(hojas)[0] if hojas else []
@@ -895,8 +920,10 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                     de_la_parte = []
                 de_la_parte, con_ia, aviso_ia = _con_ia(contenidos.get(parte), corto, hojas, de_la_parte)
                 if not de_la_parte and not hojas and not con_ia:
-                    raise ErrorCuadro(motivos.get(parte) or SIN_TEXTO)
+                    raise ErrorCuadro(" ".join(x for x in (_motivo_legible(motivos.get(parte)) or SIN_TEXTO, aviso_ia) if x))
                 if not de_la_parte and not con_ia:
+                    if aviso_ia and aviso_ia.startswith(OCR_SIN_TABLA):
+                        raise ErrorCuadro(aviso_ia)
                     raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga "
                                       "un encabezado con «Serie», o use la plantilla del sistema." +
                                       (f" {aviso_ia}" if aviso_ia else ""))
@@ -912,8 +939,6 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                     f.parte = corto
                 filas += de_la_parte
                 (leidos if hojas or con_ia else sin_leer).append(parte)
-                if con_ia and not hojas:
-                    aviso_ia = ESCANEADO_CON_IA
                 archivos.append({"archivo": corto, "estado": "leido_ia" if con_ia else "leido", "filas": len(de_la_parte),
                                  "con_problemas": sum(1 for f in de_la_parte if f.problemas), "motivo": aviso_ia})
             except ErrorCuadro as exc:
@@ -921,7 +946,8 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                 sin_texto = not hojas
                 archivos.append({"archivo": corto, "estado": "sin_leer" if sin_texto else "sin_tabla", "filas": 0,
                                  "con_problemas": 0,
-                                 "motivo": (_motivo_legible(motivos.get(parte)) or SIN_TEXTO) if sin_texto else str(exc)})
+                                 "motivo": str(exc) if sin_texto and aviso_ia else
+                                 (_motivo_legible(motivos.get(parte)) or SIN_TEXTO) if sin_texto else str(exc)})
         if avance:
             avance(len(partes), len(partes), None, archivos)
         if not filas:
@@ -956,6 +982,8 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
         filas, forma = [], ""
     _dependencia_del_archivo(filas, archivo.rsplit("/", 1)[-1])
     filas, con_ia, aviso_ia = _con_ia(contenido, archivo, hojas, filas)
+    if not filas and aviso_ia and aviso_ia.startswith(OCR_SIN_TABLA):
+        raise ErrorCuadro(aviso_ia)
     if not filas:
         raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga un encabezado "
                           "con «Serie» (y, si es una TRD, la retención y la disposición final), o use la plantilla del "

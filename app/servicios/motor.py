@@ -241,6 +241,17 @@ def entrada_de(documentos: list["Documento"], contexto: list["EntradaContexto"] 
             "contexto": [{"codigo": c.codigo, "id": c.id, "tipo": c.tipo, "nombre": c.nombre} for c in contexto or []]}
 
 
+def _espera_sugerida(texto: str) -> int | None:
+    """Los segundos que Gemini pide esperar ante el 429 («retryDelay": "37s"»)."""
+    m = re.search(r'"retryDelay"\s*:\s*"(\d+)(?:\.\d+)?s"', texto or "")
+    return int(m.group(1)) + 1 if m else None
+
+
+def _limite_diario(texto: str) -> bool:
+    """Si el 429 es por la cuota del día (no se arregla esperando unos segundos)."""
+    return bool(re.search(r"PerDay|per day|RequestsPerDay", texto or "", re.I))
+
+
 class MotorGemini:
     def __init__(self, clave: str, modelo: str):
         self.clave = clave
@@ -265,7 +276,8 @@ class MotorGemini:
             "generationConfig": {"temperature": TEMPERATURA, "responseMimeType": "application/json", "responseSchema": ESQUEMA},
         }
         try:
-            return json.loads(self._llamar(cuerpo))
+            # Se lee en segundo plano (un paquete de TRD): ante el límite por minuto se espera y se sigue.
+            return json.loads(self._llamar(cuerpo, paciente=True))
         except ValueError as exc:
             raise MotorError("La respuesta del motor no se pudo leer.") from exc
 
@@ -302,28 +314,37 @@ class MotorGemini:
             cuerpo["tools"] = [{"google_search": {}}]
         return self._llamar(cuerpo).strip()
 
-    def _llamar(self, cuerpo: dict) -> str:
+    def _llamar(self, cuerpo: dict, paciente: bool = False) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.modelo}:generateContent"
         # Un fallo pasajero (conexión, servicio saturado) se reintenta una vez; una espera
-        # agotada no, para no duplicar el tiempo que la persona mira la pantalla.
-        for intento in (1, 2):
+        # agotada no, para no duplicar el tiempo que la persona mira la pantalla. `paciente` (lectura en
+        # segundo plano de un paquete de TRD): el límite por minuto de la cuenta gratuita se espera el
+        # tiempo que indica Gemini (hasta un minuto, varias veces) en vez de dejar el archivo sin leer.
+        intentos = 5 if paciente else 2
+        for intento in range(1, intentos + 1):
             try:
                 r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": self.clave}, timeout=settings.segundos_motor)
             except httpx.TimeoutException as exc:
                 raise MotorError(f"El motor de análisis tardó más de {settings.segundos_motor} segundos (el documento "
                                  "puede ser muy largo o el servicio estar lento).") from exc
             except httpx.HTTPError as exc:
-                if intento == 1:
+                if intento < intentos:
                     time.sleep(3)
                     continue
                 raise MotorError("No hubo conexión con el motor de análisis.") from exc
-            if r.status_code in (429, 500, 502, 503, 504) and intento == 1:
-                log.warning("Gemini respondió %s; se reintenta una vez.", r.status_code)
-                time.sleep(3)
+            if r.status_code == 429 and _limite_diario(r.text):
+                break
+            if r.status_code in (429, 500, 502, 503, 504) and intento < intentos:
+                espera = min(60, _espera_sugerida(r.text) or (3 if not paciente else 15 * intento))
+                log.warning("Gemini respondió %s; se reintenta en %s s.", r.status_code, espera)
+                time.sleep(espera)
                 continue
             break
         if r.status_code != 200:
             log.warning("Gemini respondió %s: %s", r.status_code, r.text[:300])
+            if r.status_code == 429 and _limite_diario(r.text):
+                raise MotorError("El motor de análisis alcanzó su límite de uso del día (cuenta gratuita de Gemini): "
+                                 "se renueva mañana; lo leído hasta ahora se conserva.")
             if r.status_code == 429:
                 raise MotorError("El motor de análisis alcanzó su límite de uso por ahora.")
             raise MotorError(f"El motor de análisis respondió con un error ({r.status_code}).")

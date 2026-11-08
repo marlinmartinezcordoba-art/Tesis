@@ -278,3 +278,90 @@ def test_un_archivo_largo_se_envia_a_la_ia_por_tramos_de_paginas(monkeypatch):
     assert len(textos) > 3 and "[Página 10]" in textos[-1]
     assert len(filas) == len(textos)
     assert all(len(t) < 1300 for t in textos)
+
+
+def test_pdf_escaneado_cuando_falla_la_ia_dice_el_motivo_real(monkeypatch):
+    """Antes se perdía el motivo del motor y salía «puede ser un PDF escaneado» aunque el OCR sí se pasó."""
+    import io
+    import shutil
+    import zipfile
+    from pathlib import Path
+
+    import pytest
+
+    from app.servicios import motor
+
+    if not shutil.which("tesseract"):
+        pytest.skip("Sin Tesseract en este equipo")
+
+    class Agotado(MotorFalso):
+        def estructurar(self, instruccion, texto, esquema):
+            raise motor.MotorError("El motor de análisis alcanzó su límite de uso del día")
+
+    monkeypatch.setattr(motor, "motor_activo", lambda: Agotado())
+    pdf = (Path(__file__).parent / "datos" / "trd_escaneada_de_lado.pdf").read_bytes()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("1000_TRD.pdf", pdf)
+        z.writestr("buena.csv", "Código,Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,"
+                                "Procedimiento\n100,Despacho,1,Actas,,Acta,2,8,X,,,,C\n")
+    v = cuadro.vista_previa(buf.getvalue(), "TRD.zip")
+    a = next(x for x in v["archivos"] if x["archivo"] == "1000_TRD.pdf")
+    assert "límite de uso del día" in a["motivo"] and "OCR" in a["motivo"]
+
+
+def test_el_ocr_estampado_se_hace_una_sola_vez():
+    import shutil
+    from pathlib import Path
+
+    import pytest
+
+    from app.servicios import trd_ia
+
+    if not shutil.which("tesseract"):
+        pytest.skip("Sin Tesseract en este equipo")
+    pdf = (Path(__file__).parent / "datos" / "trd_escaneada_de_lado.pdf").read_bytes()
+    texto, estampado = trd_ia.ocr_pdf(pdf)
+    assert "MINISTERIO DE AMBIENTE" in texto
+    assert not trd_ia.es_escaneado(estampado)  # la copia ya trae su capa de texto
+    assert trd_ia.ocr_pdf(pdf) is trd_ia.ocr_pdf(pdf)
+
+
+def test_gemini_espera_el_limite_por_minuto_al_leer_una_trd(monkeypatch):
+    import json as _json
+
+    from app.core.config import settings
+    from app.servicios import motor
+
+    esperas, respuestas = [], [
+        (429, '{"error": {"details": [{"retryDelay": "20s"}]}}'),
+        (200, _json.dumps({"candidates": [{"content": {"parts": [{"text": '{"filas": []}'}]}}]}))]
+
+    class R:
+        def __init__(self, codigo, texto):
+            self.status_code, self.text = codigo, texto
+
+        def json(self):
+            return _json.loads(self.text)
+
+    monkeypatch.setattr(settings, "gemini_api_key", "x")
+    monkeypatch.setattr(motor.httpx, "post", lambda *a, **k: R(*respuestas.pop(0)))
+    monkeypatch.setattr(motor.time, "sleep", esperas.append)
+    assert motor.MotorGemini("x", "g").estructurar("i", "t", {}) == {"filas": []}
+    assert esperas == [21]
+
+
+def test_gemini_sin_cuota_del_dia_no_espera_en_vano(monkeypatch):
+    import pytest
+
+    from app.servicios import motor
+
+    class R:
+        status_code, text = 429, '{"error": {"details": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel"}]}}'
+
+    monkeypatch.setattr(motor.httpx, "post", lambda *a, **k: R())
+    esperas = []
+    monkeypatch.setattr(motor.time, "sleep", esperas.append)
+    with pytest.raises(motor.MotorError, match="del día"):
+        motor.MotorGemini("x", "g").estructurar("i", "t", {})
+    assert esperas == []

@@ -80,37 +80,73 @@ def _giro(imagen) -> int:
     return int(m.group(1)) % 360 if m else 0
 
 
-def _ocr_pdf(contenido: bytes) -> str:
-    """El texto de un PDF escaneado (imágenes sin texto). Cada página se endereza si vino de lado
-    y se lee conservando la disposición de las filas (cada fila de la tabla en su renglón, con
-    sus espacios), para que la IA pueda rearmar las columnas. Se lee una copia temporal: el
-    original no se modifica, así su huella y su autenticidad se conservan."""
+_CACHE_OCR: dict[str, tuple[str, bytes]] = {}
+
+
+def ocr_pdf(contenido: bytes) -> tuple[str, bytes]:
+    """El OCR de un PDF escaneado, en una sola pasada: su texto y una copia del PDF con el OCR
+    estampado (la imagen de cada página con su capa de texto). Cada página se endereza si vino de
+    lado y se lee conservando la disposición de las filas (cada fila de la tabla en su renglón, con
+    sus espacios). Con la copia estampada la lectura por reglas encuentra las columnas sin IA; con el
+    texto, la IA rearma lo que las reglas no sacan. El original no se modifica: su huella y su
+    autenticidad se conservan. Se recuerda el último resultado para no pasar el OCR dos veces."""
+    import hashlib
+    import os
+    import subprocess
     import tempfile
     from pathlib import Path
 
     import pypdfium2 as pdfium
 
     from app.core.config import settings
+    from app.servicios.texto import ENTORNO_TESSERACT
 
+    huella = hashlib.sha256(contenido).hexdigest()
+    if huella in _CACHE_OCR:
+        return _CACHE_OCR[huella]
     partes = []
     documento = pdfium.PdfDocument(contenido)
+    estampado = pdfium.PdfDocument.new()
     try:
         with tempfile.TemporaryDirectory(prefix="ricora-trd-ocr-") as tmp:
-            ruta = Path(tmp) / "pagina.png"
             for i in range(len(documento)):
+                ruta = Path(tmp) / f"p{i:05d}.png"
                 imagen = documento[i].render(scale=settings.dpi_ocr / 72, grayscale=True).to_pil()
                 imagen.save(ruta)
                 giro = _giro(ruta)
                 if giro:
                     imagen.rotate(-giro, expand=True).save(ruta)
                 imagen.close()
-                texto = _tesseract(ruta, "-l", settings.idioma_ocr, "--psm", "6", "-c", "preserve_interword_spaces=1")
+                base = Path(tmp) / f"p{i:05d}"
+                try:
+                    subprocess.run(["tesseract", str(ruta), str(base), "-l", settings.idioma_ocr, "--psm", "6",
+                                    "-c", "preserve_interword_spaces=1", "txt", "pdf"], capture_output=True,
+                                   timeout=180, env=os.environ | ENTORNO_TESSERACT, check=False)
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    pass
+                txt, pdf = base.with_suffix(".txt"), base.with_suffix(".pdf")
+                texto = txt.read_text("utf-8", "replace") if txt.exists() else ""
                 partes.append(f"[Página {i + 1}]\n{texto.strip()}")
+                if pdf.exists() and pdf.stat().st_size:
+                    pagina = pdfium.PdfDocument(str(pdf))
+                    estampado.import_pages(pagina)
+                    pagina.close()
                 if sum(len(x) for x in partes) > MAX_TEXTO:
                     break
+            salida = io.BytesIO()
+            if len(estampado):
+                estampado.save(salida)
     finally:
         documento.close()
-    return "\n\n".join(partes)
+        estampado.close()
+    resultado = ("\n\n".join(partes), salida.getvalue())
+    _CACHE_OCR.clear()  # solo el último: un paquete de cien TRD no llena la memoria
+    _CACHE_OCR[huella] = resultado
+    return resultado
+
+
+def _ocr_pdf(contenido: bytes) -> str:
+    return ocr_pdf(contenido)[0]
 
 
 def es_escaneado(contenido: bytes) -> bool:
