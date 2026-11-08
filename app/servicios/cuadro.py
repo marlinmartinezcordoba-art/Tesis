@@ -271,7 +271,10 @@ def _sospechosa(f: "FilaCuadro") -> bool:
 
 
 def _lectura_floja(filas: list["FilaCuadro"]) -> bool:
-    return not filas or sum(1 for f in filas if _sospechosa(f)) >= 0.3 * len(filas)
+    """La IA entra solo si las reglas no sacaron ni una fila limpia (PDF escaneado, formato muy distinto).
+    Si hay filas buenas, se queda la lectura por reglas, que tarda segundos: las filas dudosas (encabezados,
+    firmas) ya salen marcadas «con problemas» para que la persona las desmarque."""
+    return not any(not _sospechosa(f) for f in filas)
 
 
 def _con_ia(contenido: bytes | None, nombre: str, hojas, filas: list["FilaCuadro"]) -> tuple[list["FilaCuadro"], bool, str | None]:

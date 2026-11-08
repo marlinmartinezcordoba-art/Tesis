@@ -206,3 +206,18 @@ def test_pdf_escaneado_sin_motor_explica_que_hacer(monkeypatch):
     pdf = (Path(__file__).parent / "datos" / "trd_escaneada_de_lado.pdf").read_bytes()
     with pytest.raises(cuadro.ErrorCuadro, match="OCR"):
         cuadro.vista_previa(pdf, "TRD.pdf")
+
+
+def test_con_filas_buenas_no_se_llama_a_la_ia_y_es_rapido(monkeypatch):
+    """Como antes: si las reglas sacan filas buenas, la IA no entra (segundos, no minutos). La fila dudosa
+    queda marcada para que la persona la desmarque."""
+    from app.servicios import motor
+    m = MotorFalso()
+    monkeypatch.setattr(motor, "motor_activo", lambda: m)
+    csv = ("Código,Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,Procedimiento\n"
+           "100,Despacho,1,Actas,,Acta,2,8,X,,,,C\n"
+           "100,Despacho,2,Informes,,Informe,2,5,,,X,,S\n"
+           "100,Despacho,3,TABLA DE RETENCIÓN DOCUMENTAL Vigencia 2019,,,,,,,,,\n").encode("utf-8")
+    v = cuadro.vista_previa(csv, "TRD.csv")
+    assert v["archivos"][0]["estado"] == "leido"
+    assert not m.textos  # la IA no se consultó
