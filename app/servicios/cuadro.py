@@ -994,7 +994,8 @@ def _codigos_faltantes(filas: list[FilaCuadro]) -> None:
         if f.serie.codigo:
             series[seccion][_n(f.serie.nombre)] = f.serie.codigo
     for f in filas:
-        if f.serie is None:
+        # Una fila con problemas (p. ej. la misma serie con dos códigos distintos) la decide la persona.
+        if f.serie is None or f.problemas:
             continue
         seccion = (f.seccion.codigo if f.seccion else None, f.seccion.nombre if f.seccion else None)
         propias = series[seccion]
@@ -1009,7 +1010,7 @@ def _codigos_faltantes(filas: list[FilaCuadro]) -> None:
             subseries.setdefault((f.seccion.nombre if f.seccion else None, f.serie.codigo), {})[_n(f.subserie.nombre)] = \
                 f.subserie.codigo
     for f in filas:
-        if not (f.serie and f.subserie) or f.subserie.codigo:
+        if not (f.serie and f.subserie) or f.subserie.codigo or f.problemas or not f.serie.codigo:
             continue
         propias = subseries.setdefault((f.seccion.nombre if f.seccion else None, f.serie.codigo), {})
         if _n(f.subserie.nombre) not in propias:
