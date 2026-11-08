@@ -91,6 +91,8 @@ class FilaCuadro:
     soporte: str | None = None  # fisico | electronico | hibrido
     parte: str | None = None  # en un .zip, el archivo del que salió la fila (procedencia)
     problemas: list[str] = field(default_factory=list)
+    # Lo que RICORA completó y la persona debe verificar (no impide crear la fila).
+    avisos: list[str] = field(default_factory=list)
 
     def a_dict(self) -> dict:
         d = asdict(self)
@@ -972,6 +974,50 @@ def _partes(filas: list[FilaCuadro]) -> list[dict]:
             for nombre, lista in grupos.items()]
 
 
+AVISO_CODIGO = "Código {} asignado por RICORA (no venía en el archivo): verifíquelo con la TRD convalidada."
+
+
+def _codigos_faltantes(filas: list[FilaCuadro]) -> None:
+    """Muchas TRD, sobre todo las antiguas, no traen código en cada serie o subserie. Sin código no se
+    pueden guardar; en vez de rechazar todo el paquete, se numeran en orden dentro de su sección (la
+    serie) o de su serie (la subserie), y la fila lo avisa para que la persona lo verifique."""
+    def numero(c):
+        ultimo = re.split(r"[.\-\s]", c or "")[-1]
+        return int(ultimo) if ultimo.isdigit() else 0
+
+    series: dict[tuple, dict] = {}
+    for f in filas:
+        if f.serie is None:
+            continue
+        seccion = (f.seccion.codigo if f.seccion else None, f.seccion.nombre if f.seccion else None)
+        series.setdefault(seccion, {})
+        if f.serie.codigo:
+            series[seccion][_n(f.serie.nombre)] = f.serie.codigo
+    for f in filas:
+        if f.serie is None:
+            continue
+        seccion = (f.seccion.codigo if f.seccion else None, f.seccion.nombre if f.seccion else None)
+        propias = series[seccion]
+        if not f.serie.codigo:
+            if _n(f.serie.nombre) not in propias:
+                propias[_n(f.serie.nombre)] = str(max([numero(c) for c in propias.values()] or [0]) + 1)
+            f.serie = Nodo(propias[_n(f.serie.nombre)], f.serie.nombre)
+            f.avisos.append(AVISO_CODIGO.format(f"de la serie ({f.serie.codigo})"))
+    subseries: dict[tuple, dict] = {}
+    for f in filas:
+        if f.serie and f.subserie and f.subserie.codigo:
+            subseries.setdefault((f.seccion.nombre if f.seccion else None, f.serie.codigo), {})[_n(f.subserie.nombre)] = \
+                f.subserie.codigo
+    for f in filas:
+        if not (f.serie and f.subserie) or f.subserie.codigo:
+            continue
+        propias = subseries.setdefault((f.seccion.nombre if f.seccion else None, f.serie.codigo), {})
+        if _n(f.subserie.nombre) not in propias:
+            propias[_n(f.subserie.nombre)] = str(max([numero(c) for c in propias.values()] or [0]) + 1)
+        f.subserie = Nodo(propias[_n(f.subserie.nombre)], f.subserie.nombre)
+        f.avisos.append(AVISO_CODIGO.format(f"de la subserie ({f.subserie.codigo})"))
+
+
 def vista_previa(contenido: bytes, archivo: str, avance=None) -> dict:
     """Lo que se entendió del archivo. `avance(hechos, total, actual, archivos)` informa cada archivo
     de un paquete mientras se lee, para mostrar cuántos van y cuántos faltan."""
@@ -979,6 +1025,7 @@ def vista_previa(contenido: bytes, archivo: str, avance=None) -> dict:
     if avance:
         avance(0, 1, archivo, [])
     filas, origen = interpretar(contenido, archivo, informe, avance)
+    _codigos_faltantes(filas)
     if avance and not archivo.lower().endswith(".zip"):
         avance(1, 1, None, informe.get("archivos", []))
     return {"origen": origen, "filas": [f.a_dict() for f in filas],

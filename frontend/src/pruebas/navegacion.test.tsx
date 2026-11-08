@@ -59,17 +59,17 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
     expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("true");
     expect(submodulosVisibles("Instrumentos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
     expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
-    expect(pestanas()).toEqual(["Paso a paso", "Cuadro y versiones"]);
-    expect(pestanaActual()).toBe("Paso a paso");
+    expect(pestanas()).toEqual(["Cargar y aprobar", "Cuadro y versiones"]);
+    expect(pestanaActual()).toBe("Cargar y aprobar");
     cleanup();
     montar("/fondos?vista=ajustar");
-    expect(pestanaActual()).toBe("Paso a paso");
+    expect(pestanaActual()).toBe("Cargar y aprobar");
     cleanup();
     montar("/fondos?vista=cuadro");
     expect(pestanaActual()).toBe("Cuadro y versiones");
     cleanup();
     montar("/fondos?vista=fondos");
-    expect(pestanaActual()).toBe("Paso a paso");
+    expect(pestanaActual()).toBe("Cargar y aprobar");
   });
 
   it("un módulo sin submódulos muestra sus vistas como pestañas", () => {

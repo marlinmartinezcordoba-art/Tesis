@@ -221,3 +221,16 @@ def test_con_filas_buenas_no_se_llama_a_la_ia_y_es_rapido(monkeypatch):
     v = cuadro.vista_previa(csv, "TRD.csv")
     assert v["archivos"][0]["estado"] == "leido"
     assert not m.textos  # la IA no se consultó
+
+
+def test_subseries_sin_codigo_se_numeran_y_lo_avisan():
+    """TRD antiguas sin código en la subserie: RICORA las numera dentro de su serie y la fila lo avisa,
+    para que se puedan guardar todas y la persona verifique el código."""
+    csv = ("Código,Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,Procedimiento\n"
+           "1000,Despacho,2,Actas,Actas de comité,Acta,2,8,X,,,,C\n"
+           "1000,Despacho,2,Actas,Actas de junta,Acta,2,8,X,,,,C\n"
+           "1000,Despacho,,Informes,,Informe,2,5,,,X,,S\n").encode("utf-8")
+    filas = cuadro.vista_previa(csv, "TRD.csv")["filas"]
+    assert [f["codigos"]["subserie"] for f in filas[:2]] == ["1000.2.1", "1000.2.2"]
+    assert filas[2]["serie"]["codigo"] == "3" and "asignado por RICORA" in filas[2]["avisos"][0]
+    assert all(not f["problemas"] for f in filas)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { unoOVarios } from "@/lib/zip";
 import { PanelCarga, leerConAvance, useCarga, type ArchivoLeido } from "@/components/CargaArchivos";
 import { Link, useSearchParams } from "react-router-dom";
@@ -212,6 +212,7 @@ export function AsistenteTrd() {
   const [error, setError] = useState("");
   const [aplicada, setAplicada] = useState<Aplicacion | null>(null);
   const [otra, setOtra] = useState<"fondo" | "importar" | null>(null);
+  const revisado = useRef("");
   const esAdmin = !!usuario?.es_administrador;
   const abrir = parametros.get("vista");
 
@@ -265,15 +266,20 @@ export function AsistenteTrd() {
   const revisada = subido && !!revision && revision.version.id === borrador?.id && revision.validacion.conforme;
   const faltan = revision?.informe.faltan_para_aplicar || [];
   const datosCompletos = !!borrador?.acto_aprobacion && !!borrador?.fecha_aprobacion && !!borrador?.vigente_desde;
-  const e1: EstadoPaso = subido ? "hecho" : "ahora";
-  const e2: EstadoPaso = !subido ? "pendiente" : revisada ? "hecho" : "ahora";
-  const e3: EstadoPaso = subido ? "opcional" : "pendiente";
-  const e4: EstadoPaso = revisada ? "ahora" : "pendiente";
+  // Recién guardada la TRD, se revisa sola contra RiC-O (sin un botón «Revisar ahora»).
+  const clave = subido && borrador ? `${borrador.id}-${borrador.filas}` : "";
+  useEffect(() => {
+    if (clave && revisado.current !== clave && !ocupado) {
+      revisado.current = clave;
+      void revisar(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
 
   return (
     <>
       <h1>TRD y CCD</h1>
-      <p className="sub">La tabla de retención documental del fondo y su cuadro de clasificación, paso a paso.</p>
+      <p className="sub">La tabla de retención documental del fondo y su cuadro de clasificación.</p>
       {!esAdmin && <div className="aviso" role="note">Solo la administración carga y aprueba la TRD. Aquí puede ver cuál rige.</div>}
       {error && <div className="aviso error" role="alert">{error}</div>}
 
@@ -300,76 +306,83 @@ export function AsistenteTrd() {
           {esAdmin && versiones && (
             <>
               {!borrador && vigente && !aplicada && (
-                <p className="meta">¿La TRD cambió (nueva estructura, nuevas series, otros tiempos)? Prepare la versión nueva
-                  con los pasos siguientes. La que rige no cambia hasta que apruebe la nueva.</p>
+                <p className="meta">¿La TRD cambió (nueva estructura, nuevas series, otros tiempos)? Suba la versión nueva aquí.
+                  La que rige no cambia hasta que apruebe la nueva.</p>
               )}
-              <ol className="pasos">
-                <Paso n={1} titulo="Subir el archivo de la TRD" estado={e1}
-                      resumen={subido ? <>{borrador?.filas} serie(s) y subserie(s) guardadas en la {borrador?.nombre}.{" "}
-                        <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button>
-                        <Originales versionId={borrador!.id} /></> : undefined}>
-                  {!subido && <Subir fondoId={fondo.id} versionTrdId={borrador?.id || vigente?.id || null}
-                                     alTerminar={() => { setResubir(false); setRevision(null); cargar(); }} />}
-                </Paso>
+              {!subido && (
+                <div className="tarjeta"><div className="tarjeta-cuerpo">
+                  <Subir fondoId={fondo.id} versionTrdId={borrador?.id || vigente?.id || null}
+                         alTerminar={() => { setResubir(false); setRevision(null); revisado.current = ""; cargar(); }} />
+                </div></div>
+              )}
 
-                <Paso n={2} titulo="Revisar lo que leyó el sistema" estado={e2}
-                      resumen={revisada ? "Revisada: el cuadro cumple RiC-O 1.1." : undefined}>
-                  {subido && vigente && <ComparacionTrd key={`${borrador!.id}-${borrador!.filas}`} versionId={borrador!.id} />}
-                  {subido && <CotejoCcd versionId={borrador!.id} />}
-                  {!revisada && (
-                    <>
-                      <p>El sistema arma el cuadro de clasificación con lo que guardó y comprueba que esté completo y sea
-                        correcto (RiC-O 1.1). Si algo falla, le dice qué y dónde corregirlo.</p>
-                      <div className="acciones">
-                        <button type="button" className="boton primario" disabled={ocupado} onClick={() => revisar(false)}>
-                          {ocupado ? "Revisando…" : revision ? "Revisar de nuevo" : "Revisar ahora"}</button>
-                      </div>
-                    </>
-                  )}
-                  {revision && revision.version.id === borrador?.id && (
-                    <>
-                      <ResultadoValidacion v={revision.validacion} />
-                      {!!revision.informe.series_sin_funcion?.length && (
-                        <div className="aviso alerta">{revision.informe.series_sin_funcion.length} serie(s) sin la función
-                          que las produce. No impide aprobar; puede asignarla en el paso 3, «Retención por dependencia».</div>
-                      )}
-                      {revision.informe.avisos.length > 0 && <ul className="meta">{revision.informe.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
-                    </>
-                  )}
-                </Paso>
-
-                <Paso n={3} titulo="Corregir (solo si hace falta)" estado={e3}
-                      resumen="Lo que el archivo no traía bien se arregla aquí; después vuelva a revisar.">
-                  {CORRECCIONES.map(([clave, titulo, ayuda]) => (
-                    <details key={clave} className="seccion-ajuste tarjeta" open={abrir === clave}>
-                      <summary><strong>{titulo}</strong> <span className="meta">{ayuda}</span></summary>
-                      <div className="seccion-ajuste-cuerpo">
-                        {clave === "dependencias" ? <DependenciasTrd fondoId={fondo.id} incrustado />
-                          : clave === "series" ? <BancoTrd fondoId={fondo.id} incrustado />
-                          : <MatrizTrd fondoId={fondo.id} incrustado />}
-                      </div>
-                    </details>
-                  ))}
-                </Paso>
-
-                <Paso n={4} titulo="Aprobar y poner a regir" estado={e4}
-                      resumen={!revisada ? "Se habilita cuando la revisión del paso 2 sale bien." : undefined}>
-                  <p>Con el acto administrativo que la aprueba y la fecha desde la que rige. La versión que rige hoy pasa a
-                    histórica y se conserva.</p>
-                  <ul className="lista-control">
-                    <li className={borrador?.acto_aprobacion ? "bien" : ""}>Acto que la aprueba: {borrador?.acto_aprobacion || "falta"}</li>
-                    <li className={borrador?.fecha_aprobacion ? "bien" : ""}>Fecha del acto: {borrador?.fecha_aprobacion || "falta"}</li>
-                    <li className={borrador?.vigente_desde ? "bien" : ""}>Rige desde: {borrador?.vigente_desde || "falta"}</li>
-                  </ul>
-                  {faltan.length > 0 && <div className="aviso alerta">Falta {faltan.join(", ")}.</div>}
-                  <div className="acciones">
-                    <button type="button" className={`boton${datosCompletos ? "" : " primario"}`} onClick={() => setDatos(true)}>
-                      {datosCompletos ? "Corregir los datos de aprobación" : "Escribir los datos de aprobación"}</button>
-                    <button type="button" className="boton primario" disabled={ocupado || !datosCompletos} onClick={() => revisar(true)}>
-                      {ocupado ? "Aplicando…" : "Aprobar y poner a regir"}</button>
+              {subido && borrador && (
+                <div className="tarjeta">
+                  <div className="tarjeta-cab">{borrador.nombre} · {borrador.filas} serie(s) y subserie(s)</div>
+                  <div className="tarjeta-cuerpo">
+                    <p className="meta" style={{ marginTop: 0 }}>
+                      <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button>
+                      {" · "}<Originales versionId={borrador.id} /></p>
+                    {ocupado && !revision && <p className="meta">Revisando el cuadro contra RiC-O 1.1…</p>}
+                    {revision && revision.version.id === borrador.id && (
+                      <>
+                        <ResultadoValidacion v={revision.validacion} />
+                        {!!revision.informe.series_sin_funcion?.length && (
+                          <div className="aviso alerta">{revision.informe.series_sin_funcion.length} serie(s) sin la función
+                            que las produce. No impide aprobar; puede asignarla en «Corregir», «Retención por dependencia».</div>
+                        )}
+                        {revision.informe.avisos.length > 0 && <ul className="meta">{revision.informe.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
+                      </>
+                    )}
+                    <ul className="lista-control">
+                      <li className={borrador.acto_aprobacion ? "bien" : ""}>Acto que la aprueba: {borrador.acto_aprobacion || "falta"}</li>
+                      <li className={borrador.fecha_aprobacion ? "bien" : ""}>Fecha del acto: {borrador.fecha_aprobacion || "falta"}</li>
+                      <li className={borrador.vigente_desde ? "bien" : ""}>Rige desde: {borrador.vigente_desde || "falta"}</li>
+                    </ul>
+                    {faltan.length > 0 && <div className="aviso alerta">Falta {faltan.join(", ")}.</div>}
+                    <div className="acciones">
+                      <button type="button" className={`boton${datosCompletos ? "" : " primario"}`} onClick={() => setDatos(true)}>
+                        {datosCompletos ? "Corregir los datos de aprobación" : "Escribir los datos de aprobación"}</button>
+                      <button type="button" className="boton primario" disabled={ocupado || !datosCompletos || !revisada}
+                              onClick={() => revisar(true)}>{ocupado && revision ? "Aplicando…" : "Aprobar y poner a regir"}</button>
+                      {revision && !revisada && (
+                        <button type="button" className="boton" disabled={ocupado} onClick={() => revisar(false)}>Revisar de nuevo</button>)}
+                    </div>
+                    <p className="meta">La versión que rige hoy pasa a histórica y se conserva; cada expediente guarda la
+                      retención de la TRD con que se produjo.</p>
                   </div>
-                </Paso>
-              </ol>
+                </div>
+              )}
+
+              {subido && borrador && (
+                <details className="tarjeta otras-tareas" open={!!revision && !revisada}>
+                  <summary><strong>Corregir (opcional)</strong> <span className="meta">Dependencias, series y retención: lo que
+                    el archivo no traía bien. Después pulse «Revisar de nuevo».</span></summary>
+                  <div className="tarjeta-cuerpo">
+                    {CORRECCIONES.map(([clave, titulo, ayuda]) => (
+                      <details key={clave} className="seccion-ajuste tarjeta" open={abrir === clave}>
+                        <summary><strong>{titulo}</strong> <span className="meta">{ayuda}</span></summary>
+                        <div className="seccion-ajuste-cuerpo">
+                          {clave === "dependencias" ? <DependenciasTrd fondoId={fondo.id} incrustado />
+                            : clave === "series" ? <BancoTrd fondoId={fondo.id} incrustado />
+                            : <MatrizTrd fondoId={fondo.id} incrustado />}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {subido && borrador && (
+                <details className="tarjeta otras-tareas">
+                  <summary><strong>Cotejar (opcional)</strong> <span className="meta">Con el cuadro de clasificación (CCD) que
+                    entregó la entidad{vigente ? " y con la TRD que rige" : ""}.</span></summary>
+                  <div className="tarjeta-cuerpo">
+                    {vigente && <ComparacionTrd key={`${borrador.id}-${borrador.filas}`} versionId={borrador.id} />}
+                    <CotejoCcd versionId={borrador.id} />
+                  </div>
+                </details>
+              )}
             </>
           )}
 

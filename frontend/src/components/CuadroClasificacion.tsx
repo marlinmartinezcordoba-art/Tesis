@@ -14,7 +14,7 @@ export interface NodoLeido { codigo: string | null; nombre: string }
 export interface FilaLeida {
   fila: number; seccion: NodoLeido | null; intermedias?: NodoLeido[]; subseccion: NodoLeido | null; serie: NodoLeido | null; subserie: NodoLeido | null;
   tipos: string[]; gestion: number | null; central: number | null; disposicion: string | null; otras_disposiciones: string[];
-  procedimiento: string | null; funcion: string | null; problemas: string[];
+  procedimiento: string | null; funcion: string | null; problemas: string[]; avisos?: string[];
   codigos: { seccion: string | null; subseccion: string | null; serie: string | null; subserie: string | null };
 }
 export interface Vista { origen: string; filas: FilaLeida[]; resumen: Record<string, number> }
@@ -52,7 +52,8 @@ export function TablaVistaPrevia({ vista, incluir, setIncluir }: { vista: Vista;
             <td>{f.tipos.join("; ")}</td>
             <td>{f.gestion ?? "—"} / {f.central ?? "—"}</td>
             <td>{f.disposicion ? [f.disposicion, ...f.otras_disposiciones].map((d) => DISP[d]).join(" + ") : "—"}</td>
-            <td>{f.problemas.join(" ")}</td>
+            <td>{f.problemas.join(" ")}
+              {!!f.avisos?.length && <div className="meta">{f.avisos.join(" ")}</div>}</td>
           </tr>
         ))}
       </tbody>
