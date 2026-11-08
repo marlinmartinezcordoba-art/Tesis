@@ -14,7 +14,8 @@ import io
 
 from app.servicios import motor as servicio_motor
 
-MAX_CARACTERES = 80_000
+MAX_CARACTERES = 80_000  # lo que se envía al motor en cada pedido
+MAX_TEXTO = 600_000  # lo que se lee de un archivo: una TVD de cien páginas se envía por tramos
 
 INSTRUCCION = """Eres un archivista colombiano experto en Tablas de Retención Documental (TRD), Tablas de Valoración
 Documental (TVD) y Cuadros de Clasificación Documental (CCD) según el Acuerdo 004 de 2019 del AGN.
@@ -31,7 +32,9 @@ Reglas:
    digitalización) según las X o marcas de cada fila; pueden ir varias.
 6. El procedimiento va completo, como texto.
 7. Ignora encabezados, títulos, firmas, convenciones, fechas de aprobación y notas al pie: no son filas.
-8. No inventes. Si un dato no está en el texto, déjalo vacío o null."""
+8. No inventes. Si un dato no está en el texto, déjalo vacío o null.
+- El texto puede venir de un PDF escaneado leído con OCR, con errores: códigos sin sus puntos («10001» por «100.01», «1000706» por «100.07.06»), letras por números («130.11.04» donde las demás filas son «100.11.0x»), palabras cortadas o mal escritas. Corrige un código solo cuando el patrón de las demás filas lo hace evidente; si no es evidente, déjalo como está. Nunca inventes una serie, un tiempo de retención ni una disposición que no estén en el texto.
+- Si el texto se envía por tramos («tramo 2», «tramo 3»), lee solo las filas de ese tramo, sin repetir encabezados."""
 
 ESQUEMA = {
     "type": "OBJECT",
@@ -103,7 +106,7 @@ def _ocr_pdf(contenido: bytes) -> str:
                 imagen.close()
                 texto = _tesseract(ruta, "-l", settings.idioma_ocr, "--psm", "6", "-c", "preserve_interword_spaces=1")
                 partes.append(f"[Página {i + 1}]\n{texto.strip()}")
-                if sum(len(x) for x in partes) > MAX_CARACTERES:
+                if sum(len(x) for x in partes) > MAX_TEXTO:
                     break
     finally:
         documento.close()
@@ -130,7 +133,7 @@ def texto_de(contenido: bytes, nombre: str, hojas: list | None = None) -> str:
     """El texto del archivo: el de cada página de un PDF (con OCR si es escaneado); en Excel,
     Word o CSV, sus celdas por fila."""
     if nombre.lower().endswith(".pdf") and es_escaneado(contenido):
-        return _ocr_pdf(contenido)[:MAX_CARACTERES]
+        return _ocr_pdf(contenido)[:MAX_TEXTO]
     if nombre.lower().endswith(".pdf"):
         import pdfplumber
 
@@ -139,12 +142,39 @@ def texto_de(contenido: bytes, nombre: str, hojas: list | None = None) -> str:
             for i, p in enumerate(pdf.pages, start=1):
                 partes.append(f"[Página {i}]\n{p.extract_text() or ''}")
                 p.close()  # libera la memoria de la página
-                if sum(len(x) for x in partes) > MAX_CARACTERES:
+                if sum(len(x) for x in partes) > MAX_TEXTO:
                     break
             texto = "\n\n".join(partes)
     else:
         texto = "\n".join(" | ".join(c for c in fila if c) for hoja in (hojas or []) for fila in hoja)
-    return texto[:MAX_CARACTERES]
+    return texto[:MAX_TEXTO]
+
+
+def tramos(texto: str, maximo: int) -> list[str]:
+    """El texto en tramos de a lo sumo `maximo` caracteres, cortando entre páginas («[Página n]») o, si una
+    página sola no cabe, entre renglones."""
+    if len(texto) <= maximo:
+        return [texto]
+    import re
+
+    paginas = [p for p in re.split(r"(?=\[Página \d+\])", texto) if p.strip()]
+    salida, actual = [], ""
+    for pagina in paginas:
+        while len(pagina) > maximo:  # una página enorme: se parte por renglones
+            corte = pagina.rfind("\n", 0, maximo)
+            corte = corte if corte > 0 else maximo
+            if actual:
+                salida.append(actual)
+                actual = ""
+            salida.append(pagina[:corte])
+            pagina = pagina[corte:]
+        if len(actual) + len(pagina) > maximo and actual:
+            salida.append(actual)
+            actual = ""
+        actual += pagina
+    if actual.strip():
+        salida.append(actual)
+    return salida
 
 
 def extraer(contenido: bytes, nombre: str, hojas: list | None = None):
@@ -155,14 +185,20 @@ def extraer(contenido: bytes, nombre: str, hojas: list | None = None):
     m = servicio_motor.motor_activo()
     if m is None:
         return []
-    texto = texto_de(contenido, nombre, hojas)[: getattr(m, "max_caracteres", MAX_CARACTERES)]
+    texto = texto_de(contenido, nombre, hojas)
     if len(texto.strip()) < 40:
         return []
-    datos = m.estructurar(INSTRUCCION, f"Archivo: {nombre}\n\n{anonimizar_para_motor(texto)[0]}", ESQUEMA)
+    # Un archivo largo (una TVD de cien páginas) va por tramos de páginas: antes se cortaba y se perdían
+    # las series del final.
+    crudas = []
+    for i, tramo in enumerate(tramos(texto, getattr(m, "max_caracteres", MAX_CARACTERES)), start=1):
+        aviso = f" (tramo {i})" if i > 1 else ""
+        datos = m.estructurar(INSTRUCCION, f"Archivo: {nombre}{aviso}\n\n{anonimizar_para_motor(tramo)[0]}", ESQUEMA)
+        crudas += datos.get("filas") or []
     cabecera = [n for n, _ in cuadro.PLANTILLA]
     claves = [k for _, k in cuadro.PLANTILLA]
     filas = [cabecera]
-    for f in datos.get("filas") or []:
+    for f in crudas:
         valor = {
             **{k: str(f.get(k) or "").strip() for k in ("codigo_seccion", "seccion", "codigo_subseccion", "subseccion",
                                                        "codigo_serie", "serie", "codigo_subserie", "subserie",

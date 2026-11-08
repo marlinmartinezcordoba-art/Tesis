@@ -254,3 +254,27 @@ def test_el_codigo_de_la_dependencia_sale_del_nombre_del_archivo():
     assert {p["sugerido"] for p in v["partes"]} == {"trd"}
     assert cuadro.DEPENDENCIA.search("las dependencias y entidades del sector") is None
 
+
+
+def test_un_archivo_largo_se_envia_a_la_ia_por_tramos_de_paginas(monkeypatch):
+    """Una TVD de muchas páginas: antes se cortaba en 80 000 caracteres y se perdían las series del final."""
+    from app.servicios import motor, trd_ia
+
+    textos = []
+
+    class Motor(MotorFalso):
+        max_caracteres = 1000
+
+        def estructurar(self, instruccion, texto, esquema):
+            textos.append(texto)
+            n = len(textos)
+            return {"filas": [{"codigo_seccion": "100", "seccion": "Gerencia", "codigo_serie": str(n),
+                               "serie": f"Serie {n}", "tipos": ["Acta"], "ag": 2, "ac": 8, "ct": True}]}
+
+    monkeypatch.setattr(motor, "motor_activo", lambda: Motor())
+    largo = "\n\n".join(f"[Página {i}]\n" + "texto de la tabla " * 30 for i in range(1, 11))
+    monkeypatch.setattr(trd_ia, "texto_de", lambda *a, **k: largo)
+    filas = trd_ia.extraer(b"%PDF", "TVD-INDERENA.pdf")
+    assert len(textos) > 3 and "[Página 10]" in textos[-1]
+    assert len(filas) == len(textos)
+    assert all(len(t) < 1300 for t in textos)
