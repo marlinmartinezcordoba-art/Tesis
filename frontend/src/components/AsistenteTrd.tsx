@@ -67,7 +67,8 @@ type VistaPaquete = Vista & { partes?: Parte[]; original?: { huella: string; arc
 const ROL_NOMBRE: Record<Rol, string> = { trd: "TRD (llena la versión)", ccd: "CCD (se coteja con la TRD)",
   tvd: "TVD (abre su propio borrador)", omitir: "No usar" };
 
-function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; versionTrdId: string | null; alTerminar: () => void }) {
+function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; versionTrdId: string | null;
+  alTerminar: (omitidas: string[]) => void }) {
   const [vista, setVista] = useState<VistaPaquete | null>(null);
   const [roles, setRoles] = useState<Record<string, Rol>>({});
   const [incluir, setIncluir] = useState<Set<number>>(new Set());
@@ -100,8 +101,11 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
     try {
       // El archivo tal como llegó queda guardado con su huella y cada fila dice de dónde salió.
       const original = vista.original ? { huella: vista.original.huella, archivo: vista.original.archivo, origen: vista.origen } : null;
-      const cargar = (filas: unknown[], instrumento: "trd" | "tvd") => pedir<{ version: { id: string } }>("/api/trd/cargar", {
-        method: "POST", body: JSON.stringify({ fondo_id: fondoId, instrumento, filas, original }) });
+      const omitidas: string[] = [];
+      const cargar = (filas: unknown[], instrumento: "trd" | "tvd") => pedir<{ version: { id: string };
+        parametrizacion?: { omitidas?: string[] } }>("/api/trd/cargar", {
+        method: "POST", body: JSON.stringify({ fondo_id: fondoId, instrumento, filas, original }) })
+        .then((r) => { omitidas.push(...(r.parametrizacion?.omitidas || [])); return r; });
       if (paquete) {
         const de = (rol: Rol) => vista.filas.filter((f) => roles[(f as { parte?: string }).parte || ""] === rol && !f.problemas.length);
         if (Object.values(roles).filter((r) => r === "tvd").length > 1) {
@@ -117,7 +121,7 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
       } else {
         await cargar(vista.filas.filter((f) => incluir.has(f.fila)), "trd");
       }
-      alTerminar();
+      alTerminar(omitidas);
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar.");
     } finally {
@@ -213,6 +217,8 @@ export function AsistenteTrd() {
   const [aplicada, setAplicada] = useState<Aplicacion | null>(null);
   const [otra, setOtra] = useState<"fondo" | "importar" | null>(null);
   const revisado = useRef("");
+  // Filas que no se pudieron guardar (p. ej. una dependencia sin código): el resto del paquete sí quedó.
+  const [omitidas, setOmitidas] = useState<string[]>([]);
   const esAdmin = !!usuario?.es_administrador;
   const abrir = parametros.get("vista");
 
@@ -312,7 +318,8 @@ export function AsistenteTrd() {
               {!subido && (
                 <div className="tarjeta"><div className="tarjeta-cuerpo">
                   <Subir fondoId={fondo.id} versionTrdId={borrador?.id || vigente?.id || null}
-                         alTerminar={() => { setResubir(false); setRevision(null); revisado.current = ""; cargar(); }} />
+                         alTerminar={(omitidas) => { setResubir(false); setRevision(null); revisado.current = "";
+                           setOmitidas(omitidas); cargar(); }} />
                 </div></div>
               )}
 
@@ -323,6 +330,13 @@ export function AsistenteTrd() {
                     <p className="meta" style={{ marginTop: 0 }}>
                       <button type="button" className="enlace" onClick={() => setResubir(true)}>Subir otro archivo</button>
                       {" · "}<Originales versionId={borrador.id} /></p>
+                    {omitidas.length > 0 && (
+                      <details className="aviso alerta">
+                        <summary>{omitidas.length} fila(s) no se guardaron; el resto del paquete sí. Ver cuáles y por qué</summary>
+                        <ul className="meta">{omitidas.slice(0, 50).map((o) => <li key={o}>{o}</li>)}</ul>
+                        <p className="meta">Agréguelas en «Corregir» o corrija el archivo y vuelva a subirlo.</p>
+                      </details>
+                    )}
                     {ocupado && !revision && <p className="meta">Revisando el cuadro contra RiC-O 1.1…</p>}
                     {revision && revision.version.id === borrador.id && (
                       <>

@@ -253,3 +253,4 @@ def test_el_codigo_de_la_dependencia_sale_del_nombre_del_archivo():
     assert all(not f["problemas"] for f in v["filas"]) and "nombre del archivo" in v["filas"][0]["avisos"][0]
     assert {p["sugerido"] for p in v["partes"]} == {"trd"}
     assert cuadro.DEPENDENCIA.search("las dependencias y entidades del sector") is None
+

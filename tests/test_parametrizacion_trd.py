@@ -273,3 +273,18 @@ def test_avisa_las_series_sin_la_funcion_que_las_produce(cliente, db, fondo, cab
     funciones = [o for o in g.objects(exportacion_rico.uri(sub.id), rico.isRelatedTo)] + \
                 [s for s in g.subjects(rico.isRelatedTo, exportacion_rico.uri(sub.id))]
     assert any((x, None, rico.ActivityType) in g or (x, rico.name, None) in g for x in funciones)
+
+
+def test_una_fila_que_no_se_puede_guardar_no_bloquea_el_paquete(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+    """Una dependencia sin código ya no detiene la carga del paquete: esa fila queda fuera con su motivo
+    y las demás dependencias se guardan."""
+    from app.servicios import cuadro
+    from tests.archivos import trd_agn_xlsx
+
+    filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
+    mala = dict(filas[0], fila=999, seccion={"codigo": None, "nombre": "s y entidades del"}, problemas=[])
+    c = cliente.post("/api/trd/cargar", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "filas": [*filas, mala]})
+    assert c.status_code == 200, c.text
+    informe = c.json()["parametrizacion"]
+    assert informe["filas"] == 3
+    assert len(informe["omitidas"]) == 1 and "s y entidades del" in informe["omitidas"][0]

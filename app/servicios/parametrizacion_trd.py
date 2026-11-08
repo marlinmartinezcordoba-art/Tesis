@@ -645,35 +645,45 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
         return guardar_termino(db, fondo, {"clase": clase, "codigo": nodo.codigo, "nombre": nodo.nombre,
                                            "superior_id": superior.id if superior else None}, usuario_id)
 
+    informe["omitidas"] = []
     for f in leidas:
-        dep = dependencia(f.seccion, None)
-        for n in [*f.intermedias, *([f.subseccion] if f.subseccion else [])]:
-            dep = dependencia(n, dep)
-        if not f.serie.codigo:
-            raise ErrorTrd(f"La serie «{f.serie.nombre}» (fila {f.fila}) no tiene código.")
-        serie = termino("serie", f.serie)
-        subserie = None
-        if f.subserie:
-            if not f.subserie.codigo:
-                raise ErrorTrd(f"La subserie «{f.subserie.nombre}» (fila {f.fila}) no tiene código.")
-            subserie = termino("subserie", f.subserie, serie)
-        tipos = [termino("tipo_documental", cuadro.Nodo(None, t)).id for t in f.tipos]
-        ya = db.scalar(select(FilaTrd.id).where(FilaTrd.version_id == v.id, FilaTrd.estado == "vigente",
-                                                FilaTrd.dependencia_id == dep.id, FilaTrd.serie_id == serie.id,
-                                                FilaTrd.subserie_id.is_(None) if subserie is None
-                                                else FilaTrd.subserie_id == subserie.id))
-        if ya:
-            informe["repetidas"] += 1
-            continue
-        # De dónde salió (requisito 3): el archivo original guardado, la parte del .zip y la fila.
-        procedencia = {"carga": str(carga.id), "archivo": carga.archivo, "parte": f.parte, "fila": f.fila} \
-            if carga is not None else ({"parte": f.parte, "fila": f.fila} if f.fila else None)
-        db.add(FilaTrd(version_id=v.id, dependencia_id=dep.id, serie_id=serie.id,
-                       subserie_id=subserie.id if subserie else None, tipos=tipos, gestion=f.gestion,
-                       central=f.central, disposicion=f.disposicion, otras_disposiciones=f.otras_disposiciones,
-                       soporte=f.soporte, procedimiento=f.procedimiento, funcion=f.funcion, procedencia=procedencia))
-        db.flush()
-        informe["filas"] += 1
+        # Una fila que no se puede guardar (p. ej. su dependencia no tiene código) queda fuera y se informa;
+        # no detiene las demás dependencias del paquete.
+        try:
+            with db.begin_nested():
+                dep = dependencia(f.seccion, None)
+                for n in [*f.intermedias, *([f.subseccion] if f.subseccion else [])]:
+                    dep = dependencia(n, dep)
+                if not f.serie.codigo:
+                    raise ErrorTrd(f"La serie «{f.serie.nombre}» (fila {f.fila}) no tiene código.")
+                serie = termino("serie", f.serie)
+                subserie = None
+                if f.subserie:
+                    if not f.subserie.codigo:
+                        raise ErrorTrd(f"La subserie «{f.subserie.nombre}» (fila {f.fila}) no tiene código.")
+                    subserie = termino("subserie", f.subserie, serie)
+                tipos = [termino("tipo_documental", cuadro.Nodo(None, t)).id for t in f.tipos]
+                ya = db.scalar(select(FilaTrd.id).where(FilaTrd.version_id == v.id, FilaTrd.estado == "vigente",
+                                                        FilaTrd.dependencia_id == dep.id, FilaTrd.serie_id == serie.id,
+                                                        FilaTrd.subserie_id.is_(None) if subserie is None
+                                                        else FilaTrd.subserie_id == subserie.id))
+                if ya:
+                    informe["repetidas"] += 1
+                    continue
+                # De dónde salió (requisito 3): el archivo original guardado, la parte del .zip y la fila.
+                procedencia = {"carga": str(carga.id), "archivo": carga.archivo, "parte": f.parte, "fila": f.fila} \
+                    if carga is not None else ({"parte": f.parte, "fila": f.fila} if f.fila else None)
+                db.add(FilaTrd(version_id=v.id, dependencia_id=dep.id, serie_id=serie.id,
+                               subserie_id=subserie.id if subserie else None, tipos=tipos, gestion=f.gestion,
+                               central=f.central, disposicion=f.disposicion, otras_disposiciones=f.otras_disposiciones,
+                               soporte=f.soporte, procedimiento=f.procedimiento, funcion=f.funcion, procedencia=procedencia))
+                db.flush()
+                informe["filas"] += 1
+        except ErrorTrd as exc:
+            informe["omitidas"].append(f"Fila {f.fila}" + (f" de {f.parte}" if f.parte else "") + f": {exc}")
+    if not informe["omitidas"]:
+        informe.pop("omitidas")
+
     registrar(db, modulo="instrumentos", accion="trd_importada", usuario_id=usuario_id, entidad_tipo="recurso_documental",
               entidad_id=fondo.id, detalle=f"{v.nombre}: {informe['filas']} fila(s) desde un archivo", nuevo=informe)
     return informe
