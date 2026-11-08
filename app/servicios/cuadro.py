@@ -356,8 +356,10 @@ def _hojas(contenido: bytes, nombre: str) -> list[list[list[str]]]:
     raise ErrorCuadro("Formatos que se leen: Excel (.xlsx), PDF con texto, Word (.docx), CSV o un .zip con ellos.")
 
 
-DEPENDENCIA = re.compile(r"(?:dependencia(?:\s+productora)?\s*[:.]?|(?:oficina|unidad\s+administrativa)"
-                         r"(?:\s+productora)?\s*[:.])\s*(.+)", re.I)
+# «Dependencia: …», «Dependencia productora …», «Oficina productora: …». La palabra completa: «dependencias y
+# entidades del sector», en el texto del encabezado, no es el nombre de una dependencia.
+DEPENDENCIA = re.compile(r"(?:\bdependencia\b(?:\s+productora\b)?\s*[:.]?|\b(?:oficina|unidad\s+administrativa)\b"
+                         r"(?:\s+productora\b)?\s*[:.])\s*(.+)", re.I)
 CODIGO_DEP = re.compile(r"c[oó]digo(?:\s+(?:de\s+la\s+)?dependencia)?\s*[:.]?\s*([0-9][\w.\-]*)", re.I)
 
 
@@ -835,6 +837,30 @@ def _motivo_corto(a: dict) -> str:
     return _motivo_legible(m) or "no se pudo leer"
 
 
+_ARCHIVO_DEPENDENCIA = re.compile(r"^\s*(\d{2,6})[\s_\-.]+(.+?)\.[A-Za-z0-9]{2,5}$")
+AVISO_DEPENDENCIA = "Código de la dependencia ({}) tomado del nombre del archivo: verifíquelo."
+
+
+def _dependencia_del_archivo(filas: list[FilaCuadro], archivo: str) -> None:
+    """Las TRD que se publican una por dependencia suelen traer el código en el nombre del archivo
+    («4106_Grupo_Gestión_Documental.pdf»). Si la fila no trae la dependencia o su código, se toman de ahí."""
+    m = _ARCHIVO_DEPENDENCIA.match(archivo or "")
+    if not m:
+        return
+    codigo = m.group(1)
+    nombre = re.sub(r"^TRD[-_ ]*V?\d*[-_ ]*", "", m.group(2), flags=re.I).replace("_", " ").strip() or m.group(2)
+    for f in filas:
+        if f.seccion is None:
+            f.seccion = Nodo(codigo, nombre)
+        elif not f.seccion.codigo:
+            f.seccion = Nodo(codigo, f.seccion.nombre)
+        else:
+            continue
+        f.problemas = [p for p in f.problemas if not p.startswith("Falta la sección")
+                       and not (p.startswith("La dependencia «") and "no tiene código" in p)]
+        f.avisos.append(AVISO_DEPENDENCIA.format(codigo))
+
+
 def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                 avance=None) -> tuple[list[FilaCuadro], str]:
     """Las filas del CCD o la TRD. Si se pasa `informe`, deja en informe["archivos"] el resultado de
@@ -876,6 +902,12 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
                                       (f" {aviso_ia}" if aviso_ia else ""))
                 if not informe.get("entidad"):
                     informe["entidad"] = _entidad(hojas)
+                _dependencia_del_archivo(de_la_parte, corto)
+                for f in de_la_parte:
+                    # Sin código no se puede guardar: la fila queda fuera (marcada), no bloquea el paquete entero.
+                    if f.seccion is not None and not f.seccion.codigo and not f.problemas:
+                        f.problemas.append(f"La dependencia «{f.seccion.nombre}» no tiene código: escríbalo en el archivo, "
+                                           "o regístrela en Dependencias.")
                 for f in de_la_parte:
                     f.parte = corto
                 filas += de_la_parte
@@ -922,6 +954,7 @@ def interpretar(contenido: bytes, archivo: str, informe: dict | None = None,
         filas, forma = _interpretar_hojas(hojas)
     except ErrorCuadro:
         filas, forma = [], ""
+    _dependencia_del_archivo(filas, archivo.rsplit("/", 1)[-1])
     filas, con_ia, aviso_ia = _con_ia(contenido, archivo, hojas, filas)
     if not filas:
         raise ErrorCuadro("No se encontró una tabla con la columna de la serie. Revise que el archivo tenga un encabezado "
@@ -959,7 +992,8 @@ def _sugerido(nombre: str, filas: list[FilaCuadro]) -> str:
     n = _n(nombre)
     if "tvd" in n or "valoracion" in n:
         return "tvd"
-    if "ccd" in n or "cuadro" in n or not any(f.gestion is not None or f.central is not None or f.disposicion for f in filas):
+    con_retencion = any(f.gestion is not None or f.central is not None or f.disposicion for f in filas)
+    if re.search(r"(^|[^a-z])ccd([^a-z]|$)", n) or "cuadro de clasificacion" in n.replace("_", " ") or not con_retencion:
         return "ccd"
     return "trd"
 

@@ -234,3 +234,22 @@ def test_subseries_sin_codigo_se_numeran_y_lo_avisan():
     assert [f["codigos"]["subserie"] for f in filas[:2]] == ["1000.2.1", "1000.2.2"]
     assert filas[2]["serie"]["codigo"] == "3" and "asignado por RICORA" in filas[2]["avisos"][0]
     assert all(not f["problemas"] for f in filas)
+
+
+def test_el_codigo_de_la_dependencia_sale_del_nombre_del_archivo():
+    """TRD publicadas una por dependencia («4104_Grupo_Tesorería.pdf»): si la tabla no trae el código de la
+    dependencia, se toma del nombre del archivo y se avisa; «dependencias y entidades del sector» no es una dependencia."""
+    import io
+    import zipfile
+
+    cab = "Dependencia,Código serie,Serie,Subserie,Tipos documentales,AG,AC,CT,E,S,M,Procedimiento\n"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("4104_Grupo_Tesorería.csv", cab + "Grupo de Tesorería,2,Actas,,Acta,2,8,X,,,,C\n")
+        z.writestr("4106_Grupo_Gestión_Documental.csv", cab + "Grupo de Gestión Documental,5,Inventarios,,Inventario,2,8,X,,,,C\n")
+    v = cuadro.vista_previa(buf.getvalue(), "TRD.zip")
+    codigos = {f["seccion"]["nombre"]: f["seccion"]["codigo"] for f in v["filas"]}
+    assert codigos == {"Grupo de Tesorería": "4104", "Grupo de Gestión Documental": "4106"}
+    assert all(not f["problemas"] for f in v["filas"]) and "nombre del archivo" in v["filas"][0]["avisos"][0]
+    assert {p["sugerido"] for p in v["partes"]} == {"trd"}
+    assert cuadro.DEPENDENCIA.search("las dependencias y entidades del sector") is None
