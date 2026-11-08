@@ -28,6 +28,8 @@ Elija una de las dos opciones:
 
 ## Motor de análisis (IA)
 
+> **Estado desde el 8-11-2026: IA local apagada.** Por lentitud sin tarjeta gráfica, la administración decidió trabajar solo con Gemini. El código y el modelo descargado se conservan: para encenderla, cree en GitHub el secreto `RICORA_MOTOR_IA` con el valor `local` y vuelva a desplegar. Lo que sigue describe cómo funciona cuando está encendida.
+
 Desde el 7-11-2026 RICORA trabaja con **dos motores juntos**: Gemini (en la nube, con la clave del secreto `GEMINI_API_KEY`) y una **IA local** (Ollama con Qwen 2.5 de 14B, en el mismo servidor).
 
 | Tarea | Cómo responde | Por qué |

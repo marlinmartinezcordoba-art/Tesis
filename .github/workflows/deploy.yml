@@ -219,13 +219,11 @@ jobs:
               if [ "$puerto" = "80" ]; then poner RICORA_URL_PUBLICA "http://$DROPLET_HOST"; else poner RICORA_URL_PUBLICA "http://$DROPLET_HOST:$puerto"; fi
             fi
 
-            # IA local (Ollama) si el servidor tiene memoria (12 GB o más): los textos no salen del
-            # servidor. El secreto RICORA_MOTOR_IA («local» o «gemini») obliga una u otra.
+            # IA local (Ollama): los textos no salen del servidor. Solo con el secreto RICORA_MOTOR_IA=local.
             memoria=$(free -m | awk '/^Mem:/{print $2}')
-            motor="$RICORA_MOTOR_IA"
-            if [ -z "$motor" ]; then
-              if [ "${memoria:-0}" -ge 12000 ]; then motor=local; else motor=gemini; fi
-            fi
+            # Apagada por decisión de la administración (8-11-2026): el motor es Gemini. Para encenderla
+            # otra vez, cree el secreto RICORA_MOTOR_IA=local. El modelo descargado se conserva en su volumen.
+            motor="${RICORA_MOTOR_IA:-gemini}"
             imagen_ia="$(valor RICORA_OLLAMA_IMAGEN || true)"; imagen_ia="${imagen_ia:-ollama/ollama:0.6.5}"
             if [ "$motor" = "local" ] && ! docker pull -q "$imagen_ia" >/dev/null 2>&1; then
               echo "::warning title=IA local::No se pudo descargar la imagen de Ollama; RICORA sigue con Gemini."
