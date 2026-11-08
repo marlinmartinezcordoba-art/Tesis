@@ -198,7 +198,7 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
     <>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <p className="meta" style={{ marginTop: 0 }}>
-        La TRD en el formato de la entidad (Excel, PDF con texto, Word, CSV o un .zip): las columnas se reconocen por su nombre. Lo leído llena la matriz del borrador
+        El instrumento en el formato de la entidad (Excel, PDF con texto o escaneado, Word, CSV o un .zip): las columnas se reconocen por su nombre. Lo leído llena la matriz del borrador
         y el banco terminológico; nada se crea en el cuadro hasta que aplique la versión.
       </p>
       <div className="acciones">
@@ -223,6 +223,112 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
           <div className="acciones">
             <button type="button" className="boton primario" disabled={ocupado || !incluir.size} onClick={agregar}>
               Agregar {incluir.size} fila(s) al borrador</button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Importar una TRD o una TVD en un solo paso: se sube el archivo (o varios), se revisan las filas
+ * y, para la TVD, se escribe el periodo institucional. RICORA abre la versión en borrador y le carga
+ * las filas; nada entra al cuadro hasta aplicarla. */
+function ImportarInstrumento({ fondoId, instrumento, alTerminar }: { fondoId: string; instrumento: Instrumento;
+  alTerminar: (texto: string) => void }) {
+  const tvd = instrumento === "tvd";
+  const sigla = TEXTO[instrumento].sigla;
+  const [vista, setVista] = useState<Vista | null>(null);
+  const [incluir, setIncluir] = useState<Set<number>>(new Set());
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const [d, setD] = useState({ periodo: "", periodo_desde: "", periodo_hasta: "", vigente_desde: "", acto_aprobacion: "" });
+  const carga = useCarga();
+  const poner = (k: keyof typeof d) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value });
+
+  async function leer(lista: File[]) {
+    if (!lista.length) return;
+    setError("");
+    carga.empezar(lista);
+    const archivo = await unoOVarios(lista, `${sigla}.zip`);
+    if (!archivo) return;
+    setOcupado(true);
+    try {
+      const v = await leerConAvance<Vista & { archivos?: ArchivoLeido[] }>(archivo, carga);
+      carga.terminar(v.archivos);
+      setVista(v);
+      setIncluir(new Set(v.filas.filter((f) => !f.problemas.length).map((f) => f.fila)));
+    } catch (err) {
+      carga.fallar(mensaje(err, "No se pudo leer el archivo."));
+      setError(mensaje(err, "No se pudo leer el archivo."));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function importar() {
+    if (!vista) return;
+    setOcupado(true);
+    setError("");
+    try {
+      const datos = tvd
+        ? { periodo: d.periodo.trim() || null, periodo_desde: d.periodo_desde || null, periodo_hasta: d.periodo_hasta || null }
+        : { vigente_desde: d.vigente_desde || null };
+      const v = await pedir<VersionTrd>("/api/trd/versiones", { method: "POST", body: JSON.stringify({
+        ...datos, acto_aprobacion: d.acto_aprobacion.trim() || null, fondo_id: fondoId, copiar_vigente: false, instrumento }) });
+      const r = await pedir<Record<string, number>>(`/api/trd/versiones/${v.id}/importar`, { method: "POST",
+        body: JSON.stringify({ filas: vista.filas.filter((f) => incluir.has(f.fila)) }) });
+      alTerminar(`${sigla} importada en borrador («${v.nombre}»): ${r.filas} fila(s) en la matriz; ${r.series} serie(s), `
+        + `${r.subseries} subserie(s) y ${r.tipos_documentales} tipo(s) documental(es) al banco. Revísela y aplíquela.`);
+    } catch (err) {
+      setError(mensaje(err, `No se pudo importar la ${sigla}.`));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      <p className="meta" style={{ marginTop: 0 }}>Suba la {sigla} tal como la tiene la entidad: Excel, PDF (también escaneado),
+        Word, CSV o un .zip; uno o varios archivos a la vez. Nada entra al cuadro hasta que aplique la versión.</p>
+      <div className="acciones">
+        <label className="boton chico primario">
+          {ocupado && !vista ? "Leyendo…" : vista ? "Leer otros archivos" : `Elegir los archivos de la ${sigla}`}
+          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+                 onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void leer(l); }} />
+        </label>
+        <button type="button" className="boton chico" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>
+          Plantilla Excel</button>
+      </div>
+      <PanelCarga estado={carga.estado} />
+      {vista && (
+        <>
+          <p className="meta">{vista.origen} · {vista.resumen.filas} fila(s), {vista.resumen.con_problemas} con problemas.</p>
+          <div className="tabla-desplazable"><TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={setIncluir} /></div>
+          <div className="rejilla">
+            {tvd ? (
+              <>
+                <div className="campo"><label htmlFor="i-periodo">Periodo institucional</label>
+                  <input id="i-periodo" className="entrada" value={d.periodo} onChange={poner("periodo")}
+                         placeholder="Periodo 2: Ministerio de Ambiente, Vivienda y Desarrollo Territorial" /></div>
+                <div className="campo"><label htmlFor="i-desde">El periodo empieza</label>
+                  <input id="i-desde" className="entrada" type="date" value={d.periodo_desde} onChange={poner("periodo_desde")} /></div>
+                <div className="campo"><label htmlFor="i-hasta">El periodo termina</label>
+                  <input id="i-hasta" className="entrada" type="date" value={d.periodo_hasta} onChange={poner("periodo_hasta")} /></div>
+              </>
+            ) : (
+              <div className="campo"><label htmlFor="i-rige">Rige desde (opcional)</label>
+                <input id="i-rige" className="entrada" type="date" value={d.vigente_desde} onChange={poner("vigente_desde")} /></div>
+            )}
+            <div className="campo"><label htmlFor="i-acto">Acto que la aprueba (opcional)</label>
+              <input id="i-acto" className="entrada" value={d.acto_aprobacion} onChange={poner("acto_aprobacion")}
+                     placeholder="Resolución 045" /></div>
+          </div>
+          {tvd && (!d.periodo_desde || !d.periodo_hasta) && (
+            <p className="meta">Puede importarla sin las fechas del periodo y completarlas después; las necesita para aplicarla.</p>)}
+          <div className="acciones">
+            <button type="button" className="boton primario" disabled={ocupado || !incluir.size} onClick={importar}>
+              {ocupado ? "Importando…" : `Importar ${incluir.size} fila(s) como ${sigla}`}</button>
           </div>
         </>
       )}
@@ -262,6 +368,7 @@ export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string
     `/api/trd/versiones?fondo_id=${fondoId}&instrumento=${instrumento}`);
   const [formulario, setFormulario] = useState<VersionTrd | "nueva" | null>(null);
   const [cargando, setCargando] = useState<VersionTrd | null>(null);
+  const [importando, setImportando] = useState(false);
   const [resultado, setResultado] = useState<Aplicacion | null>(null);
   const [aviso, setAviso] = useState("");
   const [fallo, setFallo] = useState("");
@@ -315,8 +422,10 @@ export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       {esAdmin && !borrador && versiones && (
         <div className="acciones">
-          <button type="button" className="boton primario" onClick={() => setFormulario("nueva")}>
-            {tvd ? "+ Abrir la TVD de un periodo" : `+ Abrir una versión nueva${vigente ? " (para modificar la TRD)" : ""}`}</button>
+          <button type="button" className="boton primario" onClick={() => setImportando(true)}>
+            Importar la {sigla} desde un archivo</button>
+          <button type="button" className="boton" onClick={() => setFormulario("nueva")}>
+            {tvd ? "+ Abrir la TVD de un periodo a mano" : `+ Abrir una versión nueva${vigente ? " (para modificar la TRD)" : ""}`}</button>
         </div>
       )}
       {borrador && (
@@ -408,6 +517,12 @@ export function VersionesTrd({ fondoId, instrumento = "trd" }: { fondoId: string
           <FormVersion fondoId={fondoId} version={formulario === "nueva" ? null : formulario} hayVigente={!!vigente}
                        instrumento={instrumento}
                        alTerminar={() => { setFormulario(null); setResultado(null); cargar(); }} />
+        </Ventana>
+      )}
+      {importando && (
+        <Ventana titulo={`Importar la ${sigla} desde un archivo`} alCerrar={() => setImportando(false)} ancha>
+          <ImportarInstrumento fondoId={fondoId} instrumento={instrumento}
+                               alTerminar={(t) => { setImportando(false); setAviso(t); setResultado(null); cargar(); }} />
         </Ventana>
       )}
       {cargando && (
