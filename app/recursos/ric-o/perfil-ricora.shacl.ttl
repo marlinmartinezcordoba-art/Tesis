@@ -59,9 +59,11 @@ pr:Instantiation a sh:NodeShape ;
         sh:path rico:title ; sh:minCount 1 ; sh:maxCount 1 ;
         sh:message "Toda instanciación lleva su nombre (el del archivo o el del original físico)." ] ;
     sh:property [ sh:path rico:identifier ; sh:minCount 1 ; sh:pattern "^urn:uuid:[0-9a-f-]{36}$" ] ;
-    # Es la instanciación de una descripción, o salió de migrar otra.
+    # Es la instanciación de una descripción, salió de migrar otra, o deriva de otra (la copia con el
+    # OCR estampado, una digitalización: RiC-R014).
     sh:or ( [ sh:path [ sh:inversePath rico:hasOrHadInstantiation ] ; sh:minCount 1 ]
-            [ sh:path [ sh:inversePath rico:migratedInto ] ; sh:minCount 1 ] ) .
+            [ sh:path [ sh:inversePath rico:migratedInto ] ; sh:minCount 1 ]
+            [ sh:path [ sh:inversePath rico:hasOrHadDerivedInstantiation ] ; sh:minCount 1 ] ) .
 
 # --- Agent, Place, Activity, Mandate ----------------------------------------
 

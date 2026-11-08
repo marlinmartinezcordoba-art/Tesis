@@ -502,6 +502,9 @@ def test_lo_escaneado_recibe_una_copia_con_el_ocr_estampado(cliente, db, fondo, 
 
     from app.models.descripcion import Relacion
 
+    from app.servicios import parametros
+
+    parametros.cambiar(db, "ingesta_copia_ocr", True, archivista_id(db), "ingesta")
     contenido = archivos.pdf_escaneado()
     [r] = cargar(cliente, archivista, fondo, ("escaneo_caja12.pdf", contenido))
     procesamiento.procesar_pendientes(db)

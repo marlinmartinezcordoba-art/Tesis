@@ -109,6 +109,8 @@ class Settings:
     # Las propuestas de una evaluación se generan en segundo plano (cada documento tarda minutos con
     # dos motores). Las pruebas lo apagan para comprobar el resultado en la misma petición.
     propuestas_en_segundo_plano: bool = os.getenv("RICORA_PROPUESTAS_SEGUNDO_PLANO", "1") == "1"
+    # Copia con el OCR estampado de lo que entra escaneado (valor inicial del parámetro ingesta_copia_ocr).
+    copia_ocr: bool = os.getenv("RICORA_COPIA_OCR", "1") == "1"
     # Por debajo de esta confianza, una propuesta se marca «confianza baja».
     umbral_confianza: float = float(os.getenv("UMBRAL_CONFIANZA_REVISION", "0.70"))
     # Similitud por trigramas desde la cual el vocabulario sugiere «¿es la misma?».

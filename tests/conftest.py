@@ -11,7 +11,8 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://ricora:ricora@localhost:5432/ricora_pruebas")
 os.environ["RICORA_SECRET_KEY"] = "clave-de-pruebas-de-ricora-con-mas-de-32-caracteres"
 os.environ["RICORA_URL_PUBLICA"] = "http://ricora.prueba"
-os.environ["RICORA_PROPUESTAS_SEGUNDO_PLANO"] = "0"  # se generan en la misma petición para comprobarlas
+os.environ["RICORA_PROPUESTAS_SEGUNDO_PLANO"] = "0"
+os.environ["RICORA_COPIA_OCR"] = "0"  # las pruebas de la copia con OCR la encienden con el parámetro  # se generan en la misma petición para comprobarlas
 os.environ["RICORA_DIRECTORIO_INTERFAZ"] = "/ruta/que/no/existe"
 os.environ["RICORA_PRESERVACION"] = "1"  # las pruebas cubren el módulo encendido; test_preservacion_apagada, apagado
 import glob  # noqa: E402

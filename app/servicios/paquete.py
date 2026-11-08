@@ -639,11 +639,15 @@ def instanciaciones_de_expediente(db: Session, expediente: RecursoDocumental) ->
         Relacion.estado == "vigente", Relacion.destino_tipo == "instanciacion")).all())
     pendientes = list(ids)
     while pendientes:  # las migraciones aún no publicadas con su documento
-        hijas = set(db.scalars(select(Instanciacion.id).where(Instanciacion.derivada_de_id.in_(pendientes))).all()) - ids
+        # La copia con el OCR estampado es de consulta (se rehace del original): no entra al paquete de preservación.
+        hijas = set(db.scalars(select(Instanciacion.id).where(
+            Instanciacion.derivada_de_id.in_(pendientes),
+            Instanciacion.nombre_original.not_like("%(con OCR).pdf"))).all()) - ids
         ids |= hijas
         pendientes = list(hijas)
     return sorted((i for i in (db.get(Instanciacion, x) for x in ids)
-                   if i is not None and i.estado == "listo_para_descripcion"), key=lambda i: i.cargado_en)
+                   if i is not None and i.estado == "listo_para_descripcion"
+                   and not (i.derivada_de_id and i.nombre_original.endswith("(con OCR).pdf"))), key=lambda i: i.cargado_en)
 
 
 def exportar_expediente(db: Session, expediente: RecursoDocumental, usuario_id: uuid.UUID,
