@@ -567,7 +567,16 @@ class MotorConsenso:
         return self._local_y_si_no_nube("redactar", instruccion, pedido)
 
     def estructurar(self, instruccion: str, texto: str, esquema: dict) -> dict:
-        return self._local_y_si_no_nube("estructurar", instruccion, texto, esquema)
+        """Leer una TRD, un CCD o una TVD: son instrumentos públicos, así que responde primero Gemini
+        (segundos por archivo); la IA local, sin tarjeta gráfica, tarda minutos y queda de respaldo."""
+        try:
+            respuesta = self.nube.estructurar(instruccion, texto, esquema)
+            self.ultima = self.nube.ultima
+            return respuesta
+        except MotorError:
+            respuesta = self.local.estructurar(instruccion, texto[: self.local.max_caracteres], esquema)
+            self.ultima = self.local.ultima
+            return respuesta
 
     def conversar(self, instruccion: str, contenido: list[dict], buscar: bool = False) -> str:
         """El asistente: Gemini con Google Search responde en segundos y cita fuentes; si no
@@ -583,7 +592,7 @@ class MotorConsenso:
 
     @property
     def max_caracteres(self) -> int:
-        return self.local.max_caracteres
+        return 80_000  # Gemini lee primero; si responde la IA local, el texto se recorta a lo que le cabe
 
 
 def motor_activo():

@@ -202,3 +202,19 @@ def test_gemini_pide_la_busqueda_de_google_y_devuelve_las_fuentes(monkeypatch):
         "El RiC es el modelo del ICA."
     assert pedidos[0]["tools"] == [{"google_search": {}}]
     assert g.ultima["fuentes"] == [{"titulo": "ICA", "url": "https://www.ica.org/ric"}]
+
+
+def test_leer_una_trd_lo_hace_primero_gemini_y_si_falla_la_ia_local():
+    """Las TRD son públicas: Gemini las lee en segundos; la IA local (minutos por archivo) queda de respaldo."""
+    class Estructura(_Falso):
+        def estructurar(self, instruccion, texto, esquema):
+            if self.falla:
+                raise motor.MotorError(self.falla)
+            self.texto = texto
+            return {"filas": [self.modelo]}
+
+    nube, local = Estructura("gemini-x"), Estructura("qwen-x")
+    local.max_caracteres = 10
+    assert _consenso(nube, local).estructurar("i", "x" * 50, {}) == {"filas": ["gemini-x"]}
+    m = _consenso(Estructura("gemini-x", falla="límite"), local)
+    assert m.estructurar("i", "x" * 50, {}) == {"filas": ["qwen-x"]} and len(local.texto) == 10
