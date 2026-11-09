@@ -612,9 +612,10 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
     _editable(v)
     leidas = [cuadro.FilaCuadro.de_dict(d) for d in filas_leidas]
     malas = [f for f in leidas if f.problemas]
-    if malas:
-        raise ErrorTrd(f"Corrija las {len(malas)} fila(s) con problemas (la primera es la {malas[0].fila}: "
-                       f"{malas[0].problemas[0]})")
+    leidas = [f for f in leidas if not f.problemas]
+    if not leidas and malas:
+        raise ErrorTrd(f"Ninguna fila se puede cargar: las {len(malas)} tienen problemas (la primera es la "
+                       f"{malas[0].fila}: {malas[0].problemas[0]})")
     fondo = db.get(RecursoDocumental, v.fondo_id)
     informe = {"dependencias": 0, "series": 0, "subseries": 0, "tipos_documentales": 0, "filas": 0, "repetidas": 0,
                "sin_funcion": sum(1 for f in leidas if not f.funcion)}
@@ -645,7 +646,8 @@ def importar(db: Session, v: VersionTrd, filas_leidas: list[dict], usuario_id: u
         return guardar_termino(db, fondo, {"clase": clase, "codigo": nodo.codigo, "nombre": nodo.nombre,
                                            "superior_id": superior.id if superior else None}, usuario_id)
 
-    informe["omitidas"] = []
+    # Lo que no se pudo mapear queda fuera con su motivo; no detiene lo demás.
+    informe["omitidas"] = [f"Fila {f.fila}" + (f" de {f.parte}" if f.parte else "") + f": {f.problemas[0]}" for f in malas]
     for f in leidas:
         # Una fila que no se puede guardar (p. ej. su dependencia no tiene código) queda fuera y se informa;
         # no detiene las demás dependencias del paquete.

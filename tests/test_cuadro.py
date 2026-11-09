@@ -81,12 +81,18 @@ def test_aplicar_la_trd_crea_el_cuadro_las_reglas_y_no_duplica(cliente, db, fond
     exportar_conforme(db, fondo)
 
 
-def test_todo_o_nada_y_solo_la_administracion(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+def test_lo_que_no_se_mapea_queda_fuera_y_solo_la_administracion(cliente, db, fondo, cabeceras_admin):  # noqa: F811
     filas = cuadro.vista_previa(trd_agn_xlsx(), "trd.xlsx")["filas"]
-    filas[1]["disposicion"] = None  # retención sin disposición final
-    r = aplicar_trd(cliente, cabeceras_admin, fondo, filas)
-    assert r.status_code == 400 and "no disposición final" in r.json()["detail"]
-    assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.codigo_referencia == "110")) is None
+    # Una fila que no se puede mapear queda fuera con su motivo; no detiene las demás (no se le pide a la
+    # persona corregir antes de guardar).
+    filas[1]["serie"] = None
+    v = cliente.post("/api/trd/versiones", headers=cabeceras_admin, json={"fondo_id": str(fondo.id)}).json()
+    r = cliente.post(f"/api/trd/versiones/{v['id']}/importar", headers=cabeceras_admin, json={"filas": filas})
+    assert r.status_code == 200, r.text
+    assert r.json()["filas"] == len(filas) - 1 and "Falta la serie" in r.json()["omitidas"][0]
+    todas_malas = [{**f, "serie": None, "subserie": None} for f in filas]
+    r = cliente.post(f"/api/trd/versiones/{v['id']}/importar", headers=cabeceras_admin, json={"filas": todas_malas})
+    assert r.status_code == 400 and "Ninguna fila" in r.json()["detail"]
     crear_usuario(db, "ana@correo.com", "archivista")
     ana = ingresar(cliente, "ana@correo.com")
     assert _vista(cliente, ana, trd_agn_xlsx(), "trd.xlsx").status_code == 403
@@ -118,11 +124,12 @@ def test_el_fondo_se_configura_desde_su_ccd_validado_en_ric_antes_de_crear(clien
     fondo_id = c["fondo"]["id"]
     arbol = cliente.get("/api/cuadro", headers=cabeceras_admin, params={"fondo_id": fondo_id}).json()
     assert arbol[0]["codigo"] == "110" and len(arbol[0]["hijos"]) == 2
-    # El mismo nombre no se registra dos veces; un cuadro con problemas no crea el fondo.
+    # El mismo nombre no se registra dos veces; un cuadro en el que ninguna fila se puede mapear no crea el fondo
+    # (si solo algunas tienen problemas, esas quedan fuera y el resto se crea).
     assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin,
                         json=pedido | {"crear": True}).status_code == 409
-    filas[0]["disposicion"] = None
-    otro = {"fondo": {"titulo": "Otro fondo"}, "filas": filas, "crear": True}
+    otro = {"fondo": {"titulo": "Otro fondo"}, "filas": [{**f, "serie": None, "subserie": None} for f in filas],
+            "crear": True}
     assert cliente.post("/api/fondos/configurar", headers=cabeceras_admin, json=otro).status_code == 422
     assert db.scalar(select(RecursoDocumental).where(RecursoDocumental.titulo == "Otro fondo")) is None
 

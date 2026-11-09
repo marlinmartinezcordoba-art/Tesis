@@ -277,10 +277,12 @@ def _sospechosa(f: "FilaCuadro") -> bool:
 
 
 def _lectura_floja(filas: list["FilaCuadro"]) -> bool:
-    """La IA entra solo si las reglas no sacaron ni una fila limpia (PDF escaneado, formato muy distinto).
+    """La IA entra si las reglas no sacaron filas limpias o si la mitad o más salieron con problemas (PDF escaneado,
+    formato muy distinto).
     Si hay filas buenas, se queda la lectura por reglas, que tarda segundos: las filas dudosas (encabezados,
     firmas) ya salen marcadas «con problemas» para que la persona las desmarque."""
-    return not any(not _sospechosa(f) for f in filas)
+    dudosas = sum(1 for f in filas if _sospechosa(f))
+    return not filas or dudosas * 2 >= len(filas)
 
 
 def _con_ia(contenido: bytes | None, nombre: str, hojas, filas: list["FilaCuadro"]) -> tuple[list["FilaCuadro"], bool, str | None]:
@@ -585,6 +587,11 @@ def _desde_agn(filas: list[list[str]], cabecera: int) -> list[FilaCuadro]:
             nombre = lineas[0] if lineas else ""
             actual = FilaCuadro(fila=i, seccion=dependencia)
             if sb:
+                if serie_actual is None or (s and serie_actual.codigo and serie_actual.codigo != s):
+                    # La fila de la serie no está (TRD antigua incompleta): se reconstruye con su código para que la
+                    # subserie no quede suelta; el nombre lo confirma la archivista.
+                    serie_actual = Nodo(s or None, f"Serie {s}" if s else "Serie sin nombre en la TRD")
+                    actual.avisos.append(AVISO_SERIE_RECONSTRUIDA)
                 actual.serie = serie_actual
                 actual.subserie = Nodo(sb, nombre)
             else:
@@ -1036,6 +1043,8 @@ def _partes(filas: list[FilaCuadro]) -> list[dict]:
             for nombre, lista in grupos.items()]
 
 
+AVISO_SERIE_RECONSTRUIDA = ("La TRD no trae la fila de la serie de esta subserie: se reconstruyó con su código; "
+                            "escriba su nombre cuando lo encuentre.")
 AVISO_CODIGO = "Código {} asignado por RICORA (no venía en el archivo): verifíquelo con la TRD convalidada."
 
 
@@ -1310,7 +1319,7 @@ def _regla_tvd(db: Session, fondo: RecursoDocumental, hoja: RecursoDocumental, f
 def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id: uuid.UUID,
             version: dict | None = None) -> dict:
     """Crea el cuadro y las reglas de lo que la persona confirmó en la vista
-    previa. Si una fila tiene problemas, no se crea nada (todo o nada).
+    previa. Las filas con problemas quedan fuera con su motivo; las demás se crean.
 
     `version` ({numero, nombre, acto, desde}) es la versión de la TRD que se
     aplica desde la parametrización: fecha la vigencia de las reglas y
@@ -1321,11 +1330,16 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
     con_problemas = [f for f in leidas if f.problemas]
     if not leidas:
         raise ErrorCuadro("No hay filas para crear.")
-    if con_problemas:
-        raise ErrorCuadro(f"Corrija las {len(con_problemas)} fila(s) con problemas antes de crear (la primera es la "
+    # Lo que no se puede mapear (sin serie, sin dependencia) queda fuera con su motivo; no detiene lo demás.
+    leidas = [f for f in leidas if not f.problemas]
+    if not leidas:
+        raise ErrorCuadro(f"Ninguna fila se puede crear: las {len(con_problemas)} tienen problemas (la primera es la "
                           f"{con_problemas[0].fila}: {con_problemas[0].problemas[0]})")
     informe = {"creados": {}, "reutilizados": 0, "reglas": 0, "tipos_documentales": 0, "funciones": 0, "avisos": [],
                "_nuevos": set()}
+    if con_problemas:
+        informe["avisos"].append(f"{len(con_problemas)} fila(s) quedaron fuera porque no se pudieron mapear (la primera, "
+                                 f"la {con_problemas[0].fila}: {con_problemas[0].problemas[0]}).")
     for f in leidas:
         c = codigos_compuestos(f)
         productor, nuevo = _de_vocabulario(db, fondo.id, "agente", f.seccion.nombre, usuario_id, "entidad_corporativa")

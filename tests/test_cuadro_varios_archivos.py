@@ -365,3 +365,17 @@ def test_gemini_sin_cuota_del_dia_no_espera_en_vano(monkeypatch):
     with pytest.raises(motor.MotorError, match="del día"):
         motor.MotorGemini("x", "g").estructurar("i", "t", {})
     assert esperas == []
+
+
+def test_subserie_sin_la_fila_de_su_serie_reconstruye_la_serie_por_su_codigo():
+    """TRD antiguas incompletas: la subserie no queda suelta («Falta la serie»); la serie se arma con su código."""
+    filas = [["Dependencia: Grupo de Tesorería Código: 4104"],
+             ["Código", "", "", "Series, subseries y tipos documentales", "Retención", "", "Disposición final", "", "", "",
+              "Procedimiento"],
+             ["D", "S", "SB", "", "AG", "AC", "CT", "E", "M", "S", ""],
+             ["4104", "27", "1", "Informes de gestión\nInforme", "2", "8", "X", "", "", "", "Se conserva"],
+             ["4104", "27", "2", "Informes a entes de control\nInforme", "2", "8", "X", "", "", "", ""]]
+    leidas = cuadro._interpretar_hojas([filas])[0]
+    assert [f.problemas for f in leidas] == [[], []]
+    assert {f.serie.codigo for f in leidas} == {"27"} and leidas[0].serie is leidas[1].serie
+    assert "reconstruyó" in leidas[0].avisos[0]

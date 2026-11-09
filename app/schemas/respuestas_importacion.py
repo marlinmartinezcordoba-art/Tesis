@@ -32,7 +32,7 @@ class ImportacionRico(BaseModel):
     creado: bool
     fondo: dict[str, Any] | None
     cuadro: dict[str, Any]
-    parametrizacion: dict[str, int] | None
+    parametrizacion: dict[str, int | list[str]] | None
     contenido: dict[str, Any]
     omitidas: dict[str, int]
     validacion: ValidacionRico

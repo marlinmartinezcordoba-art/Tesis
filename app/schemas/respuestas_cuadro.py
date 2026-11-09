@@ -112,7 +112,7 @@ class FondoConfigurado(BaseModel):
     informe: InformeCuadro
     validacion: ValidacionRico
     # Lo que la carga configuró en la parametrización: dependencias, series, subseries, tipos y filas de la matriz.
-    parametrizacion: dict[str, int] | None = None
+    parametrizacion: dict[str, int | list[str]] | None = None
     version: dict[str, str] | None = None  # la TRD versión 1 del fondo creado: vigente o en borrador
 
 
