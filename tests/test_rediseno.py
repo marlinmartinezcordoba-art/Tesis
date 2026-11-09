@@ -161,3 +161,22 @@ def test_linea_de_tiempo_de_preservacion(cliente, db, fondo, archivista):
     assert cliente.post(f"/api/preservacion/instanciacion/{inst.id}/verificar", headers=archivista).status_code == 200
     e = cliente.get("/api/preservacion/eventos-recientes", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
     assert e["verificacion"]["resultados"] == {"integra": 1}
+
+
+def test_las_series_de_la_trd_no_cuentan_como_descripciones_publicadas(cliente, db, archivista):
+    """El cuadro que sale de la TRD (secciones, series, subseries) no es lo descrito por la persona: el panel de
+    Descripción y la lista de «Descritas» muestran cero hasta que se describe un documento cargado."""
+    from app.db.base import ahora
+    from app.models.recurso_documental import RecursoDocumental
+
+    fondo = RecursoDocumental(nivel="fondo", titulo="Fondo de prueba del cuadro", publicado_en=ahora())
+    db.add(fondo)
+    db.flush()
+    fondo.fondo_id = fondo.id
+    for nivel in ("seccion", "serie", "subserie"):
+        db.add(RecursoDocumental(nivel=nivel, titulo=f"De la TRD ({nivel})", fondo_id=fondo.id, incluido_en_id=fondo.id,
+                                 publicado_en=ahora()))
+    db.commit()
+    p = cliente.get("/api/descripcion/productividad", headers=archivista, params={"fondo_id": str(fondo.id)}).json()
+    assert p["total_fondo"] == 0
+    assert cliente.get("/api/descripcion/publicadas", headers=archivista, params={"fondo_id": str(fondo.id)}).json() == []

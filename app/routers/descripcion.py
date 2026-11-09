@@ -694,6 +694,12 @@ def previsualizar_pagina(instanciacion_id: uuid.UUID, pagina: int, actor: Actor 
 # --- Descripciones publicadas: consulta interna y corrección ------------------------------------------
 
 
+# Lo que cuenta como descripción es lo que se describe de los documentos cargados (unidades documentales,
+# expedientes): el fondo y su cuadro (secciones, subsecciones, series y subseries) salen de la TRD y la TVD
+# y no son descripciones hechas por una persona.
+_DESCRITO_POR_PERSONA = (RecursoDocumental.nivel.not_in(("fondo", *descripcion.NIVELES_CUADRO)),)
+
+
 def _recurso_o_404(db: Session, recurso_id: uuid.UUID) -> RecursoDocumental:
     recurso = db.get(RecursoDocumental, recurso_id)
     if recurso is None or recurso.publicado_en is None:
@@ -707,7 +713,7 @@ def publicadas(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     descripcion.expirar(db)
     db.commit()
     filas = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
-                                                       RecursoDocumental.publicado_en.isnot(None))
+                                                       RecursoDocumental.publicado_en.isnot(None), *_DESCRITO_POR_PERSONA)
                        .order_by(RecursoDocumental.publicado_en.desc()).limit(500)).all()
     documentos = dict(db.execute(select(Relacion.origen_id, func.count(Relacion.id)).where(
         Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente").group_by(Relacion.origen_id)).all())
@@ -728,7 +734,7 @@ def publicadas_xlsx(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
 
     fondo_o_404(db, fondo_id)
     filas = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
-                                                       RecursoDocumental.publicado_en.isnot(None))
+                                                       RecursoDocumental.publicado_en.isnot(None), *_DESCRITO_POR_PERSONA)
                        .order_by(RecursoDocumental.publicado_en.desc())).all()
     documentos = dict(db.execute(select(Relacion.origen_id, func.count(Relacion.id)).where(
         Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente").group_by(Relacion.origen_id)).all())
@@ -757,7 +763,7 @@ def productividad(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("des
         RegistroAuditoria.fecha >= trazabilidad._inicio_local(hoy),
         RegistroAuditoria.fecha < trazabilidad._inicio_local(hoy + timedelta(days=1))))
     total = db.scalar(select(func.count(RecursoDocumental.id)).where(
-        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel != "fondo", RecursoDocumental.publicado_en.isnot(None)))
+        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.publicado_en.isnot(None), *_DESCRITO_POR_PERSONA))
     # Avance medido, no ilustrativo: archivos listos del fondo y cuántos ya forman parte de una descripción publicada.
     from app.models.descripcion import Relacion
     from app.models.instanciacion import Instanciacion
