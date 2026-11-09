@@ -2,9 +2,9 @@
 Copia con OCR estampado de lo que entra escaneado.
 
 Todo documento que llega sin texto (un PDF escaneado o una imagen) recibe, además de su
-texto en RICORA, una **copia en PDF con la capa de texto del OCR**: la misma imagen de cada
-página y, debajo, el texto invisible que permite buscarlo, seleccionarlo y copiarlo en
-cualquier lector de PDF.
+texto en RICORA, una **copia en PDF con la capa de texto del OCR**: cada página limpia (sin
+sombras ni fondo, con contraste, en blanco y negro; ver mejora_imagen.py) y, debajo, el texto
+invisible que permite buscarlo, seleccionarlo y copiarlo en cualquier lector de PDF.
 
 El original no se modifica: conserva su huella SHA-256 y su valor de autenticidad. La copia es
 otra instanciación, derivada del original (RiC-R014, hasOrHadDerivedInstantiation), con su
@@ -45,6 +45,16 @@ def ya_tiene(db: Session, inst: Instanciacion) -> bool:
         is not None
 
 
+def _limpia(imagen):
+    """La página de la copia de consulta: limpia y legible (sin sombras ni fondo, en blanco y negro). El original
+    conserva la imagen tal como se escaneó."""
+    if not settings.mejorar_imagen_ocr:
+        return imagen
+    from app.servicios import mejora_imagen
+
+    return mejora_imagen.mejorar(imagen)
+
+
 def _paginas(ruta: Path, tipo: str, destino: Path) -> list[Path]:
     """Cada página como imagen (PNG en escala de grises, a la resolución del OCR de la ingesta)."""
     salida: list[Path] = []
@@ -56,7 +66,7 @@ def _paginas(ruta: Path, tipo: str, destino: Path) -> list[Path]:
             for i in range(len(documento)):
                 imagen = documento[i].render(scale=settings.dpi_ocr / 72, grayscale=True).to_pil()
                 archivo = destino / f"p{i:05d}.png"
-                imagen.save(archivo)
+                _limpia(imagen).save(archivo)
                 imagen.close()
                 salida.append(archivo)
         finally:
@@ -67,7 +77,7 @@ def _paginas(ruta: Path, tipo: str, destino: Path) -> list[Path]:
         with Image.open(ruta) as img:
             for i, cuadro in enumerate(ImageSequence.Iterator(img)):
                 archivo = destino / f"p{i:05d}.png"
-                cuadro.convert("L").save(archivo)
+                _limpia(cuadro.convert("L")).save(archivo)
                 salida.append(archivo)
     return salida
 

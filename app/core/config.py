@@ -111,6 +111,10 @@ class Settings:
     propuestas_en_segundo_plano: bool = os.getenv("RICORA_PROPUESTAS_SEGUNDO_PLANO", "1") == "1"
     # Copia con el OCR estampado de lo que entra escaneado (valor inicial del parámetro ingesta_copia_ocr).
     copia_ocr: bool = os.getenv("RICORA_COPIA_OCR", "1") == "1"
+    # Antes del OCR, la página escaneada se limpia (fondo, sombras, contraste, binarización); ver mejora_imagen.py.
+    mejorar_imagen_ocr: bool = os.getenv("RICORA_MEJORAR_IMAGEN", "1") == "1"
+    # Con menos confianza que esto (sobre 100) en la imagen mejorada, también se lee la original y se queda la mejor.
+    umbral_ocr_mejora: int = 80
     # Por debajo de esta confianza, una propuesta se marca «confianza baja».
     umbral_confianza: float = float(os.getenv("UMBRAL_CONFIANZA_REVISION", "0.70"))
     # Similitud por trigramas desde la cual el vocabulario sugiere «¿es la misma?».

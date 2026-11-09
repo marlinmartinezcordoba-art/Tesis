@@ -115,7 +115,13 @@ def ocr_pdf(contenido: bytes) -> tuple[str, bytes]:
                 imagen.save(ruta)
                 giro = _giro(ruta)
                 if giro:
-                    imagen.rotate(-giro, expand=True).save(ruta)
+                    imagen = imagen.rotate(-giro, expand=True)
+                if settings.mejorar_imagen_ocr:
+                    from app.servicios import mejora_imagen
+
+                    imagen = mejora_imagen.mejorar(imagen)  # sin sombras ni fondo: el OCR lee mejor los códigos
+                if giro or settings.mejorar_imagen_ocr:
+                    imagen.save(ruta)
                 imagen.close()
                 base = Path(tmp) / f"p{i:05d}"
                 try:

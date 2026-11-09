@@ -284,6 +284,39 @@ def _hoja(ruta: Path) -> Texto:
 
 
 def _tesseract(imagen: Path) -> Lectura:
+    """El OCR de una página: primero sobre la imagen mejorada (sin fondo ni sombras, con contraste,
+    en blanco y negro; ver mejora_imagen.py). Si esa lectura sale con poca confianza se lee también
+    la imagen tal como vino y se queda la mejor: hay escaneos limpios que la binarización no ayuda."""
+    if not settings.mejorar_imagen_ocr:
+        return _tesseract_directo(imagen)
+    from PIL import Image
+
+    from app.servicios import mejora_imagen
+
+    try:
+        with Image.open(imagen) as img:
+            if getattr(img, "n_frames", 1) > 1:
+                return _tesseract_directo(imagen)  # un TIFF de varias páginas se lee tal cual
+            limpia = mejora_imagen.mejorar(img)
+    except Exception:  # noqa: BLE001 — si no se puede mejorar, se lee como vino
+        return _tesseract_directo(imagen)
+    with tempfile.TemporaryDirectory(prefix="ricora-mejora-") as tmp:
+        destino = Path(tmp) / "mejorada.png"
+        limpia.save(destino)
+        limpia.close()
+        mejorada = _tesseract_directo(destino)
+    media = lambda x: (sum(x.confianzas) / len(x.confianzas)) if x.confianzas else None  # noqa: E731
+    confianza = media(mejorada)
+    if confianza is not None and confianza >= settings.umbral_ocr_mejora:
+        return mejorada
+    original = _tesseract_directo(imagen)
+    c_original = media(original)
+    if c_original is not None and (confianza is None or c_original > confianza):
+        return original
+    return mejorada
+
+
+def _tesseract_directo(imagen: Path) -> Lectura:
     """Una sola pasada de Tesseract que escribe el texto (txt) y la tabla de
     palabras con su confianza (tsv)."""
     with tempfile.TemporaryDirectory(prefix="ricora-tess-") as tmp:

@@ -453,7 +453,8 @@ def test_documento_con_capa_de_texto_deja_la_confianza_vacia_y_no_en_cero(client
     assert i.confianza_ocr is None and i.palabras_ocr is None and i.ocr_baja_confianza is False
 
 
-def test_confianza_bajo_el_umbral_marca_alerta_sin_bloquear(cliente, db, fondo, archivista):
+def test_confianza_bajo_el_umbral_marca_alerta_sin_bloquear(cliente, db, fondo, archivista, sin_mejora):
+    # La alerta de baja confianza se prueba con la imagen tal como vino (sin la mejora previa al OCR).
     [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
     procesamiento.procesar_pendientes(db)
     i = inst(db, r["id"])
@@ -469,7 +470,8 @@ def test_confianza_bajo_el_umbral_marca_alerta_sin_bloquear(cliente, db, fondo, 
     assert fila["ocr_baja_confianza"] is True and fila["confianza_ocr"] == i.confianza_ocr
 
 
-def test_el_umbral_es_configurable_y_solo_lo_cambia_el_administrador(cliente, db, fondo, archivista, cabeceras_admin):
+def test_el_umbral_es_configurable_y_solo_lo_cambia_el_administrador(cliente, db, fondo, archivista, cabeceras_admin,
+                                                                   sin_mejora):
     assert cliente.get("/api/ingesta/umbral-ocr", headers=archivista).json() == {"umbral": 70}
     assert cliente.put("/api/ingesta/umbral-ocr", headers=archivista, json={"umbral": 50}).status_code == 403
     assert cliente.put("/api/ingesta/umbral-ocr", headers=cabeceras_admin, json={"umbral": 101}).status_code == 422
@@ -479,6 +481,23 @@ def test_el_umbral_es_configurable_y_solo_lo_cambia_el_administrador(cliente, db
     [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
     procesamiento.procesar_pendientes(db)
     assert inst(db, r["id"]).ocr_baja_confianza is False
+
+
+@pytest.fixture
+def sin_mejora(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "mejorar_imagen_ocr", False)
+
+
+def test_la_copia_borrosa_se_lee_bien_tras_limpiar_la_imagen(cliente, db, fondo, archivista):
+    """Con la mejora previa al OCR (fondo, contraste, binarización), la misma copia borrosa y manchada que antes
+    salía con confianza 56 se lee completa y sobre el umbral."""
+    [r] = cargar(cliente, archivista, fondo, ("copia_borrosa.png", archivos.png_degradado()))
+    procesamiento.procesar_pendientes(db)
+    i = inst(db, r["id"])
+    assert i.confianza_ocr >= 70 and i.ocr_baja_confianza is False
+    assert "OFICIO NUMERO 114" in i.texto_extraido and "1948" in i.texto_extraido
 
 
 def test_ocr_sin_palabras_reconocidas_es_confianza_cero():
