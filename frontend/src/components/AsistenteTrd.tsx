@@ -48,14 +48,20 @@ function Originales({ versionId }: { versionId: string }) {
   const [cargas, setCargas] = useState<Carga[]>([]);
   useEffect(() => { pedir<Carga[]>(`/api/trd/versiones/${versionId}/cargas`).then(setCargas).catch(() => setCargas([])); }, [versionId]);
   if (!cargas.length) return null;
+  // Las cargas que no dejaron filas (reintentos) no se listan; las demás, las 3 últimas a la vista.
+  const utiles = cargas.filter((c) => c.filas_cargadas > 0);
+  const item = (c: Carga) => (
+    <li key={c.id}>Archivo original: <button type="button" className="enlace"
+      onClick={() => descargar(`/api/trd/cargas/${c.id}/archivo`).catch(() => undefined)}>{c.archivo}</button>
+      {" "}· {c.filas_cargadas} fila(s) · huella SHA-256 <code title={c.huella}>{c.huella.slice(0, 12)}…</code></li>
+  );
+  if (utiles.length <= 3) return <ul className="meta" style={{ margin: "4px 0 0" }}>{utiles.map(item)}</ul>;
   return (
-    <ul className="meta" style={{ margin: "4px 0 0" }}>
-      {cargas.map((c) => (
-        <li key={c.id}>Archivo original: <button type="button" className="enlace"
-          onClick={() => descargar(`/api/trd/cargas/${c.id}/archivo`).catch(() => undefined)}>{c.archivo}</button>
-          {" "}· {c.filas_cargadas} fila(s) · huella SHA-256 <code title={c.huella}>{c.huella.slice(0, 12)}…</code></li>
-      ))}
-    </ul>
+    <>
+      <ul className="meta" style={{ margin: "4px 0 0" }}>{utiles.slice(-3).map(item)}</ul>
+      <details className="meta"><summary>Ver las {utiles.length - 3} carga(s) anteriores</summary>
+        <ul>{utiles.slice(0, -3).map(item)}</ul></details>
+    </>
   );
 }
 
