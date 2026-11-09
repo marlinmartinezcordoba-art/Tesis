@@ -288,3 +288,18 @@ def test_una_fila_que_no_se_puede_guardar_no_bloquea_el_paquete(cliente, db, fon
     informe = c.json()["parametrizacion"]
     assert informe["filas"] == 3
     assert len(informe["omitidas"]) == 1 and "s y entidades del" in informe["omitidas"][0]
+
+
+def test_la_misma_dependencia_como_seccion_y_como_subseccion_no_detiene_la_aprobacion(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+    """Un archivo trae 1001 dentro de 1000 y otro trae 1001 sola: es la misma dependencia, se reutiliza."""
+    def fila(n, seccion, subseccion, serie):
+        return {"fila": n, "seccion": seccion, "intermedias": [], "subseccion": subseccion,
+                "serie": {"codigo": serie, "nombre": f"Serie {serie}"}, "subserie": None, "tipos": ["Acta"],
+                "gestion": 2, "central": 8, "disposicion": "ct", "otras_disposiciones": [], "procedimiento": "x",
+                "problemas": []}
+    filas = [fila(1, {"codigo": "1000", "nombre": "Despacho"}, {"codigo": "1001", "nombre": "Oficina Asesora"}, "2"),
+             fila(2, {"codigo": "1001", "nombre": "Oficina Asesora"}, None, "3")]
+    r = aplicar_trd(cliente, cabeceras_admin, fondo, filas)
+    assert r.status_code == 200, r.text
+    assert r.json()["aplicada"]
+    assert any("1001" in a for a in r.json()["informe"]["avisos"])

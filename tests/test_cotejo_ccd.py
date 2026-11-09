@@ -107,3 +107,19 @@ def test_un_paquete_con_ccd_trd_y_tvd(cliente, db, fondo, cabeceras_admin):  # n
     # El mismo archivo .zip queda citado por las dos versiones y por el cotejo, con una sola copia guardada.
     matriz = cliente.get(f"/api/trd/versiones/{trd_r['version']['id']}/filas", headers=cab).json()
     assert matriz[0]["procedencia"]["parte"] == "TRD 2024.csv"
+
+
+def test_la_dependencia_sin_nombre_en_la_trd_toma_el_del_ccd(cliente, db, fondo, cabeceras_admin):  # noqa: F811
+    """La TRD trae solo el código («Dependencia 110»); el CCD, el nombre: se completa solo. Un nombre real no se toca."""
+    from app.models.trd import DependenciaTrd
+
+    cab = cabeceras_admin
+    a = _armar(cliente, cab, fondo)
+    db.get(DependenciaTrd, __import__("uuid").UUID(a["oficina"]["id"])).nombre = "Dependencia 110"
+    db.commit()
+    vista = _leer(cliente, cab, _ccd("100;Secretaría de Gobierno;110;Grupo de Archivo;2;Actas;1;Actas del comité de archivo"))
+    c = cliente.post(f"/api/trd/versiones/{a['version']['id']}/cotejo", headers=cab, json={"filas": vista["filas"]}).json()
+    assert c["dependencias_nombradas"] == [{"codigo": "110", "antes": "Dependencia 110", "ahora": "Grupo de Archivo"}]
+    db.expire_all()
+    assert db.get(DependenciaTrd, __import__("uuid").UUID(a["oficina"]["id"])).nombre == "Grupo de Archivo"
+    assert db.get(DependenciaTrd, __import__("uuid").UUID(a["seccion"]["id"])).nombre == "Secretaría General"

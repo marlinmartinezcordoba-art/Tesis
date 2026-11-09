@@ -15,6 +15,7 @@ export interface Cotejo {
     nombre_distinto: { codigo: string; en_ccd: string; en_trd: string }[] };
   totales: { series_ccd: number; subseries_ccd: number; series_trd: number; subseries_trd: number };
   archivo: { archivo: string; huella: string } | null; cotejado_en?: string;
+  dependencias_nombradas?: { codigo: string; antes: string; ahora: string }[];
 }
 
 function Lista({ titulo, items, texto }: { titulo: string; items: Item[]; texto: (i: Item) => string }) {
@@ -35,6 +36,11 @@ export function ResultadoCotejo({ c }: { c: Cotejo }) {
       <strong>{c.diferencias ? `El CCD y la ${c.version.nombre} no coinciden en ${c.diferencias} punto(s)`
         : `El CCD y la ${c.version.nombre} coinciden`}</strong>
       <span className="meta"> · {c.coinciden} serie(s) y subserie(s) en los dos{c.archivo && ` · CCD «${c.archivo.archivo}»`}</span>
+      {!!c.dependencias_nombradas?.length && (
+        <p className="meta" style={{ margin: "4px 0 0" }}>{c.dependencias_nombradas.length} dependencia(s) que en la TRD
+          solo traían el código tomaron su nombre del CCD (p. ej. {c.dependencias_nombradas[0].codigo} «
+          {c.dependencias_nombradas[0].ahora}»).</p>
+      )}
       <Lista titulo="Del CCD, sin retención en la TRD" items={c.sin_retencion}
              texto={(i) => `${i.codigo} ${i.nombre} (${i.nivel}) · ${i.dependencia}${i.fila ? ` · fila ${i.fila}${i.parte ? ` de ${i.parte}` : ""}` : ""}`} />
       <Lista titulo="De la TRD, que no están en el CCD" items={c.solo_en_trd}

@@ -108,6 +108,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "trd_importada": ("Llenó una versión de la TRD desde un archivo", "Cuadro de clasificación"),
     "trd_archivo_original": ("Guardó el archivo original de una carga de la TRD", "Cuadro de clasificación"),
     "ccd_cotejado": ("Cotejó el cuadro de clasificación (CCD) con la TRD", "Cuadro de clasificación"),
+    "dependencias_nombradas_desde_ccd": ("Completó el nombre de dependencias de la TRD con el del CCD", "Cuadro de clasificación"),
     "regla_cerrada": ("Cerró la vigencia de una regla de retención al aplicar una TRD nueva", "Reglas de retención"),
     "tesauro_anulado": ("Anuló un tesauro", "Tesauros"),
     "materia_normalizada": ("Normalizó una materia con un tesauro", "Entidades del vocabulario"),

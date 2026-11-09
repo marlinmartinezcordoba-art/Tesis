@@ -1186,6 +1186,12 @@ def plantilla_xlsx() -> bytes:
 # --- Aplicar -------------------------------------------------------------------------------------------
 
 
+def _avisar(informe: dict, texto: str) -> None:
+    avisos = informe.setdefault("avisos", [])
+    if texto not in avisos and len(avisos) < 200:
+        avisos.append(texto)
+
+
 def _agrupacion(db: Session, fondo: RecursoDocumental, nivel: str, nodo: Nodo, codigo: str | None,
                 superior: RecursoDocumental, usuario_id: uuid.UUID, informe: dict, alcance: str | None = None,
                 productor_id: uuid.UUID | None = None) -> RecursoDocumental:
@@ -1195,10 +1201,20 @@ def _agrupacion(db: Session, fondo: RecursoDocumental, nivel: str, nodo: Nodo, c
         existente = db.scalar(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo.id,
                                                               RecursoDocumental.codigo_referencia == codigo))
         if existente is not None:
-            if existente.nivel != nivel:
-                raise ErrorCuadro(f"El código «{codigo}» ya es de un(a) {existente.nivel} y aquí sería {nivel}.", 409)
-            informe["reutilizados"] += existente.id not in informe["_nuevos"]
-            return existente
+            dependencias = ("seccion", "subseccion")
+            if existente.nivel == nivel or (existente.nivel in dependencias and nivel in dependencias):
+                # La misma dependencia, registrada en un archivo como sección y en otro como subsección (las TRD
+                # de cada dependencia no siempre traen la jerarquía completa): se reutiliza la que ya existe.
+                if existente.nivel != nivel:
+                    _avisar(informe, f"La dependencia {codigo} ya estaba como {existente.nivel}: se usó esa (en otro "
+                                     f"archivo venía como {nivel}).")
+                informe["reutilizados"] += existente.id not in informe["_nuevos"]
+                return existente
+            # El mismo código para cosas de distinto nivel (p. ej. una dependencia y una serie): el archivo se
+            # contradice. No se detiene la carga: este nodo queda sin código y se avisa para que se confirme.
+            _avisar(informe, f"El código «{codigo}» ya es de un(a) {existente.nivel}; «{nodo.nombre}» ({nivel}) quedó "
+                             "sin código: confírmelo en la TRD.")
+            codigo = None
     if codigo and nivel in ("seccion", "subseccion"):
         # Una dependencia creada antes con otro código compuesto (100.110 en vez de 110) se reconoce
         # por su nombre dentro de la misma superior: no se duplica ni se le cambia el código.

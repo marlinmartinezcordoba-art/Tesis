@@ -15,6 +15,7 @@ coinciden. El cotejo los compara por código compuesto (110, 110.2, 110.2.1) y d
 Si algo no coincide, deja una alerta en el panel. No corrige nada: decide la persona.
 """
 
+import re
 import uuid
 
 from sqlalchemy import select
@@ -133,11 +134,41 @@ def _alertar(db: Session, v: VersionTrd, informe: dict, archivo: str) -> None:
                   detalle={"diferencias": informe["diferencias"]})
 
 
+_GENERICA = re.compile(r"^dependencia\s+[\w.\-]+$", re.I)
+
+
+def _nombrar_desde_el_ccd(db: Session, v: VersionTrd, filas_ccd: list[dict], usuario_id: uuid.UUID) -> list[dict]:
+    """La TRD trae solo el código de la dependencia («Dependencia 4106») y el CCD trae su nombre («Grupo de
+    Gestión Documental»): la dependencia toma el nombre del CCD. Solo se reemplazan nombres genéricos; un nombre
+    real distinto se deja y aparece en el cotejo para que la persona decida."""
+    from sqlalchemy import select
+
+    from app.models.trd import DependenciaTrd
+
+    deps_c, _, _ = _del_ccd(filas_ccd)
+    cambios = []
+    for d in db.scalars(select(DependenciaTrd).where(DependenciaTrd.fondo_id == v.fondo_id,
+                                                     DependenciaTrd.estado == "activa")):
+        nuevo = deps_c.get(d.codigo)
+        if nuevo and _GENERICA.match((d.nombre or "").strip()) and not _GENERICA.match(nuevo.strip()):
+            cambios.append({"codigo": d.codigo, "antes": d.nombre, "ahora": nuevo})
+            d.nombre = nuevo[:300]
+    if cambios:
+        db.flush()
+        registrar(db, modulo="instrumentos", accion="dependencias_nombradas_desde_ccd", usuario_id=usuario_id,
+                  entidad_tipo="recurso_documental", entidad_id=v.fondo_id,
+                  detalle=f"{len(cambios)} dependencia(s) de la {v.nombre} tomaron su nombre del CCD",
+                  nuevo={"cambios": cambios[:100]})
+    return cambios
+
+
 def cotejar_y_guardar(db: Session, v: VersionTrd, filas_ccd: list[dict], original: dict | None,
                       usuario_id: uuid.UUID) -> dict:
     from app.servicios import versiones_trd
 
+    nombradas = _nombrar_desde_el_ccd(db, v, filas_ccd, usuario_id)
     informe = cotejar(db, v, filas_ccd)
+    informe["dependencias_nombradas"] = nombradas
     fondo = db.get(RecursoDocumental, v.fondo_id)
     carga = versiones_trd.registrar_carga(db, fondo, v, original, usuario_id, clase="ccd") if original else None
     archivo = carga.archivo if carga else (original or {}).get("archivo") or "sin archivo"
