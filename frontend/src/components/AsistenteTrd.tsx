@@ -62,7 +62,8 @@ function Originales({ versionId }: { versionId: string }) {
 // Un .zip puede traer varios instrumentos (requisito 3): el sistema sugiere qué es cada archivo
 // y la persona lo confirma. La TRD llena la versión, la TVD su propio borrador y el CCD se coteja.
 type Rol = "trd" | "ccd" | "tvd" | "omitir";
-interface Parte { archivo: string; filas: number; con_problemas: number; con_retencion: number; sugerido: Rol }
+interface Parte { archivo: string; filas: number; con_problemas: number; con_retencion: number; sugerido: Rol;
+  motivo?: string | null }
 type VistaPaquete = Vista & { partes?: Parte[]; original?: { huella: string; archivo: string } };
 const ROL_NOMBRE: Record<Rol, string> = { trd: "TRD (llena la versión)", ccd: "CCD (se coteja con la TRD)",
   tvd: "TVD (abre su propio borrador)", omitir: "No usar" };
@@ -169,7 +170,8 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
                   <tbody>
                     {vista.partes!.map((x) => (
                       <tr key={x.archivo}>
-                        <td><strong>{x.archivo}</strong>{x.con_problemas > 0 && <div className="meta">{x.con_problemas} con problemas (quedan fuera)</div>}</td>
+                        <td><strong>{x.archivo}</strong>{x.con_problemas > 0 && <div className="meta">{x.con_problemas} con problemas (quedan fuera)
+                          {x.motivo ? <>: {x.motivo}</> : null}</div>}</td>
                         <td>{x.filas}</td><td>{x.con_retencion}</td>
                         <td><select className="selector" aria-label={`Qué es ${x.archivo}`} value={roles[x.archivo]}
                                     onChange={(e) => setRoles({ ...roles, [x.archivo]: e.target.value as Rol })}>
@@ -188,6 +190,7 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
             <summary className="meta">Ver fila por fila lo que se leyó</summary>
             <div className="tabla-desplazable"><TablaVistaPrevia vista={vista} incluir={incluir} setIncluir={setIncluir} /></div>
           </details>
+          {error && <div className="aviso error" role="alert" style={{ marginTop: 10 }}>{error}</div>}
           <div className="acciones">
             <button type="button" className="boton primario" disabled={ocupado || (!paquete && !incluir.size)} onClick={guardar}>
               {ocupado ? "Guardando…" : paquete ? "Guardar el paquete y seguir" : `Guardar estas ${incluir.size} fila(s) y seguir`}</button>

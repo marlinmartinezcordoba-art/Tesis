@@ -379,3 +379,21 @@ def test_subserie_sin_la_fila_de_su_serie_reconstruye_la_serie_por_su_codigo():
     assert [f.problemas for f in leidas] == [[], []]
     assert {f.serie.codigo for f in leidas} == {"27"} and leidas[0].serie is leidas[1].serie
     assert "reconstruyó" in leidas[0].avisos[0]
+
+
+def test_codigo_de_la_dependencia_al_final_del_nombre_del_archivo():
+    """«TRD Ultima OK_4106.xlsx»: el código va al final; «acta 2019.pdf» no es una dependencia."""
+    from app.servicios.cuadro import FilaCuadro, Nodo, _dependencia_del_archivo, _motivo_frecuente
+
+    f = FilaCuadro(fila=1, seccion=Nodo(None, "Grupo de Contratos"))
+    f.problemas = ["La dependencia «Grupo de Contratos» no tiene código en el archivo: …"]
+    g = FilaCuadro(fila=2)
+    _dependencia_del_archivo([f, g], "TRD Ultima OK_4106.xlsx")
+    assert f.seccion == Nodo("4106", "Grupo de Contratos") and f.problemas == []
+    assert g.seccion == Nodo("4106", "Dependencia 4106")
+    h = FilaCuadro(fila=3)
+    _dependencia_del_archivo([h], "acta 2019.pdf")
+    assert h.seccion is None
+    a, b = FilaCuadro(fila=1), FilaCuadro(fila=2)
+    a.problemas, b.problemas = ["Falta la serie."], ["Falta la serie."]
+    assert _motivo_frecuente([a, b, FilaCuadro(fila=3)]) == "Falta la serie."

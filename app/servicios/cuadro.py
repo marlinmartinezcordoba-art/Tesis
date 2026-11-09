@@ -869,6 +869,10 @@ def _motivo_corto(a: dict) -> str:
 
 
 _ARCHIVO_DEPENDENCIA = re.compile(r"^\s*(\d{2,6})[\s_\-.]+(.+?)\.[A-Za-z0-9]{2,5}$")
+_ARCHIVO_DEPENDENCIA_AL_FINAL = re.compile(r"^(.*?)[\s_\-.]+(\d{3,6})\.[A-Za-z0-9]{2,5}$")
+# Lo que queda del nombre del archivo y no es el nombre de una dependencia («Ultima OK», «versión final 2019»).
+_GENERICO = re.compile(r"(?:(?:trd|tabla|retenci[oó]n|documental|ultima|última|final|ok|v(?:ersi[oó]n)?\s*\d*|"
+                       r"definitiva|actualizada|convalidada|\d{4})[\s_\-.]*)+", re.I)
 AVISO_DEPENDENCIA = "Código de la dependencia ({}) tomado del nombre del archivo: verifíquelo."
 
 
@@ -876,10 +880,17 @@ def _dependencia_del_archivo(filas: list[FilaCuadro], archivo: str) -> None:
     """Las TRD que se publican una por dependencia suelen traer el código en el nombre del archivo
     («4106_Grupo_Gestión_Documental.pdf»). Si la fila no trae la dependencia o su código, se toman de ahí."""
     m = _ARCHIVO_DEPENDENCIA.match(archivo or "")
-    if not m:
-        return
-    codigo = m.group(1)
-    nombre = re.sub(r"^TRD[-_ ]*V?\d*[-_ ]*", "", m.group(2), flags=re.I).replace("_", " ").strip() or m.group(2)
+    if m:
+        codigo, resto = m.group(1), m.group(2)
+    else:
+        # El código al final: «TRD Ultima OK_4106.xlsx», «TRD 2019 - 4106.pdf».
+        m = _ARCHIVO_DEPENDENCIA_AL_FINAL.match(archivo or "")
+        if not m or not re.search(r"trd|ccd|tvd|tabla|retenci", m.group(1), re.I):
+            return  # «acta 2019.pdf»: el número del final es un año, no una dependencia
+        codigo, resto = m.group(2), m.group(1)
+    nombre = re.sub(r"^TRD[-_ ]*V?\d*[-_ ]*", "", resto, flags=re.I).replace("_", " ").strip()
+    if not nombre or _GENERICO.fullmatch(nombre):
+        nombre = f"Dependencia {codigo}"
     for f in filas:
         if f.seccion is None:
             f.seccion = Nodo(codigo, nombre)
@@ -1033,13 +1044,26 @@ def _sugerido(nombre: str, filas: list[FilaCuadro]) -> str:
     return "trd"
 
 
+def _motivo_frecuente(lista: list[FilaCuadro]) -> str | None:
+    """El problema que más se repite en un archivo, para decir por qué sus filas quedan fuera."""
+    from collections import Counter
+
+    cuenta = Counter(re.sub(r"«[^»]*»|\([^)]*\)|\d+", "…", f.problemas[0]) for f in lista if f.problemas)
+    if not cuenta:
+        return None
+    patron = cuenta.most_common(1)[0][0]
+    return next(f.problemas[0] for f in lista if f.problemas and
+                re.sub(r"«[^»]*»|\([^)]*\)|\d+", "…", f.problemas[0]) == patron)
+
+
 def _partes(filas: list[FilaCuadro]) -> list[dict]:
     grupos: dict[str, list[FilaCuadro]] = {}
     for f in filas:
         if f.parte:
             grupos.setdefault(f.parte, []).append(f)
     return [{"archivo": nombre, "filas": len(lista), "con_problemas": sum(1 for f in lista if f.problemas),
-             "con_retencion": sum(1 for f in lista if f.disposicion), "sugerido": _sugerido(nombre, lista)}
+             "con_retencion": sum(1 for f in lista if f.disposicion), "sugerido": _sugerido(nombre, lista),
+             "motivo": _motivo_frecuente(lista)}
             for nombre, lista in grupos.items()]
 
 
