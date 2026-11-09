@@ -357,12 +357,17 @@ export function AsistenteTrd() {
                       <li className={borrador.vigente_desde ? "bien" : ""}>Rige desde: {borrador.vigente_desde || "falta"}</li>
                     </ul>
                     {faltan.length > 0 && <div className="aviso alerta">Falta {faltan.join(", ")}.</div>}
+                    {error && <div className="aviso error" role="alert" data-fijo>{error}</div>}
+                    {datosCompletos && !revisada && !ocupado && (
+                      <p className="meta">«Aprobar» se habilita cuando la revisión RiC-O sale conforme
+                        {revision ? ": arriba está lo que falta." : "; pulse «Revisar de nuevo»."}</p>
+                    )}
                     <div className="acciones">
                       <button type="button" className={`boton${datosCompletos ? "" : " primario"}`} onClick={() => setDatos(true)}>
                         {datosCompletos ? "Corregir los datos de aprobación" : "Escribir los datos de aprobación"}</button>
                       <button type="button" className="boton primario" disabled={ocupado || !datosCompletos || !revisada}
                               onClick={() => revisar(true)}>{ocupado && revision ? "Aplicando…" : "Aprobar y poner a regir"}</button>
-                      {revision && !revisada && (
+                      {!revisada && (
                         <button type="button" className="boton" disabled={ocupado} onClick={() => revisar(false)}>Revisar de nuevo</button>)}
                     </div>
                     <p className="meta">La versión que rige hoy pasa a histórica y se conserva; cada expediente guarda la

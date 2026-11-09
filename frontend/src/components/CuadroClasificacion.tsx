@@ -65,7 +65,7 @@ export function TablaVistaPrevia({ vista, incluir, setIncluir }: { vista: Vista;
 export function ResultadoValidacion({ v }: { v: Validacion }) {
   const clases = Object.entries(v.por_clase).map(([c, n]) => `${n} rico:${c}`).join(", ");
   return (
-    <div className={`aviso ${v.conforme ? "bien" : "error"}`} role="status">
+    <div className={`aviso ${v.conforme ? "bien" : "error"}`} role="status" data-fijo>
       <strong>{v.conforme ? "Conforme con " : "No conforme con "}{v.ontologia}</strong> (ontología oficial y perfil SHACL):
       {" "}{v.tripletas} tripletas · {clases}.
       {!v.conforme && (

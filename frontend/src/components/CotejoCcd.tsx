@@ -30,7 +30,8 @@ function Lista({ titulo, items, texto }: { titulo: string; items: Item[]; texto:
 export function ResultadoCotejo({ c }: { c: Cotejo }) {
   const d = c.dependencias;
   return (
-    <div className={`aviso ${c.diferencias ? (c.sin_retencion.length ? "error" : "alerta") : "bien"}`} role="status">
+    // data-fijo: el resultado es parte del trabajo y se queda en la página (no sale como aviso flotante).
+    <div className={`aviso ${c.diferencias ? (c.sin_retencion.length ? "error" : "alerta") : "bien"}`} role="status" data-fijo>
       <strong>{c.diferencias ? `El CCD y la ${c.version.nombre} no coinciden en ${c.diferencias} punto(s)`
         : `El CCD y la ${c.version.nombre} coinciden`}</strong>
       <span className="meta"> · {c.coinciden} serie(s) y subserie(s) en los dos{c.archivo && ` · CCD «${c.archivo.archivo}»`}</span>
@@ -43,11 +44,15 @@ export function ResultadoCotejo({ c }: { c: Cotejo }) {
       <Lista titulo="La misma serie en otra dependencia" items={c.otra_dependencia}
              texto={(i) => `${i.codigo} ${i.nombre}: en el CCD «${i.en_ccd}», en la TRD «${i.en_trd}»`} />
       {(d.solo_en_ccd.length > 0 || d.solo_en_trd.length > 0 || d.nombre_distinto.length > 0) && (
-        <p className="meta" style={{ marginBottom: 0 }}>
-          {d.solo_en_ccd.length > 0 && <>Dependencias solo en el CCD: {d.solo_en_ccd.map((x) => `${x.codigo} ${x.nombre}`).join(", ")}. </>}
-          {d.solo_en_trd.length > 0 && <>Solo en la TRD: {d.solo_en_trd.map((x) => `${x.codigo} ${x.nombre}`).join(", ")}. </>}
-          {d.nombre_distinto.length > 0 && <>Con otro nombre: {d.nombre_distinto.map((x) => `${x.codigo} («${x.en_ccd}» / «${x.en_trd}»)`).join(", ")}.</>}
-        </p>
+        <details>
+          <summary className="meta">Dependencias que no coinciden ({d.solo_en_ccd.length + d.solo_en_trd.length
+            + d.nombre_distinto.length})</summary>
+          <ul className="meta">
+            {d.solo_en_ccd.length > 0 && <li>Solo en el CCD: {d.solo_en_ccd.map((x) => `${x.codigo} ${x.nombre}`).join(", ")}.</li>}
+            {d.solo_en_trd.length > 0 && <li>Solo en la TRD: {d.solo_en_trd.map((x) => `${x.codigo} ${x.nombre}`).join(", ")}.</li>}
+            {d.nombre_distinto.length > 0 && <li>Con otro nombre: {d.nombre_distinto.map((x) => `${x.codigo} («${x.en_ccd}» / «${x.en_trd}»)`).join(", ")}.</li>}
+          </ul>
+        </details>
       )}
       {c.diferencias > 0 && <p className="meta" style={{ marginBottom: 0 }}>Corrija la TRD en el paso 3 o pida a la
         entidad el CCD que corresponde, y vuelva a cotejar.</p>}

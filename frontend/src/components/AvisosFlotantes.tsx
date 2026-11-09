@@ -19,12 +19,13 @@ interface Aviso { id: number; tipo: Tipo; texto: string }
 const SELECTOR = ".aviso.bien, .aviso.error";
 const EXCLUIR = ".ventana, .ventana-fondo, .chat-panel, .ayuda-tarjeta, [role='dialog'], [data-fijo]";
 const SEGUNDOS = 5;
+const LARGO = 400;
 
 let siguiente = 1;
 const oyentes = new Set<(a: Aviso) => void>();
 /** Muestra un aviso flotante desde cualquier parte del código. */
 export function avisar(texto: string, tipo: Tipo = "bien") {
-  const a = { id: siguiente++, tipo, texto };
+  const a = { id: siguiente++, tipo, texto: texto.length > LARGO ? `${texto.slice(0, LARGO)}…` : texto };
   oyentes.forEach((f) => f(a));
 }
 
@@ -45,8 +46,10 @@ export function AvisosFlotantes() {
 
     const revisar = (el: Element) => {
       // Un aviso con botones o enlaces (p. ej. «Descargar el respaldo») se queda en la página: es parte del trabajo.
-      if (!el.matches(SELECTOR) || el.closest(EXCLUIR) || el.querySelector("button, a, input, select, textarea")) return;
+      if (!el.matches(SELECTOR) || el.closest(EXCLUIR) || el.querySelector("button, a, input, select, textarea, details")) return;
       const texto = (el.textContent || "").replace(/\s+/g, " ").replace(/^×\s*/, "").trim();
+      // Un resultado largo (un cotejo, un listado) es contenido de la página, no un aviso: se queda donde está.
+      if (texto.length > LARGO) return;
       (el as HTMLElement).classList.add("aviso-en-flotante");
       if (!texto || vistos.current.get(el) === texto) return;
       vistos.current.set(el, texto);
