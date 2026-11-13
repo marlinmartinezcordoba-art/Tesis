@@ -1,6 +1,6 @@
 """
 Decisiones de la archivista frente a cada propuesta del motor de IA: la
-fuente de datos del capítulo de evaluación de la tesis.
+fuente de datos del análisis de la evaluación.
 
 Se leen del registro de auditoría (eventos «decision_ia» que deja la
 publicación de una descripción); no hay una tabla paralela. Por cada

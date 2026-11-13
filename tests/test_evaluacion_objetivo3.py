@@ -1,5 +1,5 @@
 """
-Objetivo 3 de la tesis convertido en lógica (documentacion/modulo-evaluacion.md, §25).
+La evaluación frente a archivistas convertida en lógica (documentacion/modulo-evaluacion.md, §25).
 
 - El criterio de comparabilidad se fija antes de iniciar, queda congelado y
   el sistema lo aplica tipo por tipo, con el acuerdo entre archivistas como techo.

@@ -108,7 +108,7 @@ const ENTRADAS: Entrada[] = [
     { vista: "propia", nombre: "Registro de actividad" },
     { vista: "decisiones", nombre: "Decisiones de IA", permitir: (u) => u.es_administrador },
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
-  // Evaluación ciega (objetivo 3 de la tesis): quien describe y la administración. Sin vistas internas.
+  // Evaluación ciega: quien describe y la administración. Sin vistas internas.
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
   { ruta: "/usuarios", nombre: "Usuarios y permisos", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
     { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" },

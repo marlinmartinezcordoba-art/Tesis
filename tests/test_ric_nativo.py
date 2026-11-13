@@ -55,7 +55,7 @@ def test_la_autoria_de_cada_relacion_esta_en_el_grafo(db, fondo, admin):
     assert (u(manual.id), RICO.isAssociatedWithEvent, u(f"{doc.id}/autoria/manual")) in g
     assert (u(manual.id), RICO.isAssociatedWithEvent, act) not in g
 
-    # La pregunta que la tesis promete responder en el grafo: quién afirmó cada relación.
+    # La pregunta que el grafo debe responder: quién afirmó cada relación.
     filas = {(str(r.relacion), str(r.clase).split("#")[-1]) for r in g.query(AUTORIA)}
     assert (str(u(propuesta.id)), "Mechanism") in filas and (str(u(propuesta.id)), "Position") in filas
     assert (str(u(manual.id)), "Position") in filas and (str(u(manual.id)), "Mechanism") not in filas

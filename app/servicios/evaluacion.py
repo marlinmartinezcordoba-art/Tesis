@@ -1,5 +1,5 @@
 """
-Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
+Evaluación ciega del motor frente a archivistas.
 
 Diseño (decisiones en documentacion/modulo-evaluacion.md):
 - Patrón de referencia: la descripción **ciega** de cada archivista, hecha
@@ -509,7 +509,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     acuerdo = {"vp": 0, "fp": 0, "fn": 0}
     acuerdo_rel = {"vp": 0, "fp": 0, "fn": 0}
     conformidad = {"motor": [], "ciega": [], "asistida": []}
-    ric_por_fuente = {"motor": [], "ciega": [], "asistida": []}  # para los indicadores de la Tabla 3
+    ric_por_fuente = {"motor": [], "ciega": [], "asistida": []}  # para los indicadores de normalización y cobertura
     por_documento = []
     from app.servicios import evaluacion_analisis as an
 
@@ -679,7 +679,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
             "anotaciones": {"ciegas": sum(1 for a in anotaciones if a.condicion == "ciega"),
                             "asistidas": sum(1 for a in anotaciones if a.condicion == "asistida"),
                             "evaluadores": len({a.evaluador_id for a in anotaciones})}}
-    # Normalización, trazabilidad y cobertura de RiC-O (dimensiones 3 a 5 de la Tabla 3 del capítulo III).
+    # Normalización, trazabilidad y cobertura de RiC-O (normalización, trazabilidad y conformidad).
     salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
     salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
     return salida
@@ -813,7 +813,7 @@ def hoja_de_calculo(datos: dict) -> bytes:
     otra.append(["Wilcoxon, tiempos ciega frente a asistida", "n", w["n"], "z", w["z"], "p", w["p"], w["nota"] or ""])
     if datos.get("indicadores"):
         ind = libro.create_sheet("Normalización y cobertura")
-        ind.append(["Indicador (Tabla 3, dimensiones 3 a 5)", "Motor", "Archivista a ciegas", "Archivista asistida"])
+        ind.append(["Indicador", "Motor", "Archivista a ciegas", "Archivista asistida"])
         i = datos["indicadores"]
         filas = (("Descripciones", "descripciones"), ("Fechas", "fechas"), ("Fechas con EDTF válido", "fechas_edtf"),
                  ("Porcentaje de fechas en EDTF", "tasa_fechas_edtf"), ("Agentes y lugares", "agentes_y_lugares"),

@@ -118,7 +118,7 @@ def avance(db: Session, fondo: RecursoDocumental) -> dict:
         paso("difusion", "Instrumentos de descripción", "hecho", "Inventario, guía e índice aprobados.",
              "Ver el catálogo", "/instrumentos", "instrumentos")
 
-    # La preservación está fuera del alcance de la tesis: con el módulo apagado no es un paso del avance.
+    # La preservación está fuera del alcance del prototipo: con el módulo apagado no es un paso del avance.
     if settings.preservacion_activa:
         if alterados:
             paso("preservacion", "Preservación", "en_curso", f"{alterados} archivo(s) alterados o ausentes: atienda ya.",

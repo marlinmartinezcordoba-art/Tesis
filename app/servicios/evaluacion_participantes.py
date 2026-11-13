@@ -13,7 +13,7 @@ Reglas:
   propuesta quien tiene rol de calificadora (o ambas).
 - No se inicia una evaluación sin al menos una experta con consentimiento.
 - Cada experta recibe un código (E1, E2…) en el orden de registro. Los
-  resultados exportados y la tesis usan el código, nunca el nombre (Ley 1581
+  resultados exportados usan el código, nunca el nombre (Ley 1581
   de 2012). El nombre lo ve solo quien administra la evaluación.
 - Nada se borra: una participante se retira (queda la fecha) y sus
   anotaciones ya enviadas siguen contando, con su código.

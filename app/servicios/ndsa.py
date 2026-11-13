@@ -2,7 +2,7 @@
 NDSA Levels of Digital Preservation 2.0 (2019): nivel por área calculado
 desde el estado real del sistema (hallazgo PRE-13).
 
-La auditoría encontró que la tesis no podía afirmar un nivel sin la
+La auditoría encontró que no se podía afirmar un nivel sin la
 salvedad de la regla acumulativa: un nivel cuenta solo si se cumplen todos
 sus requisitos y los de los niveles inferiores. Aquí cada requisito se
 comprueba contra lo que el sistema hace de verdad (configuración, últimos

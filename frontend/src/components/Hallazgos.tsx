@@ -25,7 +25,7 @@ const COMPONENTES: [string, string][] = [["autenticacion", "Autenticación"], ["
   ["descripcion", "Descripción"], ["vocabularios", "Autoridades y términos"], ["instrumentos", "Consulta y difusión"],
   ["preservacion", "Preservación"], ["auditoria", "Auditoría"]];
 const NOMBRE_COMPONENTE = Object.fromEntries(COMPONENTES);
-// Con la preservación apagada (fuera del alcance de la tesis), no se ofrece como componente.
+// Con la preservación apagada (fuera del alcance del prototipo), no se ofrece como componente.
 function useComponentes() {
   const { usuario } = useSesion();
   return COMPONENTES.filter(([k]) => k !== "preservacion" || !!usuario?.preservacion_activa);

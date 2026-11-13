@@ -555,7 +555,7 @@ SIN_PROPIEDAD = {
     "estructura_agente": "ISAAR 5.2.7. rico:structure solo admite Instantiation y RecordResource; RiC expresa la "
                          "estructura interna de un agente con relaciones entre agentes (hasOrHadSubordinate, que sí "
                          "se exporta), no con un texto. Se conserva en la ficha.",
-    "calendario": "RiC-O no declara calendario; normalizedDateValue usa ISO 8601 (gregoriano). Delimitación de la tesis.",
+    "calendario": "RiC-O no declara calendario; normalizedDateValue usa ISO 8601 (gregoriano). Delimitación del prototipo.",
     "nivel_detalle": "Dato de control interno del registro de autoridad.",
     "isdiah": "ISDIAH 5.2, 5.4 y 5.5 (contacto, horarios, acceso, servicios de la institución custodia): RiC-O 1.1 "
               "no tiene propiedades para ellos. Se conservan en la ficha y en el grafo de control; la custodia de "

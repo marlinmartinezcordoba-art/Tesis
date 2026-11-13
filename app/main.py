@@ -29,7 +29,7 @@ app = FastAPI(
     description=(
         "Sistema de descripción archivística multinivel y preservación digital "
         "basado en Records in Contexts (RiC-CM 1.0, RiC-O 1.1) del Consejo "
-        "Internacional de Archivos. Proyecto de tesis de maestría.\n\n"
+        "Internacional de Archivos.\n\n"
         "**Versión de la API: 1.** Toda ruta `/api/…` responde también como "
         "`/api/v1/…`, que es la dirección estable para integraciones: un cambio "
         "incompatible se publicará como `/api/v2/…` sin retirar la v1. Cada "

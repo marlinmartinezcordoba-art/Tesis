@@ -1,5 +1,5 @@
 """
-Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
+Evaluación ciega del motor frente a archivistas .
 """
 
 import io

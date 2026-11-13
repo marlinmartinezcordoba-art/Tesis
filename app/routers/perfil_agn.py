@@ -5,7 +5,7 @@ sistema y no como un módulo aparte: la ficha de cada descripción muestra lo
 que le falta y el resumen del fondo, cuántas están completas por nivel.
 
 Las correspondencias AGN ↔ RiC-CM 1.0 ↔ RiC-O 1.1 ↔ RICORA y las erratas
-del esquema se consultan por API (documentación y anexos de la tesis); no
+del esquema se consultan por API (documentación y anexos); no
 tienen pantalla.
 """
 

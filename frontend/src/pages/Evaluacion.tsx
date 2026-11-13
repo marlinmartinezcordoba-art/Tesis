@@ -6,7 +6,7 @@ import { Encabezado, Indicadores } from "@/components/Encabezado";
 import { confirmar } from "@/lib/dialogos";
 import { Ventana } from "@/components/Ventana";
 
-// Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
+// Evaluación ciega del motor frente a archivistas.
 // La archivista describe a ciegas (sin ver nunca la propuesta del motor),
 // después con la propuesta delante (asistida) y por último la califica.
 // El servidor impide describir a ciegas lo que ya se vio.
@@ -101,7 +101,7 @@ const CRITERIOS: [string, string, string][] = [
   ["completitud", "Completitud", "No le falta nada importante."],
   ["pertinencia", "Pertinencia", "El contexto (agentes, funciones, fechas) es el que un archivista registraría."],
 ];
-// Descriptores de cada nivel (tabla de la rúbrica en el capítulo III de la tesis), del 1 al 5.
+// Descriptores de cada nivel (tabla de la rúbrica del protocolo), del 1 al 5.
 const DESCRIPTORES: Record<string, string[]> = {
   exactitud: ["La mayor parte de lo propuesto es incorrecto",
     "Error en el productor, la fecha principal o el tipo documental",
@@ -605,7 +605,7 @@ function Expertas({ ev }: { ev: EvaluacionBreve }) {
   );
 }
 
-// Criterio de comparabilidad: se fija antes de iniciar y queda congelado (objetivo 3 de la tesis).
+// Criterio de comparabilidad: se fija antes de iniciar y queda congelado (protocolo de evaluación).
 function CriterioComparabilidad({ ev, cambio }: { ev: EvaluacionBreve; cambio: () => void }) {
   const [c, setC] = useState<Criterio>(ev.criterio);
   const [aviso, setAviso] = useState("");
@@ -1229,7 +1229,7 @@ interface DesacuerdosRespuesta {
   desacuerdos: DesacuerdoFila[];
 }
 
-// Clasificación de cada desacuerdo con la taxonomía de errores de la tesis. Cada investigadora
+// Clasificación de cada desacuerdo con la taxonomía de errores del protocolo. Cada investigadora
 // clasifica por su cuenta; ve la clasificación de la otra solo después de dar la suya, y si
 // difieren, registran el consenso.
 function Desacuerdos({ evId, volver }: { evId: string; volver: () => void }) {

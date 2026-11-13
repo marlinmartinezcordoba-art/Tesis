@@ -471,7 +471,7 @@ class MotorLocal(MotorGemini):
 # Gemini y la IA local proponen la misma descripción por separado. Lo que proponen los dos
 # sube su confianza; lo que propone uno solo queda por debajo del umbral de revisión, para que
 # la archivista lo mire con cuidado. Las dos respuestas se guardan enteras: así se puede medir
-# cada motor solo y el consenso con la misma corrida (objetivo 3 de la tesis).
+# cada motor solo y el consenso con la misma corrida (evaluación frente a archivistas).
 
 CONFIANZA_UN_MOTOR = 0.6  # por debajo del umbral de revisión (0,70): lo propuso un solo motor
 SIMILITUD_ACUERDO = 0.85

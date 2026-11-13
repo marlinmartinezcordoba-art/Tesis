@@ -37,7 +37,7 @@ Al publicar, cada propuesta del motor deja en auditoría un evento
 «decision_ia» (aceptada, corregida o rechazada; y «agregada» para lo que
 la archivista puso y el motor no propuso), con el valor propuesto, el
 final, el modelo y la versión de las instrucciones. Es la evidencia del
-capítulo de evaluación de la tesis.
+análisis de la evaluación.
 """
 
 import json

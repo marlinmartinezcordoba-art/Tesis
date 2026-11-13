@@ -36,7 +36,7 @@ class Settings:
 
     # Módulo de preservación digital (verificación periódica de integridad,
     # migración de formatos, segunda copia, paquetes AIP, derechos, riesgo,
-    # NDSA) y respaldos programados. Apagado por defecto: la tesis trata la
+    # NDSA) y respaldos programados. Apagado por defecto: el prototipo trata la
     # descripción, no la preservación (decisión de la autora). El código y los
     # datos se conservan; RICORA_PRESERVACION=1 lo vuelve a encender.
     preservacion_activa: bool = os.getenv("RICORA_PRESERVACION", "0").strip().lower() in ("1", "true", "si", "sí")

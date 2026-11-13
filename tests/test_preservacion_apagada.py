@@ -36,7 +36,7 @@ def test_encendida_vuelve(monkeypatch):
 
 
 def test_apagada_no_es_un_paso_del_avance_del_fondo(cliente, db, cabeceras_admin, monkeypatch):
-    """La tesis no trata la preservación: con el módulo apagado no aparece en el avance del fondo."""
+    """El prototipo no trata la preservación: con el módulo apagado no aparece en el avance del fondo."""
     from tests.test_disposicion import _fondo
 
     fnd, _, _ = _fondo(cliente, db, cabeceras_admin)

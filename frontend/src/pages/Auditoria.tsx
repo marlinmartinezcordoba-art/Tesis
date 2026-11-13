@@ -328,7 +328,7 @@ function DecisionesIA() {
       <h1>Decisiones de validación asistida por inteligencia artificial</h1>
       <p className="sub">
         Visible solo para la administración. Cada propuesta del motor frente a lo que finalmente quedó confirmado, clasificada
-        sola al publicar. Es la fuente de datos del capítulo de evaluación de la tesis.
+        sola al publicar. Es la fuente de datos del análisis de la evaluación.
       </p>
       <div className="filtros" style={{ alignItems: "center" }}>
         <select className="selector" aria-label="Tipo de entidad" value={tipo} onChange={(e) => setTipo(e.target.value)}>

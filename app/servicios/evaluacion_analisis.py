@@ -1,5 +1,5 @@
 """
-Objetivo 3 de la tesis convertido en lógica: lo que el capítulo III promete
+La evaluación frente a archivistas convertida en lógica: lo que el protocolo promete
 y el sistema ahora calcula, en lugar de dejarlo a una hoja de cálculo.
 
 - Criterio de comparabilidad, fijado antes de iniciar la evaluación: un tipo
@@ -42,7 +42,7 @@ CRITERIO_POR_DEFECTO = {"margen_f": 0.10, "minimo_casos": 10, "rubrica_minima": 
 LIMITES_CRITERIO = {"margen_f": (0.0, 0.5), "minimo_casos": (1, 1000), "rubrica_minima": (1.0, 5.0),
                     "conformidad_asistida": (0.0, 1.0)}
 
-# Taxonomía de errores de la tesis (capítulo III).
+# Taxonomía de errores del protocolo de evaluación.
 TIPOS_ERROR = {
     "reconocimiento": "Error de reconocimiento de texto",
     "sin_sustento": "Entidad sin sustento",
@@ -411,7 +411,7 @@ def wilcoxon(pares_: list[tuple[float, float]]) -> dict:
     return {"n": n, "w_mas": w_mas, "w_menos": w_menos, "z": _r(z), "p": _r(min(1.0, p)), "nota": None}
 
 
-# --- Indicadores de la Tabla 3 del capítulo III (normalización, trazabilidad, cobertura) ---------------
+# --- Indicadores de normalización, trazabilidad y cobertura -------------------------------------------
 
 
 def _duplicadas(entidades: list[dict], umbral: float) -> int:

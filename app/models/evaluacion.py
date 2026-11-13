@@ -1,5 +1,5 @@
 """
-Evaluación ciega del motor frente a archivistas (objetivo 3 de la tesis).
+Evaluación ciega del motor frente a archivistas.
 
 Una evaluación reúne documentos aún no descritos. Para cada uno, el motor
 propone una descripción que nadie ve; archivistas lo describen a ciegas
@@ -98,7 +98,7 @@ class Calificacion(Base):
 
 class ClasificacionError(Base):
     """Cómo clasificó una investigadora un desacuerdo entre el motor y una
-    referencia ciega (taxonomía de errores de la tesis). Cada investigadora
+    referencia ciega (taxonomía de errores del protocolo). Cada investigadora
     clasifica por su cuenta (ronda «individual»); si difieren, se resuelve
     por consenso (ronda «consenso»). Un cambio de clasificación reemplaza
     la anterior de la misma persona y queda en la auditoría."""
