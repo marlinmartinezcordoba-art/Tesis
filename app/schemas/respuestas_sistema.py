@@ -6,6 +6,8 @@ Solo documentan: las rutas no los usan como response_model, así que no
 filtran ni cambian lo que se responde. Admiten campos adicionales.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 # --- Búsqueda (RF-SEARCH-001 y RF-SEARCH-002) -------------------------------------------------
@@ -178,4 +180,24 @@ class RespuestaAsistenteOut(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     respuesta: str
-    modelo: str
+    modelo: str | None
+    modo: str = "internet"  # documentos (RAG) | internet
+    pasajes: list[dict] = []  # los pasajes recuperados (modo documentos), con si se citaron
+
+
+class DocumentoReferenciaOut(BaseModel):
+    """Un documento de la biblioteca del asistente (ley, acuerdo, manual o procedimiento)."""
+    id: str
+    titulo: str
+    clase: str
+    clase_nombre: str
+    archivo: str
+    huella: str
+    tamano_bytes: int
+    estado: str  # procesando | listo | error | anulado
+    error: str | None
+    paginas: int | None
+    origen_texto: str | None
+    caracteres: int
+    cargado_en: datetime
+    motivo_anulacion: str | None

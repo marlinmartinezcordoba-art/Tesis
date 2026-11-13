@@ -44,7 +44,8 @@ FRASE = "BORRAR TODO EL CONTENIDO"
 
 # Lo que hace funcionar el sistema: se conserva siempre.
 CONSERVAR = ("alembic_version", "usuarios", "roles", "sesiones", "tokens_un_uso", "parametros", "registro_auditoria",
-             "etiquetas_version_prompt", "respaldos_bd", "paquetes_recuperacion")
+             "etiquetas_version_prompt", "respaldos_bd", "paquetes_recuperacion",
+             "documentos_referencia")  # biblioteca del asistente (leyes, manuales): configuración, no contenido
 # Vocabularios controlados cargados por la institución: se conservan salvo que se pida borrarlos.
 TESAUROS = ("tesauros", "conceptos_tesauro", "etiquetas_concepto")
 # Todo lo cargado y lo descrito.

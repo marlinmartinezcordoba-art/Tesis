@@ -113,6 +113,11 @@ def main() -> None:
 
                 if copia_ocr.una_pendiente(db):
                     continue
+                # Las leyes y manuales que se cargan a la biblioteca del asistente (uno por vuelta).
+                from app.servicios import biblioteca
+
+                if biblioteca.una_pendiente(db):
+                    continue
         except (OperationalError, ProgrammingError) as exc:
             # Base de datos aún no disponible o migraciones pendientes.
             log.warning("Base de datos no disponible todavía: %s", type(exc).__name__)

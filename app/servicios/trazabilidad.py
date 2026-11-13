@@ -174,6 +174,8 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "respaldo_bd": ("Respaldó la base de datos", "Respaldos de la base de datos"),
     "interoperabilidad_probada": ("Probó la interoperabilidad del fondo", None),
     "asistente_consultado": ("Consultó al Asistente RICORA", None),
+    "referencia_cargada": ("Cargó un documento a la biblioteca del asistente", None),
+    "referencia_anulada": ("Anuló un documento de la biblioteca del asistente", None),
     "sistema_reiniciado": ("Dejó el sistema en blanco (puesta en marcha, con respaldo previo)", "Respaldos de la base de datos"),
     "simulacro_restauracion": ("Probó restaurar un respaldo de la base", None),
     "respaldo_descargado": ("Descargó un respaldo fuera del servidor", None),

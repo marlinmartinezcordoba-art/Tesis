@@ -10,6 +10,7 @@ import { useSesion } from "@/lib/sesion";
 import { useVista } from "@/components/Marco";
 import { Ventana } from "@/components/Ventana";
 import { PuestaEnMarcha } from "@/components/PuestaEnMarcha";
+import { BibliotecaAsistente } from "@/components/BibliotecaAsistente";
 
 interface Usuario {
   id: string;
@@ -266,7 +267,7 @@ export function Usuarios() {
   const [entrega, setEntrega] = useState<Entrega | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-  const pestana = useVista<"usuarios" | "roles" | "puesta">("/usuarios");
+  const pestana = useVista<"usuarios" | "roles" | "puesta" | "biblioteca">("/usuarios");
   const [roles, setRoles] = useState<RolInfo[] | null>(null);
 
   const cargarRoles = useCallback(() => {
@@ -308,13 +309,15 @@ export function Usuarios() {
 
   return (
     <>
-      <h1>{pestana === "roles" ? "Roles y permisos" : pestana === "puesta" ? "Puesta en marcha" : "Usuarios"}</h1>
+      <h1>{pestana === "roles" ? "Roles y permisos" : pestana === "puesta" ? "Puesta en marcha"
+        : pestana === "biblioteca" ? "Biblioteca del asistente" : "Usuarios"}</h1>
       <p className="sub">
-        {pestana === "puesta"
+        {pestana === "biblioteca" ? "Las normas y manuales con los que responde el Asistente RICORA (RAG)."
+          : pestana === "puesta"
           ? "Deja el sistema en blanco para empezar a usarlo: borra lo cargado y lo descrito, conserva usuarios y configuración."
           : "Solo visible para el rol administrador. Crear, reasignar rol o desactivar sin perder trazabilidad en auditoría."}
       </p>
-      {pestana === "puesta" ? <PuestaEnMarcha /> : pestana === "roles" ? (
+      {pestana === "biblioteca" ? <BibliotecaAsistente /> : pestana === "puesta" ? <PuestaEnMarcha /> : pestana === "roles" ? (
         <>
           {mensaje && <div className="aviso bien" role="status">{mensaje}</div>}
           <PanelRoles roles={roles} alCambiar={(m) => { setMensaje(m); cargarRoles(); }} />

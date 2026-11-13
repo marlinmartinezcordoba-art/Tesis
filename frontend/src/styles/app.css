@@ -1832,3 +1832,13 @@ body {
   display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .burbuja-fuentes a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
 .burbuja-fuentes a:hover { text-decoration: underline; }
+
+/* ══ Asistente: con qué responde (RAG o internet) y pasajes citados ══ */
+.chat-modo { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+  font-size: .78rem; color: var(--muted); flex-wrap: wrap; }
+.chat-modo button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px;
+  padding: 3px 10px; font-size: .78rem; cursor: pointer; }
+.chat-modo button.activo { background: var(--electrico); border-color: var(--electrico); color: #fff; }
+.chat-pasajes { margin: 4px 0 0; padding-left: 22px; }
+.chat-pasajes li { margin: 2px 0; }
+.chat-pasajes li.citado::marker { color: var(--electrico); font-weight: 700; }

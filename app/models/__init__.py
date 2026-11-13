@@ -22,6 +22,7 @@ from app.models.preservacion import (  # noqa: F401
     VerificacionIntegridad,
 )
 from app.models.recurso_documental import RecursoDocumental  # noqa: F401
+from app.models.referencia import DocumentoReferencia  # noqa: F401
 from app.models.rol import Rol  # noqa: F401
 from app.models.sesion import Sesion  # noqa: F401
 from app.models.tesauro import ConceptoTesauro, EtiquetaConcepto, Tesauro  # noqa: F401

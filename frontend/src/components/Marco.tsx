@@ -112,6 +112,7 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
   { ruta: "/usuarios", nombre: "Usuarios y permisos", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
     { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" },
+    { vista: "biblioteca", nombre: "Biblioteca del asistente", permitir: (u) => u.es_administrador },
     { vista: "puesta", nombre: "Puesta en marcha", permitir: (u) => u.es_administrador }] },
 ];
 

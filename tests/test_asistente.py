@@ -38,7 +38,7 @@ def test_sin_motor_queda_en_modo_guiado(cliente, db, monkeypatch):
     ana = ingresar(cliente, "ana@correo.com")
     e = cliente.get("/api/asistente/estado", headers=ana).json()
     assert e["disponible"] is False and "reserva legal" in e["aviso"]
-    r = cliente.post("/api/asistente/preguntar", headers=ana, json={"mensajes": [{"rol": "persona", "texto": "Hola"}]})
+    r = cliente.post("/api/asistente/preguntar", headers=ana, json={"fuentes": "internet", "mensajes": [{"rol": "persona", "texto": "Hola"}]})
     assert r.status_code == 503 and "motor de análisis" in r.json()["detail"]
 
 
@@ -51,7 +51,7 @@ def test_responde_con_contexto_y_audita_sin_guardar_la_pregunta(cliente, db, fal
         "mensajes": [{"rol": "persona", "texto": "Hola"}, {"rol": "asistente", "texto": "¿En qué le ayudo?"},
                      {"rol": "persona", "texto": pregunta}],
         "pantalla": {"titulo": "Fondos · Cargar CCD y TRD", "pasos": ["Todo parte de aquí."]},
-        "fondo": "Instituto de prueba"})
+        "fondo": "Instituto de prueba", "fuentes": "internet"})
     assert r.status_code == 200, r.text
     assert r.json()["respuesta"].startswith("Respuesta de prueba") and "**" not in r.json()["respuesta"]
     instruccion, contenido = falso.recibido
@@ -70,15 +70,15 @@ def test_exige_sesion_y_una_pregunta_al_final(cliente, db, falso):
     assert cliente.post("/api/asistente/preguntar", json={"mensajes": [{"rol": "persona", "texto": "Hola"}]}).status_code == 401
     crear_usuario(db, "ana@correo.com", "archivista", nombre="Ana Ruiz")
     ana = ingresar(cliente, "ana@correo.com")
-    r = cliente.post("/api/asistente/preguntar", headers=ana, json={"mensajes": [{"rol": "asistente", "texto": "Hola"}]})
+    r = cliente.post("/api/asistente/preguntar", headers=ana, json={"fuentes": "internet", "mensajes": [{"rol": "asistente", "texto": "Hola"}]})
     assert r.status_code == 422
     largo = [{"rol": "persona" if i % 2 == 0 else "asistente", "texto": f"m{i}"} for i in range(25)]
-    assert cliente.post("/api/asistente/preguntar", headers=ana, json={"mensajes": largo}).status_code == 200
+    assert cliente.post("/api/asistente/preguntar", headers=ana, json={"fuentes": "internet", "mensajes": largo}).status_code == 200
     assert len(falso.recibido[1]) == asistente.MAX_TURNOS
 
 
 def test_el_revisor_de_solo_lectura_tambien_puede_preguntar(cliente, db, falso):
     crear_usuario(db, "rev@correo.com", "revisor", nombre="Rosa Vélez")
     rev = ingresar(cliente, "rev@correo.com")
-    r = cliente.post("/api/asistente/preguntar", headers=rev, json={"mensajes": [{"rol": "persona", "texto": "¿Qué es el FUID?"}]})
+    r = cliente.post("/api/asistente/preguntar", headers=rev, json={"fuentes": "internet", "mensajes": [{"rol": "persona", "texto": "¿Qué es el FUID?"}]})
     assert r.status_code == 200
