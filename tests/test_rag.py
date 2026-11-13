@@ -59,7 +59,7 @@ def test_la_ley_cargada_responde_la_pregunta_citando_el_pasaje(cliente, db, cabe
     doc_id = _cargar_ley(cliente, cabeceras_admin, db)
     lista = cliente.get("/api/asistente/biblioteca", headers=cabeceras_admin).json()
     assert lista[0]["id"] == doc_id and lista[0]["estado"] == "listo" and lista[0]["clase_nombre"] == "Ley"
-    r = cliente.post("/api/asistente/preguntar", headers=cabeceras_admin, json={
+    r = cliente.post("/api/asistente/preguntar", headers=cabeceras_admin, json={"fuentes": "documentos",
         "mensajes": [{"rol": "persona", "texto": "¿Es obligatorio adoptar las tablas de retención?"}]})
     assert r.status_code == 200, r.text
     datos = r.json()
@@ -72,9 +72,25 @@ def test_la_ley_cargada_responde_la_pregunta_citando_el_pasaje(cliente, db, cabe
     assert "ARTÍCULO 24" in contenido[-1]["parts"][0]["text"] and "[1] Ley 594 de 2000" in contenido[-1]["parts"][0]["text"]
 
 
-def test_sin_pasajes_no_se_consulta_al_motor_ni_se_inventa(cliente, db, cabeceras_admin, falso):
+def test_automatico_primero_los_documentos_y_si_no_alcanzan_internet(cliente, db, cabeceras_admin, falso):
+    """Sin elegir nada: con pasajes, el motor los usa (citados) y puede completar con Google; sin pasajes,
+    responde con internet como antes. La persona solo ve la respuesta."""
     _cargar_ley(cliente, cabeceras_admin, db)
     r = cliente.post("/api/asistente/preguntar", headers=cabeceras_admin, json={
+        "mensajes": [{"rol": "persona", "texto": "¿Es obligatorio adoptar las tablas de retención?"}]})
+    assert r.json()["modo"] == "auto" and r.json()["pasajes"][0]["titulo"] == "Ley 594 de 2000"
+    instruccion, contenido, buscar = falso.recibido
+    assert buscar is True and "Úsalos primero" in instruccion and "ARTÍCULO 24" in contenido[-1]["parts"][0]["text"]
+    falso.recibido = None
+    r = cliente.post("/api/asistente/preguntar", headers=cabeceras_admin, json={
+        "mensajes": [{"rol": "persona", "texto": "¿Cuál es la capital de Mongolia?"}]})
+    assert r.json()["modo"] == "internet" and r.json()["pasajes"] == []
+    assert falso.recibido[2] is True and "PASAJES" not in falso.recibido[1][-1]["parts"][0]["text"]
+
+
+def test_solo_documentos_sin_pasajes_no_se_consulta_al_motor_ni_se_inventa(cliente, db, cabeceras_admin, falso):
+    _cargar_ley(cliente, cabeceras_admin, db)
+    r = cliente.post("/api/asistente/preguntar", headers=cabeceras_admin, json={"fuentes": "documentos",
         "mensajes": [{"rol": "persona", "texto": "¿Cuál es la capital de Mongolia?"}]})
     assert r.status_code == 200
     assert r.json()["pasajes"] == [] and "No encontré" in r.json()["respuesta"]

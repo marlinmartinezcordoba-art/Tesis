@@ -36,8 +36,9 @@ class PreguntaIn(BaseModel):
     pantalla: PantallaIn | None = None
     fondo: str | None = Field(default=None, max_length=400)
     fondo_id: uuid.UUID | None = None
-    # documentos: responde solo con la biblioteca y el fondo (RAG); internet: con Google Search.
-    fuentes: Literal["documentos", "internet"] = "documentos"
+    # auto (lo normal): primero la biblioteca y el fondo (RAG) y, si no alcanzan, internet. documentos: solo RAG;
+    # internet: solo Google Search.
+    fuentes: Literal["auto", "documentos", "internet"] = "auto"
 
 
 @router.get("/estado", responses={200: {"model": EstadoAsistenteOut, "description": "Disponibilidad"}},

@@ -90,6 +90,20 @@ Reglas:
 
 {MAPA}"""
 
+INSTRUCCION_MIXTA = INSTRUCCION_RAG.replace(
+    "Responde SOLO con los PASAJES numerados que vienen con la pregunta: son fragmentos de las normas, manuales y documentos\n"
+    "que la entidad cargó en RICORA.",
+    "Con la pregunta vienen PASAJES numerados: fragmentos de las normas, manuales y documentos que la entidad cargó en\n"
+    "RICORA. Úsalos primero. Si no alcanzan para responder, completa con lo que encuentres en internet (prefiere\n"
+    "fuentes oficiales: archivogeneral.gov.co, ica.org, normas colombianas).").replace(
+    "1. Usa únicamente lo que dicen los pasajes. No completes con lo que sabes por fuera de ellos.",
+    "1. Lo que salga de un pasaje lleva su número; lo que salga de internet no lleva número.").replace(
+    "3. Si los pasajes no responden la pregunta, o la responden solo en parte, dilo con claridad («Los documentos\n"
+    "   cargados no dicen…») y sugiere cargar la norma o el manual en la biblioteca del asistente o preguntar con internet.",
+    "3. Responde directamente, sin explicar cómo buscaste.").replace(
+    "que no estén en los pasajes.", "que no estén en los pasajes o en una fuente oficial.")
+assert INSTRUCCION_MIXTA != INSTRUCCION_RAG
+
 SIN_PASAJES = ("No encontré nada sobre eso en la biblioteca del asistente ni en los documentos y descripciones "
                "publicadas del fondo. Puede cargar la norma o el manual en Usuarios y permisos › Biblioteca del "
                "asistente, o cambiar arriba a «Internet» y preguntar de nuevo.")
@@ -120,9 +134,12 @@ def _contexto(pantalla: dict | None, fondo: str | None) -> str:
 
 
 def preguntar(db: Session, usuario_id, mensajes: list[dict], pantalla: dict | None = None, fondo: str | None = None,
-              fuentes: str = "documentos", fondo_id=None) -> dict:
-    if fuentes == "documentos":
-        return _con_documentos(db, usuario_id, mensajes, fondo_id)
+              fuentes: str = "auto", fondo_id=None) -> dict:
+    # auto (lo normal): primero los documentos de la entidad; si no hay pasajes, internet. Sin elegir nada.
+    if fuentes in ("auto", "documentos"):
+        r = _con_documentos(db, usuario_id, mensajes, fondo_id, mixto=fuentes == "auto")
+        if r is not None:
+            return r
     m = servicio_motor.motor_activo()
     if m is None:
         raise AsistenteNoDisponible("El asistente con IA necesita el motor de análisis, que no está configurado en este "
@@ -154,8 +171,10 @@ def preguntar(db: Session, usuario_id, mensajes: list[dict], pantalla: dict | No
             "pasajes": []}
 
 
-def _con_documentos(db: Session, usuario_id, mensajes: list[dict], fondo_id) -> dict:
-    """RAG: recupera los pasajes de la biblioteca y del fondo, y el motor responde solo con ellos."""
+def _con_documentos(db: Session, usuario_id, mensajes: list[dict], fondo_id, mixto: bool = False) -> dict | None:
+    """RAG: recupera los pasajes de la biblioteca y del fondo, y el motor responde con ellos. `mixto` (modo
+    automático): sin pasajes devuelve None (responde internet) y, con pasajes, el motor puede completar con
+    Google Search lo que los pasajes no dicen, diciendo de dónde sale cada cosa."""
     from app.servicios import rag
     from app.servicios.datos_personales import anonimizar_para_motor
 
@@ -166,6 +185,8 @@ def _con_documentos(db: Session, usuario_id, mensajes: list[dict], fondo_id) -> 
     # Una pregunta de seguimiento («¿y el plazo?») se busca junto con la anterior.
     anteriores = [str(t["texto"]) for t in turnos[:-1] if t.get("rol") == "persona"][-1:]
     pasajes = rag.recuperar(db, " ".join([*anteriores, pregunta]), fondo_id)
+    if not pasajes and mixto:
+        return None
     if not pasajes:
         registrar(db, modulo="sistema", accion="asistente_consultado", usuario_id=usuario_id, entidad_tipo="asistente",
                   detalle="Consultó al Asistente RICORA con los documentos de la entidad (sin pasajes)",
@@ -182,12 +203,14 @@ def _con_documentos(db: Session, usuario_id, mensajes: list[dict], fondo_id) -> 
                           "parts": [{"text": anonimizar_para_motor(str(t["texto"]).strip()[:MAX_CARACTERES])[0]}]})
     contenido.append({"role": "user", "parts": [{"text": f"PASAJES:\n\n{rag.contexto(pasajes)}\n\nPregunta: "
                                                          f"{anonimizar_para_motor(pregunta)[0]}"}]})
-    respuesta = m.conversar(INSTRUCCION_RAG, contenido, buscar=False)
+    respuesta = m.conversar(INSTRUCCION_MIXTA if mixto else INSTRUCCION_RAG, contenido, buscar=mixto)
     modelo = getattr(m, "respondio", None) or m.modelo
+    web = ((getattr(m, "ultima", None) or {}).get("fuentes") or []) if mixto else []
     citados = {int(n) for n in re.findall(r"\[(\d{1,2})\]", respuesta)}
     registrar(db, modulo="sistema", accion="asistente_consultado", usuario_id=usuario_id, entidad_tipo="asistente",
               detalle="Consultó al Asistente RICORA con los documentos de la entidad",
               nuevo={"modelo": modelo, "modo": "documentos", "pasajes": len(pasajes), "citados": len(citados)})
     db.commit()
-    return {"respuesta": respuesta.replace("**", "").strip(), "modelo": modelo, "fuentes": [], "modo": "documentos",
+    return {"respuesta": respuesta.replace("**", "").strip(), "modelo": modelo, "fuentes": web,
+            "modo": "auto" if mixto else "documentos",
             "pasajes": [p.out() | {"citado": p.numero in citados} for p in pasajes]}

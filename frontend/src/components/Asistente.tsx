@@ -5,9 +5,9 @@ import { ErrorAPI, pedir, puede } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 
-// Asistente RICORA con IA: un panel lateral de conversación. Responde de dos maneras: con los documentos
-// de la entidad (RAG: la biblioteca de leyes y manuales y lo publicado del fondo, citando cada pasaje) o
-// con internet (Google Search). No cambia nada.
+// Asistente RICORA con IA: un panel lateral de conversación. Responde solo, sin que la persona elija: primero
+// con los documentos de la entidad (RAG: la biblioteca de leyes y manuales y lo publicado del fondo) y, si no
+// alcanzan, con internet (Google Search). Las fuentes quedan plegadas bajo la respuesta. No cambia nada.
 // Sin motor configurado queda en modo guiado: búsqueda, acciones rápidas y la guía de la pantalla.
 
 export const I_CHISPA = (
@@ -53,14 +53,9 @@ interface Fuente { titulo: string; url: string }
 // Pasaje recuperado de la biblioteca o del fondo (modo «documentos de la entidad», RAG).
 interface Pasaje { numero: number; tipo: "norma" | "documento" | "descripcion"; titulo: string; detalle: string;
   enlace: string | null; extracto: string; citado: boolean }
-type Modo = "documentos" | "internet";
 interface Mensaje { rol: "persona" | "asistente"; texto: string; error?: boolean; fuentes?: Fuente[]; pasajes?: Pasaje[] }
-const CLAVE_MODO = "ricora.asistente-modo";
-const AVISO_DOCUMENTOS = "Respondo solo con la biblioteca del asistente (leyes, acuerdos, manuales) y los documentos y "
-  + "descripciones publicadas del fondo; lo reservado no se consulta. Los pasajes salen hacia Gemini sin datos personales.";
-function modoGuardado(): Modo {
-  try { return localStorage.getItem(CLAVE_MODO) === "internet" ? "internet" : "documentos"; } catch { return "documentos"; }
-}
+const AVISO_AUTO = "Respondo primero con la biblioteca del asistente y lo publicado del fondo y, si no alcanza, con "
+  + "internet. Lo reservado no se consulta y nada sale con datos personales."
 interface Estado { disponible: boolean; modelo: string | null; aviso: string }
 
 /** Abre el panel del asistente, opcionalmente con una pregunta ya escrita. */
@@ -93,8 +88,6 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState(inicial || "");
   const [pensando, setPensando] = useState(false);
-  const [modo, setModoEstado] = useState<Modo>(modoGuardado);
-  const setModo = (m: Modo) => { setModoEstado(m); try { localStorage.setItem(CLAVE_MODO, m); } catch { /* sin almacenamiento */ } };
   const fin = useRef<HTMLDivElement>(null);
   const entrada = useRef<HTMLTextAreaElement>(null);
 
@@ -125,7 +118,7 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
         method: "POST", body: JSON.stringify({
         mensajes: nuevos.filter((m) => !m.error).map(({ rol, texto: t }) => ({ rol, texto: t })),
         pantalla: guia ? { titulo: guia.titulo, pasos: guia.pasos.map((p) => `${p.titulo} ${p.texto}`) } : null,
-        fondo: fondo?.titulo ?? null, fondo_id: fondo?.id ?? null, fuentes: modo }) });
+        fondo: fondo?.titulo ?? null, fondo_id: fondo?.id ?? null, fuentes: "auto" }) });
       setMensajes([...nuevos, { rol: "asistente", texto: r.respuesta, fuentes: r.fuentes, pasajes: r.pasajes }]);
     } catch (err) {
       setMensajes([...nuevos, { rol: "asistente", error: true,
@@ -149,13 +142,6 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
         </div>
         <button type="button" className="chat-cerrar" aria-label="Cerrar el asistente" onClick={alCerrar}>×</button>
       </header>
-      <div className="chat-modo" role="radiogroup" aria-label="Con qué responde el asistente">
-        <span>Responder con:</span>
-        <button type="button" role="radio" aria-checked={modo === "documentos"} className={modo === "documentos" ? "activo" : ""}
-                onClick={() => setModo("documentos")}>Documentos de la entidad</button>
-        <button type="button" role="radio" aria-checked={modo === "internet"} className={modo === "internet" ? "activo" : ""}
-                onClick={() => setModo("internet")}>Internet</button>
-      </div>
 
       <div className="chat-cuerpo" aria-live="polite">
         {mensajes.length === 0 && (
@@ -174,15 +160,15 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
             {m.rol === "asistente" && <span className="burbuja-icono">{I_CHISPA}</span>}
             <div className="burbuja-texto">{m.rol === "asistente" ? <Texto texto={m.texto} /> : m.texto}
               {!!m.pasajes?.length && (
-                <div className="burbuja-fuentes">Pasajes consultados:
+                <details className="burbuja-fuentes"><summary>Ver de dónde sale ({m.pasajes.length})</summary>
                   <ol className="chat-pasajes">
                     {m.pasajes.map((p) => (
                       <li key={p.numero} value={p.numero} className={p.citado ? "citado" : ""} title={p.extracto}>
                         {p.enlace ? <Link to={p.enlace}>{p.titulo}</Link> : <strong>{p.titulo}</strong>}
-                        <span className="meta"> · {p.detalle}{p.citado ? " · citado" : ""}</span>
+                        <span className="meta"> · {p.detalle}</span>
                       </li>))}
                   </ol>
-                </div>
+                </details>
               )}
               {!!m.fuentes?.length && (
                 <div className="burbuja-fuentes">Fuentes:{" "}
@@ -208,8 +194,7 @@ function Conversacion({ alCerrar, inicial }: { alCerrar: () => void; inicial?: s
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); preguntar(texto); } }} />
           <button type="submit" disabled={!texto.trim() || pensando} aria-label="Enviar">{I_ENVIAR}</button>
         </div>
-        <p className="chat-aviso">{modo === "documentos" ? AVISO_DOCUMENTOS
-          : (estado?.aviso || "Oriento con base en normas y en el uso del sistema.")} Puede equivocarse: verifique lo importante.</p>
+        <p className="chat-aviso">{AVISO_AUTO} Puede equivocarse: verifique lo importante.</p>
       </form>
     </div>
   );

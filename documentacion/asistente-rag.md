@@ -18,7 +18,10 @@ entidad, sin inventar datos, y conectarlo a Google Colab o a servidores de Googl
 4. **Sin pasajes, no hay respuesta inventada**: si nada coincide, no se consulta al motor y la pantalla lo dice.
 5. La pantalla muestra los pasajes consultados y marca los que la respuesta citó.
 
-El modo «Internet» (Google Search, como antes) sigue disponible en el mismo panel.
+**Automático (13-11-2026, pedido de la autora):** la persona no elige nada y solo ve la respuesta. Con pasajes, el
+motor los usa primero (citados con su número) y puede completar con Google Search lo que no dicen; sin pasajes,
+responde con internet como antes. Las fuentes quedan plegadas bajo la respuesta («Ver de dónde sale»), para
+verificar. La API conserva los modos «documentos» (solo RAG, sin internet) e «internet» para la evaluación.
 
 ## Protección
 
