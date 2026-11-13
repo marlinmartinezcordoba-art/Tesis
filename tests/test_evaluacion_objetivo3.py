@@ -172,6 +172,13 @@ def test_objetivo_3_de_principio_a_fin(cliente, db, fondo, cabeceras_admin, moto
     assert res["tiempos_por_documento"][0]["evaluadora"] == "E2"  # por su código de participante (E1 es quien administra), nunca por su nombre
     assert res["prueba_tiempos"]["n"] == 1 and res["prueba_tiempos"]["p"] is None
     assert res["intervalos"]["entidades_flexible"]["documentos"] == 1
+    # Tabla 3 del capítulo III, dimensiones 3 a 5: fechas en EDTF, duplicidad, cobertura de RiC-O y evidencia.
+    ind = res["indicadores"]
+    assert set(ind) == {"motor", "ciega", "asistida", "evidencia_motor"}
+    assert ind["motor"]["descripciones"] == 1 and ind["ciega"]["descripciones"] >= 1
+    assert ind["motor"]["fechas"] >= 1 and 0 <= ind["motor"]["tasa_fechas_edtf"] <= 1
+    assert ind["motor"]["cobertura"]["clases"] >= 1 and "Date" in ind["motor"]["clases_rico"]
+    assert ind["evidencia_motor"]["entidades"] >= 1
     # Desacuerdos: Ana (variante Concejo, sobrante Tunja, faltante Boyacá, y las dos relaciones del lugar)
     # y Luis (sobrantes Concejo y Tunja, y sus dos relaciones).
     clases = res["errores"]["por_clase"]
@@ -213,7 +220,8 @@ def test_objetivo_3_de_principio_a_fin(cliente, db, fondo, cabeceras_admin, moto
                        json={"tipo_error": "inventado"}).status_code == 422
 
     hoja = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
-    assert {"Comparabilidad", "Supervisión (asistida)", "Tiempos por documento", "Desacuerdos"} <= set(hoja.sheetnames)
+    assert {"Comparabilidad", "Supervisión (asistida)", "Tiempos por documento", "Desacuerdos",
+            "Normalización y cobertura"} <= set(hoja.sheetnames)
     assert [c.value for c in hoja["Desacuerdos"][2]][-1] in ("Papel equivocado", "Omisión")
 
 

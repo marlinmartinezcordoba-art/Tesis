@@ -509,6 +509,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     acuerdo = {"vp": 0, "fp": 0, "fn": 0}
     acuerdo_rel = {"vp": 0, "fp": 0, "fn": 0}
     conformidad = {"motor": [], "ciega": [], "asistida": []}
+    ric_por_fuente = {"motor": [], "ciega": [], "asistida": []}  # para los indicadores de la Tabla 3
     por_documento = []
     from app.servicios import evaluacion_analisis as an
 
@@ -528,9 +529,11 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
         sistema_rel = ric.tripletas(motor_ric)
         rev_motor = ric.conformidad(motor_ric)
         conformidad["motor"].append(rev_motor)
+        ric_por_fuente["motor"].append(motor_ric)
         anotadas = por_doc.get(d.instanciacion_id, [])
         for a in anotadas:
             conformidad[a.condicion].append(ric.conformidad(a.datos))
+            ric_por_fuente[a.condicion].append(ric.a_ric(a.datos))
         ciegas = [a for a in anotadas if a.condicion == "ciega"]
         f1_doc, f1_rel_doc = [], []
         doc_ent, doc_rel = {"vp": 0, "fp": 0, "fn": 0}, {"vp": 0, "fp": 0, "fn": 0}
@@ -676,6 +679,8 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
             "anotaciones": {"ciegas": sum(1 for a in anotaciones if a.condicion == "ciega"),
                             "asistidas": sum(1 for a in anotaciones if a.condicion == "asistida"),
                             "evaluadores": len({a.evaluador_id for a in anotaciones})}}
+    # Normalización, trazabilidad y cobertura de RiC-O (dimensiones 3 a 5 de la Tabla 3 del capítulo III).
+    salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
     salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
     return salida
 
@@ -806,6 +811,20 @@ def hoja_de_calculo(datos: dict) -> bytes:
                      "remuestreos", i["remuestreos"]])
     w = datos["prueba_tiempos"]
     otra.append(["Wilcoxon, tiempos ciega frente a asistida", "n", w["n"], "z", w["z"], "p", w["p"], w["nota"] or ""])
+    if datos.get("indicadores"):
+        ind = libro.create_sheet("Normalización y cobertura")
+        ind.append(["Indicador (Tabla 3, dimensiones 3 a 5)", "Motor", "Archivista a ciegas", "Archivista asistida"])
+        i = datos["indicadores"]
+        filas = (("Descripciones", "descripciones"), ("Fechas", "fechas"), ("Fechas con EDTF válido", "fechas_edtf"),
+                 ("Porcentaje de fechas en EDTF", "tasa_fechas_edtf"), ("Agentes y lugares", "agentes_y_lugares"),
+                 ("Agentes y lugares repetidos con otra forma", "duplicadas"), ("Tasa de duplicidad", "tasa_duplicidad"))
+        for nombre, clave in filas:
+            ind.append([nombre, *[(i.get(f) or {}).get(clave) for f in ("motor", "ciega", "asistida")]])
+        ind.append(["Clases RiC-O usadas", *[(i.get(f) or {}).get("cobertura", {}).get("clases") for f in ("motor", "ciega", "asistida")]])
+        ind.append(["Propiedades RiC-O usadas", *[(i.get(f) or {}).get("cobertura", {}).get("propiedades") for f in ("motor", "ciega", "asistida")]])
+        ev_m = i.get("evidencia_motor") or {}
+        ind.append(["Entidades del motor con fragmento de evidencia", ev_m.get("con_fragmento"), "de", ev_m.get("entidades"),
+                    "tasa", ev_m.get("tasa")])
     comp = libro.create_sheet("Comparabilidad")
     c = datos["comparabilidad"]
     comp.append(["Criterio fijado antes de iniciar", "margen F", c["criterio"]["margen_f"], "mínimo de casos",

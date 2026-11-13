@@ -944,6 +944,10 @@ interface Resultado {
   };
   intervalos: Record<string, { documentos: number; remuestreos: number; inferior: number | null; superior: number | null }>;
   prueba_tiempos: { n: number; z: number | null; p: number | null; nota: string | null };
+  indicadores?: Record<"motor" | "ciega" | "asistida", { descripciones: number; fechas: number; fechas_edtf: number;
+    tasa_fechas_edtf: number | null; agentes_y_lugares: number; duplicadas: number; tasa_duplicidad: number | null;
+    cobertura: { clases: number; propiedades: number; propiedades_disponibles: number } }>
+    & { evidencia_motor: { entidades: number; con_fragmento: number; tasa: number | null } };
   supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
     pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
   errores: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number;
@@ -1154,6 +1158,27 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           </tbody>
         </table>
       </div>
+      {r.indicadores && (
+        <div className="tarjeta tabla-desplazable">
+          <div className="tarjeta-cab">Normalización, trazabilidad y cobertura de RiC-O</div>
+          <table className="tabla-permisos">
+            <thead><tr><th>Quién describe</th><th>Fechas en EDTF</th><th>Duplicidad (agentes y lugares)</th>
+              <th>Clases RiC-O</th><th>Propiedades RiC-O</th></tr></thead>
+            <tbody>
+              {(["motor", "ciega", "asistida"] as const).map((k) => {
+                const x = r.indicadores![k];
+                return x && (
+                  <tr key={k}><td>{QUIEN[k] || k}</td><td>{x.fechas_edtf} / {x.fechas} ({num(x.tasa_fechas_edtf)})</td>
+                    <td>{x.duplicadas} / {x.agentes_y_lugares} ({num(x.tasa_duplicidad)})</td>
+                    <td>{x.cobertura.clases}</td><td>{x.cobertura.propiedades} de {x.cobertura.propiedades_disponibles}</td></tr>);
+              })}
+            </tbody>
+          </table>
+          <p className="meta" style={{ padding: "0 16px" }}>Evidencia: {r.indicadores.evidencia_motor.con_fragmento} de
+            {" "}{r.indicadores.evidencia_motor.entidades} entidades propuestas por el motor traen el fragmento del documento
+            que las sostiene ({num(r.indicadores.evidencia_motor.tasa)}).</p>
+        </div>
+      )}
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Rúbrica (1 a 5)</div>
         <table className="tabla-permisos">

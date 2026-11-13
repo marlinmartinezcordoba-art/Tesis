@@ -409,3 +409,68 @@ def wilcoxon(pares_: list[tuple[float, float]]) -> dict:
     z = (w - media + 0.5) / math.sqrt(varianza) if varianza > 0 else 0.0
     p = math.erfc(abs(z) / math.sqrt(2))
     return {"n": n, "w_mas": w_mas, "w_menos": w_menos, "z": _r(z), "p": _r(min(1.0, p)), "nota": None}
+
+
+# --- Indicadores de la Tabla 3 del capítulo III (normalización, trazabilidad, cobertura) ---------------
+
+
+def _duplicadas(entidades: list[dict], umbral: float) -> int:
+    """Entidades de una misma descripción que nombran lo mismo con otra forma («Alcaldía de Tunja» y
+    «Alcaldia Tunja»): dispersión léxica dentro de la descripción. Se cuentan agentes y lugares."""
+    from difflib import SequenceMatcher
+
+    from app.servicios.evaluacion import normalizar
+
+    repetidas = set()
+    for tipo in ("agente", "lugar"):
+        de_tipo = [(i, normalizar(e.get("valor"))) for i, e in enumerate(entidades) if e.get("tipo") == tipo]
+        for x in range(len(de_tipo)):
+            for y in range(x + 1, len(de_tipo)):
+                a, b = de_tipo[x][1], de_tipo[y][1]
+                if a and b and (a == b or SequenceMatcher(None, a, b).ratio() >= umbral):
+                    repetidas.update((de_tipo[x][0], de_tipo[y][0]))
+    return len(repetidas)
+
+
+def indicadores(descripciones: dict[str, list[dict]], propuestas: list[dict | None], umbral: float) -> dict:
+    """Por fuente (motor, ciega, asistida), sobre las descripciones RiC de cada una ({entidades, relaciones}):
+
+    - fechas en EDTF: fechas con su expresión EDTF válida, sobre todas las fechas;
+    - duplicidad: agentes y lugares repetidos con otra forma, sobre todos los agentes y lugares;
+    - cobertura de RiC-O: clases y propiedades distintas que se usaron;
+    - evidencia (solo el motor): entidades propuestas con su fragmento del documento.
+    """
+    from app.servicios import evaluacion_ric as ric
+
+    salida = {}
+    for fuente, lista in descripciones.items():
+        fechas = con_edtf = agentes_lugares = repetidas = 0
+        clases, propiedades = set(), set()
+        for d in lista:
+            entidades = [e for e in d.get("entidades", []) if (e.get("valor") or "").strip()]
+            for e in entidades:
+                if e.get("tipo") == "fecha":
+                    fechas += 1
+                    con_edtf += bool((e.get("edtf") or "").strip())
+                if e.get("tipo") in ("agente", "lugar"):
+                    agentes_lugares += 1
+                if e.get("tipo") in ric.ric_o.CLASE_VOCABULARIO or e.get("tipo") in ("agente", "fecha"):
+                    clases.add(ric.clase(e))
+            repetidas += _duplicadas(entidades, umbral)
+            propiedades.update(p for p, _, _ in ric.tripletas(d))
+        salida[fuente] = {
+            "descripciones": len(lista),
+            "fechas": fechas, "fechas_edtf": con_edtf, "tasa_fechas_edtf": _r(con_edtf / fechas) if fechas else None,
+            "agentes_y_lugares": agentes_lugares, "duplicadas": repetidas,
+            "tasa_duplicidad": _r(repetidas / agentes_lugares) if agentes_lugares else None,
+            "clases_rico": sorted(clases), "propiedades_rico": sorted(propiedades),
+            "cobertura": {"clases": len(clases), "propiedades": len(propiedades),
+                          "propiedades_disponibles": len(ric.PROPIEDADES)}}
+    total = con_fragmento = 0
+    for p in propuestas:
+        for e in (p or {}).get("entidades") or []:
+            total += 1
+            con_fragmento += bool((e.get("fragmento") or "").strip())
+    salida["evidencia_motor"] = {"entidades": total, "con_fragmento": con_fragmento,
+                                 "tasa": _r(con_fragmento / total) if total else None}
+    return salida
