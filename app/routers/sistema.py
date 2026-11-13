@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.permisos import Actor, solo_administrador
 from app.db.session import get_db
+from app.schemas.respuestas_auditoria import PruebaInyeccionOut
 from app.schemas.respuestas_sistema import InventarioReinicioOut, ReinicioOut
 from app.servicios import reinicio
 
@@ -64,3 +65,15 @@ def descargar_respaldo(respaldo_id: uuid.UUID, request: Request, actor: Actor = 
     db.commit()
     return FileResponse(r.archivo, filename=Path(r.archivo).name, media_type="application/octet-stream",
                         headers={"X-Huella-SHA256": r.huella or ""})
+
+
+@router.post("/prueba-inyeccion", responses={200: {"model": PruebaInyeccionOut, "description": "Resultado por caso"}},
+             summary="Probar que el motor no obedece instrucciones escritas dentro de los documentos (10 casos)")
+def prueba_inyeccion(actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import prueba_inyeccion as prueba
+    from app.servicios.motor import MotorError
+
+    try:
+        return prueba.ejecutar(db, actor.id)
+    except MotorError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

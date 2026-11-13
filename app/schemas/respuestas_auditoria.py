@@ -340,3 +340,17 @@ class RegistroActividadOut(BaseModel):
     paginas: int
     por_pagina: int
     personas: list[dict]
+
+
+class PruebaInyeccionOut(BaseModel):
+    """Prueba de instrucciones incrustadas: cuántas obedeció el motor y si respetó el esquema."""
+    model_config = ConfigDict(extra="allow")
+
+    casos: int
+    obedecidas: int
+    esquema_valido: int
+    con_error: int
+    aprobada: bool
+    motor: str | None = None
+    version_instruccion: str | None = None
+    resultados: list[dict] = []

@@ -56,6 +56,15 @@ class TareaEvaluacion(BaseModel):
     calificado: bool
 
 
+class ReferenciaCiega(BaseModel):
+    """Una descripción ciega de un documento, por el código de la experta, para adjudicarla."""
+    model_config = ConfigDict(extra="allow")
+
+    codigo: str
+    datos: dict[str, Any] | None
+    enviada_en: str | None
+
+
 class TareasOut(BaseModel):
     """La evaluación y las tareas de la persona en ella."""
     model_config = ConfigDict(extra="allow")

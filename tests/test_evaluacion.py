@@ -210,6 +210,7 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
     assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Expertas", "Conformidad RiC-O",
                                                                   "Acuerdo, tiempos y rúbrica", "Normalización y cobertura", "Comparabilidad",
+                                                                  "Frente a la referencia", "Calibración",
                                                                   "Supervisión (asistida)", "Tiempos por documento",
                                                                   "Desacuerdos", "Documentos"]
     # Todo queda en la auditoría.

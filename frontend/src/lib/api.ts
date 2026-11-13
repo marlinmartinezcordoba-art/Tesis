@@ -47,6 +47,7 @@ export interface UsuarioBreve {
   doble_factor?: boolean; // la cuenta usa segundo factor
   doble_factor_requerido?: boolean; // su rol lo exige
   preservacion_activa?: boolean; // el módulo de preservación está encendido en este sistema
+  modo_evaluacion?: boolean; // durante la evaluación se ocultan la parametrización de la TRD y la disposición final
 }
 
 interface RespuestaSesion {

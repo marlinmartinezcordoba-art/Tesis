@@ -329,3 +329,4 @@ def etiquetar_version(version: str, datos: EtiquetaIn, request: Request, actor: 
         raise _error(exc) from exc
     db.commit()
     return hallazgos.versiones(db)
+

@@ -71,10 +71,11 @@ const ENTRADAS: Entrada[] = [
     vistas: [
       // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
       // aparte, el cuadro que rige y el historial de versiones.
-      { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD" },
+      { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD", permitir: (u) => !u.modo_evaluacion },
       { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },
-      { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD" },
-      { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final" }] },
+      { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD", permitir: (u) => !u.modo_evaluacion },
+      { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final",
+        permitir: (u) => !u.modo_evaluacion }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },

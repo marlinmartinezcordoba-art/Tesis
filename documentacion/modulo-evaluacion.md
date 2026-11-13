@@ -332,3 +332,26 @@ La hoja de cálculo suma cuatro pestañas: Comparabilidad, Supervisión (asistid
 | Documentos reservados | Admitirlos; excluirlos | Excluirlos | Su texto iría al motor y lo verían las evaluadoras | Puede reducir la muestra en fondos con mucha reserva |
 
 **Pruebas:** `tests/test_evaluacion_objetivo3.py` (Wilcoxon y kappa calculados a mano, remuestreo reproducible, supervisión, el criterio tipo por tipo, documento reservado rechazado, el flujo completo con clasificación independiente y consenso, el indicador de fragmento no hallado).
+
+## 26. Versión 4: roles separados, referencia adjudicada y verificación independiente
+
+Cierre de las brechas entre el protocolo de la tesis y el sistema (documento de brechas del 13 de noviembre de 2026).
+
+1. **Roles separados** (`evaluacion_participantes.PERMITE`): descriptora (solo a ciegas), validadora (solo con la propuesta delante), adjudicadora (solo consolida la referencia), calificadora (solo califica), piloto (solo documentos piloto) y ambas (el flujo anterior). En «Mis tareas» cada una ve solo sus pasos (`frontend/src/lib/evaluacionRoles.ts`); el servidor responde 403 a lo demás.
+2. **Referencia adjudicada R** (condición `adjudicada`): exige dos descripciones ciegas enviadas, una adjudicadora que no vio la propuesta y una justificación escrita. La pantalla muestra las ciegas lado a lado por código (`GET /{id}/documentos/{inst}/referencias`), permite partir de una y no muestra la propuesta del motor.
+3. **Prueba piloto**: documentos marcados al agregarlos; no entran en resultados, coincidencias ni hoja ciega.
+4. **Versión congelada** al iniciar: sistema (`RICORA_VERSION`, los 12 primeros caracteres del commit desplegado), motor, instrucción y SHA-256 del perfil SHACL.
+5. **A0 y A1 frente a R** con el IC 95 % de la diferencia frente al techo (remuestreo de documentos): no inferior, inferior, datos insuficientes o sin techo. Nunca superioridad. Con R, el veredicto principal (`evaluacion_analisis.veredicto_con_referencia`) usa el límite inferior de ese IC; sin R, la F puntual (`comparabilidad.base`).
+6. **Calibración** de la certeza en diez tramos, con el error esperado de calibración.
+7. **Descargas**: hoja de resultados con las hojas «Frente a la referencia» y «Calibración»; coincidencias por aserción (`/resultados/coincidencias`); hoja ciega y llave en archivos separados (`/hoja-ciega`). Todas quedan en la auditoría.
+8. **Aislamiento durante la evaluación**: el asistente no consulta internet (`asistente.internet_permitido`) y la puesta en marcha se rechaza. `RICORA_MODO_EVALUACION` además oculta del menú la carga de TRD, la TVD y la disposición final.
+9. **Instrucciones incrustadas**: el texto del documento va delimitado y la instrucción del motor ordena no obedecerlo. `POST /api/sistema/prueba-inyeccion` (Usuarios › Puesta en marcha) corre diez casos con el motor real; se aprueba con cero obedecidas y diez con esquema completo.
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| Referencia de comparación | Cada ciega por separado; referencia adjudicada | Ambas: el techo con las ciegas, el veredicto con R | La adjudicación con justificación reduce el error de una sola archivista y queda auditada | Una adjudicadora sesgada; por eso no ve la propuesta y escribe su justificación |
+| Veredicto | F puntual; límite inferior del IC | IC cuando hay R | Con pocos documentos la F puntual sobreestima la certeza | Con pocos documentos el IC es ancho y el estado sale «datos insuficientes» o «inferior» |
+| Separación de roles | Una persona hace todo; roles separados | Roles separados (y «ambas» para pruebas pequeñas) | Quien ve la propuesta no puede producir la referencia ciega | Se necesitan más expertas |
+| Prueba de inyección | Pruebas con motor simulado; con el motor real | Ambas: simulado en la integración continua, real desde la pantalla | El comportamiento que importa es el del motor real | Usa diez consultas de la cuota |
+
+**Pruebas:** `tests/test_evaluacion_roles_referencia.py`, `tests/test_prueba_inyeccion.py`, `tests/test_especializacion_ric.py` (isEvidencedBy, dos productores y el identificador persistente), `frontend/src/pruebas/evaluacionRoles.test.ts`.

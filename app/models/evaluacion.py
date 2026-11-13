@@ -6,6 +6,12 @@ propone una descripción que nadie ve; archivistas lo describen a ciegas
 (patrón de referencia) y, en otra condición, con la propuesta delante
 (asistida). Además califican la propuesta con una rúbrica. Nada se borra:
 una anotación se anula, no se elimina.
+
+Con roles separados, las descriptoras solo describen a ciegas, una
+adjudicadora consolida sus descripciones en una referencia única
+(condición «adjudicada»), las validadoras solo trabajan con la propuesta
+delante y nunca ven la referencia, y los documentos de la prueba piloto
+no entran en los resultados.
 """
 
 import uuid
@@ -17,7 +23,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.db.base import Base, ahora
 
 ESTADO_EVALUACION = ("preparacion", "en_curso", "cerrada")
-CONDICION = ("ciega", "asistida")
+CONDICION = ("ciega", "asistida", "adjudicada")
 ESTADO_ANOTACION = ("en_curso", "enviada", "anulada")
 CRITERIOS = ("exactitud", "completitud", "pertinencia")
 
@@ -37,6 +43,9 @@ class Evaluacion(Base):
     cerrada_en = Column(DateTime(timezone=True), nullable=True)
     # Criterio de comparabilidad (objetivo 3): se fija antes de iniciar y no cambia después.
     criterio = Column(JSONB, nullable=True)
+    # Versión del sistema, del motor, de la instrucción y del perfil de aplicación con que se mide;
+    # se fija al iniciar y no cambia después.
+    version_congelada = Column(JSONB, nullable=True)
 
 
 class EvaluacionDocumento(Base):
@@ -52,6 +61,8 @@ class EvaluacionDocumento(Base):
     generada_en = Column(DateTime(timezone=True), nullable=True)
     # El registro inalterable de esa propuesta (RF-AI-002).
     propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True)
+    # Documento de la prueba piloto: sirve para ensayar el protocolo y no entra en los resultados.
+    piloto = Column(Boolean, nullable=False, default=False)
 
 
 class Anotacion(Base):
@@ -67,6 +78,8 @@ class Anotacion(Base):
     datos = Column(JSONB, nullable=True)  # {titulo, alcance, entidades: [{tipo, valor, rol, edtf}]}
     iniciada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     enviada_en = Column(DateTime(timezone=True), nullable=True)
+    # En la referencia adjudicada: por qué se resolvió así cada diferencia entre las descripciones ciegas.
+    justificacion = Column(Text, nullable=True)
 
 
 class Exposicion(Base):
@@ -117,7 +130,7 @@ class ClasificacionError(Base):
 
 
 FORMACION = ("tecnica", "tecnologica", "profesional", "especializacion", "maestria", "doctorado")
-ROL_PARTICIPANTE = ("descriptora", "calificadora", "ambas")
+ROL_PARTICIPANTE = ("descriptora", "calificadora", "ambas", "validadora", "adjudicadora", "piloto")
 
 
 class Participante(Base):

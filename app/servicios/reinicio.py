@@ -154,6 +154,13 @@ def reiniciar(db: Session, usuario: Usuario, contrasena: str, frase: str, inclui
     if faltan:  # una tabla nueva que nadie clasificó: no se borra a ciegas
         raise ReinicioRechazado("Hay tablas sin clasificar: " + ", ".join(sorted(faltan)) + ". No se borró nada.", 500)
 
+    from app.models.evaluacion import Evaluacion
+
+    if db.scalar(select(Evaluacion.id).where(Evaluacion.estado == "en_curso").limit(1)) is not None:
+        # Borrar en medio de una evaluación destruiría sus datos antes de cerrarla y exportarla.
+        raise ReinicioRechazado("Hay una evaluación en curso: ciérrela y descargue sus resultados antes de la puesta "
+                                "en marcha. No se borró nada.", 409)
+
     antes = inventario(db)["se_borra"]
     # 1. Respaldo completo antes de borrar. Sin respaldo correcto, no se borra.
     if respaldar is None:

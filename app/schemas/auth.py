@@ -35,6 +35,8 @@ class UsuarioBreve(BaseModel):
     doble_factor_requerido: bool = False
     # Si el módulo de preservación está encendido en este sistema.
     preservacion_activa: bool = False
+    # Modo evaluación: el menú oculta la parametrización de la TRD y la disposición final.
+    modo_evaluacion: bool = False
 
 
 class SesionOut(BaseModel):

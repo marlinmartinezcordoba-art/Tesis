@@ -53,6 +53,8 @@ class EvaluacionIn(BaseModel):
 
 class DocumentosIn(BaseModel):
     instanciacion_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    # Documentos de la prueba piloto: ensayan el protocolo y no entran en los resultados.
+    piloto: bool = False
 
 
 class EstadoIn(BaseModel):
@@ -60,7 +62,7 @@ class EstadoIn(BaseModel):
 
 
 class AnotarIn(BaseModel):
-    condicion: Literal["ciega", "asistida"]
+    condicion: Literal["ciega", "asistida", "adjudicada"]
 
 
 class DatosIn(BaseModel):
@@ -69,6 +71,8 @@ class DatosIn(BaseModel):
     entidades: list[dict] = Field(default_factory=list, max_length=200)
     # Tripletas RiC: {origen, propiedad, destino}; «documento» es el documento que se describe.
     relaciones: list[dict] | None = Field(default=None, max_length=400)
+    # Solo en la referencia adjudicada: cómo se resolvieron las diferencias entre las descripciones ciegas.
+    justificacion: str | None = Field(default=None, max_length=20000)
     enviar: bool = False
 
 
@@ -137,7 +141,7 @@ def crear(datos: EvaluacionIn, actor: Actor = Depends(solo_administrador), db: S
 def documentos(evaluacion_id: uuid.UUID, datos: DocumentosIn, actor: Actor = Depends(solo_administrador),
                db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
-    _hecho(db, evaluacion.agregar_documentos, db, ev, datos.instanciacion_ids, actor.id)
+    _hecho(db, evaluacion.agregar_documentos, db, ev, datos.instanciacion_ids, actor.id, datos.piloto)
     return evaluacion.evaluacion_out(db, ev)
 
 
@@ -214,8 +218,8 @@ def guardar(anotacion_id: uuid.UUID, datos: DatosIn, actor: Actor = Depends(eval
     a = db.get(Anotacion, anotacion_id)
     if a is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La anotación no existe.")
-    a = _hecho(db, evaluacion.guardar, db, a, datos.model_dump(exclude={"enviar"}, exclude_none=True), actor.id,
-               datos.enviar)
+    a = _hecho(db, evaluacion.guardar, db, a, datos.model_dump(exclude={"enviar", "justificacion"}, exclude_none=True),
+               actor.id, datos.enviar, datos.justificacion)
     return evaluacion.anotacion_out(db, a)
 
 
@@ -284,6 +288,48 @@ def resultados_xlsx(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_admini
                     headers={"Content-Disposition": 'attachment; filename="evaluacion-ciega.xlsx"'})
 
 
+@router.get("/{evaluacion_id}/documentos/{inst_id}/referencias",
+            responses={200: {"model": list[re_.ReferenciaCiega], "description": "Descripciones ciegas del documento"}},
+            summary="Las descripciones ciegas de un documento, para que la adjudicadora consolide la referencia")
+def referencias(evaluacion_id: uuid.UUID, inst_id: uuid.UUID, actor: Actor = Depends(evaluador),
+                db: Session = Depends(get_db)):
+    ev = _ev(db, evaluacion_id)
+    return _hecho(db, evaluacion.referencias_para_adjudicar, db, ev, inst_id, actor.id)
+
+
+@router.get("/{evaluacion_id}/resultados/coincidencias",
+            responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}},
+                             "description": "Coincidencias por aserción para recalcular las métricas fuera del sistema"}},
+            summary="Coincidencias por aserción, tiempos y versión, para la verificación independiente")
+def coincidencias_xlsx(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_referencia
+
+    ev = _ev(db, evaluacion_id)
+    datos = _hecho(db, evaluacion.resultados, db, ev, actor.id)
+    contenido = evaluacion_referencia.hoja_coincidencias(db, ev, datos)
+    registrar(db, modulo="evaluacion", accion="coincidencias_exportadas", usuario_id=actor.id, entidad_tipo="evaluacion",
+              entidad_id=ev.id)
+    db.commit()
+    return Response(contenido, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="coincidencias.xlsx"'})
+
+
+@router.get("/{evaluacion_id}/hoja-ciega",
+            responses={200: {"content": {"application/zip": {}},
+                             "description": "Hoja de calificación ciega y llave de códigos, en archivos separados"}},
+            summary="Descripciones con un código al azar, sin origen ni certeza, y la llave en otro archivo")
+def hoja_ciega(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import evaluacion_referencia
+
+    ev = _ev(db, evaluacion_id)
+    contenido = evaluacion_referencia.hoja_ciega(db, ev)
+    registrar(db, modulo="evaluacion", accion="hoja_ciega_generada", usuario_id=actor.id, entidad_tipo="evaluacion",
+              entidad_id=ev.id)
+    db.commit()
+    return Response(contenido, media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="calificacion-ciega.zip"'})
+
+
 # --- Expertas participantes (pregunta problema: humano frente a máquina) ------------------------------
 
 
@@ -296,7 +342,7 @@ class ParticipanteIn(BaseModel):
     anios_descripcion: int | None = Field(default=None, ge=0, le=70)
     cargo: str | None = Field(default=None, max_length=200)
     institucion: str | None = Field(default=None, max_length=200)
-    rol: Literal["descriptora", "calificadora", "ambas"] = "descriptora"
+    rol: Literal["descriptora", "calificadora", "ambas", "validadora", "adjudicadora", "piloto"] = "descriptora"
     consentimiento: bool = False
 
 
@@ -308,7 +354,7 @@ class ParticipanteCambioIn(BaseModel):
     anios_descripcion: int | None = Field(default=None, ge=0, le=70)
     cargo: str | None = Field(default=None, max_length=200)
     institucion: str | None = Field(default=None, max_length=200)
-    rol: Literal["descriptora", "calificadora", "ambas"] | None = None
+    rol: Literal["descriptora", "calificadora", "ambas", "validadora", "adjudicadora", "piloto"] | None = None
     consentimiento: bool | None = None
     retirar: bool = False
 

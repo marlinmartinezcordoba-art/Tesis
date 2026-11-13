@@ -40,6 +40,10 @@ class Settings:
     # descripción, no la preservación (decisión de la autora). El código y los
     # datos se conservan; RICORA_PRESERVACION=1 lo vuelve a encender.
     preservacion_activa: bool = os.getenv("RICORA_PRESERVACION", "0").strip().lower() in ("1", "true", "si", "sí")
+    # Modo evaluación: el asistente no consulta internet y el menú oculta la parametrización de la TRD y la
+    # disposición final, para que nada ajeno al protocolo intervenga. Mientras haya una evaluación en curso, el
+    # asistente tampoco consulta internet, aunque este modo esté apagado.
+    modo_evaluacion: bool = os.getenv("RICORA_MODO_EVALUACION", "0").strip().lower() in ("1", "true", "si", "sí")
 
     # Grafo RiC-O persistente (Oxigraph, SPARQL 1.1). En producción vive en
     # su propio servicio (un solo proceso escribe): RICORA_GRAFO_URL. Sin

@@ -679,6 +679,7 @@ def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relac
         archivo = db.get(Instanciacion, rel.fragmento_instanciacion_id)
         if archivo is not None and (incluir_restringidos or not derechos.instanciacion_restringida(db, archivo)):
             fuente += f" Fragmento del documento: «{rel.fragmento.strip()[:300]}»."
+            _evidencia(db, ex, nodo, archivo)
         else:
             ex.omitidas["fragmento citado de un archivo restringido (la fuente de la relación sale sin él)"] += 1
     g.add((nodo, _a("fuente_relacion"), Literal(fuente, lang="es")))
@@ -690,6 +691,17 @@ def _procedencia_relacion(db: Session, ex: Exportacion, nodo: URIRef, rel: Relac
     if estado:
         g.add((nodo, _a("estado_relacion"), Literal(estado, lang="es")))
     _autoria(db, ex, nodo, rel)
+
+
+def _evidencia(db: Session, ex: Exportacion, nodo: URIRef, archivo: Instanciacion) -> None:
+    """El documento que prueba la relación (rico:isEvidencedBy, de la relación a un recurso
+    documental): aquel cuya instanciación contiene el fragmento citado. Solo si ese documento
+    sale en la exportación, para no nombrar recursos que no se publican."""
+    documento = db.scalar(select(Relacion.origen_id).where(Relacion.destino_id == archivo.id,
+                                                          Relacion.codigo_ric == "has_or_had_instantiation",
+                                                          Relacion.estado == "vigente").limit(1))
+    if documento is not None and documento in ex.nodos:
+        ex.grafo.add((nodo, RICO["isEvidencedBy"], uri(documento)))
 
 
 # --- Autoría de la descripción en el propio grafo (criterio nativo 7) ----------------------------------

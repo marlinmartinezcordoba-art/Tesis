@@ -94,6 +94,8 @@ def test_relacion_propuesta_por_el_motor_lleva_su_certeza_y_su_fuente(cliente, d
     assert fuente.startswith("Propuesta por el motor de análisis y confirmada por una persona.")
     assert "«Firmado: Jorge Eliécer Gaitán, alcalde»" in fuente
     assert "motor-de-prueba" not in fuente  # el motor no se nombra (decisión anterior que se mantiene)
+    # La relación se prueba con el documento cuya instanciación contiene el fragmento (rico:isEvidencedBy).
+    assert uno(g, nodo, RICO.isEvidencedBy) == u(doc.id)
 
 
 def test_certeza_media_y_baja_y_ninguna_si_una_persona_la_corrigio(db, fondo):
@@ -274,3 +276,21 @@ def test_cada_fecha_declara_su_tipo_simple_rango_o_conjunto(db, fondo):
         assert (None, RDF.type, RICO[retirada]) not in g
     # Toda fecha con forma EDTF tiene su tipo (el perfil SHACL lo exige).
     assert all(list(g.objects(f, RICO.hasDateType)) for f in g.subjects(RICO.normalizedDateValue, None))
+
+
+def test_dos_productores_a_la_vez_y_el_identificador_persistente_resuelve(cliente, db, fondo, admin):
+    """Procedencia múltiple: un documento con dos productores vigentes al mismo tiempo sale con los dos en RiC-O.
+    El IRI de cada nodo (/id/{uuid}) resuelve en la consulta pública cuando las URI públicas están activas."""
+    from app.servicios import parametros
+
+    doc = documento(db, fondo, "Acta conjunta")
+    alcaldia = agente(db, fondo, "Alcaldía Municipal de Tunja", "entidad_corporativa")
+    concejo = agente(db, fondo, "Concejo Municipal de Tunja", "entidad_corporativa")
+    relacion(db, doc, alcaldia, "has_creator")
+    relacion(db, doc, concejo, "has_creator")
+    g = exportar_conforme(db, fondo).grafo
+    assert (u(doc.id), RICO.hasCreator, u(alcaldia.id)) in g and (u(doc.id), RICO.hasCreator, u(concejo.id)) in g
+    parametros.cambiar(db, "rdf_uris_publicas", True, admin.id, "instrumentos")
+    db.commit()
+    r = cliente.get(f"/id/{doc.id}.ttl")
+    assert r.status_code == 200 and "Acta conjunta" in r.text and "hasCreator" in r.text

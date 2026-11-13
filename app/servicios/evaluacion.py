@@ -79,16 +79,17 @@ def texto_de(e: dict) -> str:
     return normalizar(e.get("valor"))
 
 
-def emparejar(sistema: list[dict], referencia: list[dict], umbral: float) -> int:
+def pares(sistema: list[dict], referencia: list[dict], umbral: float) -> list[tuple[int, int]]:
     """Pares uno a uno (cada entidad cuenta una sola vez), del más parecido
-    al menos, dentro del mismo tipo. Devuelve cuántos pares superan el
-    umbral (1.0 = solo iguales tras normalizar)."""
-    pares = 0
+    al menos, dentro del mismo tipo: (índice en sistema, índice en
+    referencia) de los que superan el umbral (1.0 = solo iguales tras
+    normalizar)."""
+    salida = []
     for grupo in {clave_de(e) for e in sistema} & {clave_de(e) for e in referencia}:
-        s = [texto_de(e) for e in sistema if clave_de(e) == grupo]
-        r = [texto_de(e) for e in referencia if clave_de(e) == grupo]
+        s = [(n, texto_de(e)) for n, e in enumerate(sistema) if clave_de(e) == grupo]
+        r = [(n, texto_de(e)) for n, e in enumerate(referencia) if clave_de(e) == grupo]
         candidatos = sorted(((SequenceMatcher(None, a, b).ratio() if a != b else 1.0, i, j)
-                             for i, a in enumerate(s) for j, b in enumerate(r)), reverse=True)
+                             for i, a in s for j, b in r), reverse=True)
         usados_s, usados_r = set(), set()
         for parecido, i, j in candidatos:
             if parecido < umbral:
@@ -96,8 +97,13 @@ def emparejar(sistema: list[dict], referencia: list[dict], umbral: float) -> int
             if i not in usados_s and j not in usados_r:
                 usados_s.add(i)
                 usados_r.add(j)
-                pares += 1
-    return pares
+                salida.append((i, j))
+    return salida
+
+
+def emparejar(sistema: list[dict], referencia: list[dict], umbral: float) -> int:
+    """Cuántos pares uno a uno superan el umbral (ver «pares»)."""
+    return len(pares(sistema, referencia, umbral))
 
 
 def conteo(sistema: list[dict], referencia: list[dict], umbral: float) -> dict:
@@ -182,7 +188,8 @@ def descrito(db: Session, inst_id: uuid.UUID) -> bool:
                                                Relacion.codigo_ric == "has_or_had_instantiation").limit(1)) is not None
 
 
-def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuario_id: uuid.UUID) -> int:
+def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuario_id: uuid.UUID,
+                       piloto: bool = False) -> int:
     if ev.estado != "preparacion":
         raise ErrorEvaluacion("Los documentos se agregan mientras la evaluación está en preparación.", 409)
     ya = set(db.scalars(select(EvaluacionDocumento.instanciacion_id).where(EvaluacionDocumento.evaluacion_id == ev.id)))
@@ -202,11 +209,11 @@ def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuari
             raise ErrorEvaluacion(f"«{inst.nombre_original}» tiene información clasificada o reservada: no entra a la "
                                   "evaluación, porque su texto se enviaría al motor y lo verían las evaluadoras.")
         if inst.id not in ya:
-            db.add(EvaluacionDocumento(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst.id))
+            db.add(EvaluacionDocumento(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst.id, piloto=piloto))
             nuevos += 1
     db.flush()
     registrar(db, modulo="evaluacion", accion="documentos_agregados", usuario_id=usuario_id, entidad_tipo="evaluacion",
-              entidad_id=ev.id, nuevo={"agregados": nuevos})
+              entidad_id=ev.id, nuevo={"agregados": nuevos, "piloto": piloto})
     return nuevos
 
 
@@ -280,6 +287,10 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
             raise ErrorEvaluacion("Las propuestas se hicieron con motores distintos (" + ", ".join(motores) + "). Una "
                                   "evaluación mide un solo motor: pulse «Generar las propuestas del motor» para rehacerlas con el "
                                   "mismo.", 409)
+        instrucciones = sorted({d.version_prompt or "?" for d in documentos})
+        if len(instrucciones) > 1:
+            raise ErrorEvaluacion("Las propuestas se hicieron con versiones distintas de la instrucción del motor ("
+                                  + ", ".join(instrucciones) + "). Rehágalas para que todas usen la misma.", 409)
         from app.servicios import evaluacion_participantes as participantes
 
         if participantes.listas_para_iniciar(db, ev) == 0:
@@ -288,6 +299,7 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
 
         ev.criterio = an.criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
         ev.iniciada_en = ahora()
+        ev.version_congelada = version_del_sistema(motores[0], instrucciones[0])
     elif estado == "cerrada":
         if ev.estado != "en_curso":
             raise ErrorEvaluacion("Solo se cierra una evaluación en curso.", 409)
@@ -298,7 +310,27 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
     registrar(db, modulo="evaluacion", accion="evaluacion_iniciada" if estado == "en_curso" else "evaluacion_cerrada",
               usuario_id=usuario_id, entidad_tipo="evaluacion", entidad_id=ev.id,
               anterior={"estado": anterior}, nuevo={"estado": estado, "documentos": len(documentos),
-                                                    **({"criterio": ev.criterio} if estado == "en_curso" else {})})
+                                                    **({"criterio": ev.criterio, "version": ev.version_congelada}
+                                                       if estado == "en_curso" else {})})
+
+
+def version_del_sistema(motor: str | None, version_prompt: str | None) -> dict:
+    """Con qué se mide: el sistema, el motor, la instrucción y el perfil de aplicación SHACL.
+    Se guarda al iniciar la evaluación y no cambia después."""
+    import hashlib
+    import os
+
+    from app.servicios import ric_o
+
+    perfil = getattr(ric_o, "RUTA_PERFIL_SHACL", None) or os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "recursos", "ric-o", "perfil-ricora.shacl.ttl")
+    huella = None
+    if os.path.exists(perfil):
+        with open(perfil, "rb") as f:
+            huella = hashlib.sha256(f.read()).hexdigest()
+    return {"sistema": os.environ.get("RICORA_VERSION") or os.environ.get("GIT_COMMIT") or "sin etiqueta",
+            "motor": motor, "version_instruccion": version_prompt, "perfil_shacl_sha256": huella,
+            "fijada_en": ahora().isoformat()}
 
 
 def _documento(db: Session, ev: Evaluacion, inst_id: uuid.UUID) -> EvaluacionDocumento:
@@ -333,16 +365,23 @@ def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion
         raise ErrorEvaluacion("La evaluación no está en curso.", 409)
     from app.servicios import evaluacion_participantes as participantes
 
-    participantes.exigir(db, ev, usuario_id, "describir")
+    para = {"ciega": "describir", "asistida": "validar", "adjudicada": "adjudicar"}[condicion]
+    p = participantes.exigir(db, ev, usuario_id, para)
     d = _documento(db, ev, inst_id)
+    if (p.rol == "piloto") != bool(d.piloto):
+        raise ErrorEvaluacion("Ese documento es de la prueba piloto: solo lo trabaja quien tiene ese rol." if d.piloto
+                              else "Su rol es la prueba piloto: solo trabaja los documentos marcados para el piloto.", 403)
     existente = db.scalar(select(Anotacion).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst_id,
                                                   Anotacion.evaluador_id == usuario_id, Anotacion.condicion == condicion))
     if existente is not None and existente.estado != "anulada":
         return existente
-    if condicion == "ciega":
+    if condicion in ("ciega", "adjudicada"):
         motivo = contaminado(db, ev, inst_id, usuario_id)
         if motivo:
-            raise ErrorEvaluacion(f"No puede describirlo a ciegas: {motivo}.", 409)
+            raise ErrorEvaluacion(f"No puede {'describirlo a ciegas' if condicion == 'ciega' else 'adjudicarlo'}: "
+                                  f"{motivo}.", 409)
+        if condicion == "adjudicada" and len(_ciegas_enviadas(db, ev, inst_id, excepto=usuario_id)) < 2:
+            raise ErrorEvaluacion("Para adjudicar hacen falta dos descripciones ciegas enviadas de este documento.", 409)
     else:
         abierta = db.scalar(select(Anotacion.id).where(Anotacion.evaluacion_id == ev.id,
                                                        Anotacion.instanciacion_id == inst_id,
@@ -354,6 +393,7 @@ def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion
     if existente is not None:  # anulada: se reabre con una nueva fecha de inicio
         existente.estado, existente.iniciada_en, existente.enviada_en = "en_curso", ahora(), None
         existente.datos = _inicial(d) if condicion == "asistida" else None  # la asistida vuelve con la propuesta
+        existente.justificacion = None
         a = existente
     else:
         a = Anotacion(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst_id, evaluador_id=usuario_id,
@@ -363,6 +403,31 @@ def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion
     registrar(db, modulo="evaluacion", accion="anotacion_iniciada", usuario_id=usuario_id, entidad_tipo="instanciacion",
               entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), "condicion": condicion})
     return a
+
+
+def _ciegas_enviadas(db: Session, ev: Evaluacion, inst_id: uuid.UUID, excepto: uuid.UUID | None = None) -> list[Anotacion]:
+    return [a for a in db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id,
+                                                          Anotacion.instanciacion_id == inst_id,
+                                                          Anotacion.condicion == "ciega",
+                                                          Anotacion.estado == "enviada")).all()
+            if a.evaluador_id != excepto]
+
+
+def referencias_para_adjudicar(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> list[dict]:
+    """Las descripciones ciegas de un documento, por el código de cada experta, para que la
+    adjudicadora las consolide. No muestra la propuesta del motor."""
+    if ev.estado != "en_curso":
+        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
+    from app.servicios import evaluacion_participantes as participantes
+
+    participantes.exigir(db, ev, usuario_id, "adjudicar")
+    _documento(db, ev, inst_id)
+    codigos = participantes.codigos(db, ev)
+    salida = [{"codigo": codigos[a.evaluador_id].codigo if a.evaluador_id in codigos else "?", "datos": a.datos,
+               "enviada_en": a.enviada_en} for a in _ciegas_enviadas(db, ev, inst_id, excepto=usuario_id)]
+    registrar(db, modulo="evaluacion", accion="referencias_consultadas_para_adjudicar", usuario_id=usuario_id,
+              entidad_tipo="instanciacion", entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), "n": len(salida)})
+    return sorted(salida, key=lambda x: x["codigo"])
 
 
 def _inicial(d: EvaluacionDocumento) -> dict:
@@ -382,7 +447,8 @@ def _limpiar(datos: dict) -> dict:
         raise ErrorEvaluacion(str(exc)) from exc
 
 
-def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, enviar: bool) -> Anotacion:
+def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, enviar: bool,
+            justificacion: str | None = None) -> Anotacion:
     if a.evaluador_id != usuario_id:
         raise ErrorEvaluacion("Esa anotación es de otra persona.", 403)
     if a.estado != "en_curso":
@@ -393,7 +459,11 @@ def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, envia
     from app.servicios import evaluacion_ric
 
     a.datos = _limpiar(datos)
+    if justificacion is not None:
+        a.justificacion = justificacion.strip()[:20000] or None
     if enviar:
+        if a.condicion == "adjudicada" and not a.justificacion:
+            raise ErrorEvaluacion("Escriba cómo resolvió las diferencias entre las descripciones ciegas.")
         if not a.datos["entidades"] and not a.datos["titulo"]:
             raise ErrorEvaluacion("La descripción está vacía.")
         # La referencia tiene que ser RiC válida: si no, se compararía el
@@ -453,6 +523,9 @@ def calificar(db: Session, ev: Evaluacion, inst_id: uuid.UUID, puntajes: dict[st
 
 
 def tareas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> list[dict]:
+    from app.servicios import evaluacion_participantes as participantes
+
+    rol = participantes.rol_de(db, ev, usuario_id)
     salida = []
     for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all():
         inst = db.get(Instanciacion, d.instanciacion_id)
@@ -461,10 +534,15 @@ def tareas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> list[dict]:
         calificado = db.scalar(select(Calificacion.id).where(Calificacion.evaluacion_id == ev.id,
                                                              Calificacion.instanciacion_id == inst.id,
                                                              Calificacion.evaluador_id == usuario_id).limit(1)) is not None
+        if rol is not None and (rol == "piloto") != bool(d.piloto):
+            continue  # el piloto y la evaluación no se mezclan
         salida.append({"instanciacion_id": str(inst.id), "nombre": inst.nombre_original,
                        "ciega": _estado_anotacion(mias.get("ciega")), "asistida": _estado_anotacion(mias.get("asistida")),
+                       "adjudicada": _estado_anotacion(mias.get("adjudicada")),
                        "puede_ciega": mias.get("ciega") is not None or contaminado(db, ev, inst.id, usuario_id) is None,
-                       "calificado": calificado})
+                       "puede_adjudicar": rol == "adjudicadora" and (mias.get("adjudicada") is not None or len(
+                           _ciegas_enviadas(db, ev, inst.id, excepto=usuario_id)) >= 2),
+                       "piloto": bool(d.piloto), "calificado": calificado, "rol": rol})
     return salida
 
 
@@ -479,7 +557,7 @@ def anotacion_out(db: Session, a: Anotacion) -> dict:
     datos = evaluacion_ric.a_ric(a.datos) if a.datos else {"entidades": [], "relaciones": []}
     return {"id": str(a.id), "condicion": a.condicion, "estado": a.estado, "datos": datos,
             "conformidad": evaluacion_ric.conformidad(a.datos) if a.datos else None,
-            "iniciada_en": a.iniciada_en, "enviada_en": a.enviada_en,
+            "iniciada_en": a.iniciada_en, "enviada_en": a.enviada_en, "justificacion": a.justificacion,
             "documento": {"id": str(inst.id), "nombre": inst.nombre_original, "texto": inst.texto_extraido}}
 
 
@@ -487,14 +565,21 @@ def anotacion_out(db: Session, a: Anotacion) -> dict:
 
 
 def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
-    documentos = db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
+    # Los documentos de la prueba piloto no entran en los resultados.
+    documentos = [d for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
+                  if not d.piloto]
     for d in documentos:  # quien mira los resultados ve las propuestas: ya no describe a ciegas
         if not db.scalar(select(Exposicion.id).where(Exposicion.evaluacion_id == ev.id,
                                                      Exposicion.instanciacion_id == d.instanciacion_id,
                                                      Exposicion.usuario_id == usuario_id, Exposicion.motivo == "resultados")):
             db.add(Exposicion(evaluacion_id=ev.id, instanciacion_id=d.instanciacion_id, usuario_id=usuario_id,
                               motivo="resultados"))
-    anotaciones = db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id, Anotacion.estado == "enviada")).all()
+    validos = {d.instanciacion_id for d in documentos}
+    todas = [a for a in db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id,
+                                                          Anotacion.estado == "enviada")).all()
+             if a.instanciacion_id in validos]
+    adjudicadas = {a.instanciacion_id: a for a in todas if a.condicion == "adjudicada"}
+    anotaciones = [a for a in todas if a.condicion != "adjudicada"]
     por_doc: dict[uuid.UUID, list[Anotacion]] = {}
     for a in anotaciones:
         por_doc.setdefault(a.instanciacion_id, []).append(a)
@@ -682,6 +767,13 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     # Normalización, trazabilidad y cobertura de RiC-O (normalización, trazabilidad y conformidad).
     salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
     salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
+    from app.servicios import evaluacion_referencia as referencia
+
+    salida["referencia_adjudicada"] = referencia.frente_a_referencia(documentos, por_doc, adjudicadas, ev)
+    salida["calibracion"] = referencia.calibracion(documentos, por_doc, adjudicadas, ev.umbral_similitud)
+    # Con referencia adjudicada, el veredicto principal usa el IC de la diferencia, no la F puntual.
+    salida["comparabilidad"] = an.veredicto_con_referencia(salida["comparabilidad"], salida["referencia_adjudicada"])
+    salida["evaluacion"]["version_congelada"] = ev.version_congelada
     return salida
 
 
@@ -744,7 +836,8 @@ def evaluacion_out(db: Session, ev: Evaluacion) -> dict:
             "umbral_similitud": ev.umbral_similitud, "creada_en": ev.creada_en, "iniciada_en": ev.iniciada_en,
             "cerrada_en": ev.cerrada_en, "documentos": len(documentos),
             "criterio": criterio_de(ev.criterio),
-            "con_propuesta": sum(1 for d in documentos if d.propuesta is not None)}
+            "con_propuesta": sum(1 for d in documentos if d.propuesta is not None),
+            "documentos_piloto": sum(1 for d in documentos if d.piloto), "version_congelada": ev.version_congelada}
 
 
 def hoja_de_calculo(datos: dict) -> bytes:
@@ -834,6 +927,29 @@ def hoja_de_calculo(datos: dict) -> bytes:
                  "Diferencia", "Resultado", "Motivos"])
     for t in c["tipos"]:
         comp.append([t["tipo"], t["casos"], t["f_motor"], t["techo"], t["diferencia"], t["estado"], "; ".join(t["motivos"])])
+    ref = libro.create_sheet("Frente a la referencia")
+    r = datos.get("referencia_adjudicada") or {"documentos": 0, "tipos": [], "nota": ""}
+    v = datos.get("version_congelada") or (datos.get("evaluacion") or {}).get("version_congelada") or {}
+    ref.append(["Versión congelada al iniciar", "sistema", v.get("sistema"), "motor", v.get("motor"), "instrucción",
+                v.get("version_instruccion"), "perfil SHACL (SHA-256)", v.get("perfil_shacl_sha256")])
+    ref.append(["Documentos con referencia adjudicada (R)", r.get("documentos"), "margen F", r.get("margen_f"),
+                "mínimo de casos", r.get("minimo_casos")])
+    ref.append(["Tipo", "Casos en R", "Techo (acuerdo entre archivistas)", "Fuente", "F estricta", "F flexible",
+                "IC 95 % de la diferencia: inferior", "IC 95 %: superior", "Documentos del remuestreo", "Estado"])
+    for t in r.get("tipos") or []:
+        for fuente, nombre in (("A0", "A0 · motor solo"), ("A1", "A1 · archivista con la propuesta")):
+            x = t.get(fuente) or {}
+            ic = x.get("diferencia_ic95") or {}
+            ref.append([t["tipo"], t["casos_referencia"], t["techo"], nombre, (x.get("estricto") or {}).get("f1"),
+                        (x.get("flexible") or {}).get("f1"), ic.get("inferior"), ic.get("superior"), ic.get("documentos"),
+                        x.get("estado")])
+    ref.append([r.get("nota") or ""])
+    cal = libro.create_sheet("Calibración")
+    k = datos.get("calibracion") or {"tramos": [], "propuestas": 0, "error_esperado_de_calibracion": None}
+    cal.append(["Certeza desde", "Certeza hasta", "Propuestas", "Correctas frente a R", "Proporción de aciertos"])
+    for t in k["tramos"]:
+        cal.append([t["desde"], t["hasta"], t["propuestas"], t["correctas"], t.get("proporcion")])
+    cal.append(["Total de propuestas", k["propuestas"], "Error esperado de calibración", k["error_esperado_de_calibracion"]])
     sup = libro.create_sheet("Supervisión (asistida)")
     sup.append(["Tipo", "Aceptadas", "Corregidas", "Rechazadas", "Agregadas por la archivista"])
     for t, x in datos["supervision"]["por_tipo"].items():

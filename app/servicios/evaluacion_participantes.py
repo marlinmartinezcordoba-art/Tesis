@@ -8,9 +8,12 @@ su profesión, su nivel de formación, sus años de experiencia y su
 consentimiento informado.
 
 Reglas:
-- Solo describe en la evaluación quien está registrada, activa, con
-  consentimiento y con rol de descriptora (o ambas). Solo califica la
-  propuesta quien tiene rol de calificadora (o ambas).
+- Solo participa quien está registrada, activa y con consentimiento.
+  Cada rol hace una sola cosa: la descriptora describe a ciegas, la
+  validadora trabaja con la propuesta del motor delante y no ve la
+  referencia, la adjudicadora consolida la referencia, la calificadora
+  califica y la de la prueba piloto ensaya el protocolo con documentos
+  que no entran en los resultados. «Ambas» conserva el flujo anterior.
 - No se inicia una evaluación sin al menos una experta con consentimiento.
 - Cada experta recibe un código (E1, E2…) en el orden de registro. Los
   resultados exportados usan el código, nunca el nombre (Ley 1581
@@ -32,7 +35,19 @@ from app.servicios.evaluacion import ErrorEvaluacion
 
 FORMACION_NOMBRE = {"tecnica": "Técnica", "tecnologica": "Tecnológica", "profesional": "Profesional",
                     "especializacion": "Especialización", "maestria": "Maestría", "doctorado": "Doctorado"}
-ROL_NOMBRE = {"descriptora": "Describe", "calificadora": "Califica la propuesta", "ambas": "Describe y califica"}
+ROL_NOMBRE = {"descriptora": "Describe a ciegas (referencia)", "calificadora": "Califica la propuesta",
+              "ambas": "Describe y califica", "validadora": "Valida las propuestas del motor (sin ver la referencia)",
+              "adjudicadora": "Consolida la referencia a partir de las descripciones ciegas",
+              "piloto": "Prueba piloto del protocolo (no entra en los resultados)"}
+# Qué puede hacer cada rol. «ambas» conserva el flujo anterior: describe a ciegas, describe con la
+# propuesta delante y califica.
+PERMITE = {"describir": ("descriptora", "ambas", "piloto"), "validar": ("validadora", "ambas", "piloto"),
+           "calificar": ("calificadora", "ambas"), "adjudicar": ("adjudicadora",)}
+ROL_VERBO = {"descriptora": "describir a ciegas", "calificadora": "calificar la propuesta",
+             "ambas": "describir y calificar", "validadora": "validar las propuestas del motor",
+             "adjudicadora": "consolidar la referencia", "piloto": "la prueba piloto"}
+QUE_HACE = {"describir": "describir a ciegas", "validar": "trabajar con la propuesta del motor delante",
+            "calificar": "calificar la propuesta", "adjudicar": "consolidar la referencia"}
 CAMPOS = ("nombre", "profesion", "formacion", "anios_experiencia", "anios_descripcion", "cargo", "institucion", "rol",
           "consentimiento")
 
@@ -128,11 +143,14 @@ def exigir(db: Session, ev: Evaluacion, usuario_id: uuid.UUID, para: str) -> Par
                                 "que la registre.", 403)
     if not p.consentimiento:
         raise ErrorParticipante("Falta registrar su consentimiento informado para participar.", 403)
-    if para == "describir" and p.rol not in ("descriptora", "ambas"):
-        raise ErrorParticipante("Su rol en esta evaluación es calificar la propuesta, no describir.", 403)
-    if para == "calificar" and p.rol not in ("calificadora", "ambas"):
-        raise ErrorParticipante("Su rol en esta evaluación es describir, no calificar la propuesta.", 403)
+    if p.rol not in PERMITE[para]:
+        raise ErrorParticipante(f"Su rol en esta evaluación es {ROL_VERBO[p.rol]}: no le permite {QUE_HACE[para]}.", 403)
     return p
+
+
+def rol_de(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> str | None:
+    p = db.scalar(select(Participante).where(Participante.evaluacion_id == ev.id, Participante.usuario_id == usuario_id))
+    return p.rol if p is not None and p.retirado_en is None else None
 
 
 def listas_para_iniciar(db: Session, ev: Evaluacion) -> int:

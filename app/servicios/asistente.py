@@ -105,8 +105,8 @@ INSTRUCCION_MIXTA = INSTRUCCION_RAG.replace(
 assert INSTRUCCION_MIXTA != INSTRUCCION_RAG
 
 SIN_PASAJES = ("No encontré nada sobre eso en la biblioteca del asistente ni en los documentos y descripciones "
-               "publicadas del fondo. Puede cargar la norma o el manual en Usuarios y permisos › Biblioteca del "
-               "asistente, o cambiar arriba a «Internet» y preguntar de nuevo.")
+               "publicadas del fondo. La norma o el manual se cargan en Usuarios y permisos › Biblioteca del "
+               "asistente.")
 
 
 class AsistenteNoDisponible(Exception):
@@ -133,8 +133,30 @@ def _contexto(pantalla: dict | None, fondo: str | None) -> str:
     return "\n".join(partes)
 
 
+SIN_INTERNET = ("Durante la evaluación el asistente no consulta internet: responde solo con la biblioteca del asistente "
+                "y lo publicado del fondo.")
+
+
+def internet_permitido(db: Session) -> bool:
+    """El asistente no busca en internet en modo evaluación ni mientras haya una evaluación en curso."""
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.models.evaluacion import Evaluacion
+
+    if settings.modo_evaluacion:
+        return False
+    return db.scalar(select(Evaluacion.id).where(Evaluacion.estado == "en_curso").limit(1)) is None
+
+
 def preguntar(db: Session, usuario_id, mensajes: list[dict], pantalla: dict | None = None, fondo: str | None = None,
               fuentes: str = "auto", fondo_id=None) -> dict:
+    if not internet_permitido(db):
+        # Solo los documentos de la entidad; sin pasajes, se dice (no se busca en internet).
+        r = _con_documentos(db, usuario_id, mensajes, fondo_id, mixto=False)
+        if not r["pasajes"]:
+            r["respuesta"] = f"{SIN_INTERNET} {SIN_PASAJES.split('. Puede')[0]}."
+        return r
     # auto (lo normal): primero los documentos de la entidad; si no hay pasajes, internet. Sin elegir nada.
     if fuentes in ("auto", "documentos"):
         r = _con_documentos(db, usuario_id, mensajes, fondo_id, mixto=fuentes == "auto")

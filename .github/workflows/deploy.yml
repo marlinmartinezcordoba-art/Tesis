@@ -123,11 +123,13 @@ jobs:
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          # La versión publicada: la evaluación la guarda al iniciar (versión congelada).
+          RICORA_VERSION: ${{ github.sha }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GEMINI_API_KEY,RICORA_MOTOR_IA,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,RICORA_ADMIN_RESTABLECER,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
+          envs: RICORA_VERSION,GEMINI_API_KEY,RICORA_MOTOR_IA,RICORA_ADMIN_CORREO,RICORA_ADMIN_USER,RICORA_ADMIN_PASSWORD,RICORA_ADMIN_NOMBRE,DROPLET_HOST,RICORA_DOMINIO,RICORA_ADMIN_RESTABLECER,EMAIL_HOST,EMAIL_HOST_USER,EMAIL_HOST_PASSWORD
           command_timeout: 45m
           script: |
             set -e
@@ -233,6 +235,7 @@ jobs:
             if [ "$motor" = "local" ]; then perfiles="${perfiles:+$perfiles,}ia-local"; fi
             if [ -n "$perfiles" ]; then poner COMPOSE_PROFILES "$perfiles"; else quitar COMPOSE_PROFILES; fi
             poner RICORA_MOTOR_IA "$motor"
+            poner RICORA_VERSION "$(printf %s "$RICORA_VERSION" | cut -c1-12)"
             echo "  Motor de IA: $motor (memoria del servidor: ${memoria:-?} MB)"
             if [ "$motor" != "local" ]; then docker compose --profile ia-local rm -sf ia_local >/dev/null 2>&1 || true; fi
 

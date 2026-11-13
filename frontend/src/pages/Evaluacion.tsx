@@ -5,6 +5,7 @@ import { useSesion } from "@/lib/sesion";
 import { Encabezado, Indicadores } from "@/components/Encabezado";
 import { confirmar } from "@/lib/dialogos";
 import { Ventana } from "@/components/Ventana";
+import { NOMBRE_PASO, NOMBRE_ROL, PASOS_POR_ROL, PISTA_PASO, type Paso } from "@/lib/evaluacionRoles";
 
 // Evaluación ciega del motor frente a archivistas.
 // La archivista describe a ciegas (sin ver nunca la propuesta del motor),
@@ -23,13 +24,16 @@ interface EstadoAnotacion { id: string; estado: "en_curso" | "enviada" | "anulad
 interface Tarea {
   instanciacion_id: string; nombre: string; ciega: EstadoAnotacion | null; asistida: EstadoAnotacion | null;
   puede_ciega: boolean; calificado: boolean;
+  adjudicada?: EstadoAnotacion | null; puede_adjudicar?: boolean; piloto?: boolean; rol?: string | null;
 }
+interface ReferenciaCiega { codigo: string; datos: Datos | null; enviada_en: string | null }
 interface Entidad { clave: string; tipo: string; valor: string; subtipo: string | null; edtf: string | null }
 interface Relacion { origen: string; propiedad: string; destino: string }
 interface Datos { titulo?: string | null; alcance?: string | null; entidades: Entidad[]; relaciones: Relacion[] }
 interface Conformidad { conforme: boolean; relaciones: number; relaciones_validas: number; problemas: string[] }
 interface AnotacionAbierta {
-  id: string; condicion: "ciega" | "asistida"; estado: string; datos: Datos; conformidad: Conformidad | null;
+  id: string; condicion: "ciega" | "asistida" | "adjudicada"; estado: string; datos: Datos; conformidad: Conformidad | null;
+  justificacion?: string | null;
   documento: { id: string; nombre: string; texto: string | null };
 }
 interface PropiedadRic { codigo: string; rico: string; papel: string; etiqueta: string; codigo_cm: string | null; origen: string[]; destino: string[] }
@@ -242,7 +246,7 @@ function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBrev
   }, [ev.id]);
   useEffect(cargar, [cargar]);
 
-  async function abrir(inst: string, condicion: "ciega" | "asistida") {
+  async function abrir(inst: string, condicion: "ciega" | "asistida" | "adjudicada") {
     setError("");
     try {
       setAnotacion(await pedir<AnotacionAbierta>(`/api/evaluacion/${ev.id}/documentos/${inst}/anotar`,
@@ -253,7 +257,7 @@ function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBrev
   }
 
   if (anotacion) {
-    return <FormularioAnotacion a={anotacion} cerrar={() => { setAnotacion(null); cargar(); }} />;
+    return <FormularioAnotacion a={anotacion} evId={ev.id} cerrar={() => { setAnotacion(null); cargar(); }} />;
   }
   if (calificando) {
     return <Rubrica evId={ev.id} inst={calificando} cerrar={() => { setCalificando(null); cargar(); }} />;
@@ -269,7 +273,12 @@ function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBrev
   }
 
   const lista = tareas || [];
-  const completas = lista.filter((t) => t.ciega?.estado === "enviada" && t.asistida?.estado === "enviada" && t.calificado).length;
+  // Cada rol ve solo los pasos que le corresponden (el servidor también lo impide).
+  const rol = lista[0]?.rol ?? null;
+  const pasos = PASOS_POR_ROL[rol || "ambas"] || PASOS_POR_ROL.ambas;
+  const hecho = (t: Tarea, p: Paso) => (p === "ciega" ? t.ciega?.estado === "enviada" : p === "asistida"
+    ? t.asistida?.estado === "enviada" : p === "calificar" ? t.calificado : t.adjudicada?.estado === "enviada");
+  const completas = lista.filter((t) => pasos.every((p) => hecho(t, p))).length;
   return (
     <>
       <Encabezado titulo={ev.nombre} ceja="Evaluación humano frente a máquina"
@@ -285,46 +294,54 @@ function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBrev
           {tareas && tareas.length > 0 && (
             <Indicadores etiqueta="Mi avance en la evaluación" items={[
               { etiqueta: "Documentos terminados", valor: `${completas} de ${lista.length}`, avance: completas / lista.length,
-                tono: completas === lista.length ? "bien" : undefined, nota: "Las tres tareas hechas" },
-              { etiqueta: "1. A ciegas", valor: lista.filter((t) => t.ciega?.estado === "enviada").length, nota: "enviadas" },
-              { etiqueta: "2. Con la propuesta", valor: lista.filter((t) => t.asistida?.estado === "enviada").length, nota: "enviadas" },
-              { etiqueta: "3. Calificación", valor: lista.filter((t) => t.calificado).length, nota: "propuestas calificadas" },
+                tono: completas === lista.length ? "bien" : undefined,
+                nota: pasos.length > 1 ? "Todas sus tareas hechas" : "Su tarea hecha" },
+              ...pasos.map((p, i) => ({ etiqueta: `${i + 1}. ${NOMBRE_PASO[p]}`, valor: lista.filter((t) => hecho(t, p)).length,
+                nota: p === "calificar" ? "propuestas calificadas" : "enviadas" })),
             ]} />
           )}
           <div className="tarjeta">
-            <div className="tarjeta-cab">Mis tareas</div>
+            <div className="tarjeta-cab">Mis tareas{rol && <span className="meta"> · Rol: {NOMBRE_ROL[rol] || rol}</span>}</div>
             <ol className="orden-tareas" aria-label="Orden de trabajo por documento">
-              <li><b>1</b> Describir a ciegas, sin ver la propuesta</li>
-              <li><b>2</b> Describir con la propuesta del motor</li>
-              <li><b>3</b> Calificar la propuesta de 1 a 5</li>
+              {pasos.map((p, i) => <li key={p}><b>{i + 1}</b> {PISTA_PASO[p]}</li>)}
             </ol>
+            {rol === "piloto" && <div className="aviso" role="note" data-fijo>Prueba piloto: estos documentos sirven para ensayar
+              el protocolo y no entran en los resultados.</div>}
             {!tareas ? <div className="cargando">Cargando…</div> : (
               <div className="tabla-desplazable">
                 <table className="tabla-datos tabla-tareas">
-                  <thead><tr><th>Documento</th><th>1. A ciegas</th><th>2. Con la propuesta</th><th>3. Calificación</th></tr></thead>
+                  <thead><tr><th>Documento</th>{pasos.map((p, i) => <th key={p}>{i + 1}. {NOMBRE_PASO[p]}</th>)}</tr></thead>
                   <tbody>
                     {tareas.map((t) => {
                       const ciegaHecha = t.ciega?.estado === "enviada";
                       const asistidaHecha = t.asistida?.estado === "enviada";
                       const ciegaAbierta = t.ciega?.estado === "en_curso";
                       // La tarea que sigue, en el orden del protocolo, va resaltada.
-                      const sigue = !ciegaHecha && t.puede_ciega ? "ciega" : !asistidaHecha ? "asistida" : !t.calificado ? "calificar" : null;
+                      const sigue = pasos.find((p) => !hecho(t, p) && !(p === "ciega" && !t.puede_ciega)) ?? null;
+                      const celdas: Record<Paso, JSX.Element> = {
+                        ciega: <PasoTarea hecho={ciegaHecha} sigue={sigue === "ciega"} textoHecho="Enviada"
+                                          bloqueo={!t.puede_ciega && !ciegaHecha ? "No disponible: ya vio la propuesta" : null}
+                                          boton={ciegaAbierta ? "Continuar" : "Describir a ciegas"}
+                                          alHacer={() => abrir(t.instanciacion_id, "ciega")} />,
+                        asistida: <PasoTarea hecho={asistidaHecha} sigue={sigue === "asistida"} textoHecho="Enviada"
+                                             bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
+                                             boton={t.asistida?.estado === "en_curso" ? "Continuar" : "Describir con la propuesta"}
+                                             alHacer={() => abrirAsistida(t)} />,
+                        calificar: <PasoTarea hecho={t.calificado} sigue={sigue === "calificar"} textoHecho="Calificada"
+                                              bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
+                                              boton={t.calificado ? "Cambiar" : "Calificar"} botonSiHecho
+                                              alHacer={() => setCalificando(t.instanciacion_id)} />,
+                        adjudicar: <PasoTarea hecho={t.adjudicada?.estado === "enviada"} sigue={sigue === "adjudicar"}
+                                              textoHecho="Referencia enviada"
+                                              bloqueo={!t.puede_adjudicar ? "Faltan dos descripciones ciegas enviadas" : null}
+                                              boton={t.adjudicada?.estado === "en_curso" ? "Continuar" : "Consolidar la referencia"}
+                                              alHacer={() => abrir(t.instanciacion_id, "adjudicada")} />,
+                      };
                       return (
                         <tr key={t.instanciacion_id}>
                           <td><strong>{t.nombre}</strong>
                             <span className="secundario">{sigue ? "En proceso" : "Terminado"}</span></td>
-                          <td><PasoTarea hecho={ciegaHecha} sigue={sigue === "ciega"} textoHecho="Enviada"
-                                         bloqueo={!t.puede_ciega && !ciegaHecha ? "No disponible: ya vio la propuesta" : null}
-                                         boton={ciegaAbierta ? "Continuar" : "Describir a ciegas"}
-                                         alHacer={() => abrir(t.instanciacion_id, "ciega")} /></td>
-                          <td><PasoTarea hecho={asistidaHecha} sigue={sigue === "asistida"} textoHecho="Enviada"
-                                         bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
-                                         boton={t.asistida?.estado === "en_curso" ? "Continuar" : "Describir con la propuesta"}
-                                         alHacer={() => abrirAsistida(t)} /></td>
-                          <td><PasoTarea hecho={t.calificado} sigue={sigue === "calificar"} textoHecho="Calificada"
-                                         bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
-                                         boton={t.calificado ? "Cambiar" : "Calificar"} botonSiHecho
-                                         alHacer={() => setCalificando(t.instanciacion_id)} /></td>
+                          {pasos.map((p) => <td key={p}>{celdas[p]}</td>)}
                         </tr>
                       );
                     })}
@@ -359,6 +376,7 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
   const { fondo } = useFondo();
   const [cola, setCola] = useState<{ id: string; nombre: string }[]>([]);
   const [elegidos, setElegidos] = useState<string[]>([]);
+  const [piloto, setPiloto] = useState(false);
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   // Generación de propuestas en segundo plano: con dos motores, cada documento tarda minutos.
@@ -432,9 +450,14 @@ function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambi
               ))}
               {cola.length === 0 && <div className="meta">No hay documentos listos sin describir.</div>}
             </div>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+              <input type="checkbox" checked={piloto} onChange={(e) => setPiloto(e.target.checked)} />
+              Documentos de la prueba piloto <span className="meta">(solo los trabaja el rol piloto y no entran en los resultados)</span>
+            </label>
             <div className="acciones">
               <button type="button" className="boton chico" disabled={!elegidos.length || ocupado}
-                      onClick={() => accion("documentos", { instanciacion_ids: elegidos })}>Agregar {elegidos.length || ""}</button>
+                      onClick={() => accion("documentos", { instanciacion_ids: elegidos, piloto })}>Agregar {elegidos.length || ""}
+                {piloto ? " al piloto" : ""}</button>
               <button type="button" className="boton chico" disabled={!ev.documentos || ocupado || generando}
                       onClick={() => accion("propuestas")}>{ocupado ? "Trabajando…" : generando ? "Generando…"
                         : "Generar las propuestas del motor"}</button>
@@ -468,8 +491,9 @@ interface Participante {
 }
 const FORMACIONES: [string, string][] = [["tecnica", "Técnica"], ["tecnologica", "Tecnológica"], ["profesional", "Profesional"],
   ["especializacion", "Especialización"], ["maestria", "Maestría"], ["doctorado", "Doctorado"]];
-const ROLES_EXPERTA: [string, string][] = [["descriptora", "Describe"], ["calificadora", "Califica la propuesta"],
-  ["ambas", "Describe y califica"]];
+const ROLES_EXPERTA: [string, string][] = [["descriptora", "Describe a ciegas"],
+  ["validadora", "Valida con la propuesta del motor delante"], ["adjudicadora", "Adjudica la referencia (consolida dos ciegas)"],
+  ["calificadora", "Califica la propuesta"], ["piloto", "Prueba piloto"], ["ambas", "Describe y califica (una sola persona)"]];
 const VACIA = { usuario_id: "", nombre: "", profesion: "", formacion: "profesional", anios_experiencia: "", anios_descripcion: "",
   cargo: "", institucion: "", rol: "descriptora", consentimiento: false };
 
@@ -646,8 +670,16 @@ function CriterioComparabilidad({ ev, cambio }: { ev: EvaluacionBreve; cambio: (
   );
 }
 
-function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () => void }) {
+function FormularioAnotacion({ a, evId, cerrar }: { a: AnotacionAbierta; evId: string; cerrar: () => void }) {
   const catalogo = useCatalogo();
+  const adjudicada = a.condicion === "adjudicada";
+  const [justificacion, setJustificacion] = useState(a.justificacion || "");
+  const [ciegas, setCiegas] = useState<ReferenciaCiega[] | null>(null);
+  useEffect(() => {
+    if (!adjudicada) return;
+    pedir<ReferenciaCiega[]>(`/api/evaluacion/${evId}/documentos/${a.documento.id}/referencias`).then(setCiegas)
+      .catch(() => setCiegas([]));
+  }, [adjudicada, evId, a.documento.id]);
   const [datos, setDatos] = useState<Datos>({ titulo: a.datos.titulo || "", alcance: a.datos.alcance || "",
     entidades: a.datos.entidades || [], relaciones: a.datos.relaciones || [] });
   const [conformidad, setConformidad] = useState<Conformidad | null>(a.conformidad);
@@ -693,7 +725,8 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
     setError("");
     try {
       const r = await pedir<AnotacionAbierta>(`/api/evaluacion/anotaciones/${a.id}`, { method: "PUT",
-        body: JSON.stringify({ ...datos, relaciones: datos.relaciones.filter((x) => x.propiedad), enviar }) });
+        body: JSON.stringify({ ...datos, relaciones: datos.relaciones.filter((x) => x.propiedad), enviar,
+          ...(adjudicada ? { justificacion } : {}) }) });
       setConformidad(r.conformidad);
       if (enviar) cerrar();
     } catch (err) {
@@ -702,6 +735,10 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
   }
 
   async function enviarFinal() {
+    if (adjudicada && !justificacion.trim()) {
+      setError("Escriba cómo resolvió las diferencias entre las descripciones ciegas: sin justificación no se envía la referencia.");
+      return;
+    }
     if (!await confirmar("¿Enviar la descripción? Una vez enviada ya no se puede cambiar y el tiempo deja de contar.")) return;
     guardar(true);
   }
@@ -710,16 +747,47 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
   const ciega = a.condicion === "ciega";
   return (
     <>
-      <Encabezado ceja={ciega ? "Paso 1 de 3 · Descripción a ciegas" : "Paso 2 de 3 · Descripción con la propuesta del motor"}
+      <Encabezado ceja={adjudicada ? "Referencia adjudicada" : ciega ? "Descripción a ciegas" : "Descripción con la propuesta del motor"}
                   titulo={a.documento.nombre}
                   acciones={<button type="button" className="boton" onClick={cerrar}>← Volver a mis tareas</button>} />
-      {ciega ? (
+      {adjudicada ? (
+        <div className="aviso" role="note" data-fijo><strong>Adjudicación.</strong> Consolide la referencia a partir de las
+          descripciones ciegas de abajo (por código). No se muestra la propuesta del motor. Al enviar, escriba cómo resolvió
+          las diferencias.</div>
+      ) : ciega ? (
         <div className="aviso" role="note"><strong>A ciegas.</strong> Describa solo a partir del documento: no abra este documento en
           Descripción ni mire la pantalla de otra experta. El tiempo se mide desde que lo abrió hasta que lo envía.</div>
       ) : (
         <div className="aviso" role="note">Revise la propuesta del motor: confirme, corrija o quite lo que no corresponda.</div>
       )}
       {soloLectura && <div className="aviso bien" role="status">Esta descripción ya fue enviada. Se muestra solo para consulta.</div>}
+      {adjudicada && (
+        <div className="tarjeta"><div className="tarjeta-cab">Descripciones ciegas de este documento</div>
+          <div className="tarjeta-cuerpo">
+            {!ciegas ? <div className="cargando">Cargando…</div> : (
+              <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+                {ciegas.map((c) => (
+                  <div key={c.codigo} className="tarjeta" style={{ margin: 0 }}>
+                    <div className="tarjeta-cab">{c.codigo}
+                      {!soloLectura && c.datos && (
+                        <button type="button" className="enlace" style={{ marginLeft: 8 }} onClick={() => setDatos({
+                          titulo: c.datos?.titulo || "", alcance: c.datos?.alcance || "",
+                          entidades: c.datos?.entidades || [], relaciones: c.datos?.relaciones || [] })}>
+                          Partir de esta</button>)}</div>
+                    <div className="tarjeta-cuerpo">
+                      <dl className="par-dato"><dt>Título</dt><dd>{c.datos?.titulo || "—"}</dd></dl>
+                      <ul className="lista-propuesta">{(c.datos?.entidades || []).map((e) => <li key={e.clave}>
+                        <span className="insignia contexto">{TIPOS.find(([k]) => k === e.tipo)?.[1] ?? e.tipo}</span> {e.valor}
+                        {e.edtf && <span className="meta"> · {e.edtf}</span>}</li>)}</ul>
+                      {c.datos && <ListaRelaciones datos={c.datos} catalogo={catalogo} />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="evaluacion-columnas">
         <div className="tarjeta columna-documento"><div className="tarjeta-cab">Documento</div>
           <div className="tarjeta-cuerpo texto-documento">
@@ -807,8 +875,16 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
                         title={datos.entidades.length ? undefined : "Agregue primero una entidad"}>+ Relación</button>
               )}
             </section>
+            {adjudicada && (
+              <div className="campo">
+                <label htmlFor="an-justificacion">Justificación de la adjudicación (obligatoria)</label>
+                <textarea id="an-justificacion" className="entrada" rows={4} disabled={soloLectura} required
+                          placeholder="Qué tomó de cada descripción ciega y por qué; cómo resolvió cada diferencia."
+                          value={justificacion} onChange={(e) => setJustificacion(e.target.value)} />
+              </div>
+            )}
             <AvisoConformidad c={conformidad} />
-            {error && <div className="aviso error" role="alert">{error}</div>}
+            {error && <div className="aviso error" role="alert" data-fijo>{error}</div>}
           </div>
         </div>
       </div>
@@ -818,7 +894,8 @@ function FormularioAnotacion({ a, cerrar }: { a: AnotacionAbierta; cerrar: () =>
             {conformidad && <> · {conformidad.conforme ? "conforme con RiC-O" : "con observaciones de conformidad"}</>}</span>
           <div className="acciones" style={{ margin: 0 }}>
             <button type="button" className="boton" onClick={() => guardar(false)}>Guardar y revisar conformidad</button>
-            <button type="button" className="boton primario" onClick={enviarFinal}>Enviar descripción</button>
+            <button type="button" className="boton primario" onClick={enviarFinal}>
+              {adjudicada ? "Enviar la referencia" : "Enviar descripción"}</button>
           </div>
         </div>
       )}
@@ -941,7 +1018,15 @@ interface Resultado {
     tipos: { tipo: string; casos: number; f_motor: number | null; techo: number | null; diferencia: number | null;
       estado: "comparable" | "no_comparable" | "datos_insuficientes" | "sin_techo"; motivos: string[] }[];
     comparables: string[]; no_comparables: string[]; sin_decidir: string[];
+    base?: "referencia_adjudicada_ic95" | "f_puntual";
   };
+  evaluacion?: { version_congelada?: VersionCongelada | null };
+  referencia_adjudicada?: { documentos: number; margen_f?: number; minimo_casos?: number; nota: string;
+    tipos: ({ tipo: string; casos_referencia: number; techo: number | null }
+      & Record<"A0" | "A1", { estricto: Medida; flexible: Medida; estado: string;
+        diferencia_ic95: { documentos: number; inferior: number | null; superior: number | null } }>)[] };
+  calibracion?: { propuestas: number; error_esperado_de_calibracion: number | null;
+    tramos: { desde: number; hasta: number; propuestas: number; correctas: number; proporcion: number | null }[] };
   intervalos: Record<string, { documentos: number; remuestreos: number; inferior: number | null; superior: number | null }>;
   prueba_tiempos: { n: number; z: number | null; p: number | null; nota: string | null };
   indicadores?: Record<"motor" | "ciega" | "asistida", { descripciones: number; fechas: number; fechas_edtf: number;
@@ -954,6 +1039,14 @@ interface Resultado {
     clasificadoras: number; pares: number; kappa: number | null; por_clase: Record<string, number>;
     distribucion: { tipo_error: string; nombre: string; veces: number; porcentaje: number | null }[] };
 }
+interface VersionCongelada { sistema?: string; motor?: string | null; version_instruccion?: string | null;
+  perfil_shacl_sha256?: string | null; congelada_en?: string }
+const ESTADO_REF: Record<string, { texto: string; clase: string }> = {
+  no_inferior: { texto: "No inferior", clase: "bien" },
+  inferior: { texto: "Inferior", clase: "error" },
+  datos_insuficientes: { texto: "Datos insuficientes", clase: "alerta" },
+  sin_techo: { texto: "Sin techo", clase: "alerta" },
+};
 const ESTADO_TIPO: Record<string, { texto: string; clase: string }> = {
   comparable: { texto: "Comparable", clase: "bien" },
   no_comparable: { texto: "No comparable", clase: "error" },
@@ -989,7 +1082,18 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
       <div className="acciones">
         <button type="button" className="boton chico" onClick={() => descargar(`/api/evaluacion/${evId}/resultados/hoja-de-calculo`).catch(() => undefined)}>
           Descargar hoja de cálculo</button>
+        <button type="button" className="boton chico" title="Una fila por aserción, para recalcular las métricas fuera del sistema"
+                onClick={() => descargar(`/api/evaluacion/${evId}/resultados/coincidencias`).catch(() => undefined)}>
+          Descargar coincidencias por aserción</button>
+        <button type="button" className="boton chico" title="Hoja de calificación sin origen ni certeza, con la llave de códigos en otro archivo"
+                onClick={() => descargar(`/api/evaluacion/${evId}/hoja-ciega`).catch(() => undefined)}>
+          Descargar hoja ciega y llave</button>
       </div>
+      {r.evaluacion?.version_congelada && (
+        <p className="meta">Versión congelada al iniciar: sistema {r.evaluacion.version_congelada.sistema || "—"} · motor{" "}
+          {r.evaluacion.version_congelada.motor || "—"} · instrucción {r.evaluacion.version_congelada.version_instruccion || "—"} ·
+          perfil SHACL <code>{(r.evaluacion.version_congelada.perfil_shacl_sha256 || "—").slice(0, 12)}</code></p>
+      )}
       <div className="resumen-preservacion">
         <div className="cifra"><strong>{num(r.estricto.micro.f1)}</strong><span>F1 estricto (micro)</span></div>
         <div className="cifra"><strong>{num(r.flexible.micro.f1)}</strong><span>F1 flexible (umbral {r.umbral})</span></div>
@@ -1049,6 +1153,55 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           </tbody>
         </table>
       </div>
+      {r.referencia_adjudicada && (
+        <div className="tarjeta tabla-desplazable">
+          <div className="tarjeta-cab">Frente a la referencia adjudicada (R): A0 motor solo y A1 archivista con la propuesta</div>
+          <p className="meta" style={{ padding: "0 18px" }}>
+            {r.referencia_adjudicada.documentos} documento(s) con referencia adjudicada.{" "}
+            {r.comparabilidad.base === "referencia_adjudicada_ic95"
+              ? "El veredicto de arriba sale del límite inferior del IC 95 % de esta tabla."
+              : "Sin referencia adjudicada, el veredicto de arriba usa la F puntual del motor."} {r.referencia_adjudicada.nota}</p>
+          {r.referencia_adjudicada.tipos.length > 0 && (
+            <table className="tabla-permisos">
+              <thead><tr><th>Tipo</th><th>Casos en R</th><th>Techo</th><th>Fuente</th><th>F estricta</th><th>F flexible</th>
+                <th>IC 95 % de la diferencia</th><th>Estado</th></tr></thead>
+              <tbody>
+                {r.referencia_adjudicada.tipos.flatMap((t) => (["A0", "A1"] as const).map((f) => {
+                  const x = t[f];
+                  const est = ESTADO_REF[x.estado] || { texto: x.estado, clase: "" };
+                  return (
+                    <tr key={`${t.tipo}-${f}`}>
+                      {f === "A0" && <><td rowSpan={2}>{NOMBRE_TIPO(t.tipo)}</td><td rowSpan={2}>{t.casos_referencia}</td>
+                        <td rowSpan={2}>{num(t.techo)}</td></>}
+                      <td>{f === "A0" ? "A0 · motor" : "A1 · asistida"}</td><td>{num(x.estricto.f1)}</td><td>{num(x.flexible.f1)}</td>
+                      <td>{num(x.diferencia_ic95.inferior)} a {num(x.diferencia_ic95.superior)}
+                        <span className="meta"> ({x.diferencia_ic95.documentos} doc.)</span></td>
+                      <td><span className={`insignia ${est.clase}`}>{est.texto}</span></td>
+                    </tr>
+                  );
+                }))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+      {r.calibracion && r.calibracion.propuestas > 0 && (
+        <div className="tarjeta tabla-desplazable">
+          <div className="tarjeta-cab">Calibración de la certeza del motor</div>
+          <p className="meta" style={{ padding: "0 18px" }}>Si la certeza está bien calibrada, de las propuestas con certeza
+            0,8 a 0,9 acierta cerca del 85 %. Error esperado de calibración: {num(r.calibracion.error_esperado_de_calibracion, 3)}
+            ({r.calibracion.propuestas} propuestas frente a R).</p>
+          <table className="tabla-permisos">
+            <thead><tr><th>Certeza</th><th>Propuestas</th><th>Correctas</th><th>Proporción de aciertos</th></tr></thead>
+            <tbody>
+              {r.calibracion.tramos.filter((t) => t.propuestas).map((t) => (
+                <tr key={t.desde}><td>{num(t.desde, 1)} a {num(t.hasta, 1)}</td><td>{t.propuestas}</td><td>{t.correctas}</td>
+                  <td>{num(t.proporcion)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="tarjeta tabla-desplazable">
         <div className="tarjeta-cab">Supervisión en la condición asistida</div>
         <table className="tabla-permisos">

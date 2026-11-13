@@ -132,6 +132,49 @@ def veredicto(resultados: dict, criterio: dict) -> dict:
             "sin_decidir": [t["tipo"] for t in tipos if t["estado"] in ("datos_insuficientes", "sin_techo")]}
 
 
+def veredicto_con_referencia(comparabilidad: dict, referencia: dict | None) -> dict:
+    """Con referencia adjudicada, el veredicto de cada tipo sale del intervalo de confianza: comparable si el
+    límite inferior del IC 95 % de la diferencia entre la F del motor (A0) y el acuerdo entre archivistas no baja
+    de menos el margen. Las condiciones de conformidad y rúbrica se siguen exigiendo. Sin referencia adjudicada,
+    queda el veredicto por la F puntual."""
+    if not referencia or not referencia.get("documentos"):
+        return comparabilidad | {"base": "f_puntual"}
+    por_tipo = {t["tipo"]: t for t in referencia.get("tipos", [])}
+    condiciones = comparabilidad["condiciones"]
+    tipos = []
+    for t in comparabilidad["tipos"]:
+        r = por_tipo.get(t["tipo"])
+        if r is None or "A0" not in r:
+            tipos.append(t)
+            continue
+        a0 = r["A0"]
+        ic = a0.get("diferencia_ic95") or {}
+        motivos = []
+        if a0["estado"] == "datos_insuficientes":
+            estado = "datos_insuficientes"
+            motivos.append(f"{r['casos_referencia']} entidad(es) en la referencia adjudicada; se exigen "
+                           f"{referencia.get('minimo_casos')}")
+        elif a0["estado"] == "sin_techo":
+            estado = "sin_techo"
+            motivos.append("no hay dos descripciones ciegas del mismo documento con este tipo, o no hay intervalo")
+        else:
+            if a0["estado"] == "inferior":
+                motivos.append(f"el límite inferior del IC 95 % de la diferencia ({ic.get('inferior')}) baja de menos "
+                               f"el margen ({referencia.get('margen_f')})")
+            if not condiciones["conformidad_asistida"]["cumple"]:
+                motivos.append("la conformidad de las descripciones asistidas no alcanza lo exigido")
+            if not condiciones["rubrica"]["cumple"]:
+                motivos.append("la rúbrica no alcanza la media exigida en los tres criterios")
+            estado = "no_comparable" if motivos else "comparable"
+        tipos.append(t | {"estado": estado, "motivos": motivos, "f_motor": (a0.get("flexible") or {}).get("f1"),
+                          "techo": r.get("techo"), "diferencia_ic95": ic, "casos": r["casos_referencia"]})
+    return comparabilidad | {"base": "referencia_adjudicada_ic95", "tipos": tipos,
+                             "comparables": [t["tipo"] for t in tipos if t["estado"] == "comparable"],
+                             "no_comparables": [t["tipo"] for t in tipos if t["estado"] == "no_comparable"],
+                             "sin_decidir": [t["tipo"] for t in tipos if t["estado"] in ("datos_insuficientes",
+                                                                                        "sin_techo")]}
+
+
 # --- Emparejamiento con detalle ----------------------------------------------------------------------
 
 
