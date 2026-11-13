@@ -181,6 +181,17 @@ class NivelSuperiorOut(BaseModel):
     id: uuid.UUID
     titulo: str
     nivel: str
+    codigo: str | None = None
+    dependencia: str | None = None  # la sección o subsección donde está la serie
+
+
+class UbicacionSugeridaOut(BaseModel):
+    id: uuid.UUID
+    titulo: str
+    nivel: str
+    codigo: str | None = None
+    puntaje: float
+    palabras: list[str] = []
 
 
 class PublicadaOut(BaseModel):

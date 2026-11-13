@@ -12,7 +12,7 @@ import { SelectorFecha } from "@/components/SelectorFecha";
 import { FormEntidad, PreguntaVocabulario, type EntidadManual } from "@/components/Vocabulario";
 import { ErrorAPI, pedir } from "@/lib/api";
 import {
-  EN_VOCABULARIO, NIVEL_NOMBRE, ROL_NOMBRE, SUBTIPO_NOMBRE, TIPO_CLASE, TIPO_NOMBRE, nivelesSuperiores,
+  EN_VOCABULARIO, NIVEL_NOMBRE, ROL_NOMBRE, SUBTIPO_NOMBRE, TIPO_CLASE, TIPO_NOMBRE, nivelesSuperiores, ubicacionSugerida,
   verificacionInicial, verificarVocabulario, type Coincidencia, type NivelSuperior, type TipoEntidad, type Verificacion,
 } from "@/lib/descripcion";
 import { desarmar, legible, type ControlFecha, type SubtipoFecha } from "@/lib/fechas";
@@ -177,6 +177,8 @@ export function EspacioTrabajo() {
   const [alcance, setAlcance] = useState("");
   const [superiores, setSuperiores] = useState<NivelSuperior[]>([]);
   const [incluidoEn, setIncluidoEn] = useState("");
+  const [filtroUbicacion, setFiltroUbicacion] = useState("");
+  const [sugeridas, setSugeridas] = useState<{ id: string; palabras: string[] }[]>([]);
   const [activa, setActiva] = useState<string | null>(null);
   const [agregando, setAgregando] = useState(false);
   const [error, setError] = useState("");
@@ -217,11 +219,17 @@ export function EspacioTrabajo() {
       // La completitud llega propuesta por el sistema; el archivista la confirma o la corrige.
       setCampos({ ...camposVacios(p?.idiomas || []), notaIntegridad: espacio.completitud?.nota_propuesta || "" });
     }
-    nivelesSuperiores(espacio.fondo.id, espacio.nivel).then((opciones) => {
+    Promise.all([nivelesSuperiores(espacio.fondo.id, espacio.nivel),
+                 ubicacionSugerida(espacio.trabajo_id).catch(() => [])]).then(([opciones, sugerencia]) => {
       setSuperiores(opciones);
+      const validas = sugerencia.filter((x) => opciones.some((o) => o.id === x.id));
+      setSugeridas(validas.map((x) => ({ id: x.id, palabras: x.palabras })));
       const destino = espacio.documentos.length === 1 ? espacio.documentos[0].expediente_destino_id : null;
       const elegido = b?.incluidoEn && opciones.some((o) => o.id === b.incluidoEn) ? b.incluidoEn : null;
-      setIncluidoEn(elegido || (opciones.some((o) => o.id === destino) ? destino! : espacio.fondo.id));
+      // Con TRD, el fondo no es una opción: va la serie sugerida (la archivista la confirma o la cambia).
+      const conFondo = opciones.some((o) => o.id === espacio.fondo.id);
+      setIncluidoEn(elegido || (opciones.some((o) => o.id === destino) ? destino!
+        : validas[0]?.id || (conFondo ? espacio.fondo.id : "")));
     }).catch(() => undefined).finally(() => { listo.current = true; });
   }, [espacio]);
 
@@ -512,9 +520,33 @@ export function EspacioTrabajo() {
             </div>
             <div className="campo" style={{ marginBottom: 0 }}>
               <label htmlFor="incluido">Queda incluido en</label>
+              {superiores.length > 12 && (
+                <input className="entrada" aria-label="Buscar la serie o subserie" placeholder="Buscar por código, serie o dependencia…"
+                       value={filtroUbicacion} onChange={(e) => setFiltroUbicacion(e.target.value)} style={{ marginBottom: 6 }} />
+              )}
               <select id="incluido" className="selector" value={incluidoEn} onChange={(e) => setIncluidoEn(e.target.value)}>
-                {superiores.map((s) => <option key={s.id} value={s.id}>{NIVEL_NOMBRE[s.nivel]}: {s.titulo}</option>)}
+                {!incluidoEn && <option value="">Elija la serie o subserie…</option>}
+                {sugeridas.length > 0 && (
+                  <optgroup label="Sugeridas por RICORA">
+                    {sugeridas.map((x) => superiores.find((o) => o.id === x.id)).filter(Boolean).map((o) => (
+                      <option key={`s-${o!.id}`} value={o!.id}>{o!.codigo ? `${o!.codigo} · ` : ""}{o!.titulo}
+                        {o!.dependencia ? ` — ${o!.dependencia}` : ""}</option>))}
+                  </optgroup>
+                )}
+                <optgroup label="Todas">
+                  {superiores.filter((o) => {
+                    const q = filtroUbicacion.trim().toLowerCase();
+                    return !q || o.id === incluidoEn
+                      || `${o.codigo || ""} ${o.titulo} ${o.dependencia || ""}`.toLowerCase().includes(q);
+                  }).map((o) => <option key={o.id} value={o.id}>{o.codigo ? `${o.codigo} · ` : `${NIVEL_NOMBRE[o.nivel]}: `}
+                    {o.titulo}{o.dependencia ? ` — ${o.dependencia}` : ""}</option>)}
+                </optgroup>
               </select>
+              {sugeridas.some((x) => x.id === incluidoEn) && (
+                <p className="meta" style={{ margin: "4px 0 0" }}>Sugerida por RICORA porque el documento menciona
+                  {" "}«{sugeridas.find((x) => x.id === incluidoEn)!.palabras.slice(0, 4).join("», «")}». Verifique que
+                  sea la serie correcta.</p>
+              )}
             </div>
           </div>
 

@@ -30,7 +30,7 @@ from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
 from app.models.usuario import Usuario
 from app.routers.fondos import fondo_o_404
 from app.schemas.descripcion import (
-    CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, PublicarIn, VerificarIn,
+    CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, UbicacionSugeridaOut, PublicarIn, VerificarIn,
 )
 from app.schemas.respuestas_descripcion import (
     AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, EstadoDigitalizacionOut,
@@ -140,8 +140,34 @@ def niveles_superiores(fondo_id: uuid.UUID, nivel: str, adicional: bool = False,
         posibles = [r for r in filas if r.nivel not in ("unidad_documental", "parte_documental")]
     else:
         posibles = [r for r in filas if r.nivel != "coleccion" and descripcion.rango(r.nivel) < descripcion.rango(nivel)]
-    posibles.sort(key=lambda r: (descripcion.rango(r.nivel), r.titulo))
-    return [NivelSuperiorOut(id=r.id, titulo=r.titulo, nivel=r.nivel) for r in posibles]
+        # Con cuadro (TRD), un expediente o un documento solo va en una serie, una subserie o un expediente de ellas.
+        if nivel in ("expediente", "unidad_documental") and descripcion.tiene_cuadro(db, fondo_id):
+            posibles = [r for r in posibles if r.nivel in ("serie", "subserie", "expediente")]
+    por_id = {r.id: r for r in filas}
+
+    def dependencia(r):
+        actual = por_id.get(r.incluido_en_id)
+        while actual is not None and actual.nivel not in ("seccion", "subseccion", "fondo"):
+            actual = por_id.get(actual.incluido_en_id)
+        return actual.titulo if actual is not None and actual.nivel != "fondo" else None
+
+    posibles.sort(key=lambda r: (descripcion.rango(r.nivel), r.codigo_referencia or "", r.titulo))
+    return [NivelSuperiorOut(id=r.id, titulo=r.titulo, nivel=r.nivel, codigo=r.codigo_referencia,
+                             dependencia=dependencia(r)) for r in posibles]
+
+
+@router.get("/ubicacion-sugerida", response_model=list[UbicacionSugeridaOut],
+            summary="Series y subseries del cuadro donde más probablemente va un documento, según su texto")
+def ubicacion_sugerida(trabajo_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.models.descripcion import TrabajoDescripcion, TrabajoInstanciacion
+
+    trabajo = db.get(TrabajoDescripcion, trabajo_id)
+    if trabajo is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El trabajo no existe.")
+    ids = db.scalars(select(TrabajoInstanciacion.instanciacion_id).where(
+        TrabajoInstanciacion.trabajo_id == trabajo_id)).all()
+    texto = " ".join(i.texto_extraido or "" for i in (db.get(Instanciacion, x) for x in ids) if i is not None)
+    return [UbicacionSugeridaOut(**u) for u in descripcion.sugerir_ubicacion(db, trabajo.fondo_id, texto)]
 
 
 # --- Espacio de trabajo -----------------------------------------------------------------------

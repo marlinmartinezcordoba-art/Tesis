@@ -41,6 +41,7 @@ análisis de la evaluación.
 """
 
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import timedelta
@@ -1042,9 +1043,57 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
     # subserie del cuadro (o en un expediente de ellas), no suelto en el fondo o la sección.
     if nivel in ("expediente", "unidad_documental") and superior.nivel not in ("serie", "subserie", "expediente") \
             and tiene_cuadro(db, fondo_id):
-        raise ErrorDescripcion(f"Este fondo tiene cuadro de clasificación: el {nivel.replace('_', ' ')} va dentro de una "
-                               "serie o subserie (o de un expediente de ellas).")
+        cual = "esta unidad documental" if nivel == "unidad_documental" else "este expediente"
+        raise ErrorDescripcion(f"Este fondo tiene cuadro de clasificación (TRD): en «Queda incluido en», elija la serie o "
+                               f"subserie (o el expediente) donde va {cual}. RICORA sugiere la más probable.")
     return superior
+
+
+def _palabras(texto: str | None) -> list[str]:
+    """Palabras de 4 o más letras, sin tildes ni mayúsculas, con un plural sencillo recortado."""
+    import unicodedata
+
+    plano = unicodedata.normalize("NFKD", (texto or "").lower()).encode("ascii", "ignore").decode()
+    salida = []
+    for w in re.findall(r"[a-z]{4,}", plano):
+        if w.endswith("es") and len(w) > 6:
+            w = w[:-2]
+        elif w.endswith("s") and len(w) > 5:
+            w = w[:-1]
+        salida.append(w)
+    return salida
+
+
+_VACIAS = {"para", "como", "este", "esta", "sobre", "entre", "desde", "hasta", "cada", "segun", "otro", "otra", "tipo",
+           "documental", "documento", "serie", "subserie", "general", "tambien", "donde", "cual", "sera", "pueden"}
+
+
+def sugerir_ubicacion(db: Session, fondo_id: uuid.UUID, texto: str, maximo: int = 5) -> list[dict]:
+    """Las series y subseries del cuadro donde más probablemente va un documento: las palabras de su nombre y de sus
+    tipos documentales (que la TRD deja en el alcance de cada serie) que aparecen en el texto del documento. Es una
+    sugerencia: la archivista elige."""
+    import math
+
+    del_doc = set(_palabras(texto[:40000])) - _VACIAS
+    if not del_doc:
+        return []
+    candidatos = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
+                                                            RecursoDocumental.nivel.in_(("serie", "subserie")))).all()
+    puntuados = []
+    for r in candidatos:
+        nombre = set(_palabras(r.titulo)) - _VACIAS
+        tipos = set(_palabras(r.alcance_contenido)) - _VACIAS - nombre
+        if not nombre and not tipos:
+            continue
+        en_nombre, en_tipos = nombre & del_doc, tipos & del_doc
+        puntaje = (2 * len(en_nombre) + len(en_tipos)) / math.sqrt(2 * len(nombre) + len(tipos))
+        if r.nivel == "subserie":
+            puntaje *= 1.05  # lo más específico, a igualdad
+        if puntaje > 0:
+            puntuados.append((puntaje, r, sorted(en_nombre | en_tipos)))
+    puntuados.sort(key=lambda x: -x[0])
+    return [{"id": r.id, "titulo": r.titulo, "nivel": r.nivel, "codigo": r.codigo_referencia,
+             "puntaje": round(p, 3), "palabras": coinciden[:8]} for p, r, coinciden in puntuados[:maximo]]
 
 
 def tiene_cuadro(db: Session, fondo_id: uuid.UUID) -> bool:

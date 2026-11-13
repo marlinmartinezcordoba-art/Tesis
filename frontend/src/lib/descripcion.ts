@@ -122,10 +122,19 @@ export interface NivelSuperior {
   id: string;
   titulo: string;
   nivel: string;
+  codigo?: string | null;
+  dependencia?: string | null;
 }
 
 export function nivelesSuperiores(fondoId: string, nivel: string, adicional = false): Promise<NivelSuperior[]> {
   return pedir<NivelSuperior[]>(`/api/descripcion/niveles-superiores?fondo_id=${fondoId}&nivel=${nivel}${adicional ? "&adicional=true" : ""}`);
+}
+
+// Series y subseries donde más probablemente va el documento (según su texto y la TRD): una sugerencia.
+export interface UbicacionSugerida { id: string; titulo: string; nivel: string; codigo: string | null; puntaje: number;
+  palabras: string[] }
+export function ubicacionSugerida(trabajoId: string): Promise<UbicacionSugerida[]> {
+  return pedir<UbicacionSugerida[]>(`/api/descripcion/ubicacion-sugerida?trabajo_id=${trabajoId}`);
 }
 
 // Estado de la verificación de vocabulario de una entidad en pantalla.

@@ -217,7 +217,16 @@ def test_el_fondo_nace_con_su_trd_vigente_y_el_cuadro_no_se_toca_suelto(cliente,
     d = documento(db, fnd, "Oficio_114_1948.pdf", OFICIO_114)
     datos = aceptar_todo(iniciar(cliente, archivista, [d.id]))
     r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos)
-    assert r.status_code == 422 and "serie" in r.json()["detail"], r.text
+    assert r.status_code == 422 and "serie" in r.json()["detail"] and "Queda incluido en" in r.json()["detail"], r.text
+    # «Queda incluido en» solo ofrece series, subseries y expedientes, con su código y su dependencia.
+    opciones = cliente.get("/api/descripcion/niveles-superiores", headers=archivista,
+                           params={"fondo_id": str(fnd.id), "nivel": "unidad_documental"}).json()
+    assert opciones and {o["nivel"] for o in opciones} <= {"serie", "subserie", "expediente"}
+    assert any(o["codigo"] == "110.15" and o["dependencia"] for o in opciones)
+    # RICORA sugiere dónde va según el texto del documento y la TRD (una sugerencia: la archivista elige).
+    sugeridas = cliente.get("/api/descripcion/ubicacion-sugerida", headers=archivista,
+                            params={"trabajo_id": datos["trabajo_id"]})
+    assert sugeridas.status_code == 200 and isinstance(sugeridas.json(), list)
     r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos | {"incluido_en_id": str(serie.id)})
     assert r.status_code == 201, r.text
     # La serie no se renombra, recodifica ni mueve desde la descripción: eso lo hace la TRD.
@@ -303,3 +312,26 @@ def test_la_misma_dependencia_como_seccion_y_como_subseccion_no_detiene_la_aprob
     assert r.status_code == 200, r.text
     assert r.json()["aplicada"]
     assert any("1001" in a for a in r.json()["informe"]["avisos"])
+
+
+def test_la_serie_sugerida_es_la_que_comparte_nombre_y_tipos_con_el_documento(db, admin):
+    """Un oficio que pide la sustracción de una reserva forestal va a «Sustracción de reservas forestales»."""
+    from app.db.base import ahora
+    from app.servicios import descripcion as servicio
+
+    fondo = RecursoDocumental(nivel="fondo", titulo="Fondo de prueba de ubicación", publicado_en=ahora())
+    db.add(fondo)
+    db.flush()
+    fondo.fondo_id = fondo.id
+    for codigo, titulo, tipos in (("2100.27", "Sustracción de reservas forestales", "Tipos documentales: Solicitud; "
+                                   "Concepto técnico; Resolución."),
+                                  ("2100.4", "Actas", "Tipos documentales: Acta; Citación."),
+                                  ("2100.31", "Contratos", "Tipos documentales: Contrato; Póliza.")):
+        db.add(RecursoDocumental(nivel="serie", titulo=titulo, codigo_referencia=codigo, alcance_contenido=tipos,
+                                 fondo_id=fondo.id, incluido_en_id=fondo.id))
+    db.flush()
+    texto = ("Bogotá, 12 de marzo de 1994. Solicitud de sustracción de la Reserva Forestal del Pacífico para la "
+             "construcción de una vía. Se anexa el concepto técnico.")
+    [primera, *_] = servicio.sugerir_ubicacion(db, fondo.id, texto)
+    assert primera["codigo"] == "2100.27" and "sustraccion" in primera["palabras"]
+    assert servicio.sugerir_ubicacion(db, fondo.id, "") == []
