@@ -4,6 +4,7 @@ import { PreguntaVocabulario } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, pedirArchivo } from "@/lib/api";
 import { pedirTexto } from "@/lib/dialogos";
 import { useSesion } from "@/lib/sesion";
+import { sugerirClasificacion, type RevisionResumen } from "@/lib/sugerenciaClasificacion";
 import { NIVEL_NOMBRE, verificarVocabulario, type Coincidencia, type Verificacion } from "@/lib/descripcion";
 
 // --- Idioma, condiciones de acceso y de uso, secuencia ------------------------------------------
@@ -252,6 +253,40 @@ function ClasificacionAcceso({ valor, alCambiar, heredada }: {
   );
 }
 
+const DATOS_CORTO: Record<string, string> = { no_contiene: "sin datos personales", personales: "con datos personales",
+  sensibles: "con datos sensibles", menores: "con datos de menores" };
+
+/** Lo que RICORA sugiere para la clasificación y los datos personales, con sus motivos. Aplicarla es decisión de la persona. */
+function SugerenciaClasificacion({ valor, alCambiar, revision, heredada }: {
+  valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; revision?: RevisionResumen | null;
+  heredada?: { acceso: string } | null;
+}) {
+  const s = sugerirClasificacion(revision, heredada);
+  if (!s) return null;
+  const c = valor.clasificacion;
+  const aplicada = c.acceso === s.acceso && valor.datosPersonales === s.datosPersonales
+    && (s.acceso === "hereda" || c.reproduccion === s.reproduccion);
+  const acceso = s.acceso === "hereda" ? "igual que el nivel superior" : NOMBRE_ACCESO[s.acceso];
+  return (
+    <div className={`aviso ${aplicada ? "bien" : ""}`} role="region" aria-label="Sugerencia de clasificación" data-fijo
+         style={{ marginBottom: 12 }}>
+      <strong>Sugerencia de RICORA:</strong> {acceso}, {DATOS_CORTO[s.datosPersonales]}
+      {s.acceso !== "hereda" && <>, reproducción {s.reproduccion === "permitida" ? "permitida" : "no permitida"}</>}.
+      <ul style={{ margin: "6px 0 6px 18px" }}>{s.motivos.slice(0, 6).map((m) => <li key={m}>{m}</li>)}</ul>
+      {s.pendientes > 0 && <div className="meta">Quedan {s.pendientes} hallazgo(s) por revisar en «Datos personales»: la
+        sugerencia cambia si descarta o corrige alguno.</div>}
+      <div className="acciones" style={{ marginTop: 6 }}>
+        {aplicada ? <span className="meta">Aplicada. Puede cambiarla abajo: la decisión es suya.</span> : (
+          <button type="button" className="boton chico" onClick={() => alCambiar({
+            ...valor, datosPersonales: s.datosPersonales,
+            clasificacion: { ...c, acceso: s.acceso, reproduccion: s.reproduccion, fundamento: s.fundamento || c.fundamento },
+          })}>Aplicar la sugerencia</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
   const llenos = ISADG_TEXTOS.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
   return (
@@ -316,12 +351,13 @@ export interface RevisionCompletitud {
     hallazgos: { tipo: string; paginas: number[]; detalle: string; confianza: string }[] }[];
 }
 
-export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel, completitud }: {
+export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel, completitud, revisionDatos }: {
   valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; fondoId: string;
   propuestos: string[]; confianza: number | null;
   heredada?: { acceso: string; de: string | null } | null;
   nivel?: string;
   completitud?: RevisionCompletitud | null;
+  revisionDatos?: RevisionResumen | null;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
@@ -361,6 +397,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           <button type="button" className="boton chico" disabled={!/^[a-zA-Z]{3}$/.test(nuevo)} onClick={() => agregar(nuevo)}>Agregar</button>
         </div>
       </div>
+      <SugerenciaClasificacion valor={valor} alCambiar={alCambiar} revision={revisionDatos} heredada={heredada} />
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
       <div className="campo">

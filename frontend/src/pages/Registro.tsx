@@ -331,7 +331,7 @@ export function RegistroDescripcion() {
           <DatosPersonales trabajoId={trabajo} datos={datosPersonales} alCambiar={setDatosPersonales} />
         )}
         <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={registro.fondo_id} propuestos={[]} confianza={null}
-                        heredada={registro.clasificacion_heredada} nivel={registro.nivel} />
+                        heredada={registro.clasificacion_heredada} nivel={registro.nivel} revisionDatos={datosPersonales} />
         </>
       ) : (
         <div className="tarjeta">

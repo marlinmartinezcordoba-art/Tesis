@@ -560,7 +560,7 @@ export function EspacioTrabajo() {
           )}
 
           <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
-                          completitud={espacio.completitud}
+                          completitud={espacio.completitud} revisionDatos={espacio.datos_personales}
                           propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null} />
 
           {espacio.nivel === "unidad_documental" && (
