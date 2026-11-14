@@ -208,7 +208,7 @@ def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fond
     assert res["anotaciones"] == {"ciegas": 2, "asistidas": 1, "evaluadores": 2}
     assert res["motores"] == [{"motor": "motor-de-prueba", "version_prompt": motor.VERSION_PROMPT}]
     hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
-    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Expertas", "Conformidad RiC-O",
+    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Asistida frente a ciegas", "Expertas", "Conformidad RiC-O",
                                                                   "Acuerdo, tiempos y rúbrica", "Normalización y cobertura", "Comparabilidad",
                                                                   "Instrumento 1", "Frente a la referencia", "Calibración",
                                                                   "Supervisión (asistida)", "Tiempos por documento",

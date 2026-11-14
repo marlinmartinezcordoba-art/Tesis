@@ -1027,6 +1027,9 @@ interface Resultado {
     base?: "referencia_adjudicada_ic95" | "f_puntual";
   };
   evaluacion?: { version_congelada?: VersionCongelada | null };
+  asistida_frente_a_ciegas?: { pares: number; estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
+    flexible: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
+    relaciones_flexible: { micro: Medida } };
   referencia_adjudicada?: { documentos: number; margen_f?: number; minimo_casos?: number; nota: string;
     tipos: ({ tipo: string; casos_referencia: number; techo: number | null }
       & Record<"A0" | "A1", { estricto: Medida; flexible: Medida; estado: string;
@@ -1038,7 +1041,8 @@ interface Resultado {
   indicadores?: Record<"motor" | "ciega" | "asistida", { descripciones: number; fechas: number; fechas_edtf: number;
     tasa_fechas_edtf: number | null; agentes_y_lugares: number; duplicadas: number; tasa_duplicidad: number | null;
     cobertura: { clases: number; propiedades: number; propiedades_disponibles: number };
-    evidencia?: { entidades: number; con_evidencia: number; tasa: number | null } }>
+    evidencia?: { entidades: number; con_evidencia: number; tasa: number | null };
+    shacl?: { descripciones: number; conformes: number; tasa: number | null; problemas: [string, number][] } }>
     & { evidencia_motor: { entidades: number; con_fragmento: number; tasa: number | null } };
   supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
     pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
@@ -1099,7 +1103,9 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
       {r.evaluacion?.version_congelada && (
         <p className="meta">Versión congelada al iniciar: sistema {r.evaluacion.version_congelada.sistema || "—"} · motor{" "}
           {r.evaluacion.version_congelada.motor || "—"} · instrucción {r.evaluacion.version_congelada.version_instruccion || "—"} ·
-          perfil SHACL <code>{(r.evaluacion.version_congelada.perfil_shacl_sha256 || "—").slice(0, 12)}</code></p>
+          perfil SHACL <code>{(r.evaluacion.version_congelada.perfil_shacl_sha256 || "—").slice(0, 12)}</code>.
+          Para el Anexo A, etiquete ese commit en GitHub: Actions › «Etiquetar la versión evaluada» › Run workflow, con el
+          commit <code>{r.evaluacion.version_congelada.sistema || "—"}</code>.</p>
       )}
       <div className="resumen-preservacion">
         <div className="cifra"><strong>{num(r.estricto.micro.f1)}</strong><span>F1 estricto (micro)</span></div>
@@ -1162,6 +1168,28 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           </tbody>
         </table>
       </div>
+      {r.asistida_frente_a_ciegas && r.asistida_frente_a_ciegas.pares > 0 && (
+        <div className="tarjeta tabla-desplazable">
+          <div className="tarjeta-cab">Versión validada por la archivista (asistida) frente a las descripciones ciegas</div>
+          <p className="meta" style={{ padding: "0 18px" }}>Objetivo 3: además de la propuesta del motor, se compara su versión
+            validada con las ciegas de otras personas ({r.asistida_frente_a_ciegas.pares} pares; nunca con la ciega de la
+            misma archivista). Relaciones RiC (flexible): F1 {num(r.asistida_frente_a_ciegas.relaciones_flexible.micro?.f1)}.</p>
+          <table className="tabla-permisos">
+            <thead><tr><th>Tipo</th><th>F1 estricto</th><th>F1 flexible</th><th>Precisión (flexible)</th>
+              <th>Exhaustividad (flexible)</th></tr></thead>
+            <tbody>
+              {Object.entries(r.asistida_frente_a_ciegas.flexible.por_tipo).map(([t, f]) => (
+                <tr key={t}><td>{NOMBRE_TIPO(t)}</td><td>{num(r.asistida_frente_a_ciegas!.estricto.por_tipo[t]?.f1)}</td>
+                  <td>{num(f.f1)}</td><td>{num(f.precision)}</td><td>{num(f.exhaustividad)}</td></tr>
+              ))}
+              <tr><td><strong>Total (micro)</strong></td><td>{num(r.asistida_frente_a_ciegas.estricto.micro.f1)}</td>
+                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.f1)}</td>
+                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.precision)}</td>
+                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.exhaustividad)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      )}
       {r.referencia_adjudicada && (
         <div className="tarjeta tabla-desplazable">
           <div className="tarjeta-cab">Frente a la referencia adjudicada (R): A0 motor solo y A1 archivista con la propuesta</div>
@@ -1325,7 +1353,8 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           <div className="tarjeta-cab">Normalización, trazabilidad y cobertura de RiC-O</div>
           <table className="tabla-permisos">
             <thead><tr><th>Quién describe</th><th>Fechas en EDTF</th><th>Duplicidad (agentes y lugares)</th>
-              <th>Clases RiC-O</th><th>Propiedades RiC-O</th><th>Aserciones con evidencia textual</th></tr></thead>
+              <th>Clases RiC-O</th><th>Propiedades RiC-O</th><th>Aserciones con evidencia textual</th>
+              <th>Conformes con el perfil SHACL</th></tr></thead>
             <tbody>
               {(["motor", "ciega", "asistida"] as const).map((k) => {
                 const x = r.indicadores![k];
@@ -1333,7 +1362,9 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
                   <tr key={k}><td>{QUIEN[k] || k}</td><td>{x.fechas_edtf} / {x.fechas} ({num(x.tasa_fechas_edtf)})</td>
                     <td>{x.duplicadas} / {x.agentes_y_lugares} ({num(x.tasa_duplicidad)})</td>
                     <td>{x.cobertura.clases}</td><td>{x.cobertura.propiedades} de {x.cobertura.propiedades_disponibles}</td>
-                    <td>{x.evidencia ? `${x.evidencia.con_evidencia} / ${x.evidencia.entidades} (${num(x.evidencia.tasa)})` : "—"}</td></tr>);
+                    <td>{x.evidencia ? `${x.evidencia.con_evidencia} / ${x.evidencia.entidades} (${num(x.evidencia.tasa)})` : "—"}</td>
+                    <td title={x.shacl?.problemas?.map(([m, n]) => `${n}× ${m}`).join("\n") || undefined}>
+                      {x.shacl ? `${x.shacl.conformes} / ${x.shacl.descripciones} (${num(x.shacl.tasa)})` : "—"}</td></tr>);
               })}
             </tbody>
           </table>

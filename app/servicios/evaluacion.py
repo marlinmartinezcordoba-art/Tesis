@@ -607,6 +607,12 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     supervision_tipo: dict[str, dict] = {}
     lista_desacuerdos = []
     por_experta: dict[uuid.UUID, dict] = {}  # el motor frente a la referencia ciega de cada experta
+    # Objetivo 3 de la tesis: también la versión validada por la archivista (asistida) frente a las
+    # ciegas, siempre de otra persona (frente a la suya propia estaría sesgada: ya la había escrito).
+    asis_estricto = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
+    asis_flexible = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
+    asis_rel: dict[str, dict] = {}
+    asis_pares = 0
 
     def acumular(destino: dict, cuentas: dict) -> None:
         for k, c in cuentas.items():
@@ -659,6 +665,19 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
             experta["relaciones"] = _sumar(experta["relaciones"], total)
         cuentas_doc.append(doc_ent)
         cuentas_doc_rel.append(doc_rel)
+        for x in (a for a in anotadas if a.condicion == "asistida"):
+            sistema_a, sistema_a_rel = entidades_de_anotacion(x.datos), ric.tripletas(x.datos)
+            for c in ciegas:
+                if c.evaluador_id == x.evaluador_id:
+                    continue
+                asis_pares += 1
+                referencia_c = entidades_de_anotacion(c.datos)
+                for t in TIPOS:
+                    s_t = [e for e in sistema_a if e["tipo"] == t]
+                    r_t = [e for e in referencia_c if e["tipo"] == t]
+                    asis_estricto[t] = _sumar(asis_estricto[t], conteo(s_t, r_t, 1.0))
+                    asis_flexible[t] = _sumar(asis_flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
+                acumular(asis_rel, ric.conteo_por_propiedad(sistema_a_rel, ric.tripletas(c.datos), ev.umbral_similitud)[0])
         for a, b in combinations(ciegas, 2):  # acuerdo entre archivistas
             ea, eb = entidades_de_anotacion(a.datos), entidades_de_anotacion(b.datos)
             acuerdo = _sumar(acuerdo, conteo(ea, eb, ev.umbral_similitud))
@@ -772,6 +791,16 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
                             "evaluadores": len({a.evaluador_id for a in anotaciones})}}
     # Normalización, trazabilidad y cobertura de RiC-O (normalización, trazabilidad y conformidad).
     salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
+    salida["asistida_frente_a_ciegas"] = {"pares": asis_pares, "estricto": tabla(asis_estricto),
+                                          "flexible": tabla(asis_flexible), "relaciones_flexible": tabla(asis_rel)}
+    # Tabla 3, dimensión 5: cumplimiento del perfil SHACL de cada descripción, por fuente.
+    for fuente, lista in ric_por_fuente.items():
+        revisadas = [ric.shacl(x) for x in lista]
+        conformes = sum(1 for x in revisadas if x["conforme"])
+        salida["indicadores"].setdefault(fuente, {})["shacl"] = {
+            "descripciones": len(revisadas), "conformes": conformes,
+            "tasa": _r(conformes / len(revisadas)) if revisadas else None,
+            "problemas": Counter(m for x in revisadas for m in x["problemas"]).most_common(10)}
     salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
     from app.servicios import evaluacion_referencia as referencia
 
@@ -875,6 +904,22 @@ def hoja_de_calculo(datos: dict) -> bytes:
     rel.append(["Confusión de propiedades", "Motor", "Archivista", "Veces"])
     for c in datos["relaciones"]["confusiones"]:
         rel.append([None, nombres.get(c["motor"], c["motor"]), nombres.get(c["archivista"], c["archivista"]), c["veces"]])
+    asis = libro.create_sheet("Asistida frente a ciegas")
+    af = datos.get("asistida_frente_a_ciegas") or {}
+    asis.append(["Versión validada por la archivista (asistida) frente a las descripciones ciegas de otras personas "
+                 "(objetivo 3)", "pares comparados", af.get("pares", 0)])
+    asis.append(["Medida", "Tipo", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
+    for medida in ("estricto", "flexible"):
+        t_m = af.get(medida) or {"por_tipo": {}, "micro": {}, "macro_f1": None}
+        for tipo, f in t_m["por_tipo"].items():
+            asis.append([medida, tipo, f["vp"], f["fp"], f["fn"], f["precision"], f["exhaustividad"], f["f1"]])
+        m = t_m["micro"]
+        if m:
+            asis.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
+    r_a = (af.get("relaciones_flexible") or {}).get("micro") or {}
+    if r_a:
+        asis.append(["flexible", "relaciones RiC (micro)", r_a["vp"], r_a["fp"], r_a["fn"], r_a["precision"],
+                     r_a["exhaustividad"], r_a["f1"]])
     exp = libro.create_sheet("Expertas")
     exp.append(["Código", "Profesión", "Formación", "Años en archivos", "Años describiendo", "Rol", "Consentimiento",
                 "Documentos descritos", "F1 entidades (motor frente a ella)", "F1 relaciones (motor frente a ella)",
@@ -924,6 +969,8 @@ def hoja_de_calculo(datos: dict) -> bytes:
         ev_m = i.get("evidencia_motor") or {}
         ind.append(["Entidades del motor con fragmento de evidencia", ev_m.get("con_fragmento"), "de", ev_m.get("entidades"),
                     "tasa", ev_m.get("tasa")])
+        ind.append(["Descripciones conformes con el perfil SHACL (Tabla 3, dimensión 5)",
+                    *[((i.get(f) or {}).get("shacl") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
         ind.append(["Aserciones con evidencia textual (Tabla 3, dimensión 4)",
                     *[((i.get(f) or {}).get("evidencia") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
     comp = libro.create_sheet("Comparabilidad")

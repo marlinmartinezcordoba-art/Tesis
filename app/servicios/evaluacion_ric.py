@@ -287,6 +287,67 @@ def _grafo(datos: dict):
     return g
 
 
+# Formas del perfil SHACL que piden el contexto del fondo (que la unidad documental esté incluida en
+# una agrupación o describa el fondo). Una descripción de la evaluación es una unidad aislada a
+# propósito, así que esa condición no se le exige; todas las demás formas, sí.
+FORMAS_DE_CONTEXTO = ("perfil:Record",)
+MENSAJE_DE_CONTEXTO = "agrupación"
+
+
+def grafo_completo(datos: dict):
+    """La descripción con lo que el perfil SHACL exige de cada clase: título del documento, nombre
+    de agentes, lugares y actividades, expresión de la fecha, título del mandato, etiqueta y esquema
+    del tipo de actividad. Las relaciones son las mismas de `_grafo`."""
+    from rdflib import RDF, XSD, Literal, Namespace, URIRef
+
+    rico = Namespace(ric_o.RICO)
+    skos = Namespace(ric_o.SKOS)
+    g = _grafo(datos)
+    doc = URIRef("urn:ricora:evaluacion:documento")
+    esquema = URIRef("urn:ricora:evaluacion:vocabulario")
+    if (datos.get("titulo") or "").strip():
+        g.add((doc, rico.title, Literal(datos["titulo"].strip(), datatype=XSD.string)))
+    for e in datos["entidades"]:
+        n = URIRef(f"urn:ricora:evaluacion:{e['clave']}")
+        tipo, valor = e.get("tipo"), e.get("valor") or ""
+        if tipo in ("agente", "lugar", "actividad"):
+            g.add((n, rico.name, Literal(valor, lang="es")))
+        elif tipo == "fecha":
+            g.add((n, rico.expressedDate, Literal(valor, lang="es")))
+            if e.get("edtf"):
+                from app.servicios import fechas
+
+                g.add((n, rico.normalizedDateValue, Literal(e["edtf"])))
+                try:
+                    subtipo = fechas.subtipo_de(e["edtf"])
+                except fechas.FechaInvalida:
+                    subtipo = None
+                if subtipo in ric_o.TIPO_FECHA:  # simple, rango o conjunto, como en la exportación
+                    tipo_fecha = URIRef(f"urn:ricora:evaluacion:tipo-de-fecha:{subtipo}")
+                    g.add((n, rico.hasDateType, tipo_fecha))
+                    g.add((tipo_fecha, RDF.type, rico.DateType))
+        elif tipo in ("mandato", "documento_citado"):
+            g.add((n, rico.title, Literal(valor, datatype=XSD.string)))
+        elif tipo == "tipo_actividad":
+            g.add((n, skos.prefLabel, Literal(valor, lang="es")))
+            g.add((n, skos.inScheme, esquema))
+            g.add((esquema, RDF.type, skos.ConceptScheme))
+        else:
+            g.add((n, skos.prefLabel, Literal(valor, lang="es")))
+    return g
+
+
+def shacl(datos: dict | None) -> dict:
+    """¿La descripción cumple el perfil SHACL de RICORA? (Tabla 3, dimensión 5)."""
+    from app.servicios.conformidad_rico import validar_shacl
+
+    d = a_ric(datos)
+    resultado = validar_shacl(grafo_completo(d))
+    problemas = [r["mensaje"] or r["forma"] or "" for r in resultado["resultados"]
+                 if not (r["forma"] in FORMAS_DE_CONTEXTO and MENSAJE_DE_CONTEXTO in (r["mensaje"] or ""))]
+    return {"conforme": not problemas, "problemas": problemas}
+
+
 def conformidad(datos: dict | None) -> dict:
     """¿La descripción es RiC válida? Cada problema dice por qué.
 

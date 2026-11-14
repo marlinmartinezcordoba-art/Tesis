@@ -216,3 +216,46 @@ def test_la_hoja_trae_el_instrumento_1_el_tiempo_del_motor_y_la_evidencia_de_cad
     datos = [f for f in filas if f[5] in ("VP", "FP", "FN")]
     assert datos and all(f[0] == "Oficio_210_1948.pdf" and f[1].startswith("E") for f in datos)
     assert any(f[0] == "TOTALES (micro)" and str(f[8]).startswith("=IFERROR") for f in filas)
+
+
+def test_la_asistida_se_compara_con_las_ciegas_de_otras_y_cada_descripcion_pasa_por_el_perfil_shacl(  # noqa: F811
+        cliente, db, fondo, cabeceras_admin, motor_eval):
+    """Objetivo 3: la versión validada (asistida) frente a las ciegas, nunca frente a la ciega de la
+    misma persona. Tabla 3, dimensión 5: porcentaje de descripciones conformes con el perfil SHACL."""
+    adm = cabeceras_admin
+    ev_id, d = _preparar(cliente, db, fondo, adm)
+    ana = _experta(cliente, db, ev_id, "ana@correo.com", "ambas")
+    luis = _experta(cliente, db, ev_id, "luis@correo.com", "ambas")
+    _iniciar(cliente, adm, ev_id)
+    assert anotar(cliente, ana, ev_id, d.id, "ciega", CIEGA_A).status_code == 200
+    assert anotar(cliente, luis, ev_id, d.id, "ciega", CIEGA_B).status_code == 200
+    a = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "asistida"}).json()
+    assert cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana,
+                       json=a["datos"] | {"enviar": True}).status_code == 200
+    res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=adm).json()
+    af = res["asistida_frente_a_ciegas"]
+    assert af["pares"] == 1  # la asistida de Ana solo frente a la ciega de Luis
+    assert af["flexible"]["micro"]["vp"] + af["flexible"]["micro"]["fp"] > 0
+    for fuente, n in (("motor", 1), ("ciega", 2), ("asistida", 1)):
+        s = res["indicadores"][fuente]["shacl"]
+        assert s["descripciones"] == n and 0 <= s["conformes"] <= n
+    libro = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
+    assert libro["Asistida frente a ciegas"]["C1"].value == 1
+    filas = [f[0].value for f in libro["Normalización y cobertura"].iter_rows()]
+    assert "Descripciones conformes con el perfil SHACL (Tabla 3, dimensión 5)" in filas
+
+
+def test_una_descripcion_completa_cumple_el_perfil_shacl_y_sin_titulo_no():
+    from app.servicios import evaluacion_ric as ric
+
+    completa = {"titulo": "Oficio 210 de 1948", "entidades": [
+        {"tipo": "agente", "rol": "productor", "valor": "Alcaldía de Tunja", "subtipo": "entidad_corporativa"},
+        {"tipo": "fecha", "valor": "1948 a 1950", "edtf": "1948/1950"},
+        {"tipo": "forma_documental", "valor": "oficio"}]}
+    assert ric.shacl(ric.desde_roles(completa)) == {"conforme": True, "problemas": []}
+    sin_titulo = ric.shacl(ric.desde_roles(dict(completa, titulo="")))
+    assert not sin_titulo["conforme"] and any("título" in p for p in sin_titulo["problemas"])
+    # Un destinatario sin clase de agente no cumple la forma de rico:hasAddressee.
+    sin_clase = ric.shacl(ric.desde_roles(dict(completa, entidades=completa["entidades"] + [
+        {"tipo": "agente", "rol": "destinatario", "valor": "Concejo"}])))
+    assert not sin_clase["conforme"]
