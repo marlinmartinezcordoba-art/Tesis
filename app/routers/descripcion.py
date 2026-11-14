@@ -615,7 +615,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id, partes=_partes_de(datos.partes),
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
-            copia_de_id=datos.copia_de_id, tipos_contenido=datos.tipos_contenido,
+            copia_de_id=datos.copia_de_id, asociado_a_id=datos.asociado_a_id,
+            vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
@@ -1053,7 +1054,8 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             precede_a_id=datos.precede_a_id, sigue_a_id=datos.sigue_a_id,
             responde_a_id=datos.responde_a_id, borrador_de_id=datos.borrador_de_id,
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
-            copia_de_id=datos.copia_de_id, tipos_contenido=datos.tipos_contenido,
+            copia_de_id=datos.copia_de_id, asociado_a_id=datos.asociado_a_id,
+            vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)

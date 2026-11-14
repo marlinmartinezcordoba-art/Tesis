@@ -587,6 +587,11 @@ def _derivadas_de_relacion(db: Session, ex: Exportacion, rel: Relacion, n_o, n_d
     """Lo que una fila dice además en RiC-O 1.1 con propiedades más precisas
     (fase 1 de RiC completo), sin otra fuente que la fila y sus extremos."""
     g = ex.grafo
+    # Parentesco con su tipo (ISAAR 5.3.2): además de hasFamilyAssociationWith, la propiedad específica de
+    # RiC-O (hijo R018, hermano R048, cónyuge R049). La fila va del progenitor al hijo.
+    especifica = {"progenitor": "has_child", "hermano": "has_sibling", "conyuge": "has_or_had_spouse"}.get(rel.rol or "")
+    if rel.codigo_ric == "has_family_association_with" and especifica:
+        g.add((uri(rel.origen_id), RICO[ric_o.PROPIEDADES[especifica].rico], uri(rel.destino_id)))
     if rel.codigo_ric == "has_or_had_instantiation" and isinstance(n_d, Instanciacion):
         # El original en papel y la copia digital (refinan hasOrHadInstantiation, RiC-AG).
         clave = "instanciacion_analogica" if _fisica(n_d) else "instanciacion_digital"

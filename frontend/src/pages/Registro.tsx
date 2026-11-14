@@ -165,7 +165,7 @@ export function RegistroDescripcion() {
     setCampos({ idiomas: r.idiomas, clasificacion: clasificacionInicial(r.clasificacion), condicionesAcceso: r.condiciones_acceso || "", condicionesUso: r.condiciones_uso || "",
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
                 respondeA: null, borradorDe: null, estadoDocumento: r.estado_documento || "",
-                notaIntegridad: r.nota_integridad || "", copiaDe: null, tiposContenido: r.tipos_contenido || [],
+                notaIntegridad: r.nota_integridad || "", copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: r.tipos_contenido || [],
                 fechasPredominantes: r.fechas_predominantes || "",
                 isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [],
@@ -238,7 +238,8 @@ export function RegistroDescripcion() {
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
           estado_documento: campos.estadoDocumento, nota_integridad: campos.notaIntegridad,
-          copia_de_id: campos.copiaDe?.id || null, tipos_contenido: campos.tiposContenido,
+          copia_de_id: campos.copiaDe?.id || null, asociado_a_id: campos.asociadoA?.id || null,
+          vinculo_genetico_con_id: campos.vinculoGenetico?.id || null, tipos_contenido: campos.tiposContenido,
           fechas_predominantes: campos.fechasPredominantes,
           agregar_partes: partes.map(parteParaEnviar),
           control: {

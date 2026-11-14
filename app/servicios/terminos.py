@@ -144,6 +144,48 @@ TERMINOS: dict[tuple[str, str | None], Termino] = {
                                                        "fue expedido el"),
     # --- Atributo modelado como nodo de apoyo ---
     ("forma_documental", None): Termino("Tipo documental", "es del tipo documental", "es el tipo documental de"),
+    # --- Catálogo completo (14-11-2026): toda relación de RiC-CM que RiC-O 1.1 implementa ---
+    ("has_or_had_part", None): Termino("Parte (general)", "tiene o tuvo como parte a", "es o fue parte de"),
+    ("has_or_had_subevent", None): Termino("Subevento", "tiene o tuvo como subevento a", "es o fue subevento de"),
+    ("precedes_in_time", None): Termino("Anterioridad en el tiempo", "precede en el tiempo a", "sigue en el tiempo a"),
+    ("is_original_of", None): Termino("Original", "es original de", "tiene por original"),
+    ("has_child", None): Termino("Hijo o hija", "es padre o madre de", "es hijo o hija de"),
+    ("describes_or_described", None): Termino("Instrumento que describe", "describe o describió", "es o fue descrito en"),
+    ("is_record_resource_associated_with_record_resource", None): Termino(
+        "Documento asociado", "está asociado con el documento", "está asociado con el documento"),
+    ("has_genetic_link_to_record_resource", None): Termino(
+        "Vínculo genético", "tiene vínculo genético con", "tiene vínculo genético con"),
+    ("has_organic_provenance", None): Termino("Procedencia orgánica", "procede orgánicamente de",
+                                              "es procedencia orgánica de"),
+    ("is_instantiation_associated_with_instantiation", None): Termino(
+        "Instanciación asociada", "está asociada con la instanciación", "está asociada con la instanciación"),
+    ("is_functionally_equivalent_to", None): Termino("Equivalencia funcional", "es funcionalmente equivalente a",
+                                                     "es funcionalmente equivalente a"),
+    ("has_sibling", None): Termino("Hermano o hermana", "es hermano o hermana de", "es hermano o hermana de"),
+    ("has_or_had_spouse", None): Termino("Cónyuge", "es o fue cónyuge de", "es o fue cónyuge de"),
+    ("is_event_associated_with", None): Termino("Evento asociado", "está asociado con", "está asociado con el evento"),
+    ("results_or_resulted_in", None): Termino("Resultado", "tiene o tuvo como resultado", "resulta o resultó de"),
+    ("is_rule_associated_with", None): Termino("Regla asociada", "está asociada con", "está asociado con la regla"),
+    ("is_or_was_expressed_by", None): Termino("Expresión de la regla", "se expresa o expresó en",
+                                              "expresa o expresó la regla"),
+    ("is_or_was_enforced_by", None): Termino("Vigilancia de la regla", "la hace o hizo cumplir",
+                                             "hace o hizo cumplir"),
+    ("is_beginning_date_of", None): Termino("Fecha de inicio", "es fecha de inicio de", "tiene por fecha de inicio"),
+    ("is_birth_date_of", None): Termino("Fecha de nacimiento", "es fecha de nacimiento de", "nació en la fecha"),
+    ("is_end_date_of", None): Termino("Fecha de fin", "es fecha de fin de", "tiene por fecha de fin"),
+    ("is_death_date_of", None): Termino("Fecha de muerte", "es fecha de muerte de", "murió en la fecha"),
+    ("is_place_associated_with", None): Termino("Lugar asociado", "está asociado con", "está asociado con el lugar"),
+    ("is_or_was_creation_date_of_all_members_of", None): Termino(
+        "Fechas extremas", "es o fue fecha de creación de todos los documentos de", "tiene como fechas extremas"),
+    ("is_or_was_creation_date_of_some_members_of", None): Termino(
+        "Fecha de algunos documentos", "es o fue fecha de creación de algunos documentos de",
+        "tiene documentos creados en la fecha"),
+    ("is_or_was_creation_date_of_most_members_of", None): Termino(
+        "Fechas predominantes", "es o fue fecha de creación de la mayoría de los documentos de",
+        "tiene como fechas predominantes"),
+    ("is_date_of_occurrence_of", None): Termino("Fecha de ocurrencia", "es fecha en que ocurrió", "ocurrió en la fecha"),
+    ("is_within", None): Termino("Fecha contenida", "está dentro de", "contiene la fecha"),
+    ("intersects", None): Termino("Fechas que se cruzan", "se cruza con", "se cruza con"),
 }
 
 

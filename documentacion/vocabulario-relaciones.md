@@ -64,10 +64,10 @@ mapeo verificado contra RiC-O 1.1 (`app/servicios/ric_o.py`).
 | Sucesión | — | tiene como sucesor a | es sucesor de | rico:hasSuccessor | RiC-R016 | tiene como sucesor(a) a |
 | Agentes asociados | — | está asociado con | está asociado con | rico:isAgentAssociatedWithAgent | RiC-R044 | agente está asociado con agente |
 | Ocupación de un cargo | — | ocupa u ocupó el cargo | es o fue ocupado por | rico:occupiesOrOccupied | RiC-R054 | ocupa u ocupaba |
-| Parentesco | — | tiene parentesco con | tiene parentesco con | rico:hasFamilyAssociationWith | — | tiene asociación familiar con |
-| Parentesco: progenitor | progenitor | es padre o madre de | es hijo o hija de | rico:hasFamilyAssociationWith | — | tiene asociación familiar con |
-| Parentesco: hermanos | hermano | es hermano o hermana de | es hermano o hermana de | rico:hasFamilyAssociationWith | — | tiene asociación familiar con |
-| Parentesco: cónyuges | conyuge | es o fue cónyuge de | es o fue cónyuge de | rico:hasFamilyAssociationWith | — | tiene asociación familiar con |
+| Parentesco | — | tiene parentesco con | tiene parentesco con | rico:hasFamilyAssociationWith | RiC-R047 | tiene asociación familiar con |
+| Parentesco: progenitor | progenitor | es padre o madre de | es hijo o hija de | rico:hasFamilyAssociationWith | RiC-R047 | tiene asociación familiar con |
+| Parentesco: hermanos | hermano | es hermano o hermana de | es hermano o hermana de | rico:hasFamilyAssociationWith | RiC-R047 | tiene asociación familiar con |
+| Parentesco: cónyuges | conyuge | es o fue cónyuge de | es o fue cónyuge de | rico:hasFamilyAssociationWith | RiC-R047 | tiene asociación familiar con |
 | Miembro de un grupo | — | tiene o tuvo como miembro a | es o fue miembro de | rico:hasOrHadMember | RiC-R055 | tiene o tenía como miembro a |
 | Dirección de un grupo | — | dirige o dirigió | es o fue dirigido por | rico:isOrWasLeaderOf | RiC-R042 | es o era líder de |
 | Subdivisión | — | tiene o tuvo como subdivisión a | es o fue subdivisión de | rico:hasOrHadSubdivision | RiC-R005 | tiene o tenía como subdivisión |
@@ -86,3 +86,32 @@ mapeo verificado contra RiC-O 1.1 (`app/servicios/ric_o.py`).
 | Fecha asociada | — | es fecha de | tiene la fecha | rico:isDateAssociatedWith | RiC-R068 | es fecha asociada con |
 | Fecha de expedición | expedicion | es fecha de expedición de | fue expedido el | rico:isDateAssociatedWith | RiC-R068 | es fecha asociada con |
 | Tipo documental | — | es del tipo documental | es el tipo documental de | rico:hasDocumentaryFormType | — | tiene como tipo documental |
+| Parte (general) | — | tiene o tuvo como parte a | es o fue parte de | rico:hasOrHadPart | RiC-R002 | tiene o tenía como parte |
+| Subevento | — | tiene o tuvo como subevento a | es o fue subevento de | rico:hasOrHadSubevent | RiC-R006 | tiene o tenía como parte de evento |
+| Anterioridad en el tiempo | — | precede en el tiempo a | sigue en el tiempo a | rico:precedesInTime | RiC-R009 | precede en el tiempo a |
+| Original | — | es original de | tiene por original | rico:isOriginalOf | RiC-R010 | es original de |
+| Hijo o hija | — | es padre o madre de | es hijo o hija de | rico:hasChild | RiC-R018 | tiene como hijo o hija a |
+| Instrumento que describe | — | describe o describió | es o fue descrito en | rico:describesOrDescribed | RiC-R021 | describe o describía |
+| Documento asociado | — | está asociado con el documento | está asociado con el documento | rico:isRecordResourceAssociatedWithRecordResource | RiC-R022 | es recurso documental asociado con |
+| Vínculo genético | — | tiene vínculo genético con | tiene vínculo genético con | rico:hasGeneticLinkToRecordResource | RiC-R023 | tiene vínculo de origen con recurso documental |
+| Procedencia orgánica | — | procede orgánicamente de | es procedencia orgánica de | rico:hasOrganicProvenance | RiC-R026 | tiene como procedencia orgánica |
+| Instanciación asociada | — | está asociada con la instanciación | está asociada con la instanciación | rico:isInstantiationAssociatedWithInstantiation | RiC-R034 | se asocia con la instanciación |
+| Equivalencia funcional | — | es funcionalmente equivalente a | es funcionalmente equivalente a | rico:isFunctionallyEquivalentTo | RiC-R035 | equivale funcionalmente a |
+| Hermano o hermana | — | es hermano o hermana de | es hermano o hermana de | rico:hasSibling | RiC-R048 | tiene como hermano o hermana a |
+| Cónyuge | — | es o fue cónyuge de | es o fue cónyuge de | rico:hasOrHadSpouse | RiC-R049 | tiene o tenía como cónyuge a |
+| Evento asociado | — | está asociado con | está asociado con el evento | rico:isEventAssociatedWith | RiC-R057 | es evento asociado con |
+| Resultado | — | tiene o tuvo como resultado | resulta o resultó de | rico:resultsOrResultedIn | RiC-R061 | tiene o tenía como resultado a |
+| Regla asociada | — | está asociada con | está asociado con la regla | rico:isRuleAssociatedWith | RiC-R062 | es regla asociada con |
+| Expresión de la regla | — | se expresa o expresó en | expresa o expresó la regla | rico:isOrWasExpressedBy | RiC-R064 | es o era una regla expresada en |
+| Vigilancia de la regla | — | la hace o hizo cumplir | hace o hizo cumplir | rico:isOrWasEnforcedBy | RiC-R066 | es o era una regla aplicada por |
+| Fecha de inicio | — | es fecha de inicio de | tiene por fecha de inicio | rico:isBeginningDateOf | RiC-R069 | es fecha de inicio de |
+| Fecha de nacimiento | — | es fecha de nacimiento de | nació en la fecha | rico:isBirthDateOf | RiC-R070 | es fecha de nacimiento de |
+| Fecha de fin | — | es fecha de fin de | tiene por fecha de fin | rico:isEndDateOf | RiC-R071 | es fecha final de |
+| Fecha de muerte | — | es fecha de muerte de | murió en la fecha | rico:isDeathDateOf | RiC-R072 | es fecha de muerte de |
+| Lugar asociado | — | está asociado con | está asociado con el lugar | rico:isPlaceAssociatedWith | RiC-R074 | es lugar asociado con |
+| Fechas extremas | — | es o fue fecha de creación de todos los documentos de | tiene como fechas extremas | rico:isOrWasCreationDateOfAllMembersOf | RiC-R081 | es o era fecha de creación de todos los miembros de |
+| Fecha de algunos documentos | — | es o fue fecha de creación de algunos documentos de | tiene documentos creados en la fecha | rico:isOrWasCreationDateOfSomeMembersOf | RiC-R082 | es o era fecha de creación de algunos miembros de |
+| Fechas predominantes | — | es o fue fecha de creación de la mayoría de los documentos de | tiene como fechas predominantes | rico:isOrWasCreationDateOfMostMembersOf | RiC-R083 | es o era fecha de creación de la mayoría de los miembros de |
+| Fecha de ocurrencia | — | es fecha en que ocurrió | ocurrió en la fecha | rico:isDateOfOccurrenceOf | RiC-R084 | es fecha de ocurrencia de |
+| Fecha contenida | — | está dentro de | contiene la fecha | rico:isWithin | RiC-R085 | está dentro |
+| Fechas que se cruzan | — | se cruza con | se cruza con | rico:intersects | RiC-R086 | cruza |

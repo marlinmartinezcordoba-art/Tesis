@@ -44,6 +44,9 @@ export interface CamposRegistroValor {
   notaIntegridad: string;
   // Cobertura total: copia de (RiC-R012), tipo de contenido (RiC-A10), fechas predominantes (RiC-R083, EDTF).
   copiaDe: { id: string; titulo: string } | null;
+  // RiC-R022 y RiC-R023: documento asociado (citado, antecedente) y vínculo genético sin ser copia ni borrador.
+  asociadoA?: { id: string; titulo: string } | null;
+  vinculoGenetico?: { id: string; titulo: string } | null;
   tiposContenido: string[];  // RiC-A10: varios a la vez (texto e imagen fija)
   fechasPredominantes: string;
   // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
@@ -81,7 +84,7 @@ export const ESCRITURAS: Record<string, string> = {
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
            respondeA: null, borradorDe: null, estadoDocumento: "", notaIntegridad: "",
-           copiaDe: null, tiposContenido: [], fechasPredominantes: "",
+           copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: [], fechasPredominantes: "",
            isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
 }
 
@@ -161,6 +164,7 @@ const ES_DOCUMENTO = (nivel?: string) => !nivel || nivel === "unidad_documental"
 /** Lo que RiC añade a una respuesta o un borrador, en palabras de la ficha. */
 export const VINCULO_NOMBRE: Record<string, string> = {
   responde_a: "Responde a", tiene_respuesta: "Tiene por respuesta", borrador_de: "Es borrador de", copia_de: "Es copia de", tiene_copia: "Tiene por copia",
+  asociado_a: "Asociado a", vinculo_genetico_con: "Vínculo genético con",
   tiene_borrador: "Tiene por borrador",
 };
 
@@ -361,7 +365,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
 }) {
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
-  const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | "copiaDe" | null>(null);
+  const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | "copiaDe" | "asociadoA" | "vinculoGenetico" | null>(null);
   const documento = ES_DOCUMENTO(nivel);
   const agregar = (c: string) => {
     const codigo = c.trim().toLowerCase();
@@ -464,7 +468,9 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
       </div>
       <div className="campo" style={{ marginTop: 12 }}>
-        <label>Respuesta, borrador y copia <span className="meta">(opcional · rico:hasReply, rico:isDraftOf, rico:hasCopy)</span></label>
+        <label>Respuesta, borrador, copia y otros documentos relacionados <span className="meta">(opcional · rico:hasReply,
+          rico:isDraftOf, rico:hasCopy, rico:isRecordResourceAssociatedWithRecordResource,
+          rico:hasGeneticLinkToRecordResource)</span></label>
         {valor.respondeA && (
           <p style={{ margin: "4px 0" }}>Responde a <b>{valor.respondeA.titulo}</b>{" "}
             <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, respondeA: null })}>Quitar</button></p>
@@ -477,6 +483,14 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           <p style={{ margin: "4px 0" }}>Es copia de <b>{valor.copiaDe.titulo}</b>{" "}
             <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, copiaDe: null })}>Quitar</button></p>
         )}
+        {valor.asociadoA && (
+          <p style={{ margin: "4px 0" }}>Asociado a <b>{valor.asociadoA.titulo}</b>{" "}
+            <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, asociadoA: null })}>Quitar</button></p>
+        )}
+        {valor.vinculoGenetico && (
+          <p style={{ margin: "4px 0" }}>Vínculo genético con <b>{valor.vinculoGenetico.titulo}</b>{" "}
+            <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, vinculoGenetico: null })}>Quitar</button></p>
+        )}
         {vinculando ? (
           <>
             <BuscarPublicada fondoId={fondoId} alElegir={(id, titulo) => { alCambiar({ ...valor, [vinculando]: { id, titulo } }); setVinculando(null); }} />
@@ -487,6 +501,10 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
             {!valor.respondeA && <button type="button" className="boton chico" onClick={() => setVinculando("respondeA")}>Responde a…</button>}
             {documento && !valor.borradorDe && <button type="button" className="boton chico" onClick={() => setVinculando("borradorDe")}>Es borrador de…</button>}
             {!valor.copiaDe && <button type="button" className="boton chico" onClick={() => setVinculando("copiaDe")}>Es copia de…</button>}
+            {!valor.asociadoA && <button type="button" className="boton chico" title="Un documento que este cita o del que es antecedente, cuando no es respuesta, copia ni borrador (RiC-R022)"
+                                         onClick={() => setVinculando("asociadoA")}>Asociado a…</button>}
+            {!valor.vinculoGenetico && <button type="button" className="boton chico" title="Comparte origen con otro documento sin ser su copia ni su borrador, p. ej. una versión anterior (RiC-R023)"
+                                               onClick={() => setVinculando("vinculoGenetico")}>Vínculo genético con…</button>}
           </div>
         )}
         <p className="meta" style={{ margin: "4px 0 0" }}>La respuesta puede estar en otra serie (comunicaciones recibidas y enviadas).</p>

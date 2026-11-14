@@ -317,7 +317,7 @@ Generado con `app/servicios/cobertura_ric.py` desde el mapeo que usa la exportac
 | RiC-R023 | Cubierto | `RecordResourceGeneticRelation` |
 | RiC-R024 | Cubierto | `includesOrIncluded`, `isOrWasIncludedIn` |
 | RiC-R025 | Cubierto | `RecordResourceToInstantiationRelation`, `hasOrHadInstantiation`, `isOrWasInstantiationOf` |
-| RiC-R026 | Cubierto por su especialización | Procedencia orgánica: el sistema escribe hasCreator (R027) y hasAccumulator (R028), subpropiedades de hasOrganicProvenance; RiC-O pide usar la general solo si no cabe una más específica. |
+| RiC-R026 | Cubierto | `hasOrganicProvenance`, `isOrganicProvenanceOf`: se declara en Autoridades para la procedencia que no es creación (R027) ni acumulación (R028), que siguen siendo las preferidas. |
 | RiC-R027 | Cubierto | `CreationRelation`, `hasCreator`, `isCreatorOf` |
 | RiC-R028 | Cubierto | `AccumulationRelation`, `hasAccumulator`, `isAccumulatorOf` |
 | RiC-R029 | Cubierto | `hasReceiver`, `isReceiverOf` |
@@ -393,3 +393,31 @@ La prueba `tests/test_cobertura_ric.py` falla si la cobertura baja o si aparece 
 - ICA, RiC-O 1.1 (2025): https://www.ica.org/ica-network/expert-groups/egad/records-in-contexts-ontology/
 - ICA-EGAD, RiC-AG 0.1 (borrador, 2025): https://github.com/ICA-EGAD/RiC-AG (estrategias de implantación; preguntas sobre actividades, extensiones, instanciación, secuencias y vocabularios)
 - Anuncio de RiC-AG 0.1: https://www.ica.org/egad-publishes-ric-application-guidelines-ric-ag-version-0-1/
+
+
+## 9. Catálogo de relaciones completo (14 de noviembre de 2026)
+
+Una auditoría externa contó **56 de 86 relaciones (65 %)**: midió las relaciones del catálogo único (`ric_o.PROPIEDADES`), no lo que escribe la exportación. Las dos medidas eran distintas porque 29 relaciones se exportaban desde datos (fechas, copia y original, TRD expresada en su documento, migraciones) sin estar en el catálogo, y otras no se podían declarar en ninguna pantalla.
+
+Ahora las dos medidas coinciden:
+
+| Medida | Antes | Ahora |
+|---|---|---|
+| Relaciones de RiC-CM 1.0 numeradas (R001-R086) | 86 | 86 |
+| Implementadas por RiC-O 1.1 (algún término del OWL las cita) | 85 | 85 |
+| En el catálogo único de relaciones, con su nombre en español | 56 | **85 (100 % de lo que RiC-O implementa)** |
+| Escritas en un grafo exportado (prueba de punta a punta) | 84 + R026 por especialización | **85** |
+| R043 | sin término en RiC-O 1.1 | declarada en `cobertura_ric.NO_IMPLEMENTADAS_EN_RICO`: no se inventa una propiedad, porque rompería la conformidad |
+
+Qué se hizo:
+
+- **Catálogo** (`ric_o.PROPIEDADES`): 29 relaciones nuevas, con dominio, rango e inversa del OWL oficial; R047 recibe su código. Migración 0060 (valores nuevos del tipo enumerado).
+- **Las que se escriben desde datos** quedan enlazadas a su código en `cobertura_ric.ESCRITAS_AL_EXPORTAR` (R006, R009, R010, R021, R034, R035, R061, R064, R066, R069-R072, R081-R086). La prueba exige que la propiedad de apoyo sea la del catálogo.
+- **Declarables en Autoridades** (bloque «Otras relaciones de RiC» de cada ficha): parte de (R002), anterior en el tiempo (R009), subevento (R006), evento asociado (R057), resultado (R061), regla asociada (R062), quién hace cumplir la regla (R066), lugar asociado (R074) y procedencia orgánica (R026).
+- **Declarables en Descripción**: «Asociado a» (R022, p. ej. el documento citado) y «Vínculo genético con» (R023).
+- **Parentesco**: el progenitor, el hermano y el cónyuge salen además con hasChild (R018), hasSibling (R048) y hasOrHadSpouse (R049).
+
+| Decisión | Alternativas | Selección | Justificación | Riesgo |
+|---|---|---|---|---|
+| R043 | Inventar una propiedad; declararla no implementada | Declararla | RiC-O 1.1 no tiene término para R043; una propiedad propia saldría de la ontología y el control de conformidad la rechaza | Quien cuente sobre 86 verá 85: la tesis debe decir «100 % de las implementadas en RiC-O 1.1» |
+| Relaciones generales (R002, R022, R023, R026, R057, R062, R074) | No ofrecerlas; ofrecerlas siempre; ofrecerlas aparte | Aparte, en «Otras relaciones de RiC» | RiC-O pide usar la más específica que quepa; separarlas evita que se usen por comodidad | Que se use la general cuando había una específica |

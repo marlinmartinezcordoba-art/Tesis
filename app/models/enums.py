@@ -109,6 +109,32 @@ CODIGO_RELACION_RIC = (
     "is_or_was_adjacent_to",  # RiC-R077 — lugares vecinos (simétrica)
     "overlaps_or_overlapped",  # RiC-R078 — lugares que se superponen (simétrica)
     "has_or_had_component",  # RiC-R004 — archivo → archivo que lo compone
+    # -- catálogo completo (14-11-2026): toda relación de RiC-CM que RiC-O 1.1 implementa --
+    "has_or_had_part",
+    "has_or_had_subevent",
+    "precedes_in_time",
+    "has_child",
+    "describes_or_described",
+    "is_record_resource_associated_with_record_resource",
+    "has_genetic_link_to_record_resource",
+    "has_organic_provenance",
+    "is_instantiation_associated_with_instantiation",
+    "is_functionally_equivalent_to",
+    "has_sibling",
+    "has_or_had_spouse",
+    "is_event_associated_with",
+    "results_or_resulted_in",
+    "is_rule_associated_with",
+    "is_or_was_enforced_by",
+    "is_birth_date_of",
+    "is_death_date_of",
+    "is_place_associated_with",
+    "is_or_was_creation_date_of_all_members_of",
+    "is_or_was_creation_date_of_some_members_of",
+    "is_or_was_creation_date_of_most_members_of",
+    "is_date_of_occurrence_of",
+    "is_within",
+    "intersects",
 )
 
 # Los nombres de RiC-O de cada código (y su inversa) viven solo en

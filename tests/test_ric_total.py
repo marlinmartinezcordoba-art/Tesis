@@ -144,7 +144,13 @@ def _armar(cliente, db, cab):
                              ("subdivision", alcaldia, ministerio), ("cargo_en", cargo, alcaldia),
                              ("lugar_superior", tunja, boyaca), ("actividad_mayor", tramite, actividad),
                              ("expedido_por", decreto, concejo), ("creado_por", concejo, decreto),
-                             ("serie_producida", funcion, serie)):
+                             ("serie_producida", funcion, serie),
+                             # Catálogo completo (14-11-2026): las relaciones generales que faltaban por declarar.
+                             ("procedencia_organica", alcaldia, fnd), ("lugar_asociado", tunja, actividad),
+                             ("evento_asociado", actividad, materia), ("resulto_en", tramite, materia),
+                             ("regla_asociada", decreto, actividad), ("aplicada_por", decreto, alcaldia),
+                             ("parte_de", soraca, boyaca), ("anterior_a", actividad, tramite),
+                             ("subevento_de", tramite, actividad)):
         con_tipo = "recurso_documental" if isinstance(con, RecursoDocumental) else "entidad_vocabulario"
         autoridad.vincular(db, tipo=tipo, desde=desde, con_tipo=con_tipo, con_id=con.id, usuario_id=usuario)
 

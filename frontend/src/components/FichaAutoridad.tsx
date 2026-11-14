@@ -1212,8 +1212,53 @@ function FichaGeneral(p: Props) {
   );
 }
 
-export function FichaAutoridad(p: Props) {
-  if (p.entidad.estado !== "activa") return null;
+// Catálogo completo de RiC-CM (14-11-2026): las relaciones que no tienen una sección propia en la
+// ficha se declaran aquí. Son las generales, para cuando no cabe una más específica de arriba.
+const TIPOS_OTRAS = ["parte_de", "anterior_a", "subevento_de", "evento_asociado", "resulto_en", "regla_asociada",
+  "aplicada_por", "lugar_asociado", "procedencia_organica"];
+const DESTINOS: [ClaseVocabulario, string][] = [["agente", "un agente"], ["lugar", "un lugar"], ["actividad", "una actividad"],
+  ["mandato", "un mandato"], ["materia", "una materia"]];
+
+function opcionesOtras(e: EntidadVocabulario): OpcionVinculo[] {
+  const clase = e.clase as ClaseVocabulario;
+  const salida: OpcionVinculo[] = [
+    { tipo: "parte_de", etiqueta: `Es o fue parte de (${CLASE_NOMBRE[clase]?.toLowerCase() || "entidad"})`, busca: clase, conFecha: true },
+    { tipo: "anterior_a", etiqueta: "Precede en el tiempo a", busca: clase },
+  ];
+  if (clase === "actividad") {
+    salida.push({ tipo: "subevento_de", etiqueta: "Es o fue subevento de (actividad mayor, no necesariamente directa)", busca: "actividad" });
+    DESTINOS.forEach(([c, n]) => salida.push({ tipo: "evento_asociado", etiqueta: `Está asociada con ${n}`, busca: c }));
+    DESTINOS.forEach(([c, n]) => salida.push({ tipo: "resulto_en", etiqueta: `Tuvo como resultado ${n}`, busca: c }));
+  }
+  if (clase === "mandato" || clase === "regla") {
+    DESTINOS.forEach(([c, n]) => salida.push({ tipo: "regla_asociada", etiqueta: `Está asociada con ${n}`, busca: c }));
+    salida.push({ tipo: "aplicada_por", etiqueta: "La hace o hizo cumplir (agente)", busca: "agente", conFecha: true });
+  }
+  if (clase === "lugar") {
+    DESTINOS.filter(([c]) => c !== "lugar").forEach(([c, n]) =>
+      salida.push({ tipo: "lugar_asociado", etiqueta: `Está asociado con ${n}`, busca: c }));
+  }
+  if (clase === "agente") {
+    salida.push({ tipo: "procedencia_organica", etiqueta: "Es procedencia orgánica de (fondo), sin ser su productor ni su acumulador", busca: "fondo" });
+    salida.push({ tipo: "procedencia_organica", etiqueta: "Es procedencia orgánica de (serie o subserie)", busca: "serie" });
+  }
+  return salida;
+}
+
+function OtrasRelacionesRic(p: Props) {
+  const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
+  const tiene = f.vinculos.some((v) => TIPOS_OTRAS.includes(v.vinculo));
+  return (
+    <Area titulo="Otras relaciones de RiC" abierta={tiene}>
+      <p className="meta" style={{ marginTop: 0 }}>Relaciones generales de RiC-CM para cuando ninguna de las de arriba es la
+        adecuada (RiC-O pide usar la más específica que quepa).</p>
+      <Vinculos vinculos={f.vinculos} tipos={TIPOS_OTRAS} opciones={opcionesOtras(e)} entidad={e} fondoId={fondoId}
+                puede={puede} alCambiar={alCambiar} vacio="Sin otras relaciones." />
+    </Area>
+  );
+}
+
+function FichaPorClase(p: Props) {
   switch (p.entidad.clase) {
     case "agente": return <FichaAgente {...p} />;
     case "lugar": return <FichaLugar {...p} />;
@@ -1223,6 +1268,11 @@ export function FichaAutoridad(p: Props) {
     case "regla": return <FichaRegla {...p} />;
     default: return <FichaGeneral {...p} />;
   }
+}
+
+export function FichaAutoridad(p: Props) {
+  if (p.entidad.estado !== "activa") return null;
+  return <><FichaPorClase {...p} /><OtrasRelacionesRic {...p} /></>;
 }
 
 // Qué hizo este mecanismo en el sistema: preservación y descripción apuntan

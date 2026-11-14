@@ -245,7 +245,7 @@ PROPIEDADES: dict[str, Propiedad] = {
                                       "isOrWasOccupiedBy"),
     # Composición de los grupos (hallazgos CM-06, CM-07, CM-09, CM-10).
     # Parentesco (ISAAR 5.3.2, hallazgo VOC-02): Person ↔ Person, simétrica.
-    "has_family_association_with": Propiedad("hasFamilyAssociationWith", None, ("Person",), ("Person",),
+    "has_family_association_with": Propiedad("hasFamilyAssociationWith", "RiC-R047", ("Person",), ("Person",),
                                              "hasFamilyAssociationWith"),
     "has_or_had_member": Propiedad("hasOrHadMember", "RiC-R055", GRUPOS, ("Person",), "isOrWasMemberOf"),
     "has_or_had_subdivision": Propiedad("hasOrHadSubdivision", "RiC-R005", GRUPOS, GRUPOS, "isOrWasSubdivisionOf"),
@@ -270,6 +270,58 @@ PROPIEDADES: dict[str, Propiedad] = {
     "is_date_associated_with": Propiedad("isDateAssociatedWith", "RiC-R068", ("Date",), ("Thing",),
                                          "isAssociatedWithDate"),
     # Función ↔ serie (TRD): sin propiedad dedicada.
+    # --- Cobertura completa del catálogo (14-11-2026): las relaciones de RiC-CM que RiC-O 1.1
+    # implementa y que antes solo salían por otras vías (fechas, nodos n-arios) o no se podían
+    # declarar. Dominio, rango e inversa, tal como los da el OWL oficial (la prueba los coteja).
+    "has_or_had_part": Propiedad("hasOrHadPart", "RiC-R002", ("Thing",), ("Thing",), "isOrWasPartOf"),
+    "has_or_had_subevent": Propiedad("hasOrHadSubevent", "RiC-R006", ("Event",), ("Event",), "isOrWasSubeventOf"),
+    "precedes_in_time": Propiedad("precedesInTime", "RiC-R009", ("Thing",), ("Thing",), "followsInTime"),
+    "is_original_of": Propiedad("isOriginalOf", "RiC-R010", REGISTROS, REGISTROS, "hasOriginal"),
+    "has_child": Propiedad("hasChild", "RiC-R018", ("Person",), ("Person",), "isChildOf"),
+    "describes_or_described": Propiedad("describesOrDescribed", "RiC-R021", RECURSOS, ("Thing",), "isOrWasDescribedBy"),
+    "is_record_resource_associated_with_record_resource": Propiedad(
+        "isRecordResourceAssociatedWithRecordResource", "RiC-R022", RECURSOS, RECURSOS,
+        "isRecordResourceAssociatedWithRecordResource"),
+    "has_genetic_link_to_record_resource": Propiedad("hasGeneticLinkToRecordResource", "RiC-R023", RECURSOS, RECURSOS,
+                                                     "hasGeneticLinkToRecordResource"),
+    "has_organic_provenance": Propiedad("hasOrganicProvenance", "RiC-R026", RECURSOS + ("Instantiation",), AGENTES,
+                                        "isOrganicProvenanceOf", estado="general",
+                                        nota="RiC-O pide usar hasCreator (R027) o hasAccumulator (R028) si caben; "
+                                             "la general queda para la procedencia que no es ni creación ni "
+                                             "acumulación."),
+    "is_instantiation_associated_with_instantiation": Propiedad(
+        "isInstantiationAssociatedWithInstantiation", "RiC-R034", ("Instantiation",), ("Instantiation",),
+        "isInstantiationAssociatedWithInstantiation"),
+    "is_functionally_equivalent_to": Propiedad("isFunctionallyEquivalentTo", "RiC-R035", ("Instantiation",),
+                                               ("Instantiation",), "isFunctionallyEquivalentTo"),
+    "has_sibling": Propiedad("hasSibling", "RiC-R048", ("Person",), ("Person",), "hasSibling"),
+    "has_or_had_spouse": Propiedad("hasOrHadSpouse", "RiC-R049", ("Person",), ("Person",), "hasOrHadSpouse"),
+    "is_event_associated_with": Propiedad("isEventAssociatedWith", "RiC-R057", ("Event",), ("Thing",),
+                                          "isAssociatedWithEvent"),
+    "results_or_resulted_in": Propiedad("resultsOrResultedIn", "RiC-R061", ("Event",), ("Thing",),
+                                        "resultsOrResultedFrom"),
+    "is_rule_associated_with": Propiedad("isRuleAssociatedWith", "RiC-R062", ("Rule",), ("Thing",),
+                                         "isAssociatedWithRule"),
+    "is_or_was_expressed_by": Propiedad("isOrWasExpressedBy", "RiC-R064", ("Rule",), RECURSOS, "expressesOrExpressed"),
+    "is_or_was_enforced_by": Propiedad("isOrWasEnforcedBy", "RiC-R066", ("Rule",), AGENTES,
+                                       "isOrWasResponsibleForEnforcing"),
+    "is_beginning_date_of": Propiedad("isBeginningDateOf", "RiC-R069", ("Date",), ("Thing",), "hasBeginningDate"),
+    "is_birth_date_of": Propiedad("isBirthDateOf", "RiC-R070", ("Date",), ("Person",), "hasBirthDate"),
+    "is_end_date_of": Propiedad("isEndDateOf", "RiC-R071", ("Date",), ("Thing",), "hasEndDate"),
+    "is_death_date_of": Propiedad("isDeathDateOf", "RiC-R072", ("Date",), ("Person",), "hasDeathDate"),
+    "is_place_associated_with": Propiedad("isPlaceAssociatedWith", "RiC-R074", ("Place",), ("Thing",),
+                                          "isAssociatedWithPlace"),
+    "is_or_was_creation_date_of_all_members_of": Propiedad(
+        "isOrWasCreationDateOfAllMembersOf", "RiC-R081", ("Date",), ("RecordSet",), "hasOrHadAllMembersWithCreationDate"),
+    "is_or_was_creation_date_of_some_members_of": Propiedad(
+        "isOrWasCreationDateOfSomeMembersOf", "RiC-R082", ("Date",), ("RecordSet",),
+        "hasOrHadSomeMembersWithCreationDate"),
+    "is_or_was_creation_date_of_most_members_of": Propiedad(
+        "isOrWasCreationDateOfMostMembersOf", "RiC-R083", ("Date",), ("RecordSet",),
+        "hasOrHadMostMembersWithCreationDate"),
+    "is_date_of_occurrence_of": Propiedad("isDateOfOccurrenceOf", "RiC-R084", ("Date",), ("Event",), "occurredAtDate"),
+    "is_within": Propiedad("isWithin", "RiC-R085", ("Date",), ("Date",), "hasWithin"),
+    "intersects": Propiedad("intersects", "RiC-R086", ("Date",), ("Date",), "intersects"),
     "is_related_to": Propiedad("isRelatedTo", "RiC-R001", ("ActivityType",), RECURSOS, "isRelatedTo",
                                estado="general",
                                nota="RiC-O no tiene propiedad entre un tipo de actividad y la serie que produce; "
@@ -286,13 +338,6 @@ CODIGOS_RESERVADOS = {
     "is_or_was_holder_of": "Duplicado del sentido inverso de hasOrHadHolder (R039i), que es el que se escribe.",
     "is_or_was_manager_of": "Gestor (R038): se escribe desde el documento con has_or_had_manager (R038i).",
     "is_or_was_owner_of": "Propietario (R037): se escribe desde el documento con has_or_had_owner (R037i).",
-    "is_original_of": "R010: no es una fila; se escribe al exportar desde cada fila has_copy entre dos documentos "
-                      "(rico:isOriginalOf, más específica para Record).",
-    "is_or_was_expressed_by": "Regla expresada en un documento (R064): no es una fila que declare el archivista; se "
-                              "escribe al exportar, de cada versión aplicada de la TRD a su documento (APOYO "
-                              "«expresada_en»).",
-    "is_beginning_date_of": "Se exporta en sentido inverso (hasBeginningDate) desde la fecha guardada como dato.",
-    "is_end_date_of": "Se exporta en sentido inverso (hasEndDate) desde la fecha guardada como dato.",
 }
 
 # Perfil de aplicación de RICORA (decisión CM-21 de la autora, 3 de octubre de

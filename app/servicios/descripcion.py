@@ -881,6 +881,13 @@ VINCULOS = {
     "borrador_de": ("is_draft_of", False, ("unidad_documental", "parte_documental"), "borrador"),
     # Esta descripción es copia de otra (RiC-R012; entre documentos, además R010 al exportar).
     "copia_de": ("has_copy", True, ("expediente", "unidad_documental", "parte_documental"), "copia"),
+    # Catálogo completo (14-11-2026). La general solo cuando no cabe una más específica (respuesta,
+    # copia, borrador): un documento citado o un antecedente (RiC-R022) y un vínculo de origen
+    # entre documentos que no es copia ni borrador (RiC-R023, p. ej. una versión anterior).
+    "asociado_a": ("is_record_resource_associated_with_record_resource", False,
+                   ("serie", "subserie", "expediente", "unidad_documental", "parte_documental"), "asociación"),
+    "vinculo_genetico_con": ("has_genetic_link_to_record_resource", False,
+                             ("expediente", "unidad_documental", "parte_documental"), "vínculo genético"),
 }
 
 
@@ -894,8 +901,11 @@ def _vinculo(db: Session, recurso: RecursoDocumental, otro_id: uuid.UUID, campo:
     if otro is None or otro.publicado_en is None or otro.fondo_id != recurso.fondo_id or otro.id == recurso.id:
         raise ErrorDescripcion(f"La {nombre} se declara frente a otra descripción publicada del mismo fondo.")
     if recurso.nivel not in niveles or otro.nivel not in niveles:
-        raise ErrorDescripcion("La respuesta une comunicaciones (documentos o expedientes)." if campo == "responde_a"
-                               else "Un borrador y su versión definitiva son documentos (o partes de un documento).")
+        raise ErrorDescripcion({"responde_a": "La respuesta une comunicaciones (documentos o expedientes).",
+                                "borrador_de": "Un borrador y su versión definitiva son documentos (o partes de un "
+                                               "documento).",
+                                "copia_de": "Una copia y su original son documentos o expedientes."}.get(
+            campo, f"El {nombre} une descripciones documentales del mismo fondo."))
     origen, destino = (otro, recurso) if soy_destino else (recurso, otro)
     existente = db.scalar(select(Relacion.id).where(
         Relacion.codigo_ric == codigo, Relacion.estado == "vigente",
@@ -1111,6 +1121,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
              borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
              nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
+             asociado_a_id: uuid.UUID | None = None, vinculo_genetico_con_id: uuid.UUID | None = None,
              tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
@@ -1154,7 +1165,8 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
         _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
     if sigue_a_id:
         _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
-    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id), ("copia_de", copia_de_id)):
+    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id), ("copia_de", copia_de_id),
+                           ("asociado_a", asociado_a_id), ("vinculo_genetico_con", vinculo_genetico_con_id)):
         if otro_id:
             _vinculo(db, recurso, otro_id, campo, usuario_id)
     for d in documentos + _derivadas(db, [d.id for d in documentos]):
@@ -1255,13 +1267,18 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
                                   "uri_rico": "rico:precedesOrPreceded" if r.origen_id == recurso.id
                                   else "rico:followsOrFollowed"})
             continue
-        if r.codigo_ric in ("has_reply", "is_draft_of", "has_copy"):
+        if r.codigo_ric in ("has_reply", "is_draft_of", "has_copy", "is_record_resource_associated_with_record_resource",
+                            "has_genetic_link_to_record_resource"):
             otro = db.get(RecursoDocumental, r.destino_id if r.origen_id == recurso.id else r.origen_id)
             if otro is not None:
                 soy_origen = r.origen_id == recurso.id
                 tipo = {("has_reply", True): "tiene_respuesta", ("has_reply", False): "responde_a",
                         ("is_draft_of", True): "borrador_de", ("is_draft_of", False): "tiene_borrador",
-                        ("has_copy", True): "tiene_copia", ("has_copy", False): "copia_de"}[
+                        ("has_copy", True): "tiene_copia", ("has_copy", False): "copia_de",
+                        ("is_record_resource_associated_with_record_resource", True): "asociado_a",
+                        ("is_record_resource_associated_with_record_resource", False): "asociado_a",
+                        ("has_genetic_link_to_record_resource", True): "vinculo_genetico_con",
+                        ("has_genetic_link_to_record_resource", False): "vinculo_genetico_con"}[
                     (r.codigo_ric, soy_origen)]
                 vinculos.append({"relacion_id": str(r.id), "id": str(otro.id), "titulo": otro.titulo, "tipo": tipo,
                                  "uri_rico": ric_o.uri(r.codigo_ric) if soy_origen else ric_o.uri_inversa(r.codigo_ric)})
@@ -1451,6 +1468,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            escrituras: list[str] | None = None, responde_a_id: uuid.UUID | None = None,
            borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
            nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
+           asociado_a_id: uuid.UUID | None = None, vinculo_genetico_con_id: uuid.UUID | None = None,
            tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> bool:
     """Aplica la corrección. Devuelve si algo cambió."""
     if trabajo.recurso_id != recurso.id:
@@ -1504,7 +1522,8 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         _secuencia(db, recurso, precede_a_id, "precede", usuario_id)
     if sigue_a_id:
         _secuencia(db, recurso, sigue_a_id, "sigue", usuario_id)
-    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id), ("copia_de", copia_de_id)):
+    for campo, otro_id in (("responde_a", responde_a_id), ("borrador_de", borrador_de_id), ("copia_de", copia_de_id),
+                           ("asociado_a", asociado_a_id), ("vinculo_genetico_con", vinculo_genetico_con_id)):
         if otro_id:
             _vinculo(db, recurso, otro_id, campo, usuario_id)
     _estado_y_completitud(recurso, estado_documento, nota_integridad)

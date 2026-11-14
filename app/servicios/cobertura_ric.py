@@ -22,10 +22,39 @@ from app.servicios import ric_o
 # específica («especializada»), como pide la nota de uso de RiC-O: escribir la
 # general además sería contrario a ella. Un código nuevo sin cubrir debe
 # declararse aquí con su prioridad y su motivo.
-FALTANTES: dict[str, tuple[str, str]] = {
-    "R026": ("especializada", "Procedencia orgánica: el sistema escribe hasCreator (R027) y hasAccumulator (R028), "
-                              "subpropiedades de hasOrganicProvenance; RiC-O pide usar la general solo si no cabe "
-                              "una más específica."),
+FALTANTES: dict[str, tuple[str, str]] = {}
+
+# RiC-CM 1.0 numera 86 relaciones (R001 a R086); RiC-O 1.1 implementa 85: ningún término del OWL
+# oficial cita RiC-R043. Sin propiedad en RiC-O no hay cómo escribirla sin salir de la ontología
+# (el control de conformidad rechaza predicados ajenos), así que se declara aquí y no se inventa.
+NO_IMPLEMENTADAS_EN_RICO = {
+    "R043": "RiC-O 1.1 no tiene ninguna clase ni propiedad que cite RiC-R043.",
+}
+
+# Relaciones del catálogo que no se guardan como fila: la exportación las escribe desde datos que
+# el sistema ya tiene (fechas de existencia, fechas extremas y predominantes, original y copia,
+# TRD expresada en su documento…), con la propiedad de apoyo indicada. La prueba exige que la
+# propiedad de apoyo sea la del catálogo (o su inversa): una sola fuente para el nombre.
+ESCRITAS_AL_EXPORTAR = {
+    "is_beginning_date_of": "inicio",  # R069: existencia o periodo (hasBeginningDate)
+    "is_end_date_of": "fin",  # R071 (hasEndDate)
+    "is_birth_date_of": "nacimiento",  # R070: existencia de una persona
+    "is_death_date_of": "muerte",  # R072
+    "is_or_was_creation_date_of_all_members_of": "fechas_extremas",  # R081: fechas extremas de una agrupación
+    "is_or_was_creation_date_of_some_members_of": "fechas_algunos",  # R082: la fecha de cada documento en su conjunto
+    "is_or_was_creation_date_of_most_members_of": "fechas_mayoria",  # R083: fechas predominantes
+    "is_date_of_occurrence_of": "ocurrio",  # R084: fecha de un hito
+    "is_within": "fecha_dentro_de",  # R085: fecha del documento dentro de las de su conjunto
+    "intersects": "fecha_se_cruza",  # R086: o que se cruza con ellas
+    "is_original_of": "original_de",  # R010: desde cada «es copia de» entre documentos
+    "is_or_was_expressed_by": "expresada_en",  # R064: la TRD aplicada y su documento
+    "describes_or_described": "describe",  # R021: el CCD y la TRD describen el fondo
+    "results_or_resulted_in": "resultado",  # R061: la copia que resultó de digitalizar o migrar
+    "has_or_had_subevent": "subevento",  # R006: junto a hasDirectSubevent
+    "precedes_in_time": "precede_en_el_tiempo",  # R009: hitos sucesivos de un agente
+    "is_functionally_equivalent_to": "equivalente",  # R035: el archivo migrado y su original
+    "is_instantiation_associated_with_instantiation": "instanciacion_asociada",  # R034
+    "is_or_was_enforced_by": "vigilada_por",  # R066: el ente que vigila la TRD
 }
 
 # Clases y propiedades que la exportación escribe sin pasar por un diccionario

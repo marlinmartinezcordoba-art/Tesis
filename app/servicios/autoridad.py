@@ -575,6 +575,8 @@ class Vinculo:
 
 GRUPOS_VOCABULARIO = ("agente:grupo", "agente:entidad_corporativa", "agente:familia")
 
+TODAS_LAS_CLASES = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "materia", "regla")
+
 VINCULOS: dict[str, Vinculo] = {
     # Agente a agente (ISAAR 5.3): jerárquica, temporal, asociativa.
     "subordinado": Vinculo("has_or_had_subordinate", None, "asociacion", ("agente",), ("agente",), True, False),
@@ -659,6 +661,33 @@ VINCULOS: dict[str, Vinculo] = {
     # Lugares vecinos (R077) y que se superponen (R078).
     "adyacente_a": Vinculo("is_or_was_adjacent_to", None, "espacial", ("lugar",), ("lugar",), False, False),
     "se_superpone_con": Vinculo("overlaps_or_overlapped", None, "espacial", ("lugar",), ("lugar",), False, False),
+    # --- Catálogo completo (14-11-2026): las relaciones de RiC-CM que faltaban por declarar ---
+    # Parte de (R002), la general: cuando no cabe una más específica (lugar dentro de lugar, subdivisión,
+    # sub-actividad). Se declara desde la parte.
+    "parte_de": Vinculo("has_or_had_part", None, "inclusion", TODAS_LAS_CLASES, TODAS_LAS_CLASES, True, False,
+                        se_declara_desde="destino"),
+    # Anterior en el tiempo (R009): un hecho, una norma o una función que precede a otra.
+    "anterior_a": Vinculo("precedes_in_time", None, "temporal", TODAS_LAS_CLASES, TODAS_LAS_CLASES, False, False),
+    # Subevento (R006), el general de hasDirectSubevent: una actividad dentro de otra, no necesariamente directa.
+    "subevento_de": Vinculo("has_or_had_subevent", None, "inclusion", ("actividad",), ("actividad",), True, False,
+                            se_declara_desde="destino"),
+    # Evento asociado (R057) y su resultado (R061): desde la actividad.
+    "evento_asociado": Vinculo("is_event_associated_with", None, "asociacion", ("actividad",), TODAS_LAS_CLASES,
+                               False, False),
+    "resulto_en": Vinculo("results_or_resulted_in", None, "asociacion", ("actividad",), TODAS_LAS_CLASES, False, False),
+    # Regla asociada (R062) y quién la hace cumplir (R066): desde el mandato o la regla.
+    "regla_asociada": Vinculo("is_rule_associated_with", None, "asociacion", ("mandato", "regla"), TODAS_LAS_CLASES,
+                              False, False),
+    "aplicada_por": Vinculo("is_or_was_enforced_by", None, "asociacion", ("mandato", "regla"), ("agente",), False,
+                            False),
+    # Lugar asociado (R074), el general: cuando no es lugar de actuación ni jurisdicción. Desde el lugar.
+    "lugar_asociado": Vinculo("is_place_associated_with", None, "espacial", ("lugar",), TODAS_LAS_CLASES, False,
+                              False),
+    # Procedencia orgánica (R026), la general: un agente del que procede un fondo o una serie sin ser su
+    # productor ni su acumulador. Se declara desde el agente.
+    "procedencia_organica": Vinculo("has_organic_provenance", None, "procedencia",
+                                    ("recurso:fondo,coleccion,seccion,subseccion,serie,subserie",), ("agente",),
+                                    False, False, se_declara_desde="destino"),
 }
 
 
