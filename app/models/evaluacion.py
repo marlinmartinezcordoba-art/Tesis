@@ -63,6 +63,7 @@ class EvaluacionDocumento(Base):
     propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True)
     # Documento de la prueba piloto: sirve para ensayar el protocolo y no entra en los resultados.
     piloto = Column(Boolean, nullable=False, default=False)
+    segundos_motor = Column(Float, nullable=True)  # lo que tardó el motor en proponer (Tabla 3, dimensión 5)
 
 
 class Anotacion(Base):

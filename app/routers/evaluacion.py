@@ -283,6 +283,9 @@ def clasificar(evaluacion_id: uuid.UUID, clave: str, datos: ClasificacionIn, act
 def resultados_xlsx(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     ev = _ev(db, evaluacion_id)
     datos = _hecho(db, evaluacion.resultados, db, ev, actor.id)
+    from app.servicios import evaluacion_referencia
+
+    datos["instrumento_1"] = evaluacion_referencia.instrumento_1(db, ev, datos)
     return Response(evaluacion.hoja_de_calculo(datos),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": 'attachment; filename="evaluacion-ciega.xlsx"'})

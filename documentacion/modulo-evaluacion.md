@@ -346,6 +346,9 @@ Cierre de las brechas entre el protocolo de la tesis y el sistema (documento de 
 7. **Descargas**: hoja de resultados con las hojas «Frente a la referencia» y «Calibración»; coincidencias por aserción (`/resultados/coincidencias`); hoja ciega y llave en archivos separados (`/hoja-ciega`). Todas quedan en la auditoría.
 8. **Aislamiento durante la evaluación**: el asistente no consulta internet (`asistente.internet_permitido`) y la puesta en marcha se rechaza. `RICORA_MODO_EVALUACION` además oculta del menú la carga de TRD, la TVD y la disposición final.
 9. **Instrucciones incrustadas**: el texto del documento va delimitado y la instrucción del motor ordena no obedecerlo. `POST /api/sistema/prueba-inyeccion` (Usuarios › Puesta en marcha) corre diez casos con el motor real; se aprueba con cero obedecidas y diez con esquema completo.
+10. **Evidencia de cada aserción, también de las archivistas** (Tabla 3, dimensión 4): cada entidad de la descripción ciega, asistida o adjudicada admite el fragmento del documento que la sostiene; los indicadores dan, por fuente, las aserciones con evidencia textual. La descripción asistida parte con el fragmento que citó el motor.
+11. **Tiempo del motor por documento** (Tabla 3, dimensión 5): se mide al generar cada propuesta (`EvaluacionDocumento.segundos_motor`, migración 0059) y sale junto al de las archivistas.
+12. **Hoja «Instrumento 1»** en la hoja de resultados, con las columnas de la matriz de evaluación ciega de la tesis: unidad documental, experta, tipo, valor del motor, valor de la ciega, VP/FP/FN, clase de desacuerdo, tipo de error y totales con P, R y F1.
 
 | Decisión | Alternativas | Selección | Justificación | Riesgo |
 |---|---|---|---|---|
@@ -354,4 +357,4 @@ Cierre de las brechas entre el protocolo de la tesis y el sistema (documento de 
 | Separación de roles | Una persona hace todo; roles separados | Roles separados (y «ambas» para pruebas pequeñas) | Quien ve la propuesta no puede producir la referencia ciega | Se necesitan más expertas |
 | Prueba de inyección | Pruebas con motor simulado; con el motor real | Ambas: simulado en la integración continua, real desde la pantalla | El comportamiento que importa es el del motor real | Usa diez consultas de la cuota |
 
-**Pruebas:** `tests/test_evaluacion_roles_referencia.py`, `tests/test_prueba_inyeccion.py`, `tests/test_especializacion_ric.py` (isEvidencedBy, dos productores y el identificador persistente), `frontend/src/pruebas/evaluacionRoles.test.ts`.
+**Pruebas:** `tests/test_evaluacion_roles_referencia.py` (incluye el Instrumento 1, el tiempo del motor y la evidencia por fuente), `tests/test_prueba_inyeccion.py`, `tests/test_especializacion_ric.py` (isEvidencedBy, dos productores y el identificador persistente), `frontend/src/pruebas/evaluacionRoles.test.ts`.

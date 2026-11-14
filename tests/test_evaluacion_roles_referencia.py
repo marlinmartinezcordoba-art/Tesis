@@ -187,3 +187,32 @@ def test_con_una_evaluacion_en_curso_el_asistente_no_consulta_internet(cliente, 
 
     admin = db.scalar(select(Usuario).where(Usuario.rol == "administrador").limit(1))
     assert auth._breve(admin).modo_evaluacion is True
+
+
+def test_la_hoja_trae_el_instrumento_1_el_tiempo_del_motor_y_la_evidencia_de_cada_fuente(cliente, db, fondo,  # noqa: F811
+                                                                                        cabeceras_admin, motor_eval):
+    """Tabla 3 de la tesis: dimensión 4 (aserciones con evidencia textual, para el motor y para las
+    archivistas) y dimensión 5 (tiempo por unidad documental, también el del motor); Instrumento 1
+    con sus columnas."""
+    adm = cabeceras_admin
+    ev_id, d = _preparar(cliente, db, fondo, adm)
+    ana = _experta(cliente, db, ev_id, "ana@correo.com", "ambas")
+    _iniciar(cliente, adm, ev_id)
+    con_evidencia = {**CIEGA_A, "entidades": [dict(e, evidencia="Tunja, 14 de marzo de 1948") if i == 0 else e
+                                              for i, e in enumerate(CIEGA_A["entidades"])]}
+    assert anotar(cliente, ana, ev_id, d.id, "ciega", con_evidencia).status_code == 200
+    res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=adm).json()
+    ciega = res["indicadores"]["ciega"]["evidencia"]
+    assert ciega["con_evidencia"] == 1 and ciega["entidades"] == len(CIEGA_A["entidades"])
+    assert res["indicadores"]["motor"]["evidencia"]["entidades"] >= 1
+    assert res["tiempos"]["motor"]["n"] == 1 and res["tiempos"]["motor"]["mediana_minutos"] is not None
+    libro = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
+    hoja = libro["Instrumento 1"]
+    assert [c.value for c in hoja[1]][:8] == ["ID Unidad Documental", "Experta (código)",
+                                              "Tipo de entidad RiC-CM / propiedad RiC-O", "Valor propuesto por el motor",
+                                              "Valor en la descripción ciega de la experta", "Resultado (VP, FP o FN)",
+                                              "Clase de desacuerdo", "Tipo de error"]
+    filas = [[c.value for c in f] for f in hoja.iter_rows(min_row=2)]
+    datos = [f for f in filas if f[5] in ("VP", "FP", "FN")]
+    assert datos and all(f[0] == "Oficio_210_1948.pdf" and f[1].startswith("E") for f in datos)
+    assert any(f[0] == "TOTALES (micro)" and str(f[8]).startswith("=IFERROR") for f in filas)

@@ -157,7 +157,8 @@ def desde_roles(datos: dict | None, *, sin_rol_es_tema: bool = True) -> dict:
         if ident not in nodos:
             nodos[ident] = {"clave": f"e{len(nodos) + 1}", "tipo": e["tipo"], "valor": " ".join(e["valor"].split()),
                             "subtipo": e.get("subtipo") if e["tipo"] == "agente" else None,
-                            "edtf": (e.get("edtf") or e.get("fecha_normalizada")) if e["tipo"] == "fecha" else None}
+                            "edtf": (e.get("edtf") or e.get("fecha_normalizada")) if e["tipo"] == "fecha" else None,
+                            "evidencia": " ".join(str(e.get("fragmento") or e.get("evidencia") or "").split())[:500] or None}
         elif e["tipo"] == "agente" and not nodos[ident]["subtipo"]:
             nodos[ident]["subtipo"] = e.get("subtipo")
         clave_de[e.get("clave") or f"_{i}"] = nodos[ident]["clave"]
@@ -235,7 +236,10 @@ def limpiar(datos: dict) -> dict:
                 edtf = fechas.interpretar(edtf).edtf
             except fechas.FechaInvalida as exc:
                 raise ErrorRic(f"La fecha «{valor}»: {exc}") from exc
-        entidades.append({"clave": clave, "tipo": tipo, "valor": valor, "subtipo": subtipo, "edtf": edtf})
+        # Evidencia (Tabla 3, dimensión 4): el fragmento del documento que sostiene la entidad.
+        evidencia = " ".join(str(e.get("evidencia") or "").split())[:500] or None
+        entidades.append({"clave": clave, "tipo": tipo, "valor": valor, "subtipo": subtipo, "edtf": edtf,
+                          "evidencia": evidencia})
     relaciones = []
     for r in (datos.get("relaciones") or [])[:MAX_RELACIONES]:
         origen, propiedad, destino = (str(r.get(c) or "").strip() for c in ("origen", "propiedad", "destino"))

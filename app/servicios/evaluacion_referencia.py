@@ -237,6 +237,54 @@ def hoja_coincidencias(db, ev, datos: dict) -> bytes:
     return salida.getvalue()
 
 
+def instrumento_1(db, ev, datos: dict) -> list[list]:
+    """El Instrumento 1 de la tesis (matriz de evaluación ciega), fila por fila: el motor frente a
+    cada descripción ciega, con el resultado flexible, la clase de desacuerdo y el tipo de error que
+    clasificaron las investigadoras. Mismo emparejamiento que las métricas y los desacuerdos."""
+    from sqlalchemy import select
+
+    from app.models.evaluacion import Anotacion, EvaluacionDocumento
+    from app.models.instanciacion import Instanciacion
+    from app.servicios import evaluacion_analisis as an
+    from app.servicios import evaluacion_participantes as participantes
+
+    codigos = participantes.codigos(db, ev)
+    clasificados = {(x["documento_id"], x["referencia_id"], x["tipo"], x["motor"], x["archivista"]): x
+                    for x in (datos.get("errores") or {}).get("lista", []) if not x.get("propiedad")}
+    filas = []
+    for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)):
+        if d.piloto or d.propuesta is None:
+            continue
+        nombre = db.get(Instanciacion, d.instanciacion_id).nombre_original
+        motor = entidades_de_propuesta(d.propuesta)
+        ciegas = db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id ==
+                                                    d.instanciacion_id, Anotacion.condicion == "ciega",
+                                                    Anotacion.estado == "enviada").order_by(Anotacion.enviada_en))
+        for a in ciegas:
+            experta = codigos[a.evaluador_id].codigo if a.evaluador_id in codigos else "?"
+            ref = entidades_de_anotacion(a.datos)
+            emparejados = an.pares(motor, ref, ev.umbral_similitud)
+            usados_m, usados_r = {i for i, _, _ in emparejados}, {j for _, j, _ in emparejados}
+
+            def fila(e_m, e_r, resultado):
+                tm = an._texto_entidad(e_m) if e_m else None
+                tr = an._texto_entidad(e_r) if e_r else None
+                tipo = (e_m or e_r)["tipo"]
+                x = clasificados.get((str(d.instanciacion_id), str(a.id), tipo, tm, tr)) or {}
+                error = an.TIPOS_ERROR.get(x["tipo_error"]) if x.get("tipo_error") else None
+                filas.append([nombre, experta, tipo, tm, tr, resultado, x.get("clase_nombre"), error])
+
+            for i, j, _ in emparejados:
+                fila(motor[i], ref[j], "VP")
+            for i, e in enumerate(motor):
+                if i not in usados_m:
+                    fila(e, None, "FP")
+            for j, e in enumerate(ref):
+                if j not in usados_r:
+                    fila(None, e, "FN")
+    return filas
+
+
 def _texto(datos: dict) -> str:
     partes = []
     if datos.get("titulo"):

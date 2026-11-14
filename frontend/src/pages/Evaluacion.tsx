@@ -27,7 +27,8 @@ interface Tarea {
   adjudicada?: EstadoAnotacion | null; puede_adjudicar?: boolean; piloto?: boolean; rol?: string | null;
 }
 interface ReferenciaCiega { codigo: string; datos: Datos | null; enviada_en: string | null }
-interface Entidad { clave: string; tipo: string; valor: string; subtipo: string | null; edtf: string | null }
+interface Entidad { clave: string; tipo: string; valor: string; subtipo: string | null; edtf: string | null;
+  evidencia?: string | null }
 interface Relacion { origen: string; propiedad: string; destino: string }
 interface Datos { titulo?: string | null; alcance?: string | null; entidades: Entidad[]; relaciones: Relacion[] }
 interface Conformidad { conforme: boolean; relaciones: number; relaciones_validas: number; problemas: string[] }
@@ -829,6 +830,10 @@ function FormularioAnotacion({ a, evId, cerrar }: { a: AnotacionAbierta; evId: s
                     <input className="entrada edtf" aria-label="EDTF" placeholder="EDTF (1948-03, 1948~…)" disabled={soloLectura}
                            value={e.edtf || ""} onChange={(x) => cambiar(i, "edtf", x.target.value)} />
                   )}
+                  <input className="entrada" aria-label="Evidencia: fragmento del documento" disabled={soloLectura}
+                         placeholder="Evidencia: copie el fragmento del documento (opcional)" value={e.evidencia || ""}
+                         title="El fragmento del documento que sostiene esta entidad (Tabla 3, dimensión 4)"
+                         onChange={(x) => cambiar(i, "evidencia", x.target.value)} />
                   {!soloLectura && (
                     <button type="button" className="boton-icono quitar" aria-label={`Quitar ${e.valor || "entidad"}`} title="Quitar"
                             onClick={() => quitarEntidad(e.clave)}>×</button>
@@ -1031,7 +1036,8 @@ interface Resultado {
   prueba_tiempos: { n: number; z: number | null; p: number | null; nota: string | null };
   indicadores?: Record<"motor" | "ciega" | "asistida", { descripciones: number; fechas: number; fechas_edtf: number;
     tasa_fechas_edtf: number | null; agentes_y_lugares: number; duplicadas: number; tasa_duplicidad: number | null;
-    cobertura: { clases: number; propiedades: number; propiedades_disponibles: number } }>
+    cobertura: { clases: number; propiedades: number; propiedades_disponibles: number };
+    evidencia?: { entidades: number; con_evidencia: number; tasa: number | null } }>
     & { evidencia_motor: { entidades: number; con_fragmento: number; tasa: number | null } };
   supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
     pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
@@ -1103,6 +1109,8 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
         <div className="cifra"><strong>{num(r.acuerdo_entre_archivistas?.f1)}</strong><span>Acuerdo entre archivistas (F1)</span></div>
         <div className="cifra"><strong>{num(r.tiempos.ciega?.mediana_minutos, 1)} / {num(r.tiempos.asistida?.mediana_minutos, 1)}</strong>
           <span>Minutos por documento: a ciegas / asistida (mediana)</span></div>
+        <div className="cifra"><strong>{num(r.tiempos.motor?.mediana_minutos, 2)}</strong>
+          <span>Minutos del motor por documento (mediana)</span></div>
       </div>
       {r.expertas && r.expertas.length > 0 && (
         <div className="tarjeta tabla-desplazable">
@@ -1316,14 +1324,15 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           <div className="tarjeta-cab">Normalización, trazabilidad y cobertura de RiC-O</div>
           <table className="tabla-permisos">
             <thead><tr><th>Quién describe</th><th>Fechas en EDTF</th><th>Duplicidad (agentes y lugares)</th>
-              <th>Clases RiC-O</th><th>Propiedades RiC-O</th></tr></thead>
+              <th>Clases RiC-O</th><th>Propiedades RiC-O</th><th>Aserciones con evidencia textual</th></tr></thead>
             <tbody>
               {(["motor", "ciega", "asistida"] as const).map((k) => {
                 const x = r.indicadores![k];
                 return x && (
                   <tr key={k}><td>{QUIEN[k] || k}</td><td>{x.fechas_edtf} / {x.fechas} ({num(x.tasa_fechas_edtf)})</td>
                     <td>{x.duplicadas} / {x.agentes_y_lugares} ({num(x.tasa_duplicidad)})</td>
-                    <td>{x.cobertura.clases}</td><td>{x.cobertura.propiedades} de {x.cobertura.propiedades_disponibles}</td></tr>);
+                    <td>{x.cobertura.clases}</td><td>{x.cobertura.propiedades} de {x.cobertura.propiedades_disponibles}</td>
+                    <td>{x.evidencia ? `${x.evidencia.con_evidencia} / ${x.evidencia.entidades} (${num(x.evidencia.tasa)})` : "—"}</td></tr>);
               })}
             </tbody>
           </table>

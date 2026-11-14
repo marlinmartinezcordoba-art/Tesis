@@ -30,9 +30,10 @@ Diseño (decisiones en documentacion/modulo-evaluacion.md):
 import io
 import re
 import statistics
+import time
 import unicodedata
-from collections import Counter
 import uuid
+from collections import Counter
 from difflib import SequenceMatcher
 from itertools import combinations
 
@@ -235,6 +236,7 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID, al_av
             continue
         inst = db.get(Instanciacion, d.instanciacion_id)
         contexto = vocabulario.contexto_para_motor(db, ev.fondo_id, inst.texto_extraido or "")
+        reloj = time.monotonic()
         p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original,
                                          texto=anonimizar_para_motor(inst.texto_extraido or "")[0])],
                            "unidad_documental", contexto)
@@ -247,6 +249,7 @@ def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID, al_av
             avisos.append(f"{inst.nombre_original}: {p.aviso or 'el motor no respondió'}")
             continue
         d.propuesta, d.motor, d.version_prompt, d.generada_en = p.a_dict(), p.motor, p.version_prompt, ahora()
+        d.segundos_motor = round(time.monotonic() - reloj, 2)
         d.propuesta_id = registro.id if registro else None
         hechas += 1
         if al_avanzar:
@@ -685,6 +688,8 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
 
     minutos = {c: [(a.enviada_en - a.iniciada_en).total_seconds() / 60 for a in anotaciones if a.condicion == c]
                for c in ("ciega", "asistida")}
+    # El motor: lo que tardó en proponer cada documento (la archivista: de abrir a enviar).
+    minutos["motor"] = [d.segundos_motor / 60 for d in documentos if d.segundos_motor is not None]
     tiempos = {c: {"n": len(v), "mediana_minutos": _r(statistics.median(v)) if v else None,
                    "media_minutos": _r(statistics.mean(v)) if v else None} for c, v in minutos.items()}
     # Las expertas no se identifican por su nombre: por su código de participante (E1, E2…).
@@ -918,6 +923,8 @@ def hoja_de_calculo(datos: dict) -> bytes:
         ev_m = i.get("evidencia_motor") or {}
         ind.append(["Entidades del motor con fragmento de evidencia", ev_m.get("con_fragmento"), "de", ev_m.get("entidades"),
                     "tasa", ev_m.get("tasa")])
+        ind.append(["Aserciones con evidencia textual (Tabla 3, dimensión 4)",
+                    *[((i.get(f) or {}).get("evidencia") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
     comp = libro.create_sheet("Comparabilidad")
     c = datos["comparabilidad"]
     comp.append(["Criterio fijado antes de iniciar", "margen F", c["criterio"]["margen_f"], "mínimo de casos",
@@ -927,6 +934,22 @@ def hoja_de_calculo(datos: dict) -> bytes:
                  "Diferencia", "Resultado", "Motivos"])
     for t in c["tipos"]:
         comp.append([t["tipo"], t["casos"], t["f_motor"], t["techo"], t["diferencia"], t["estado"], "; ".join(t["motivos"])])
+    ins = libro.create_sheet("Instrumento 1")
+    ins.append(["ID Unidad Documental", "Experta (código)", "Tipo de entidad RiC-CM / propiedad RiC-O",
+                "Valor propuesto por el motor", "Valor en la descripción ciega de la experta", "Resultado (VP, FP o FN)",
+                "Clase de desacuerdo", "Tipo de error", "Precisión (P)", "Exhaustividad (R)", "Medida F1"])
+    filas_i1 = datos.get("instrumento_1") or []
+    for f in filas_i1:
+        ins.append(f)
+    n = len(filas_i1) + 1
+    if filas_i1:
+        rango = f"F2:F{n}"
+        vp, fp, fn = (f'COUNTIF({rango},"{x}")' for x in ("VP", "FP", "FN"))
+        ins.append(["TOTALES (micro)", None, None, None, None, f'={vp}&" VP · "&{fp}&" FP · "&{fn}&" FN"', None, None,
+                    f'=IFERROR({vp}/({vp}+{fp}),"")', f'=IFERROR({vp}/({vp}+{fn}),"")',
+                    f'=IFERROR(2*I{n + 1}*J{n + 1}/(I{n + 1}+J{n + 1}),"")'])
+    ins.append(["Entidades, con el emparejamiento flexible (umbral de la evaluación). Las relaciones están en las hojas "
+                "«Relaciones RiC» y en el libro de coincidencias."])
     ref = libro.create_sheet("Frente a la referencia")
     r = datos.get("referencia_adjudicada") or {"documentos": 0, "tipos": [], "nota": ""}
     v = datos.get("version_congelada") or (datos.get("evaluacion") or {}).get("version_congelada") or {}

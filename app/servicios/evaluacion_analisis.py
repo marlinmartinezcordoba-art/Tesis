@@ -481,17 +481,20 @@ def indicadores(descripciones: dict[str, list[dict]], propuestas: list[dict | No
     - fechas en EDTF: fechas con su expresión EDTF válida, sobre todas las fechas;
     - duplicidad: agentes y lugares repetidos con otra forma, sobre todos los agentes y lugares;
     - cobertura de RiC-O: clases y propiedades distintas que se usaron;
-    - evidencia (solo el motor): entidades propuestas con su fragmento del documento.
+    - evidencia: entidades con el fragmento del documento que las sostiene (Tabla 3, dimensión 4),
+      para cada fuente; y, aparte, las del motor sobre la propuesta original.
     """
     from app.servicios import evaluacion_ric as ric
 
     salida = {}
     for fuente, lista in descripciones.items():
-        fechas = con_edtf = agentes_lugares = repetidas = 0
+        fechas = con_edtf = agentes_lugares = repetidas = n_entidades = con_evidencia = 0
         clases, propiedades = set(), set()
         for d in lista:
             entidades = [e for e in d.get("entidades", []) if (e.get("valor") or "").strip()]
             for e in entidades:
+                n_entidades += 1
+                con_evidencia += bool((e.get("evidencia") or e.get("fragmento") or "").strip())
                 if e.get("tipo") == "fecha":
                     fechas += 1
                     con_edtf += bool((e.get("edtf") or "").strip())
@@ -508,7 +511,9 @@ def indicadores(descripciones: dict[str, list[dict]], propuestas: list[dict | No
             "tasa_duplicidad": _r(repetidas / agentes_lugares) if agentes_lugares else None,
             "clases_rico": sorted(clases), "propiedades_rico": sorted(propiedades),
             "cobertura": {"clases": len(clases), "propiedades": len(propiedades),
-                          "propiedades_disponibles": len(ric.PROPIEDADES)}}
+                          "propiedades_disponibles": len(ric.PROPIEDADES)},
+            "evidencia": {"entidades": n_entidades, "con_evidencia": con_evidencia,
+                          "tasa": _r(con_evidencia / n_entidades) if n_entidades else None}}
     total = con_fragmento = 0
     for p in propuestas:
         for e in (p or {}).get("entidades") or []:
