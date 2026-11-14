@@ -45,7 +45,8 @@ const ESTADO_EV: Record<EvaluacionBreve["estado"], { texto: string; clase: strin
   cerrada: { texto: "Cerrada", clase: "bien" },
 };
 const TIPOS: [string, string][] = [["agente", "Agente"], ["lugar", "Lugar"], ["fecha", "Fecha"], ["actividad", "Actividad"],
-  ["tipo_actividad", "Tipo de actividad (función)"], ["mandato", "Mandato o norma"], ["forma_documental", "Forma documental"]];
+  ["tipo_actividad", "Tipo de actividad (función)"], ["mandato", "Mandato o norma"], ["forma_documental", "Forma documental"],
+  ["documento_citado", "Documento citado (otro documento de archivo)"]];
 const SUBTIPOS: [string, string][] = [["persona", "Persona"], ["entidad_corporativa", "Entidad corporativa"],
   ["cargo", "Cargo"], ["grupo", "Grupo"], ["familia", "Familia"], ["mecanismo", "Mecanismo"]];
 const DOCUMENTO = "documento";

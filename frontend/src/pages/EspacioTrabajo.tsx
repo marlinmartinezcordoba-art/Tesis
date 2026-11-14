@@ -68,6 +68,8 @@ interface Espacio {
     // Evidencia del título y del alcance (requisito 6): fragmentos literales del texto.
     evidencia_titulo?: Evidencia[] | null;
     evidencia_alcance?: Evidencia[] | null;
+    // Otros documentos de archivo que el texto cita (recurso documental, RiC-E02 a E06).
+    documentos_citados?: { valor: string; fragmento: string | null; confianza: number; fragmento_localizado: boolean }[];
     // Registro inalterable de la propuesta (RF-AI-002).
     propuesta_id?: string;
     version_modelo?: string | null;
@@ -558,6 +560,32 @@ export function EspacioTrabajo() {
                                if (d.nivel_propuesto && !campos.datosPersonales) setCampos({ ...campos, datosPersonales: d.nivel_propuesto });
                              }} />
           )}
+
+          {!!propuesta?.documentos_citados?.length && (() => {
+            const actuales = campos.isadg.unidades_relacionadas || "";
+            const faltan = propuesta.documentos_citados!.filter((c) => !actuales.includes(c.valor));
+            return (
+              <div className="aviso" role="region" aria-label="Documentos que cita el texto" data-fijo>
+                <strong>Documentos que cita el texto</strong> <span className="meta">(propuesta del motor · recurso
+                  documental de RiC)</span>
+                <ul style={{ margin: "6px 0 6px 18px" }}>
+                  {propuesta.documentos_citados!.map((c) => (
+                    <li key={c.valor}>{c.valor}{c.fragmento && <span className="meta"> — «{c.fragmento}»
+                      {!c.fragmento_localizado && " (fragmento no hallado en el texto)"}</span>}</li>
+                  ))}
+                </ul>
+                <div className="acciones" style={{ marginTop: 4 }}>
+                  {faltan.length ? (
+                    <button type="button" className="boton chico" onClick={() => setCampos({ ...campos, isadg: {
+                      ...campos.isadg,
+                      unidades_relacionadas: [actuales.trim(), ...faltan.map((c) => c.valor)].filter(Boolean).join("; "),
+                    } })}>Llevar a «Unidades de descripción relacionadas» (ISAD-G 3.5.3)</button>
+                  ) : <span className="meta">Ya están en «Unidades de descripción relacionadas».</span>}
+                  <span className="meta">Si el documento citado ya está en RICORA, enlácelo abajo con «Responde a» o «Es copia de».</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
                           completitud={espacio.completitud} revisionDatos={espacio.datos_personales}

@@ -49,7 +49,8 @@ from app.servicios.auditoria import registrar
 from app.servicios.datos_personales import anonimizar_para_motor
 
 # Los tipos de entidad que se comparan (los seis reutilizables y la fecha).
-TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental")
+# «documento_citado»: otro documento de archivo que el texto cita (recurso documental, RiC-E02 a E06; Tabla 3).
+TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental", "documento_citado")
 
 
 class ErrorEvaluacion(Exception):

@@ -108,6 +108,10 @@ class Propuesta:
     # apoyó su redacción, cada uno con su documento y su posición si se halló en el texto.
     # Ninguno localizado: la pantalla lo muestra como «evidencia no identificada».
     # None: la respuesta no trae el campo (anterior al requisito 6), distinto de «no identificada».
+    # Otros documentos de archivo que el texto cita por su identificación (Tabla 3 de la tesis,
+    # dimensión 1: recurso documental, RiC-E02 a E06). Van aparte de las entidades: la
+    # descripción los ofrece como vínculos entre documentos; la evaluación los compara.
+    documentos_citados: list[dict] = field(default_factory=list)
     evidencia_titulo: list[dict] | None = None
     evidencia_alcance: list[dict] | None = None
     motor: str | None = None
@@ -150,6 +154,7 @@ Reglas estrictas:
 - Actividad: el ejercicio concreto de una competencia por un agente en un periodo, que el documento documenta (por ejemplo «Ejercicio de la policía local por la Alcaldía, 1948»). En la misma entidad indica, si el texto lo permite: "tipo_actividad" (la competencia estable y reutilizable, por ejemplo «Policía local», «Registro civil», «Hacienda municipal»), "ejercida_por" (el valor exacto de uno de los agentes que propusiste) y "mandato" (el valor exacto de uno de los mandatos que propusiste). Su periodo va en "edtf".
 - Mandato: la ley, decreto, ordenanza, acuerdo o resolución que el texto cita como fundamento. "subtipo" es el instrumento (ley, decreto, ordenanza, acuerdo, resolucion u otro); "edtf", su fecha de expedición si aparece.
 - Si el texto no permite identificar actividad, tipo de actividad o mandato con confianza razonable, no los propongas: no es obligatorio.
+- "documentos_citados": otros documentos de archivo que el texto menciona por su identificación (por ejemplo «la Resolución 0818 del 18 de junio de 2025», «el oficio 210 de 1948», «el expediente SRF 679»): el acto que se recurre, el oficio que se responde, el expediente al que pertenece. "valor" es la identificación tal como aparece; lleva "fragmento", "documento" y "confianza" como las entidades. No pongas aquí las leyes o normas generales que se citan como fundamento: esas son mandatos.
 - Vocabulario existente del fondo: si el pedido trae una lista «VOCABULARIO EXISTENTE DEL FONDO» y una entidad del texto es una de esas (aunque esté escrita de otra forma), pon en "existente" su código (por ejemplo «V3») y en "valor" su nombre tal como figura en la lista. Si no es ninguna, no pongas "existente". Nunca uses un código para una entidad de otro tipo.
 - "idiomas": la lengua o lenguas del contenido en códigos ISO 639-3 (spa, lat, eng, fra, por…), y "confianza_idiomas" entre 0 y 1. Si el texto es demasiado breve o ilegible para saberlo, deja la lista vacía. No propongas condiciones de acceso ni de uso: las decide la institución.
 - "titulo": título formal breve del nivel descrito. "alcance_contenido": 2 a 6 frases de alcance y contenido (ISAD(G) 3.3.1) que sinteticen TODOS los documentos, sin opiniones.
@@ -169,6 +174,12 @@ ESQUEMA = {
         "confianza_idiomas": {"type": "NUMBER"},
         "evidencia_titulo": {"type": "ARRAY", "items": _EVIDENCIA},
         "evidencia_alcance": {"type": "ARRAY", "items": _EVIDENCIA},
+        "documentos_citados": {
+            "type": "ARRAY",
+            "items": {"type": "OBJECT", "properties": {"valor": {"type": "STRING"}, "fragmento": {"type": "STRING"},
+                                                      "documento": {"type": "INTEGER"}, "confianza": {"type": "NUMBER"}},
+                      "required": ["valor", "fragmento", "documento", "confianza"]},
+        },
         "entidades": {
             "type": "ARRAY",
             "items": {
@@ -768,8 +779,33 @@ def normalizar(crudo: dict, documentos: list[Documento], motor: str,
         evidencia_titulo=evidencia_titulo, evidencia_alcance=evidencia_alcance,
         idiomas=idiomas, confianza_idiomas=_confianza(crudo.get("confianza_idiomas", 0.8)) if idiomas else None,
         contexto_enviado=resumen_contexto,
-        entidades=entidades, motor=motor, version_prompt=VERSION_PROMPT, disponible=True,
+        entidades=entidades, documentos_citados=_documentos_citados(crudo.get("documentos_citados"), documentos),
+        motor=motor, version_prompt=VERSION_PROMPT, disponible=True,
     )
+
+
+def _documentos_citados(crudos, documentos: list[Documento]) -> list[dict]:
+    """Los documentos que el texto cita, con su fragmento localizado como las entidades."""
+    salida, vistos = [], set()
+    for c in (crudos if isinstance(crudos, list) else [])[:50]:
+        if not isinstance(c, dict):
+            continue
+        valor = " ".join(str(c.get("valor") or "").split())[:300]
+        if not valor or _norm(valor) in vistos:
+            continue
+        vistos.add(_norm(valor))
+        fragmento = " ".join(str(c.get("fragmento") or "").split())[:500] or None
+        documento, inicio = None, None
+        for d in documentos:
+            if fragmento and (p := _localizar(fragmento, d.texto)) is not None:
+                documento, inicio = d, p
+                break
+        confianza = _confianza(c.get("confianza"))
+        if inicio is None:
+            confianza = min(confianza, CONFIANZA_SIN_FRAGMENTO)
+        salida.append({"valor": valor, "fragmento": fragmento, "documento_id": str(documento.id) if documento else None,
+                       "inicio": inicio, "confianza": round(confianza, 2), "fragmento_localizado": inicio is not None})
+    return salida
 
 
 def _enlazar_contexto(entidades: list[EntidadPropuesta], actividades: list[tuple[EntidadPropuesta, dict]]) -> None:

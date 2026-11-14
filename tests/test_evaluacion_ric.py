@@ -93,7 +93,7 @@ def test_el_catalogo_ofrece_solo_propiedades_del_mapeo_verificado_y_sus_extremos
     for codigo in ric.PROPIEDADES:
         assert codigo == ric.FORMA or codigo in ric_o.PROPIEDADES
     cat = {c["codigo"]: c for c in ric.catalogo()}
-    assert cat["has_creator"]["rico"] == "rico:hasCreator" and cat["has_creator"]["origen"] == ["documento"]
+    assert cat["has_creator"]["rico"] == "rico:hasCreator" and cat["has_creator"]["origen"] == ["documento", "documento_citado"]  # un documento citado también es un rico:Record
     assert cat["has_addressee"]["papel"] == "Destinatario" and set(ric.PAPEL) == set(ric.PROPIEDADES)
     assert "agente:persona" in cat["has_creator"]["destino"] and "lugar" not in cat["has_creator"]["destino"]
     assert "agente" not in cat["has_author"]["destino"]  # el autor exige saber qué clase de agente es

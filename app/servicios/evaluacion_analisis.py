@@ -500,7 +500,7 @@ def indicadores(descripciones: dict[str, list[dict]], propuestas: list[dict | No
                     con_edtf += bool((e.get("edtf") or "").strip())
                 if e.get("tipo") in ("agente", "lugar"):
                     agentes_lugares += 1
-                if e.get("tipo") in ric.ric_o.CLASE_VOCABULARIO or e.get("tipo") in ("agente", "fecha"):
+                if e.get("tipo") in ric.ric_o.CLASE_VOCABULARIO or e.get("tipo") in ("agente", "fecha", "documento_citado"):
                     clases.add(ric.clase(e))
             repetidas += _duplicadas(entidades, umbral)
             propiedades.update(p for p, _, _ in ric.tripletas(d))

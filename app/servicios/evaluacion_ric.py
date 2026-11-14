@@ -43,7 +43,7 @@ PROPIEDADES = (
     "contains_or_contained", "documents", "has_activity_type", "performs_or_performed", "has_direct_subevent",
     "regulates_or_regulated", "issued_by", "authorizes", "has_or_had_subordinate", "has_successor",
     "is_agent_associated_with_agent", "occupies_or_occupied", "has_family_association_with", "has_or_had_member",
-    "has_or_had_subdivision", "exists_or_existed_in", "is_or_was_leader_of", FORMA,
+    "has_or_had_subdivision", "exists_or_existed_in", "is_or_was_leader_of", "has_reply", "precedes_or_preceded", FORMA,
 )
 MAX_RELACIONES = 400
 # Nombre archivístico de cada relación, junto a la etiqueta oficial en español
@@ -68,6 +68,8 @@ def clase(entidad: dict | None) -> str:
         return ric_o.CLASE_AGENTE.get(entidad.get("subtipo") or "", "Agent")
     if tipo == "fecha":
         return "Date"
+    if tipo == "documento_citado":
+        return "Record"
     return ric_o.CLASE_VOCABULARIO[tipo]
 
 
@@ -150,6 +152,10 @@ def desde_roles(datos: dict | None, *, sin_rol_es_tema: bool = True) -> dict:
 
     datos = datos or {}
     originales = [e for e in datos.get("entidades", []) if e.get("tipo") in TIPOS and (e.get("valor") or "").strip()]
+    # Los documentos que cita el texto vienen aparte en la propuesta del motor.
+    originales += [{"clave": f"c{k}", "tipo": "documento_citado", "valor": c["valor"], "fragmento": c.get("fragmento"),
+                    "confianza": c.get("confianza")}
+                   for k, c in enumerate(datos.get("documentos_citados") or [], 1) if (c.get("valor") or "").strip()]
     nodos: dict[tuple, dict] = {}
     clave_de: dict[str, str] = {}  # clave del motor → clave del nodo
     for i, e in enumerate(originales):
@@ -186,6 +192,8 @@ def desde_roles(datos: dict | None, *, sin_rol_es_tema: bool = True) -> dict:
             rel(yo, "is_creation_date_of", DOCUMENTO)
         elif tipo == "forma_documental":
             rel(DOCUMENTO, FORMA, yo)
+        elif tipo == "documento_citado":
+            rel(DOCUMENTO, "has_or_had_subject", yo)
         elif tipo == "mandato" and e.get("clave") not in citados:
             rel(DOCUMENTO, "has_or_had_subject", yo)
         elif tipo == "actividad":

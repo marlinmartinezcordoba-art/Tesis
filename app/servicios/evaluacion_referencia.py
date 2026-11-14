@@ -131,6 +131,8 @@ def calibracion(documentos, por_doc, adjudicadas, umbral: float) -> dict:
     tramos = [{"desde": a, "hasta": b, "propuestas": 0, "correctas": 0} for a, b in TRAMOS]
     for d in documentos:
         crudas = [e for e in (d.propuesta or {}).get("entidades", []) if e.get("tipo") in TIPOS and (e.get("valor") or "").strip()]
+        crudas += [dict(c, tipo="documento_citado") for c in (d.propuesta or {}).get("documentos_citados") or []
+                   if (c.get("valor") or "").strip()]
         if not crudas:
             continue
         adj = adjudicadas.get(d.instanciacion_id)

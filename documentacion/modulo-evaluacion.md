@@ -349,6 +349,9 @@ Cierre de las brechas entre el protocolo de la tesis y el sistema (documento de 
 10. **Evidencia de cada aserción, también de las archivistas** (Tabla 3, dimensión 4): cada entidad de la descripción ciega, asistida o adjudicada admite el fragmento del documento que la sostiene; los indicadores dan, por fuente, las aserciones con evidencia textual. La descripción asistida parte con el fragmento que citó el motor.
 11. **Tiempo del motor por documento** (Tabla 3, dimensión 5): se mide al generar cada propuesta (`EvaluacionDocumento.segundos_motor`, migración 0059) y sale junto al de las archivistas.
 12. **Hoja «Instrumento 1»** en la hoja de resultados, con las columnas de la matriz de evaluación ciega de la tesis: unidad documental, experta, tipo, valor del motor, valor de la ciega, VP/FP/FN, clase de desacuerdo, tipo de error y totales con P, R y F1.
+13. **Documentos citados** (Tabla 3, dimensión 1: recurso documental, RiC-E02 a E06): el motor propone aparte los otros documentos de archivo que el texto cita por su identificación (el acto que se recurre, el oficio que se responde, el expediente). En la evaluación son el tipo «Documento citado» (rico:Record, del que trata el documento; se puede unir con rico:hasReply o rico:precedesOrPreceded) y se miden como los demás tipos; en Descripción se muestran con su fragmento y se llevan con un botón a «Unidades de descripción relacionadas» (ISAD(G) 3.5.3), sin entrar como entidades.
+
+La certeza se sigue exportando como texto en rico:relationCertainty, con el número dentro («alta (confianza del motor: 0.93)»): una propiedad numérica propia saldría de los vocabularios RiC-O que admite el control de conformidad.
 
 | Decisión | Alternativas | Selección | Justificación | Riesgo |
 |---|---|---|---|---|
