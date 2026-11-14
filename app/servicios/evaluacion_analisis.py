@@ -133,7 +133,8 @@ def veredicto(resultados: dict, criterio: dict) -> dict:
 
 
 def veredicto_con_referencia(comparabilidad: dict, referencia: dict | None) -> dict:
-    """Con referencia adjudicada, el veredicto de cada tipo sale del intervalo de confianza: comparable si el
+    """Análisis complementario (no decide: el veredicto es la hipótesis preregistrada). Con referencia adjudicada, el
+    estado de cada tipo sale del intervalo de confianza: comparable si el
     límite inferior del IC 95 % de la diferencia entre la F del motor (A0) y el acuerdo entre archivistas no baja
     de menos el margen. Las condiciones de conformidad y rúbrica se siguen exigiendo. Sin referencia adjudicada,
     queda el veredicto por la F puntual."""
@@ -481,7 +482,7 @@ def indicadores(descripciones: dict[str, list[dict]], propuestas: list[dict | No
     - fechas en EDTF: fechas con su expresión EDTF válida, sobre todas las fechas;
     - duplicidad: agentes y lugares repetidos con otra forma, sobre todos los agentes y lugares;
     - cobertura de RiC-O: clases y propiedades distintas que se usaron;
-    - evidencia: entidades con el fragmento del documento que las sostiene (Tabla 3, dimensión 4),
+    - evidencia: entidades con el fragmento del documento que las sostiene (trazabilidad),
       para cada fuente; y, aparte, las del motor sobre la propuesta original.
     """
     from app.servicios import evaluacion_ric as ric

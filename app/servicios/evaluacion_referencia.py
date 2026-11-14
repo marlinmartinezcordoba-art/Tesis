@@ -240,7 +240,7 @@ def hoja_coincidencias(db, ev, datos: dict) -> bytes:
 
 
 def instrumento_1(db, ev, datos: dict) -> list[list]:
-    """El Instrumento 1 de la tesis (matriz de evaluación ciega), fila por fila: el motor frente a
+    """La matriz de evaluación ciega, fila por fila: el motor frente a
     cada descripción ciega, con el resultado flexible, la clase de desacuerdo y el tipo de error que
     clasificaron las investigadoras. Mismo emparejamiento que las métricas y los desacuerdos."""
     from sqlalchemy import select

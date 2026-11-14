@@ -71,8 +71,19 @@ def _validar(datos: dict) -> None:
         raise ErrorParticipante("Indique los años de experiencia en archivos.")
 
 
-def out(p: Participante, con_nombre: bool = True) -> dict:
-    return {"id": str(p.id), "usuario_id": str(p.usuario_id), "codigo": p.codigo,
+# Quien administra la evaluación (la investigadora que creó el sistema o la evaluación) no debería
+# describir ni calificar: conoce el motor y su descripción no es independiente. No se bloquea (el
+# piloto lo admite), pero se marca en la lista, en los resultados y en la hoja de cálculo.
+AVISO_ADMINISTRA = ("Administra esta evaluación: su descripción no es independiente del sistema. Para los "
+                    "resultados, conviene que no describa ni califique (salvo en la prueba piloto).")
+
+
+def administra(ev: Evaluacion, p: Participante) -> bool:
+    return p.usuario_id == ev.creada_por_id and p.rol != "piloto" and p.retirado_en is None
+
+
+def out(p: Participante, con_nombre: bool = True, ev: Evaluacion | None = None) -> dict:
+    return {"administra_la_evaluacion": bool(ev is not None and administra(ev, p)),"id": str(p.id), "usuario_id": str(p.usuario_id), "codigo": p.codigo,
             "nombre": p.nombre if con_nombre else None, "profesion": p.profesion, "formacion": p.formacion,
             "formacion_nombre": FORMACION_NOMBRE[p.formacion], "anios_experiencia": p.anios_experiencia,
             "anios_descripcion": p.anios_descripcion, "cargo": p.cargo, "institucion": p.institucion, "rol": p.rol,

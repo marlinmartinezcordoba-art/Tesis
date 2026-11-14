@@ -490,6 +490,7 @@ interface Participante {
   id: string; usuario_id: string; codigo: string; nombre: string | null; profesion: string; formacion: string;
   formacion_nombre: string; anios_experiencia: number; anios_descripcion: number | null; cargo: string | null;
   institucion: string | null; rol: string; rol_nombre: string; consentimiento: boolean; activa: boolean;
+  administra_la_evaluacion?: boolean;
 }
 const FORMACIONES: [string, string][] = [["tecnica", "Técnica"], ["tecnologica", "Tecnológica"], ["profesional", "Profesional"],
   ["especializacion", "Especialización"], ["maestria", "Maestría"], ["doctorado", "Doctorado"]];
@@ -561,7 +562,9 @@ function Expertas({ ev }: { ev: EvaluacionBreve }) {
                     <td>{p.nombre}{p.cargo && <div className="meta">{p.cargo}{p.institucion ? ` · ${p.institucion}` : ""}</div>}</td>
                     <td>{p.profesion}<div className="meta">{p.formacion_nombre}</div></td>
                     <td>{p.anios_experiencia} años en archivos{p.anios_descripcion !== null && <div className="meta">{p.anios_descripcion} describiendo</div>}</td>
-                    <td>{p.rol_nombre}</td>
+                    <td>{p.rol_nombre}{p.administra_la_evaluacion && (
+                      <div className="insignia alerta" title="Quien administra la evaluación conoce el motor: su descripción no es independiente. Conviene que no describa ni califique, salvo en la prueba piloto.">
+                        Administra la evaluación</div>)}</td>
                     <td>{p.consentimiento ? "Sí" : (
                       <button type="button" className="enlace" disabled={cerrada || !p.activa}
                               onClick={() => cambiar(p, { consentimiento: true })}>Registrar</button>)}</td>
@@ -833,7 +836,7 @@ function FormularioAnotacion({ a, evId, cerrar }: { a: AnotacionAbierta; evId: s
                   )}
                   <input className="entrada" aria-label="Evidencia: fragmento del documento" disabled={soloLectura}
                          placeholder="Evidencia: copie el fragmento del documento (opcional)" value={e.evidencia || ""}
-                         title="El fragmento del documento que sostiene esta entidad (Tabla 3, dimensión 4)"
+                         title="El fragmento del documento que sostiene esta entidad (trazabilidad)"
                          onChange={(x) => cambiar(i, "evidencia", x.target.value)} />
                   {!soloLectura && (
                     <button type="button" className="boton-icono quitar" aria-label={`Quitar ${e.valor || "entidad"}`} title="Quitar"
@@ -1024,7 +1027,7 @@ interface Resultado {
     tipos: { tipo: string; casos: number; f_motor: number | null; techo: number | null; diferencia: number | null;
       estado: "comparable" | "no_comparable" | "datos_insuficientes" | "sin_techo"; motivos: string[] }[];
     comparables: string[]; no_comparables: string[]; sin_decidir: string[];
-    base?: "referencia_adjudicada_ic95" | "f_puntual";
+    base?: string;
   };
   evaluacion?: { version_congelada?: VersionCongelada | null };
   asistida_frente_a_ciegas?: { pares: number; estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
@@ -1046,6 +1049,7 @@ interface Resultado {
     & { evidencia_motor: { entidades: number; con_fragmento: number; tasa: number | null } };
   supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
     pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
+  advertencias?: string[];
   errores: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number;
     clasificadoras: number; pares: number; kappa: number | null; por_clase: Record<string, number>;
     distribucion: { tipo_error: string; nombre: string; veces: number; porcentaje: number | null }[] };
@@ -1100,11 +1104,14 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
                 onClick={() => descargar(`/api/evaluacion/${evId}/hoja-ciega`).catch(() => undefined)}>
           Descargar hoja ciega y llave</button>
       </div>
+      {!!r.advertencias?.length && (
+        <div className="aviso alerta" role="status" data-fijo>{r.advertencias.map((a) => <div key={a}>{a}</div>)}</div>
+      )}
       {r.evaluacion?.version_congelada && (
         <p className="meta">Versión congelada al iniciar: sistema {r.evaluacion.version_congelada.sistema || "—"} · motor{" "}
           {r.evaluacion.version_congelada.motor || "—"} · instrucción {r.evaluacion.version_congelada.version_instruccion || "—"} ·
           perfil SHACL <code>{(r.evaluacion.version_congelada.perfil_shacl_sha256 || "—").slice(0, 12)}</code>.
-          Para el Anexo A, etiquete ese commit en GitHub: Actions › «Etiquetar la versión evaluada» › Run workflow, con el
+          Para identificar la versión evaluada, etiquete ese commit en GitHub: Actions › «Etiquetar la versión evaluada» › Run workflow, con el
           commit <code>{r.evaluacion.version_congelada.sistema || "—"}</code>.</p>
       )}
       <div className="resumen-preservacion">
@@ -1171,7 +1178,7 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
       {r.asistida_frente_a_ciegas && r.asistida_frente_a_ciegas.pares > 0 && (
         <div className="tarjeta tabla-desplazable">
           <div className="tarjeta-cab">Versión validada por la archivista (asistida) frente a las descripciones ciegas</div>
-          <p className="meta" style={{ padding: "0 18px" }}>Objetivo 3: además de la propuesta del motor, se compara su versión
+          <p className="meta" style={{ padding: "0 18px" }}>Además de la propuesta del motor, se compara su versión
             validada con las ciegas de otras personas ({r.asistida_frente_a_ciegas.pares} pares; nunca con la ciega de la
             misma archivista). Relaciones RiC (flexible): F1 {num(r.asistida_frente_a_ciegas.relaciones_flexible.micro?.f1)}.</p>
           <table className="tabla-permisos">
@@ -1195,9 +1202,8 @@ function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
           <div className="tarjeta-cab">Frente a la referencia adjudicada (R): A0 motor solo y A1 archivista con la propuesta</div>
           <p className="meta" style={{ padding: "0 18px" }}>
             {r.referencia_adjudicada.documentos} documento(s) con referencia adjudicada.{" "}
-            {r.comparabilidad.base === "referencia_adjudicada_ic95"
-              ? "El veredicto de arriba sale del límite inferior del IC 95 % de esta tabla."
-              : "Sin referencia adjudicada, el veredicto de arriba usa la F puntual del motor."} {r.referencia_adjudicada.nota}</p>
+            Análisis complementario: el veredicto de arriba es la hipótesis preregistrada H1 (F del motor frente a las descripciones
+            ciegas, diferencia puntual con el techo). Esta tabla no lo cambia. {r.referencia_adjudicada.nota}</p>
           {r.referencia_adjudicada.tipos.length > 0 && (
             <table className="tabla-permisos">
               <thead><tr><th>Tipo</th><th>Casos en R</th><th>Techo</th><th>Fuente</th><th>F estricta</th><th>F flexible</th>

@@ -108,8 +108,8 @@ class Propuesta:
     # apoyó su redacción, cada uno con su documento y su posición si se halló en el texto.
     # Ninguno localizado: la pantalla lo muestra como «evidencia no identificada».
     # None: la respuesta no trae el campo (anterior al requisito 6), distinto de «no identificada».
-    # Otros documentos de archivo que el texto cita por su identificación (Tabla 3 de la tesis,
-    # dimensión 1: recurso documental, RiC-E02 a E06). Van aparte de las entidades: la
+    # Otros documentos de archivo que el texto cita por su identificación (recurso documental,
+    # RiC-E02 a E06). Van aparte de las entidades: la
     # descripción los ofrece como vínculos entre documentos; la evaluación los compara.
     documentos_citados: list[dict] = field(default_factory=list)
     evidencia_titulo: list[dict] | None = None

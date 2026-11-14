@@ -1,7 +1,7 @@
 name: Etiquetar la versión evaluada
 
-# Anexo A de la tesis: la versión de RICORA con que se hizo la evaluación se identifica con una
-# etiqueta del repositorio. Se corre a mano (Actions → «Etiquetar la versión evaluada» → Run
+# La versión de RICORA con que se hizo una evaluación se identifica con una etiqueta del
+# repositorio. Se corre a mano (Actions → «Etiquetar la versión evaluada» → Run
 # workflow) con el commit que muestra RICORA en Resultados («versión congelada: sistema …»).
 # No despliega nada: solo crea la etiqueta. Una etiqueta existente no se reemplaza.
 
@@ -46,6 +46,6 @@ jobs:
           fi
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git tag -a "$ETIQUETA" "$OBJETIVO" -m "Versión de RICORA usada en la evaluación de la tesis"
+          git tag -a "$ETIQUETA" "$OBJETIVO" -m "Versión de RICORA usada en la evaluación"
           git push origin "refs/tags/$ETIQUETA"
           echo "Etiqueta $ETIQUETA creada en el commit $OBJETIVO."

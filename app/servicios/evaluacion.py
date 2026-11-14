@@ -607,7 +607,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     supervision_tipo: dict[str, dict] = {}
     lista_desacuerdos = []
     por_experta: dict[uuid.UUID, dict] = {}  # el motor frente a la referencia ciega de cada experta
-    # Objetivo 3 de la tesis: también la versión validada por la archivista (asistida) frente a las
+    # También la versión validada por la archivista (asistida) frente a las
     # ciegas, siempre de otra persona (frente a la suya propia estaría sesgada: ya la había escrito).
     asis_estricto = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
     asis_flexible = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
@@ -764,7 +764,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
         cuentas = por_experta.get(u, {"entidades": {}, "relaciones": {}, "documentos": 0})
         suyos = [x for x in tiempos_documento if x["evaluadora"] == p.codigo]
         mediana = (lambda v: _r(statistics.median(v)) if v else None)
-        expertas.append(participantes.out(p, con_nombre=False) | {
+        expertas.append(participantes.out(p, con_nombre=False, ev=ev) | {
             "documentos_descritos": cuentas["documentos"],
             "motor_frente_a_ella": {"entidades": prf(cuentas["entidades"]) if cuentas["entidades"] else None,
                                     "relaciones": prf(cuentas["relaciones"]) if cuentas["relaciones"] else None},
@@ -793,7 +793,7 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
     salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
     salida["asistida_frente_a_ciegas"] = {"pares": asis_pares, "estricto": tabla(asis_estricto),
                                           "flexible": tabla(asis_flexible), "relaciones_flexible": tabla(asis_rel)}
-    # Tabla 3, dimensión 5: cumplimiento del perfil SHACL de cada descripción, por fuente.
+    # Conformidad semántica: cumplimiento del perfil SHACL de cada descripción, por fuente.
     for fuente, lista in ric_por_fuente.items():
         revisadas = [ric.shacl(x) for x in lista]
         conformes = sum(1 for x in revisadas if x["conforme"])
@@ -806,9 +806,15 @@ def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
 
     salida["referencia_adjudicada"] = referencia.frente_a_referencia(documentos, por_doc, adjudicadas, ev)
     salida["calibracion"] = referencia.calibracion(documentos, por_doc, adjudicadas, ev.umbral_similitud)
-    # Con referencia adjudicada, el veredicto principal usa el IC de la diferencia, no la F puntual.
-    salida["comparabilidad"] = an.veredicto_con_referencia(salida["comparabilidad"], salida["referencia_adjudicada"])
+    # El veredicto principal es la hipótesis preregistrada (H1): F flexible del motor frente a las
+    # descripciones ciegas, comparada con el techo por la diferencia puntual. El IC 95 % frente a la
+    # referencia adjudicada es un análisis complementario: se informa, no decide.
+    salida["comparabilidad"] = salida["comparabilidad"] | {"base": "h1_f_puntual_frente_a_ciegas"}
+    salida["veredicto_complementario"] = an.veredicto_con_referencia(salida["comparabilidad"],
+                                                                     salida["referencia_adjudicada"])
     salida["evaluacion"]["version_congelada"] = ev.version_congelada
+    salida["advertencias"] = [f"{e['codigo']}: {participantes.AVISO_ADMINISTRA}" for e in expertas
+                              if e["administra_la_evaluacion"]]
     return salida
 
 
@@ -907,7 +913,7 @@ def hoja_de_calculo(datos: dict) -> bytes:
     asis = libro.create_sheet("Asistida frente a ciegas")
     af = datos.get("asistida_frente_a_ciegas") or {}
     asis.append(["Versión validada por la archivista (asistida) frente a las descripciones ciegas de otras personas "
-                 "(objetivo 3)", "pares comparados", af.get("pares", 0)])
+                 "", "pares comparados", af.get("pares", 0)])
     asis.append(["Medida", "Tipo", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
     for medida in ("estricto", "flexible"):
         t_m = af.get(medida) or {"por_tipo": {}, "micro": {}, "macro_f1": None}
@@ -930,6 +936,8 @@ def hoja_de_calculo(datos: dict) -> bytes:
                     e["rol_nombre"], "Sí" if e["consentimiento"] else "No", e["documentos_descritos"],
                     (m["entidades"] or {}).get("f1"), (m["relaciones"] or {}).get("f1"),
                     e["mediana_minutos_ciega"], e["mediana_minutos_asistida"]])
+    for aviso in datos.get("advertencias") or []:
+        exp.append([f"Advertencia: {aviso}"])
     conf = libro.create_sheet("Conformidad RiC-O")
     conf.append(["Quién describe", "Descripciones", "Conformes", "Relaciones", "Relaciones válidas", "Tasa"])
     for quien, c in datos["conformidad"].items():
@@ -969,12 +977,14 @@ def hoja_de_calculo(datos: dict) -> bytes:
         ev_m = i.get("evidencia_motor") or {}
         ind.append(["Entidades del motor con fragmento de evidencia", ev_m.get("con_fragmento"), "de", ev_m.get("entidades"),
                     "tasa", ev_m.get("tasa")])
-        ind.append(["Descripciones conformes con el perfil SHACL (Tabla 3, dimensión 5)",
+        ind.append(["Descripciones conformes con el perfil SHACL",
                     *[((i.get(f) or {}).get("shacl") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
-        ind.append(["Aserciones con evidencia textual (Tabla 3, dimensión 4)",
+        ind.append(["Aserciones con evidencia textual",
                     *[((i.get(f) or {}).get("evidencia") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
     comp = libro.create_sheet("Comparabilidad")
     c = datos["comparabilidad"]
+    comp.append(["Veredicto principal: hipótesis preregistrada H1 (F flexible del motor frente a las descripciones ciegas, "
+                 "diferencia puntual con el acuerdo entre archivistas)"])
     comp.append(["Criterio fijado antes de iniciar", "margen F", c["criterio"]["margen_f"], "mínimo de casos",
                  c["criterio"]["minimo_casos"], "rúbrica mínima", c["criterio"]["rubrica_minima"],
                  "conformidad asistida", c["criterio"]["conformidad_asistida"]])
@@ -982,7 +992,7 @@ def hoja_de_calculo(datos: dict) -> bytes:
                  "Diferencia", "Resultado", "Motivos"])
     for t in c["tipos"]:
         comp.append([t["tipo"], t["casos"], t["f_motor"], t["techo"], t["diferencia"], t["estado"], "; ".join(t["motivos"])])
-    ins = libro.create_sheet("Instrumento 1")
+    ins = libro.create_sheet("Matriz de evaluación ciega")
     ins.append(["ID Unidad Documental", "Experta (código)", "Tipo de entidad RiC-CM / propiedad RiC-O",
                 "Valor propuesto por el motor", "Valor en la descripción ciega de la experta", "Resultado (VP, FP o FN)",
                 "Clase de desacuerdo", "Tipo de error", "Precisión (P)", "Exhaustividad (R)", "Medida F1"])
@@ -1015,6 +1025,13 @@ def hoja_de_calculo(datos: dict) -> bytes:
                         (x.get("flexible") or {}).get("f1"), ic.get("inferior"), ic.get("superior"), ic.get("documentos"),
                         x.get("estado")])
     ref.append([r.get("nota") or ""])
+    vc = datos.get("veredicto_complementario") or {}
+    if vc.get("base") == "referencia_adjudicada_ic95":
+        ref.append([])
+        ref.append(["Veredicto complementario con el IC 95 % (no decide: el veredicto es la hipótesis H1, hoja «Comparabilidad»)"])
+        ref.append(["Tipo", "Estado", "Motivos"])
+        for t in vc.get("tipos", []):
+            ref.append([t["tipo"], t["estado"], "; ".join(t.get("motivos") or [])])
     cal = libro.create_sheet("Calibración")
     k = datos.get("calibracion") or {"tramos": [], "propuestas": 0, "error_esperado_de_calibracion": None}
     cal.append(["Certeza desde", "Certeza hasta", "Propuestas", "Correctas frente a R", "Proporción de aciertos"])

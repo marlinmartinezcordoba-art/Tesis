@@ -418,5 +418,6 @@ class ParticipanteOut(BaseModel):
     institucion: str | None
     rol: str
     rol_nombre: str
+    administra_la_evaluacion: bool = False
     consentimiento: bool
     activa: bool

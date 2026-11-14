@@ -1,5 +1,5 @@
 """
-Documentos citados (Tabla 3 de la tesis, dimensión 1: recurso documental, RiC-E02 a E06).
+Documentos citados (identificación del recurso documental, RiC-E02 a E06).
 
 El motor propone aparte los otros documentos de archivo que el texto cita por su identificación
 (el acto que se recurre, el oficio que se responde). En la evaluación son una clase más

@@ -244,7 +244,7 @@ def limpiar(datos: dict) -> dict:
                 edtf = fechas.interpretar(edtf).edtf
             except fechas.FechaInvalida as exc:
                 raise ErrorRic(f"La fecha «{valor}»: {exc}") from exc
-        # Evidencia (Tabla 3, dimensión 4): el fragmento del documento que sostiene la entidad.
+        # Evidencia (trazabilidad de la aserción): el fragmento del documento que sostiene la entidad.
         evidencia = " ".join(str(e.get("evidencia") or "").split())[:500] or None
         entidades.append({"clave": clave, "tipo": tipo, "valor": valor, "subtipo": subtipo, "edtf": edtf,
                           "evidencia": evidencia})
@@ -338,7 +338,7 @@ def grafo_completo(datos: dict):
 
 
 def shacl(datos: dict | None) -> dict:
-    """¿La descripción cumple el perfil SHACL de RICORA? (Tabla 3, dimensión 5)."""
+    """¿La descripción cumple el perfil SHACL de RICORA? (conformidad semántica)."""
     from app.servicios.conformidad_rico import validar_shacl
 
     d = a_ric(datos)

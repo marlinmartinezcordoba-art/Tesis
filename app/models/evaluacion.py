@@ -41,7 +41,7 @@ class Evaluacion(Base):
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     iniciada_en = Column(DateTime(timezone=True), nullable=True)
     cerrada_en = Column(DateTime(timezone=True), nullable=True)
-    # Criterio de comparabilidad (objetivo 3): se fija antes de iniciar y no cambia después.
+    # Criterio de comparabilidad: se fija antes de iniciar y no cambia después.
     criterio = Column(JSONB, nullable=True)
     # Versión del sistema, del motor, de la instrucción y del perfil de aplicación con que se mide;
     # se fija al iniciar y no cambia después.
@@ -63,7 +63,7 @@ class EvaluacionDocumento(Base):
     propuesta_id = Column(UUID(as_uuid=True), ForeignKey("propuestas_ia.id"), nullable=True)
     # Documento de la prueba piloto: sirve para ensayar el protocolo y no entra en los resultados.
     piloto = Column(Boolean, nullable=False, default=False)
-    segundos_motor = Column(Float, nullable=True)  # lo que tardó el motor en proponer (Tabla 3, dimensión 5)
+    segundos_motor = Column(Float, nullable=True)  # lo que tardó el motor en proponer (eficiencia)
 
 
 class Anotacion(Base):

@@ -77,7 +77,7 @@ class DatosIn(BaseModel):
 
 
 class CriterioIn(BaseModel):
-    """Criterio de comparabilidad (objetivo 3), fijado antes de iniciar."""
+    """Criterio de comparabilidad, fijado antes de iniciar."""
     margen_f: float = Field(default=0.10, ge=0, le=0.5)
     minimo_casos: int = Field(default=10, ge=1, le=1000)
     rubrica_minima: float = Field(default=3.0, ge=1, le=5)
@@ -368,7 +368,8 @@ class ParticipanteCambioIn(BaseModel):
 def participantes(evaluacion_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
     from app.servicios import evaluacion_participantes as p
 
-    return [p.out(x) for x in p.listar(db, _ev(db, evaluacion_id))]
+    ev = _ev(db, evaluacion_id)
+    return [p.out(x, ev=ev) for x in p.listar(db, ev)]
 
 
 @router.post("/{evaluacion_id}/participantes", status_code=status.HTTP_201_CREATED,
@@ -379,7 +380,7 @@ def registrar_participante(evaluacion_id: uuid.UUID, datos: ParticipanteIn, acto
     from app.servicios import evaluacion_participantes as p
 
     ev = _ev(db, evaluacion_id)
-    return p.out(_hecho(db, p.registrar_participante, db, ev, datos.model_dump(), actor.id))
+    return p.out(_hecho(db, p.registrar_participante, db, ev, datos.model_dump(), actor.id), ev=ev)
 
 
 @router.put("/{evaluacion_id}/participantes/{participante_id}",

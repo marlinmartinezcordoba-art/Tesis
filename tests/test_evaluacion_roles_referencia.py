@@ -100,8 +100,10 @@ def test_cada_rol_hace_una_sola_cosa_y_la_referencia_se_adjudica_con_justificaci
     assert {"A0", "A1"} <= set(agente) and agente["A0"]["estado"] in ("no_inferior", "inferior", "datos_insuficientes",
                                                                       "sin_techo")
     assert "superioridad" in ref["nota"]
-    # El veredicto principal sale del IC de la referencia adjudicada y coincide con su estado por tipo.
-    comp = res["comparabilidad"]
+    # El veredicto principal es la hipótesis preregistrada (F puntual frente a las ciegas); el IC frente a la
+    # referencia adjudicada es complementario y coincide con su estado por tipo.
+    assert res["comparabilidad"]["base"] == "h1_f_puntual_frente_a_ciegas"
+    comp = res["veredicto_complementario"]
     assert comp["base"] == "referencia_adjudicada_ic95"
     estado_ref = {"no_inferior": "comparable", "inferior": "no_comparable"}
     for t in comp["tipos"]:
@@ -191,8 +193,8 @@ def test_con_una_evaluacion_en_curso_el_asistente_no_consulta_internet(cliente, 
 
 def test_la_hoja_trae_el_instrumento_1_el_tiempo_del_motor_y_la_evidencia_de_cada_fuente(cliente, db, fondo,  # noqa: F811
                                                                                         cabeceras_admin, motor_eval):
-    """Tabla 3 de la tesis: dimensión 4 (aserciones con evidencia textual, para el motor y para las
-    archivistas) y dimensión 5 (tiempo por unidad documental, también el del motor); Instrumento 1
+    """Trazabilidad (aserciones con evidencia textual, para el motor y para las archivistas),
+    eficiencia (tiempo por unidad documental, también el del motor) y la matriz de evaluación ciega
     con sus columnas."""
     adm = cabeceras_admin
     ev_id, d = _preparar(cliente, db, fondo, adm)
@@ -207,7 +209,7 @@ def test_la_hoja_trae_el_instrumento_1_el_tiempo_del_motor_y_la_evidencia_de_cad
     assert res["indicadores"]["motor"]["evidencia"]["entidades"] >= 1
     assert res["tiempos"]["motor"]["n"] == 1 and res["tiempos"]["motor"]["mediana_minutos"] is not None
     libro = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
-    hoja = libro["Instrumento 1"]
+    hoja = libro["Matriz de evaluación ciega"]
     assert [c.value for c in hoja[1]][:8] == ["ID Unidad Documental", "Experta (código)",
                                               "Tipo de entidad RiC-CM / propiedad RiC-O", "Valor propuesto por el motor",
                                               "Valor en la descripción ciega de la experta", "Resultado (VP, FP o FN)",
@@ -220,8 +222,8 @@ def test_la_hoja_trae_el_instrumento_1_el_tiempo_del_motor_y_la_evidencia_de_cad
 
 def test_la_asistida_se_compara_con_las_ciegas_de_otras_y_cada_descripcion_pasa_por_el_perfil_shacl(  # noqa: F811
         cliente, db, fondo, cabeceras_admin, motor_eval):
-    """Objetivo 3: la versión validada (asistida) frente a las ciegas, nunca frente a la ciega de la
-    misma persona. Tabla 3, dimensión 5: porcentaje de descripciones conformes con el perfil SHACL."""
+    """La versión validada (asistida) frente a las ciegas, nunca frente a la ciega de la misma
+    persona; y el porcentaje de descripciones conformes con el perfil SHACL."""
     adm = cabeceras_admin
     ev_id, d = _preparar(cliente, db, fondo, adm)
     ana = _experta(cliente, db, ev_id, "ana@correo.com", "ambas")
@@ -242,7 +244,7 @@ def test_la_asistida_se_compara_con_las_ciegas_de_otras_y_cada_descripcion_pasa_
     libro = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
     assert libro["Asistida frente a ciegas"]["C1"].value == 1
     filas = [f[0].value for f in libro["Normalización y cobertura"].iter_rows()]
-    assert "Descripciones conformes con el perfil SHACL (Tabla 3, dimensión 5)" in filas
+    assert "Descripciones conformes con el perfil SHACL" in filas
 
 
 def test_una_descripcion_completa_cumple_el_perfil_shacl_y_sin_titulo_no():
@@ -259,3 +261,20 @@ def test_una_descripcion_completa_cumple_el_perfil_shacl_y_sin_titulo_no():
     sin_clase = ric.shacl(ric.desde_roles(dict(completa, entidades=completa["entidades"] + [
         {"tipo": "agente", "rol": "destinatario", "valor": "Concejo"}])))
     assert not sin_clase["conforme"]
+
+
+def test_si_quien_administra_participa_como_experta_queda_advertido(cliente, db, fondo, cabeceras_admin,  # noqa: F811
+                                                                     motor_eval):
+    """Conflicto de interés: quien administra la evaluación conoce el motor; no se bloquea (el piloto lo
+    admite), pero queda marcado en la lista de expertas, en los resultados y en la hoja de cálculo."""
+    adm = cabeceras_admin
+    ev_id, _ = _preparar(cliente, db, fondo, adm)  # registra a quien administra como experta
+    lista = cliente.get(f"/api/evaluacion/{ev_id}/participantes", headers=adm).json()
+    assert [p["administra_la_evaluacion"] for p in lista] == [True]
+    _experta(cliente, db, ev_id, "ana@correo.com", "descriptora")
+    lista = cliente.get(f"/api/evaluacion/{ev_id}/participantes", headers=adm).json()
+    assert sorted(p["administra_la_evaluacion"] for p in lista) == [False, True]
+    res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=adm).json()
+    assert len(res["advertencias"]) == 1 and "no es independiente" in res["advertencias"][0]
+    libro = load_workbook(io.BytesIO(cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=adm).content))
+    assert any(str(f[0].value or "").startswith("Advertencia:") for f in libro["Expertas"].iter_rows())
