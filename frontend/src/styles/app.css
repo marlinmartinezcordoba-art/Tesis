@@ -1837,3 +1837,24 @@ body {
 .chat-pasajes { margin: 4px 0 0; padding-left: 22px; }
 .chat-pasajes li { margin: 2px 0; }
 .chat-pasajes li.citado::marker { color: var(--electrico); font-weight: 700; }
+
+/* Niveles de las agrupaciones documentales (rico:RecordSetType) y del documento:
+   misma clase RiC, distinto icono y color para que la estructura se lea. */
+:root { --g-fondo: #17324a; --g-seccion: #1f6f78; --g-serie: #4f6fb3; --g-expediente: #9c4f3a; }
+:root[data-theme="dark"] { --g-fondo: #5d7d99; --g-seccion: #2f9aa6; --g-serie: #7d97d6; --g-expediente: #c47a63; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --g-fondo: #5d7d99; --g-seccion: #2f9aa6; --g-serie: #7d97d6; --g-expediente: #c47a63; }
+}
+.n-fondo, .n-coleccion { --g-color: var(--g-fondo); }
+.n-seccion, .n-subseccion { --g-color: var(--g-seccion); }
+.n-serie, .n-subserie { --g-color: var(--g-serie); }
+.n-subserie circle, .n-subseccion circle { fill-opacity: .85; }
+.n-expediente { --g-color: var(--g-expediente); }
+.n-unidad_documental, .n-parte_documental { --g-color: var(--g-recurso); }
+.nodo.sin-nombre circle { stroke: #d97706; stroke-width: 2.5; stroke-dasharray: 4 3; }
+.aviso-nodo { fill: #b45309; font-style: italic; }
+.niveles-leyenda { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-top: 8px; margin-top: 6px; border-top: 1px solid var(--line, #e3e7ee); }
+.niveles-leyenda .titulo-niveles { font-weight: 600; font-size: .85rem; width: 100%; }
+.item-nivel { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; }
+.disposicion-grafo { position: absolute; top: 10px; left: 84px; display: inline-flex; gap: 4px; z-index: 2; }
+.disposicion-grafo .boton.activo { background: var(--accent, #1f6f78); color: #fff; }

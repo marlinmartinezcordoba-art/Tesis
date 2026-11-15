@@ -17,6 +17,7 @@ La entidad raíz siempre se muestra.
 """
 
 import io
+import re
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -196,7 +197,8 @@ class _Contexto:
             inicios = [a for a, _ in ints if a]
             fines = [b for _, b in ints if b]
             return {"tipo": tipo, "clase": r.nivel, "familia": familia, "etiqueta": r.titulo,
-                    "subtitulo": NIVEL_NOMBRE[r.nivel],
+                    "subtitulo": NIVEL_NOMBRE[r.nivel], "codigo": r.codigo_referencia,
+                    "sin_nombre": sin_nombre(r.titulo, r.nivel),
                     "estado": "en_edicion" if r.id in self.reabiertas else "publicada",
                     "fecha_inicio": min(inicios) if inicios else None, "fecha_fin": max(fines) if fines else None}
         if tipo == "entidad_vocabulario":
@@ -265,6 +267,17 @@ class _Contexto:
                     salida.append(("recurso_documental", rid, t, i, "forma_documental", None,
                                    self.recursos[rid].creado_en))
         return salida
+
+
+_GENERICO = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente)?\s*[\d.]*", re.IGNORECASE)
+
+
+def sin_nombre(titulo: str | None, nivel: str) -> bool:
+    """Una agrupación que solo tiene un número o el nombre de su nivel («Serie 27») no tiene
+    título propio: el grafo la marca para que se corrija en la TRD, sin inventarle un nombre."""
+    if nivel in ("unidad_documental", "parte_documental"):
+        return not (titulo or "").strip()
+    return _GENERICO.fullmatch((titulo or "").strip()) is not None
 
 
 def _jerarquia(hijo: RecursoDocumental) -> str:

@@ -77,6 +77,8 @@ class NodoGrafo(BaseModel):
     fecha_inicio: str | None
     fecha_fin: str | None
     documentos: int | None = None
+    codigo: str | None = None
+    sin_nombre: bool | None = None
 
 
 class AristaGrafo(BaseModel):

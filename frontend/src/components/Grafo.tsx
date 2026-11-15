@@ -18,6 +18,8 @@ export interface NodoGrafo {
   fecha_fin: string | null;
   salto: number;
   documentos?: number;
+  codigo?: string | null;
+  sin_nombre?: boolean | null;
 }
 
 export interface AristaGrafo {
@@ -77,6 +79,27 @@ export const FAMILIAS: { clave: Familia; nombre: string; ric: string; principal:
   { clave: "Event", nombre: "Hito institucional", ric: "Event", principal: false },
   { clave: "Concept", nombre: "Materia", ric: "Concept", principal: false },
 ];
+// Las agrupaciones documentales comparten clase en RiC (rico:RecordSet), pero no
+// son lo mismo para quien describe: cada nivel lleva su propio icono y color,
+// y la leyenda los nombra (rico:RecordSetType).
+export const NIVELES: { clave: string; nombre: string; icono: ReactNode }[] = [
+  { clave: "fondo", nombre: "Fondo", icono: <g {...trazo}><path d="M3 9l9-5 9 5" /><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" /></g> },
+  { clave: "coleccion", nombre: "Colección", icono: <g {...trazo}><path d="M6 4h12v16l-6-4-6 4z" /></g> },
+  { clave: "seccion", nombre: "Sección", icono: <g {...trazo}><rect x="9" y="3" width="6" height="5" rx="1" /><rect x="3" y="16" width="6" height="5" rx="1" /><rect x="15" y="16" width="6" height="5" rx="1" /><path d="M12 8v4M6 16v-4h12v4" /></g> },
+  { clave: "subseccion", nombre: "Subsección", icono: <g {...trazo}><rect x="9" y="4" width="6" height="5" rx="1" /><rect x="9" y="15" width="6" height="5" rx="1" /><path d="M12 9v6" /></g> },
+  { clave: "serie", nombre: "Serie", icono: <g {...trazo}><path d="M4 8h16v11H4z" /><path d="M6 5h12M8 2.5h8" /></g> },
+  { clave: "subserie", nombre: "Subserie", icono: <g {...trazo}><path d="M5 9h14v10H5z" /><path d="M7 6h10" /></g> },
+  { clave: "expediente", nombre: "Expediente", icono: <g {...trazo}><path d="M3 6h7l2 2h9v11H3z" /></g> },
+  { clave: "unidad_documental", nombre: "Documento", icono: ICONO_FAMILIA.Record },
+  { clave: "parte_documental", nombre: "Parte documental", icono: ICONO_FAMILIA.RecordPart },
+];
+const ICONO_NIVEL = Object.fromEntries(NIVELES.map((n) => [n.clave, n.icono])) as Record<string, ReactNode>;
+const NOMBRE_NIVEL = Object.fromEntries(NIVELES.map((n) => [n.clave, n.nombre])) as Record<string, string>;
+const esRecurso = (n: NodoGrafo) => n.tipo === "recurso_documental";
+export const iconoDe = (n: NodoGrafo) => (esRecurso(n) && ICONO_NIVEL[n.clase]) || ICONO_FAMILIA[n.familia];
+// El código del cuadro de clasificación distingue las series homónimas de dependencias distintas.
+export const etiquetaDe = (n: NodoGrafo) => (n.codigo ? `${n.codigo} ${n.etiqueta}` : n.etiqueta);
+
 export const NOMBRE_FAMILIA = Object.fromEntries(FAMILIAS.map((f) => [f.clave, f.nombre])) as Record<Familia, string>;
 
 export function MuestraFamilia({ familia, tamano = 18 }: { familia: Familia; tamano?: number }) {
@@ -100,13 +123,15 @@ function radio(n: NodoGrafo, raiz: boolean): number {
   }
 }
 
-function corto(texto: string, n = 26): string {
+function corto(texto: string, n = 30): string {
   return texto.length > n ? `${texto.slice(0, n - 1)}…` : texto;
 }
 
 type Punto = SimulationNodeDatum & { clave: string };
 
-export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque, alArrastrar }: {
+export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque, alArrastrar, disposicionInicial = "red" }: {
+  // «red»: por fuerzas, para ver el contexto; «arbol»: por niveles desde la raíz, para ver la estructura.
+  disposicionInicial?: "red" | "arbol";
   datos: DatosGrafo;
   seleccion: string | null;
   alSeleccionar: (clave: string | null) => void;
@@ -121,6 +146,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const [ocultas, setOcultas] = useState<Set<Familia>>(new Set());
   // La leyenda no tapa el grafo: aparece flotando solo cuando se pide.
   const [verLeyenda, setVerLeyenda] = useState(false);
+  const [disposicion, setDisposicion] = useState<"red" | "arbol">(disposicionInicial);
   const datos = useMemo<DatosGrafo>(() => {
     if (!ocultas.size) return completo;
     const nodos = completo.nodos.filter((n) => !ocultas.has(n.familia) || n.clave === completo.centro);
@@ -152,8 +178,8 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
     const { ancho, alto } = tamanoRef.current;
     // Que el grafo ocupe el lienzo: margen justo para las etiquetas y sin tope bajo de acercamiento.
     const tope = lista.length < 8 ? 1.1 : 1.8;  // pocos nodos: no se agrandan hasta tapar el lienzo
-    const k = Math.min(tope, Math.max(0.2, Math.min(ancho / (x1 - x0 + 130), alto / (y1 - y0 + 70))));
-    setVista({ k, x: -((x0 + x1) / 2) * k, y: -((y0 + y1) / 2) * k });
+    const k = Math.min(tope, Math.max(0.2, Math.min(ancho / (x1 - x0 + 330), alto / (y1 - y0 + 70))));
+    setVista({ k, x: -((x0 + x1 + 200) / 2) * k, y: -((y0 + y1) / 2) * k });
   }
 
   const porClave = useMemo(() => new Map(datos.nodos.map((n) => [n.clave, n])), [datos]);
@@ -173,6 +199,40 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       centro.fy = 0;
     }
     puntos.current = new Map(nodos.map((n) => [n.clave, n]));
+    if (disposicion === "arbol") {
+      // Por niveles: cada entidad en la fila de su distancia a la raíz y, dentro de la fila,
+      // junto a las demás hijas de su mismo padre. Sin fuerzas: la estructura se lee de arriba abajo.
+      const vecinosDe = new Map<string, string[]>();
+      for (const a of datos.aristas) {
+        for (const [x, y] of [[a.desde, a.hacia], [a.hacia, a.desde]]) vecinosDe.set(x, [...(vecinosDe.get(x) || []), y]);
+      }
+      const raiz = datos.centro;
+      const nivel = new Map<string, number>([[raiz, 0]]);
+      const orden: string[] = [raiz];
+      for (let i = 0; i < orden.length; i++) {
+        const hijos = (vecinosDe.get(orden[i]) || []).filter((v) => !nivel.has(v))
+          .sort((a, b) => etiquetaDe(porClave.get(a)!).localeCompare(etiquetaDe(porClave.get(b)!), "es", { numeric: true }));
+        for (const h of hijos) { nivel.set(h, nivel.get(orden[i])! + 1); orden.push(h); }
+      }
+      for (const n of nodos) if (!nivel.has(n.clave)) { nivel.set(n.clave, 1); orden.push(n.clave); }
+      const filas = new Map<number, string[]>();
+      for (const c of orden) filas.set(nivel.get(c)!, [...(filas.get(nivel.get(c)!) || []), c]);
+      // De izquierda a derecha: el lienzo es más ancho que alto y cada nombre se lee completo a su derecha.
+      const paso = 46;
+      for (const [f, claves] of filas) {
+        claves.forEach((c, j) => {
+          const p = puntos.current.get(c)!;
+          p.x = f * 300;
+          p.y = (j - (claves.length - 1) / 2) * paso;
+          p.fx = p.x;
+          p.fy = p.y;
+        });
+      }
+      setPosiciones(Object.fromEntries(nodos.map((n) => [n.clave, { x: n.x || 0, y: n.y || 0 }])));
+      simulacion.current = null;
+      const t = window.setTimeout(encuadrar, 30);
+      return () => window.clearTimeout(t);
+    }
     const grado = new Map<string, number>();
     for (const a of datos.aristas) for (const c of [a.desde, a.hacia]) grado.set(c, (grado.get(c) || 0) + 1);
     // Cuanto más relaciones comparten los extremos, más corto el resorte: los
@@ -208,7 +268,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       window.clearTimeout(primerEncuadre);
       cancelAnimationFrame(cuadro);
     };
-  }, [datos, porClave]);
+  }, [datos, porClave, disposicion]);
 
   // La búsqueda centra el nodo encontrado sin tocar los filtros.
   useEffect(() => {
@@ -251,7 +311,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       /* puntero sintético o ya liberado: el arrastre funciona igual */
     }
     arrastre.current = { tipo: clave ? "nodo" : "fondo", clave, x: e.clientX, y: e.clientY, movido: false };
-    if (clave) simulacion.current?.alphaTarget(0.25).restart();
+    if (clave && disposicion === "red") simulacion.current?.alphaTarget(0.25).restart();
   }
 
   function mover(e: EventoPuntero<SVGSVGElement>) {
@@ -277,6 +337,11 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       if (p) {
         p.fx = q.x;
         p.fy = q.y;
+        if (disposicion === "arbol") {
+          p.x = q.x;
+          p.y = q.y;
+          setPosiciones((ps) => ({ ...ps, [a.clave!]: { x: q.x, y: q.y } }));
+        }
       }
     }
   }
@@ -367,11 +432,35 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
             </button>
           );
         })}
+        {(() => {
+          const niveles = NIVELES.filter((nv) => completo.nodos.some((n) => esRecurso(n) && n.clase === nv.clave));
+          if (!niveles.length) return null;
+          return (
+            <div className="niveles-leyenda" aria-label="Niveles de las agrupaciones y documentos">
+              <span className="titulo-niveles">Niveles</span>
+              {niveles.map((nv) => (
+                <span key={nv.clave} className="item-nivel">
+                  <svg className={`muestra-familia n-${nv.clave}`} width={18} height={18} viewBox="-12 -12 24 24" aria-hidden="true">
+                    <circle r="12" /><g transform="translate(-7.2 -7.2) scale(.6)" className="icono-nodo">{nv.icono}</g>
+                  </svg>
+                  <span>{nv.nombre}</span>
+                  <span className="cuenta-leyenda">{completo.nodos.filter((n) => esRecurso(n) && n.clase === nv.clave).length}</span>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
         {ocultas.size > 0 && (
           <button type="button" className="enlace mostrar-todos" onClick={() => setOcultas(new Set())}>Mostrar todos</button>
         )}
       </div>
       )}
+      <div className="disposicion-grafo" role="group" aria-label="Disposición del grafo">
+        <button type="button" className={`boton chico${disposicion === "red" ? " activo" : ""}`} aria-pressed={disposicion === "red"}
+                title="Por relaciones: para ver el contexto de una entidad" onClick={() => setDisposicion("red")}>Red</button>
+        <button type="button" className={`boton chico${disposicion === "arbol" ? " activo" : ""}`} aria-pressed={disposicion === "arbol"}
+                title="Por niveles desde la raíz: para ver la estructura del fondo" onClick={() => setDisposicion("arbol")}>Árbol</button>
+      </div>
       <div className="controles-grafo" role="group" aria-label="Acercamiento y desplazamiento del grafo">
         <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
         <input type="range" className="deslizador-zoom" min={20} max={300} step={5} value={Math.round(vista.k * 100)}
@@ -441,14 +530,21 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
               const escala = (r * 1.15) / 24;
               return (
                 <g key={n.clave} transform={`translate(${p.x} ${p.y})`}
-                   className={`nodo f-${n.familia}${seleccion === n.clave ? " elegido" : ""}${raiz ? " central" : ""}${conectado ? "" : " tenue"}`}
+                   className={`nodo f-${n.familia}${esRecurso(n) ? ` n-${n.clase}` : ""}${n.sin_nombre ? " sin-nombre" : ""}${seleccion === n.clave ? " elegido" : ""}${raiz ? " central" : ""}${conectado ? "" : " tenue"}`}
                    tabIndex={0} role="button"
-                   aria-label={`${NOMBRE_FAMILIA[n.familia]}: ${n.etiqueta}${raiz ? " (entidad raíz)" : ""}`}
+                   aria-label={`${esRecurso(n) ? NOMBRE_NIVEL[n.clase] || NOMBRE_FAMILIA[n.familia] : NOMBRE_FAMILIA[n.familia]}: ${etiquetaDe(n)}${n.sin_nombre ? " (sin nombre propio)" : ""}${raiz ? " (entidad raíz)" : ""}`}
                    onPointerDown={(e) => bajar(e, n.clave)} onPointerEnter={() => setEncima(n.clave)} onPointerLeave={() => setEncima(null)}
                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && alSeleccionar(n.clave)}>
+                  <title>{`${esRecurso(n) ? NOMBRE_NIVEL[n.clase] || n.subtitulo : NOMBRE_FAMILIA[n.familia]} · ${etiquetaDe(n)}`}</title>
                   <circle r={r} />
-                  <g className="icono-nodo" transform={`translate(${-12 * escala} ${-12 * escala}) scale(${escala})`}>{ICONO_FAMILIA[n.familia]}</g>
-                  <text y={r + 13} textAnchor="middle">{corto(n.etiqueta)}</text>
+                  <g className="icono-nodo" transform={`translate(${-12 * escala} ${-12 * escala}) scale(${escala})`}>{iconoDe(n)}</g>
+                  {disposicion === "arbol" ? (<>
+                    <text x={r + 6} y={n.sin_nombre ? -1 : 4} textAnchor="start">{corto(etiquetaDe(n), 44)}</text>
+                    {n.sin_nombre && <text x={r + 6} y={11} textAnchor="start" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
+                  </>) : (<>
+                    <text y={r + 13} textAnchor="middle">{corto(etiquetaDe(n))}</text>
+                    {n.sin_nombre && <text y={r + 26} textAnchor="middle" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
+                  </>)}
                   {n.subtitulo === "Versión de conservación" && (
                     <text y={r + 26} textAnchor="middle" className="subtitulo-nodo">versión de conservación</text>
                   )}

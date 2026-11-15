@@ -407,3 +407,22 @@ def test_la_version_de_conservacion_cuelga_de_su_original_y_no_parece_un_duplica
     hacia_copia = [(a["desde"].split(":")[0], a["codigo_ric"]) for a in g["aristas"] if a["hacia"] == f"instanciacion:{copia.id}"]
     assert hacia_copia == [("instanciacion", "migrated_into")]
     assert next(n for n in g["nodos"] if n["id"] == str(copia.id))["subtitulo"] == "Versión de conservación"
+
+
+def test_cada_agrupacion_trae_su_codigo_y_su_nivel(cliente, fondo_descrito, archivista):
+    f = fondo_descrito
+    g = pedir(cliente, archivista, "recurso_documental", f["fondo"].id, saltos=3)
+    por_etiqueta = {n["etiqueta"]: n for n in g["nodos"]}
+    assert por_etiqueta[FONDO]["clase"] == "fondo" and por_etiqueta[SERIE]["clase"] == "serie"
+    for n in g["nodos"]:
+        if n["tipo"] == "recurso_documental":
+            assert "codigo" in n and n["sin_nombre"] is False
+
+
+@pytest.mark.parametrize("titulo, nivel, esperado", [
+    ("Serie 27", "serie", True), ("27", "serie", True), ("Subserie 1.2", "subserie", True), ("", "seccion", True),
+    ("Actas", "serie", False), ("Serie de actas", "serie", False), ("Despacho del Ministro", "seccion", False),
+    ("Resolución 0123", "unidad_documental", False), ("", "unidad_documental", True),
+])
+def test_una_agrupacion_con_solo_un_numero_se_marca_sin_nombre(titulo, nivel, esperado):
+    assert grafo.sin_nombre(titulo, nivel) is esperado

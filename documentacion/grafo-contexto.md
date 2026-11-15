@@ -228,3 +228,11 @@ La autora pidió moverse en cualquier dirección con clic sostenido, sin botones
 | Arrastrar sobre un nodo | Mueve el lienzo · mueve el nodo | Mueve el nodo, como antes | Así se pueden reacomodar entidades superpuestas. | Hay que empezar el arrastre en un espacio vacío para mover el lienzo. |
 
 Prueba: un recorrido con Playwright arrastra 150 px y luego otros 300 px saliendo del lienzo. El dibujo se desplaza esa misma distancia y barra, leyenda y controles quedan en opacidad 0 durante el arrastre y en 1 al soltar.
+
+## Niveles, códigos y disposición en árbol (15 de noviembre de 2026)
+
+- Las agrupaciones documentales comparten la clase `rico:RecordSet`, pero el grafo les da un icono y un color por nivel (fondo, sección, subsección, serie, subserie, expediente) y otro al documento. La leyenda «Tipos» los cuenta en el apartado «Niveles».
+- Cada agrupación llega con su `codigo` del cuadro de clasificación y el grafo lo antepone al nombre («2100.30 Informes»), para que las series homónimas de dependencias distintas no parezcan duplicadas. El nombre completo aparece al pasar el cursor.
+- Una agrupación cuyo título es solo un número o el nombre de su nivel («Serie 27») llega con `sin_nombre: true` y se dibuja con borde punteado y el aviso «sin nombre en la TRD». El sistema no le inventa un nombre: se corrige en la parametrización de la TRD.
+- Dos disposiciones: «Red» (por fuerzas, para ver el contexto de una entidad) y «Árbol» (por niveles, de izquierda a derecha desde la raíz, para ver la estructura). Si la raíz es un fondo, una colección, una sección o una subsección, el grafo abre en árbol.
+- Pruebas: `tests/test_grafo_contexto.py::test_cada_agrupacion_trae_su_codigo_y_su_nivel`, `::test_una_agrupacion_con_solo_un_numero_se_marca_sin_nombre` y `frontend/src/pruebas/grafoNiveles.test.tsx`.
