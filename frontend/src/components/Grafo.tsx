@@ -128,10 +128,76 @@ function corto(texto: string, n = 30): string {
 }
 
 type Punto = SimulationNodeDatum & { clave: string };
+type Disposicion = "red" | "arbol" | "descripcion";
+type Panel = { grupo: string; texto: string; x: number; y: number; w: number; h: number };
+type Grupo = "raiz" | "estructura" | "contiene" | "agentes" | "funcion" | "norma" | "contexto";
+
+const JERARQUIA = new Set(["includes_or_included", "has_or_had_constituent"]);
+export const TITULO_GRUPO: Record<Exclude<Grupo, "raiz">, string> = {
+  estructura: "Dónde está en el fondo", contiene: "Qué contiene y sus archivos", agentes: "Quién lo produjo e intervino",
+  funcion: "Para qué función", norma: "Bajo qué norma", contexto: "Dónde, cuándo y de qué tipo",
+};
+
+// La descripción de una entidad leída como RiC: la cadena de agrupaciones que la contienen,
+// sus agentes, su función y la norma que la regula, y su lugar, su fecha y su forma.
+// Solo entra lo que describe a la raíz; los hermanos y las ramas ajenas se quedan en la vista Red.
+export function seleccionDescripcion(d: DatosGrafo): { datos: DatosGrafo; grupos: Map<string, Grupo>; omitidos: number } {
+  const por = new Map(d.nodos.map((n) => [n.clave, n]));
+  const grupos = new Map<string, Grupo>([[d.centro, "raiz"]]);
+  const usadas: typeof d.aristas = [];
+  // Hacia arriba: quién la incluye, y quién incluye a esa, hasta el fondo.
+  let actual = d.centro;
+  for (let i = 0; i < 8; i++) {
+    const a = d.aristas.find((x) => x.hacia === actual && JERARQUIA.has(x.codigo_ric) && !grupos.has(x.desde));
+    if (!a) break;
+    grupos.set(a.desde, "estructura");
+    usadas.push(a);
+    actual = a.desde;
+  }
+  const directas = d.aristas.filter((a) => (a.desde === d.centro || a.hacia === d.centro));
+  for (const a of directas) {
+    const otro = a.desde === d.centro ? a.hacia : a.desde;
+    const n = por.get(otro);
+    if (!n || grupos.has(otro)) continue;
+    let g: Grupo;
+    if (JERARQUIA.has(a.codigo_ric) && a.desde === d.centro) g = "contiene";
+    else if (n.familia === "Instantiation") g = "contiene";
+    else if (n.familia === "Agent") g = "agentes";
+    else if (n.familia === "Activity" || n.familia === "ActivityType" || n.familia === "Event") g = "funcion";
+    else if (n.familia === "Mandate") g = "norma";
+    else if (n.familia === "RecordSet" || n.familia === "Record" || n.familia === "RecordPart") g = "contiene";
+    else g = "contexto";
+    grupos.set(otro, g);
+    usadas.push(a);
+  }
+  // Un salto más solo donde completa la lectura: la actividad lleva a su tipo y a su norma,
+  // y el agente al puesto o a la persona que lo ejerce.
+  for (const a of d.aristas) {
+    if (usadas.includes(a)) continue;
+    for (const [aqui, alla] of [[a.desde, a.hacia], [a.hacia, a.desde]]) {
+      const ga = grupos.get(aqui), n = por.get(alla);
+      if (!ga || !n) continue;
+      const g: Grupo | null = ga === "funcion" && (n.familia === "ActivityType" || n.familia === "Activity") ? "funcion"
+        : (ga === "funcion" || ga === "norma") && n.familia === "Mandate" ? "norma"
+        : ga === "agentes" && n.familia === "Agent" ? "agentes" : null;
+      if (g && (!grupos.has(alla) || grupos.get(alla) === g)) {
+        if (!grupos.has(alla)) grupos.set(alla, g);
+        usadas.push(a);
+        break;
+      }
+    }
+  }
+  const nodos = d.nodos.filter((n) => grupos.has(n.clave));
+  const quedan = new Set(nodos.map((n) => n.clave));
+  const aristas = d.aristas.filter((a) => usadas.includes(a) || (quedan.has(a.desde) && quedan.has(a.hacia)
+    && grupos.get(a.desde) !== "raiz" && grupos.get(a.desde) === grupos.get(a.hacia)));
+  return { datos: { ...d, nodos, aristas }, grupos, omitidos: d.nodos.length - nodos.length };
+}
 
 export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque, alArrastrar, disposicionInicial = "red" }: {
-  // «red»: por fuerzas, para ver el contexto; «arbol»: por niveles desde la raíz, para ver la estructura.
-  disposicionInicial?: "red" | "arbol";
+  // «red»: por fuerzas; «arbol»: por niveles desde la raíz, para ver la estructura;
+  // «descripcion»: la descripción RiC de la raíz ordenada por preguntas (dónde, quién, para qué, bajo qué norma, cuándo).
+  disposicionInicial?: Disposicion;
   datos: DatosGrafo;
   seleccion: string | null;
   alSeleccionar: (clave: string | null) => void;
@@ -146,13 +212,18 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const [ocultas, setOcultas] = useState<Set<Familia>>(new Set());
   // La leyenda no tapa el grafo: aparece flotando solo cuando se pide.
   const [verLeyenda, setVerLeyenda] = useState(false);
-  const [disposicion, setDisposicion] = useState<"red" | "arbol">(disposicionInicial);
-  const datos = useMemo<DatosGrafo>(() => {
-    if (!ocultas.size) return completo;
-    const nodos = completo.nodos.filter((n) => !ocultas.has(n.familia) || n.clave === completo.centro);
-    const quedan = new Set(nodos.map((n) => n.clave));
-    return { ...completo, nodos, aristas: completo.aristas.filter((a) => quedan.has(a.desde) && quedan.has(a.hacia)) };
-  }, [completo, ocultas]);
+  const [disposicion, setDisposicion] = useState<Disposicion>(disposicionInicial);
+  const { datos, grupos, omitidos } = useMemo(() => {
+    let d = completo;
+    if (ocultas.size) {
+      const nodos = completo.nodos.filter((n) => !ocultas.has(n.familia) || n.clave === completo.centro);
+      const quedan = new Set(nodos.map((n) => n.clave));
+      d = { ...completo, nodos, aristas: completo.aristas.filter((a) => quedan.has(a.desde) && quedan.has(a.hacia)) };
+    }
+    if (disposicion !== "descripcion") return { datos: d, grupos: null as Map<string, Grupo> | null, omitidos: 0 };
+    return seleccionDescripcion(d);
+  }, [completo, ocultas, disposicion]);
+  const [rotulos, setRotulos] = useState<Panel[]>([]);
   const alternarFamilia = (f: Familia) => setOcultas((o) => {
     const n = new Set(o);
     if (n.has(f)) n.delete(f);
@@ -168,18 +239,21 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const simulacion = useRef<ReturnType<typeof forceSimulation<Punto>> | null>(null);
   const arrastre = useRef<{ tipo: "fondo" | "nodo"; clave?: string; x: number; y: number; movido: boolean } | null>(null);
   const tamanoRef = useRef({ ancho: 800, alto: 560 });
+  const paneles = useRef<Panel[]>([]);
 
   function encuadrar() {
     const lista = [...puntos.current.values()];
     if (!lista.length) return;
     const xs = lista.map((p) => p.x || 0);
     const ys = lista.map((p) => p.y || 0);
+    for (const r of paneles.current) { xs.push(r.x + 65, r.x + r.w - 65); ys.push(r.y + 10, r.y + r.h - 20); }
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const { ancho, alto } = tamanoRef.current;
     // Que el grafo ocupe el lienzo: margen justo para las etiquetas y sin tope bajo de acercamiento.
     const tope = lista.length < 8 ? 1.1 : 1.8;  // pocos nodos: no se agrandan hasta tapar el lienzo
-    const k = Math.min(tope, Math.max(0.2, Math.min(ancho / (x1 - x0 + 330), alto / (y1 - y0 + 70))));
-    setVista({ k, x: -((x0 + x1 + 200) / 2) * k, y: -((y0 + y1) / 2) * k });
+    const k = Math.min(tope, Math.max(0.2, Math.min(ancho / (x1 - x0 + 330), alto / (y1 - y0 + 130))));
+    // Margen arriba para la barra de botones, que flota sobre el lienzo.
+    setVista({ k, x: -((x0 + x1 + 200) / 2) * k, y: -((y0 + y1) / 2) * k + 24 });
   }
 
   const porClave = useMemo(() => new Map(datos.nodos.map((n) => [n.clave, n])), [datos]);
@@ -199,6 +273,50 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       centro.fy = 0;
     }
     puntos.current = new Map(nodos.map((n) => [n.clave, n]));
+    if (disposicion === "descripcion" && grupos) {
+      const de = (g: Grupo) => nodos.filter((n) => grupos.get(n.clave) === g).map((n) => puntos.current.get(n.clave)!);
+      const fijar = (p: Punto, x: number, y: number) => { p.x = x; p.y = y; p.fx = x; p.fy = y; };
+      const fila = (ps: Punto[], y: number, x0: number, paso: number) => ps.forEach((p, j) => fijar(p, x0 + (j - (ps.length - 1) / 2) * paso, y));
+      const columna = (ps: Punto[], x: number, y0: number, paso: number) => ps.forEach((p, j) => fijar(p, x, y0 + (j - (ps.length - 1) / 2) * paso));
+      fijar(puntos.current.get(datos.centro)!, 0, 0);
+      // La cadena de agrupaciones sube a la izquierda: la más cercana a la altura de la raíz, el fondo arriba.
+      const cadena = de("estructura");
+      const orden = new Map<string, number>();
+      let paso = datos.centro;
+      for (let i = 0; i < cadena.length; i++) {
+        const a = datos.aristas.find((x) => x.hacia === paso && JERARQUIA.has(x.codigo_ric));
+        if (!a) break;
+        orden.set(a.desde, i);
+        paso = a.desde;
+      }
+      cadena.sort((a, b) => (orden.get(a.clave) ?? 99) - (orden.get(b.clave) ?? 99)).forEach((p, i) => fijar(p, -360, -i * 85));
+      const contiene = de("contiene");
+      columna(contiene, -360, 120 + ((contiene.length - 1) / 2) * 70, 70);
+      const agentes = de("agentes");
+      fila(agentes, -250, 90, 200);
+      const funcion = de("funcion"), norma = de("norma");
+      columna(funcion, 340, 0, 95);
+      columna(norma, 620, 0, 95);
+      const contexto = de("contexto");
+      fila(contexto, 250, 90, 175);
+      // Cada pregunta es un panel: el grupo se lee como un bloque de la ficha, no como nodos sueltos.
+      const r: Panel[] = [];
+      for (const [g, ps] of [["estructura", cadena], ["contiene", contiene], ["agentes", agentes], ["funcion", funcion],
+                              ["norma", norma], ["contexto", contexto]] as [Exclude<Grupo, "raiz">, Punto[]][]) {
+        if (!ps.length) continue;
+        const xs = ps.map((p) => p.x!), ys = ps.map((p) => p.y!);
+        const x0 = Math.min(...xs) - 95, x1 = Math.max(...xs) + 95, y0 = Math.min(...ys) - 58, y1 = Math.max(...ys) + 46;
+        r.push({ grupo: g, texto: TITULO_GRUPO[g], x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      }
+      paneles.current = r;
+      setRotulos(r);
+      setPosiciones(Object.fromEntries(nodos.map((n) => [n.clave, { x: n.x || 0, y: n.y || 0 }])));
+      simulacion.current = null;
+      const t = window.setTimeout(encuadrar, 30);
+      return () => window.clearTimeout(t);
+    }
+    paneles.current = [];
+    setRotulos([]);
     if (disposicion === "arbol") {
       // Por niveles: cada entidad en la fila de su distancia a la raíz y, dentro de la fila,
       // junto a las demás hijas de su mismo padre. Sin fuerzas: la estructura se lee de arriba abajo.
@@ -268,7 +386,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       window.clearTimeout(primerEncuadre);
       cancelAnimationFrame(cuadro);
     };
-  }, [datos, porClave, disposicion]);
+  }, [datos, porClave, disposicion, grupos]);
 
   // La búsqueda centra el nodo encontrado sin tocar los filtros.
   useEffect(() => {
@@ -337,7 +455,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       if (p) {
         p.fx = q.x;
         p.fy = q.y;
-        if (disposicion === "arbol") {
+        if (disposicion !== "red") {
           p.x = q.x;
           p.y = q.y;
           setPosiciones((ps) => ({ ...ps, [a.clave!]: { x: q.x, y: q.y } }));
@@ -397,7 +515,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const atenuar = encima;
   // Etiquetas de las relaciones: siempre, mientras se puedan leer; en un
   // grafo muy denso o muy alejado, solo las del nodo señalado.
-  const etiquetasLegibles = datos.aristas.length <= 60 && vista.k >= 0.7;
+  const etiquetasLegibles = disposicion === "descripcion" || (datos.aristas.length <= 60 && vista.k >= 0.7);
   const familiasPresentes = new Set(completo.nodos.map((n) => n.familia));
   // Varias relaciones entre los mismos dos nodos: cada etiqueta a una distancia distinta de la línea.
   const desplazamiento = useMemo(() => {
@@ -460,6 +578,12 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
                 title="Por relaciones: para ver el contexto de una entidad" onClick={() => setDisposicion("red")}>Red</button>
         <button type="button" className={`boton chico${disposicion === "arbol" ? " activo" : ""}`} aria-pressed={disposicion === "arbol"}
                 title="Por niveles desde la raíz: para ver la estructura del fondo" onClick={() => setDisposicion("arbol")}>Árbol</button>
+        <button type="button" className={`boton chico${disposicion === "descripcion" ? " activo" : ""}`} aria-pressed={disposicion === "descripcion"}
+                title="La descripción de la entidad raíz ordenada por preguntas: dónde está, quién, para qué, bajo qué norma, dónde y cuándo"
+                onClick={() => setDisposicion("descripcion")}>Descripción</button>
+        {disposicion === "descripcion" && omitidos > 0 && (
+          <span className="nota-disposicion">{omitidos === 1 ? "1 entidad que no describe" : `${omitidos} entidades que no describen`} a la raíz {omitidos === 1 ? "queda" : "quedan"} en la vista Red</span>
+        )}
       </div>
       <div className="controles-grafo" role="group" aria-label="Acercamiento y desplazamiento del grafo">
         <button type="button" className="boton chico" onClick={() => zoom(1.25)} aria-label="Acercar" title="Acercar">+</button>
@@ -489,6 +613,12 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
         </defs>
         <rect className="fondo-lienzo" x={-tamano.ancho / 2} y={-tamano.alto / 2} width={tamano.ancho} height={tamano.alto} fill="url(#puntos-grafo)" />
         <g transform={`translate(${vista.x} ${vista.y}) scale(${vista.k})`}>
+          {rotulos.map((r) => (
+            <g key={r.grupo} className={`panel-grupo g-${r.grupo}`}>
+              <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={14} />
+              <text x={r.x + 14} y={r.y + 20} className="rotulo-grupo">{r.texto}</text>
+            </g>
+          ))}
           <g>
             {datos.aristas.map((a) => {
               const p = posiciones[a.desde];
@@ -542,7 +672,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
                     <text x={r + 6} y={n.sin_nombre ? -1 : 4} textAnchor="start">{corto(etiquetaDe(n), 44)}</text>
                     {n.sin_nombre && <text x={r + 6} y={11} textAnchor="start" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
                   </>) : (<>
-                    <text y={r + 13} textAnchor="middle">{corto(etiquetaDe(n))}</text>
+                    <text y={r + 13} textAnchor="middle">{corto(etiquetaDe(n), disposicion === "descripcion" ? 40 : 30)}</text>
                     {n.sin_nombre && <text y={r + 26} textAnchor="middle" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
                   </>)}
                   {n.subtitulo === "Versión de conservación" && (

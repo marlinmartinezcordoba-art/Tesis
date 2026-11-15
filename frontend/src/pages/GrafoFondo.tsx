@@ -418,7 +418,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
         <div className={`grafo-y-detalle${seleccion && !completa ? " con-detalle" : ""}${cargando ? " recargando" : ""}`}>
           <div className="contenedor-lienzo">
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
-                         disposicionInicial={["fondo", "coleccion", "seccion", "subseccion"].includes(datos.nodos.find((n) => n.clave === datos.centro)?.clase || "") ? "arbol" : "red"} />
+                         disposicionInicial={(() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (
