@@ -124,7 +124,11 @@ def test_cada_rol_hace_una_sola_cosa_y_la_referencia_se_adjudica_con_justificaci
     assert set(z.namelist()) == {"calificacion-ciega.xlsx", "llave-de-codigos.xlsx"}
     hoja = load_workbook(io.BytesIO(z.read("calificacion-ciega.xlsx"))).active
     texto = " ".join(str(c.value or "") for fila in hoja.iter_rows() for c in fila)
-    assert "motor" not in texto.lower() and "confianza" not in texto.lower() and "E2" not in texto
+    # Ningún código de experta (E1, E2…) como palabra: los códigos al azar de la hoja (p. ej. «4E2D2D») sí pueden
+    # contener esas letras sin revelar nada.
+    import re
+
+    assert "motor" not in texto.lower() and "confianza" not in texto.lower() and not re.search(r"\bE\d+\b", texto)
     llave = load_workbook(io.BytesIO(z.read("llave-de-codigos.xlsx"))).active
     assert {f[1].value for f in llave.iter_rows(min_row=2)} >= {"A0", "B"}
 

@@ -420,7 +420,7 @@ def test_cada_agrupacion_trae_su_codigo_y_su_nivel(cliente, fondo_descrito, arch
 
 
 @pytest.mark.parametrize("titulo, nivel, esperado", [
-    ("Serie 27", "serie", True), ("27", "serie", True), ("Subserie 1.2", "subserie", True), ("", "seccion", True),
+    ("Serie 27", "serie", True), ("27", "serie", True), ("Dependencia 3203", "seccion", True), ("Subserie 1.2", "subserie", True), ("", "seccion", True),
     ("Actas", "serie", False), ("Serie de actas", "serie", False), ("Despacho del Ministro", "seccion", False),
     ("Resolución 0123", "unidad_documental", False), ("", "unidad_documental", True),
 ])

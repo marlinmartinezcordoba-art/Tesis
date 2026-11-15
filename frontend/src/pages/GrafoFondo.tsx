@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FAMILIAS, LienzoGrafo, MuestraFamilia, NOMBRE_FAMILIA, type DatosGrafo, type Familia } from "@/components/Grafo";
+import { FAMILIAS, LienzoGrafo, MuestraFamilia, NOMBRE_FAMILIA, esNombreProvisional, type DatosGrafo, type Familia } from "@/components/Grafo";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { ErrorAPI, descargar, pedir, puede } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
@@ -181,6 +181,15 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar 
             <MuestraFamilia familia={ficha.familia} tamano={16} /> {ficha.familia_nombre}
           </span>
           <h2 className="titulo-nodo">{ficha.etiqueta}</h2>
+          {tipo === "recurso_documental" && !["unidad_documental", "parte_documental"].includes(ficha.clase || "")
+            && esNombreProvisional(ficha.etiqueta) && (
+            <div className="aviso alerta" role="note" data-fijo>
+              <strong>Nombre provisional.</strong> La TRD trajo el código de esta agrupación sin su nombre, y RICORA no lo
+              inventa. Corríjalo en Instrumentos › TRD › Dependencias productoras (o cargue el CCD y use «Cotejar con la
+              TRD», que toma el nombre de ahí). Revise también su lugar: si su código empieza como el de otra sección
+              (por ejemplo, 3203 y 3000), puede ser una subsección de esa.
+            </div>
+          )}
           <div className="pestanas compactas" role="tablist">
             {([["resumen", "Resumen"], ["atributos", `Atributos (${ficha.atributos.length})`],
                ["relaciones", `Relaciones (${ficha.relaciones_total})`]] as const).map(([k, nombre]) => (

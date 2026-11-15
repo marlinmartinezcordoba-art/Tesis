@@ -44,3 +44,13 @@ describe("vista Descripción", () => {
     expect(omitidos).toBe(1);
   });
 });
+
+describe("nombre provisional", () => {
+  it("reconoce el que pone la carga de la TRD y respeta los nombres reales", async () => {
+    const { esNombreProvisional } = await import("@/components/Grafo");
+    expect(esNombreProvisional("Dependencia 3203")).toBe(true);
+    expect(esNombreProvisional("Serie 27")).toBe(true);
+    expect(esNombreProvisional("3000 Despacho del Viceministro")).toBe(false);
+    expect(esNombreProvisional("Secretaría General")).toBe(false);
+  });
+});

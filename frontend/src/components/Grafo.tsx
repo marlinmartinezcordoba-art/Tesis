@@ -98,6 +98,9 @@ const NOMBRE_NIVEL = Object.fromEntries(NIVELES.map((n) => [n.clave, n.nombre]))
 const esRecurso = (n: NodoGrafo) => n.tipo === "recurso_documental";
 export const iconoDe = (n: NodoGrafo) => (esRecurso(n) && ICONO_NIVEL[n.clase]) || ICONO_FAMILIA[n.familia];
 // El código del cuadro de clasificación distingue las series homónimas de dependencias distintas.
+// Nombre provisional de una agrupación («Serie 27», «Dependencia 3203»): la TRD trajo el código sin el nombre.
+export const esNombreProvisional = (titulo: string | null | undefined) =>
+  /^(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente|dependencia)?\s*[\d.]*$/i.test((titulo || "").trim());
 export const etiquetaDe = (n: NodoGrafo) => (n.codigo ? `${n.codigo} ${n.etiqueta}` : n.etiqueta);
 
 export const NOMBRE_FAMILIA = Object.fromEntries(FAMILIAS.map((f) => [f.clave, f.nombre])) as Record<Familia, string>;

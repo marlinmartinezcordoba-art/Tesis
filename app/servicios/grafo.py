@@ -269,7 +269,9 @@ class _Contexto:
         return salida
 
 
-_GENERICO = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente)?\s*[\d.]*", re.IGNORECASE)
+# «Dependencia 3203» es el nombre provisional que pone la carga de la TRD cuando trae el código sin el nombre.
+_GENERICO = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente|dependencia)?\s*[\d.]*",
+                       re.IGNORECASE)
 
 
 def sin_nombre(titulo: str | None, nivel: str) -> bool:
