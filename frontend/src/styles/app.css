@@ -1940,3 +1940,11 @@ body {
 .calidad-chip.cero { color: var(--muted); }
 .calidad-chip.activo { border-color: var(--accent); background: var(--accent-bg); }
 .tabla-calidad td { vertical-align: top; }
+
+/* Configuración archivística institucional */
+.config-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.config-ficha { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; }
+a.config-ficha:hover { border-color: var(--accent); }
+.config-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.config-ficha code.rico { font-size: .75rem; }

@@ -57,7 +57,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
   it("la TRD y el CCD son pasos guiados; las direcciones de antes llevan al paso donde quedó cada tarea", () => {
     montar("/fondos?vista=matriz");
     expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("true");
-    expect(submodulosVisibles("Instrumentos")).toEqual(["TRD y CCD", "TVD", "Disposición final"]);
+    expect(submodulosVisibles("Instrumentos")).toEqual(["Configuración institucional", "TRD y CCD", "TVD", "Disposición final"]);
     expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
     expect(pestanas()).toEqual(["Cargar y aprobar", "Cuadro y versiones"]);
     expect(pestanaActual()).toBe("Cargar y aprobar");

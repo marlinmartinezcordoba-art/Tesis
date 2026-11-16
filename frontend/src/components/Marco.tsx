@@ -86,13 +86,14 @@ const ENTRADAS: Entrada[] = [
       { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
   // «Instrumentos archivísticos» no cabía en una línea del menú: nombre corto y la pista dice el proceso.
   { ruta: "/fondos", nombre: "Instrumentos", pista: "Clasificación y valoración", icono: "fondos", grupo: "trabajo",
-    modulo: "catalogo", submodulos: ["TRD y CCD", "TVD", "Disposición final"],
-    pistas: { "TRD y CCD": "Cuadro y tiempos de retención", TVD: "Fondos acumulados",
+    modulo: "catalogo", submodulos: ["Configuración institucional", "TRD y CCD", "TVD", "Disposición final"],
+    pistas: { "Configuración institucional": "Todos los instrumentos y sus versiones", "TRD y CCD": "Cuadro y tiempos de retención", TVD: "Fondos acumulados",
       "Disposición final": "Eliminar, conservar, transferir" },
     alias: { fondos: "cargar", ajustar: "cargar", dependencias: "cargar", series: "cargar", matriz: "cargar", cuadro: "versiones" },
     vistas: [
       // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
       // aparte, el cuadro que rige y el historial de versiones.
+      { vista: "configuracion", nombre: "Instrumentos de la entidad", submodulo: "Configuración institucional" },
       { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD", permitir: (u) => !u.modo_evaluacion },
       { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },
       { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD", permitir: (u) => !u.modo_evaluacion },
