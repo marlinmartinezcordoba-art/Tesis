@@ -75,6 +75,12 @@ export const ISADG_TEXTOS: [string, string, string][] = [
   ["reglas_descripcion", "3.7.2", "Reglas o normas"],
 ];
 
+// Atributo RiC-O con que se exporta cada texto (app/servicios/ric_o.py, ATRIBUTOS); los demás no tienen
+// propiedad literal en RiC-O 1.1 (motivo en ric_o.SIN_PROPIEDAD).
+const RICO_TEXTO: Record<string, string> = {
+  nuevos_ingresos: "rico:accruals", organizacion: "rico:structure", nota: "rico:generalDescription",
+};
+
 export const ESCRITURAS: Record<string, string> = {
   Latn: "latina", Grek: "griega", Hebr: "hebrea", Arab: "árabe", Cyrl: "cirílica", Hani: "han (china)",
   Jpan: "japonesa", Zmth: "notación matemática", Zsym: "símbolos", Zyyy: "común", Zxxx: "sin escritura",
@@ -295,9 +301,12 @@ function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambia
   const llenos = ISADG_TEXTOS.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
   return (
     <details className="campo">
-      <summary>Otros elementos de ISAD(G) <span className="meta">({llenos} con dato · opcionales)</span></summary>
+      <summary>Notas complementarias <span className="meta">({llenos} con dato · opcionales)</span></summary>
+      <p className="pista">Textos que una persona escribe sobre el recurso. Los que tienen atributo RiC-O pasan al grafo;
+        los demás no tienen propiedad en RiC-O 1.1 y quedan en el sistema y en los instrumentos. Se indica su
+        equivalencia ISAD(G) solo para intercambio con sistemas que todavía la usan.</p>
       <div className="campo" style={{ marginTop: 8 }}>
-        <label>Escritura <span className="meta">(ISAD-G 3.4.3 · ISO 15924)</span> <GuiaCampo clave="escrituras" /></label>
+        <label>Escritura <span className="meta">(ISO 15924 · sin propiedad en RiC-O · equivale a ISAD(G) 3.4.3)</span> <GuiaCampo clave="escrituras" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.escrituras.map((c) => (
             <span key={c} className="pastilla">{ESCRITURAS[c] || c} <code className="rico">{c}</code>{" "}
@@ -315,7 +324,9 @@ function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambia
       </div>
       {ISADG_TEXTOS.map(([clave, elemento, nombre]) => (
         <div className="campo" key={clave}>
-          <label htmlFor={`isadg-${clave}`}>{nombre} <span className="meta">(ISAD-G {elemento})</span> <GuiaCampo clave={clave} /></label>
+          <label htmlFor={`isadg-${clave}`}>{nombre}{" "}
+            <span className="meta">({RICO_TEXTO[clave] ? <code className="rico">{RICO_TEXTO[clave]}</code> : "queda en el sistema"} ·
+              equivale a ISAD(G) {elemento})</span> <GuiaCampo clave={clave} /></label>
           <textarea id={`isadg-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
                     onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
         </div>
