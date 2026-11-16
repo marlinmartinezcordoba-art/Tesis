@@ -43,12 +43,12 @@ const pestanaActual = () => (document.querySelector(".pestanas-modulo [aria-curr
 
 afterEach(cleanup);
 
-describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro de la pantalla", () => {
-  it("solo Instrumentos y Conocimiento RiC se despliegan; lo demás es un enlace", () => {
+describe("menú por procesos: módulos, uno con submódulos, y pestañas dentro de la pantalla", () => {
+  it("solo Conocimiento RiC se despliega; lo demás es un enlace", () => {
     montar("/ingesta");
     expect(screen.getAllByRole("button", { expanded: false }).concat(screen.queryAllByRole("button", { expanded: true }))
-      .map((b) => nombre(b.querySelector(".rama-nombre") ?? b)).sort()).toEqual(["Conocimiento RiC", "Instrumentos"]);
-    for (const m of ["Carga de documentos", "Descripción", "Agentes y autoridades", "Preservación", "Auditoría",
+      .map((b) => nombre(b.querySelector(".rama-nombre") ?? b)).sort()).toEqual(["Conocimiento RiC"]);
+    for (const m of ["Instrumentos", "Carga de documentos", "Descripción", "Agentes y autoridades", "Preservación", "Auditoría",
       "Evaluación", "Administración", "Búsqueda"]) {
       expect(screen.getByRole("link", { name: m })).toBeTruthy();
     }
@@ -56,20 +56,18 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("la TRD y el CCD son pasos guiados; las direcciones de antes llevan al paso donde quedó cada tarea", () => {
     montar("/fondos?vista=matriz");
-    expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("true");
-    expect(submodulosVisibles("Instrumentos")).toEqual(["Configuración institucional", "TRD y CCD", "TVD", "Disposición final"]);
-    expect(screen.getByRole("link", { name: "TRD y CCD" }).getAttribute("aria-current")).toBe("page");
-    expect(pestanas()).toEqual(["Cargar y aprobar", "Cuadro y versiones"]);
-    expect(pestanaActual()).toBe("Cargar y aprobar");
+    expect(pestanas()).toEqual(expect.arrayContaining(["Instrumentos de la entidad", "Cargar TRD y CCD", "Cuadro y versiones",
+      "TVD", "Disposición final"]));
+    expect(pestanaActual()).toBe("Cargar TRD y CCD");
     cleanup();
     montar("/fondos?vista=ajustar");
-    expect(pestanaActual()).toBe("Cargar y aprobar");
+    expect(pestanaActual()).toBe("Cargar TRD y CCD");
     cleanup();
     montar("/fondos?vista=cuadro");
     expect(pestanaActual()).toBe("Cuadro y versiones");
     cleanup();
     montar("/fondos?vista=fondos");
-    expect(pestanaActual()).toBe("Cargar y aprobar");
+    expect(pestanaActual()).toBe("Cargar TRD y CCD");
   });
 
   it("un módulo sin submódulos muestra sus vistas como pestañas", () => {
@@ -90,10 +88,9 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
     expect(pestanaActual()).toBe("Índice");
   });
 
-  it("acordeón: abrir un módulo cierra el otro; tocar el abierto lo cierra", () => {
-    montar("/fondos");
-    fireEvent.click(rama("Conocimiento RiC"));
-    expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("false");
+  it("acordeón: tocar el módulo abierto lo cierra", () => {
+    montar("/instrumentos");
+    expect(rama("Conocimiento RiC").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(rama("Conocimiento RiC"));
     expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
   });

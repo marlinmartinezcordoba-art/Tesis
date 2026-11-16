@@ -85,23 +85,19 @@ const ENTRADAS: Entrada[] = [
       { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" },
       { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
   // «Instrumentos archivísticos» no cabía en una línea del menú: nombre corto y la pista dice el proceso.
-  { ruta: "/fondos", nombre: "Instrumentos", pista: "Clasificación y valoración", icono: "fondos", grupo: "trabajo",
-    modulo: "catalogo", submodulos: ["Configuración institucional", "TRD y CCD", "TVD", "Disposición final"],
-    pistas: { "Configuración institucional": "Todos los instrumentos y sus versiones", "TRD y CCD": "Cuadro y tiempos de retención", TVD: "Fondos acumulados",
-      "Disposición final": "Eliminar, conservar, transferir" },
+  // Un solo módulo, sin submódulos (decisión de la autora): cada instrumento es una pestaña de la pantalla.
+  { ruta: "/fondos", nombre: "Instrumentos", pista: "CCD, TRD, TVD, TCA y disposición", icono: "fondos", grupo: "trabajo",
+    modulo: "catalogo",
     alias: { fondos: "cargar", ajustar: "cargar", dependencias: "cargar", series: "cargar", matriz: "cargar", cuadro: "versiones" },
     vistas: [
-      // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
-      // aparte, el cuadro que rige y el historial de versiones.
-      { vista: "configuracion", nombre: "Instrumentos de la entidad", submodulo: "Configuración institucional" },
-      { vista: "estructura", nombre: "Estructura orgánica", submodulo: "Configuración institucional" },
-      { vista: "tca", nombre: "Control de acceso (TCA)", submodulo: "Configuración institucional" },
-      { vista: "fuid", nombre: "Importar FUID", submodulo: "Configuración institucional", permitir: (u) => u.es_administrador },
-      { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD", permitir: (u) => !u.modo_evaluacion },
-      { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },
-      { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD", permitir: (u) => !u.modo_evaluacion },
-      { vista: "disposicion", nombre: "Disposición final", submodulo: "Disposición final",
-        permitir: (u) => !u.modo_evaluacion }] },
+      { vista: "configuracion", nombre: "Instrumentos de la entidad" },
+      { vista: "cargar", nombre: "Cargar TRD y CCD", permitir: (u) => !u.modo_evaluacion },
+      { vista: "versiones", nombre: "Cuadro y versiones" },
+      { vista: "tvd", nombre: "TVD", permitir: (u) => !u.modo_evaluacion },
+      { vista: "disposicion", nombre: "Disposición final", permitir: (u) => !u.modo_evaluacion },
+      { vista: "estructura", nombre: "Estructura orgánica" },
+      { vista: "tca", nombre: "Control de acceso (TCA)" },
+      { vista: "fuid", nombre: "Importar FUID", permitir: (u) => u.es_administrador }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },

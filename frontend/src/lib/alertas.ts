@@ -12,7 +12,7 @@ export interface AlertaEnlazable {
 const A_DESCRIPCION = new Set(["formato_no_identificado", "ocr_baja_confianza", "datos_personales_sensibles"]);
 
 export function enlaceDeAlerta(a: AlertaEnlazable): { ruta: string; texto: string } | null {
-  if (a.tipo === "ccd_trd_no_coinciden") return { ruta: "/fondos?vista=cargar", texto: "Ir a TRD y CCD" };
+  if (a.tipo === "ccd_trd_no_coinciden") return { ruta: "/fondos?vista=cargar", texto: "Ir a Cargar TRD y CCD" };
   if (A_DESCRIPCION.has(a.tipo) && a.entidad_tipo === "instanciacion")
     return { ruta: `/descripcion?documento=${encodeURIComponent(a.entidad_id)}`, texto: "Ir a describir" };
   return null;

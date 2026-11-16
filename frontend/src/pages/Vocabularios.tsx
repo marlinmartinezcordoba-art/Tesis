@@ -399,7 +399,7 @@ export function Vocabularios() {
             </div>
           )}
           {clase === "regla" && !fusionadas && (
-            <p className="meta">Las reglas de retención se crean al aplicar la TRD (Instrumentos › TRD y CCD).</p>
+            <p className="meta">Las reglas de retención se crean al aplicar la TRD (Instrumentos › Cargar TRD y CCD).</p>
           )}
           {clase === "tipo_actividad" && vistaArbol && !fusionadas ? <ArbolFunciones fondoId={fondo.id} /> : (
           <div className="tarjeta">
