@@ -6,6 +6,7 @@ Solo documentan: las rutas no los usan como response_model, así que no
 filtran ni cambian lo que se responde. Admiten campos adicionales.
 """
 
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -576,3 +577,14 @@ class ComponentesRicOut(BaseModel):
     componentes: list[ComponenteRic]
     completos: int
     total: int
+
+
+class LoQueRige(BaseModel):
+    """Acceso (TCA) y retención (TRD) que hereda lo que se incluya en una agrupación."""
+    acceso: str | None = None
+    fundamento: str | None = None
+    reproduccion: str | None = None
+    vigente_hasta: date | None = None
+    de: str | None = None
+    retencion: str | None = None
+    disposicion: str | None = None

@@ -378,3 +378,12 @@ def test_el_titulo_y_el_alcance_citan_su_evidencia_o_dicen_que_no_la_hay():
     assert p.evidencia_titulo is None and p.evidencia_alcance is None and p.confianza_alcance == 0.9
     # El esquema obliga al motor a devolverla.
     assert {"evidencia_titulo", "evidencia_alcance"} <= set(motor.ESQUEMA["required"])
+
+
+def test_extension_en_folios_al_publicar(cliente, db, fondo, archivista, sin_motor):
+    espacio = iniciar(cliente, archivista, [documento(db, fondo, "folios.pdf", TEXTO).id])
+    r = publicar(cliente, archivista, espacio, folios=12)
+    assert r.status_code in (200, 201), r.text
+    recurso = db.get(RecursoDocumental, uuid.UUID(r.json()["id"]))
+    db.refresh(recurso)
+    assert recurso.folios == 12  # RiC-A35

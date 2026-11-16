@@ -314,10 +314,10 @@ function NotasComplementarias({ valor, alCambiar }: { valor: CamposRegistroValor
       {NOTAS_RIC.map(([clave, rico, nombre]) => texto(clave,
         <>{nombre} <span className="meta">(<code className="rico">{rico}</code>)</span></>))}
     </details>
-    <details className="campo" open={anteriores.length > 0 || valor.escrituras.length > 0}>
-      <summary>Datos que no son atributos RiC <span className="meta">(extensiones locales: quedan en el sistema y en
-        los instrumentos, no pasan al grafo)</span></summary>
-      <div className="campo" style={{ marginTop: 8 }}>
+    {(anteriores.length > 0 || valor.escrituras.length > 0) && <details className="campo" open>
+      <summary>Datos anteriores que no son atributos RiC <span className="meta">(se conservan; ya no se piden en
+        registros nuevos)</span></summary>
+      {valor.escrituras.length > 0 && <div className="campo" style={{ marginTop: 8 }}>
         <label>Escritura <span className="meta">(ISO 15924 · RiC-O 1.1 no tiene propiedad)</span> <GuiaCampo clave="escrituras" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.escrituras.map((c) => (
@@ -333,13 +333,13 @@ function NotasComplementarias({ valor, alCambiar }: { valor: CamposRegistroValor
               .map(([c, n]) => <option key={c} value={c}>{n} ({c})</option>)}
           </select>
         </div>
-      </div>
+      </div>}
       {anteriores.length > 0 && <>
         <p className="pista">Notas de ISAD(G) que ya traía este registro. Se conservan; en RiC esto se expresa con
           entidades y relaciones, por eso no se piden en registros nuevos.</p>
         {anteriores.map(([clave, nombre]) => texto(clave, nombre))}
       </>}
-    </details>
+    </details>}
     </>
   );
 }

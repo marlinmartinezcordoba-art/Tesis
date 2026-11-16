@@ -154,6 +154,8 @@ class PublicarIn(CamposRegistro):
     incluido_en_id: uuid.UUID | None = None
     entidades: list[EntidadIn] = Field(default_factory=list, max_length=300)
     partes: list[ParteIn] = Field(default_factory=list, max_length=50)
+    # Extensión (RiC-A35): folios del recurso. Vacío: sin dato.
+    folios: int | None = Field(default=None, ge=0, le=100000)
 
 
 class ControlIn(BaseModel):

@@ -36,7 +36,7 @@ from app.schemas.respuestas_descripcion import (
     ComponentesRicOut,
     AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, EstadoDigitalizacionOut,
     FichaPublicaOut, GuiaMetadatos, PaginasOut, PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut,
-    ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
+    LoQueRige, ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
 from app.servicios import (completitud, consulta, datos_personales, descripcion, digitalizacion, motor, parametros,
                            propuestas_ia, versiones_trd, vocabulario)
@@ -166,6 +166,26 @@ class PoliticaIA(BaseModel):
     """Qué propuestas de la IA llegan aceptadas al describir."""
     politica: Literal["revisar_todo", "alta_confianza", "todo"]
     modo_evaluacion: bool = False
+
+
+@router.get("/acceso-que-rige", response_model=LoQueRige,
+            summary="Lo que la TCA y la TRD fijan para lo que se incluya en una agrupación")
+def acceso_que_rige(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Al clasificar un documento en una serie, hereda su acceso (TCA, Ley 1712)
+    y su retención (TRD). Sin declaración ni regla, los campos van vacíos."""
+    from app.servicios import derechos, retencion
+
+    recurso = db.get(RecursoDocumental, recurso_id)
+    if recurso is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La agrupación no existe.")
+    fondo_o_404(db, recurso.fondo_id)
+    d = derechos.declaracion_de_recurso(db, recurso)
+    origen = db.get(RecursoDocumental, d.entidad_id) if d is not None else None
+    r = retencion.retencion_de(db, recurso)
+    return LoQueRige(acceso=d.acceso if d else None, fundamento=d.fundamento if d else None,
+                     reproduccion=d.reproduccion if d else None, vigente_hasta=d.vigente_hasta if d else None,
+                     de=origen.titulo if origen else None, retencion=r["resumen"] if r else None,
+                     disposicion=r["disposicion_nombre"] if r else None)
 
 
 @router.get("/politica-ia", response_model=PoliticaIA, summary="Política de aprobación de lo que propone la IA")
@@ -711,6 +731,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes, fecha_acumulacion=datos.fecha_acumulacion,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
+        if datos.folios is not None:
+            recurso.folios = datos.folios
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)

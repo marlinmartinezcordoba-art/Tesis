@@ -223,6 +223,8 @@ export function EspacioTrabajo() {
   const [cambiandoUbicacion, setCambiandoUbicacion] = useState(false);
   // El acceso que rige la serie o el expediente elegido (la TCA de la serie): el documento lo hereda.
   const [heredada, setHeredada] = useState<{ acceso: string; de: string | null; fundamento?: string | null } | null>(null);
+  const [rige, setRige] = useState<{ retencion: string | null; disposicion: string | null } | null>(null);
+  const [folios, setFolios] = useState("");
   // RICORA describe y clasifica; la archivista revisa y cambia lo que no esté bien. Las propuestas del
   // motor llegan aceptadas (una sola vez por trabajo); las dudosas quedan como pregunta.
   const autoAceptado = useRef<string | null>(null);
@@ -301,9 +303,12 @@ export function EspacioTrabajo() {
   }, [espacio, items, vencido]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!incluidoEn) { setHeredada(null); return; }
-    pedir<{ acceso: string; de: string | null; fundamento: string | null } | null>(`/api/descripcion/acceso-que-rige?recurso_id=${incluidoEn}`)
-      .then(setHeredada).catch(() => setHeredada(null));
+    if (!incluidoEn) { setHeredada(null); setRige(null); return; }
+    pedir<{ acceso: string | null; de: string | null; fundamento: string | null; retencion: string | null; disposicion: string | null }>(
+      `/api/descripcion/acceso-que-rige?recurso_id=${incluidoEn}`)
+      .then((x) => { setHeredada(x.acceso ? { acceso: x.acceso, de: x.de, fundamento: x.fundamento } : null);
+                     setRige(x.retencion || x.disposicion ? { retencion: x.retencion, disposicion: x.disposicion } : null); })
+      .catch(() => { setHeredada(null); setRige(null); });
   }, [incluidoEn]);
 
   // El motor no respondió: se le pregunta de nuevo sin perder lo hecho. Lo que el motor
@@ -457,6 +462,7 @@ export function EspacioTrabajo() {
           condiciones_uso: campos.condicionesUso || null,
           historia_archivistica: campos.historiaArchivistica || null,
           isadg: campos.isadg, escrituras: campos.escrituras,
+          folios: folios ? Number(folios) : null,
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
@@ -624,6 +630,11 @@ export function EspacioTrabajo() {
               {propuesta?.alcance && <EvidenciaCampo campo="alcance" evidencia={propuesta.evidencia_alcance} activa={activa}
                                                      alElegir={(c) => elegir(c)} />}
             </div>
+            <div className="campo" hidden={!ver("caracteristicas")}>
+              <label htmlFor="folios">Extensión <span className="meta">(<code className="rico">RiC-A35</code> · número de folios · opcional)</span></label>
+              <input id="folios" className="entrada" style={{ width: 140 }} inputMode="numeric" value={folios}
+                     onChange={(e) => setFolios(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+            </div>
             <div className="campo" style={{ marginBottom: 0 }} hidden={!ver("identidad")}>
               <label htmlFor="incluido">Clasificación <span className="meta">(<code className="rico">RiC-A07</code> · dónde queda en el cuadro)</span></label>
               {(() => {
@@ -636,7 +647,10 @@ export function EspacioTrabajo() {
                       {elegida.dependencia && <div className="meta">{elegida.dependencia}</div>}
                       <div className="meta">{sugerida
                         ? <>Clasificado por RICORA: el documento menciona «{sugerida.palabras.slice(0, 4).join("», «")}». Revise que sea la serie correcta.</>
-                        : "Elegida por usted."}</div></div>
+                        : "Elegida por usted."}</div>
+                      {(heredada || rige) && <div className="meta">Hereda de la serie: {heredada
+                        ? `acceso ${ {publico: "público", clasificado: "clasificado", reservado: "reservado"}[heredada.acceso] || heredada.acceso} (TCA${heredada.fundamento ? ` · ${heredada.fundamento}` : ""})`
+                        : "sin acceso declarado en la TCA"}{rige?.retencion && ` · retención ${rige.retencion} (TRD)`}{rige?.disposicion && ` · disposición final: ${rige.disposicion}`}</div>}</div>
                     <button type="button" className="boton chico" onClick={() => setCambiandoUbicacion(true)}>Cambiar</button>
                   </div>
                 );

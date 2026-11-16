@@ -1,5 +1,6 @@
 """Tablas de Control de Acceso: la condición de cada serie se hereda a sus documentos."""
 
+import uuid
 from datetime import date, timedelta
 
 from tests.test_grafo_contexto import consulta  # noqa: F401
@@ -60,3 +61,19 @@ def test_importar_la_tca_existente(cliente, db, fondo_descrito, cabeceras_admin,
     assert r.status_code == 200 and r.json()["aplicadas"] == 1
     [fila] = [s for s in cliente.get(url, headers=archivista).json()["series"] if s["id"] == str(serie.id)]
     assert fila["propia"]["acceso"] == "reservado"
+
+
+def test_lo_que_hereda_quien_se_clasifica_en_la_serie(cliente, fondo_descrito, cabeceras_admin, archivista):  # noqa: F811
+    f = fondo_descrito
+    url = "/api/descripcion/acceso-que-rige"
+    antes = cliente.get(url, headers=archivista, params={"recurso_id": str(f["serie"].id)})
+    assert antes.status_code == 200, antes.text
+    assert antes.json()["acceso"] is None
+    r = cliente.put(f"/api/fondos/{f['fondo'].id}/tca/{f['serie'].id}", headers=cabeceras_admin, json={
+        "acceso": "clasificado", "fundamento": "Ley 1712 de 2014, art. 18", "reproduccion": "condicionada",
+        "vigente_hasta": (date.today() + timedelta(days=365)).isoformat()})
+    assert r.status_code == 200, r.text
+    rige = cliente.get(url, headers=archivista, params={"recurso_id": str(f["serie"].id)}).json()
+    assert rige["acceso"] == "clasificado" and rige["fundamento"] == "Ley 1712 de 2014, art. 18"
+    assert rige["de"] == f["serie"].titulo
+    assert cliente.get(url, headers=archivista, params={"recurso_id": str(uuid.uuid4())}).status_code == 404
