@@ -242,10 +242,14 @@ export function EspacioTrabajo() {
     const b = espacio.borrador;
     if (b) {
       // Continúa donde iba: lo revisado y escrito vuelve tal cual. Una verificación que quedó a medias se repite.
-      setTitulo(b.titulo ?? "");
-      setAlcance(b.alcance ?? "");
-      setItems((b.items || []).map((i) => ({ ...i, editando: false,
-        verif: i.verif?.estado === "verificando" ? { ...i.verif, estado: "sin_verificar" } : i.verif })));
+      // Lo que el avance tiene vacío (se guardó antes de que el motor respondiera) se llena con la propuesta:
+      // la archivista siempre llega a algo que validar, nunca a una descripción en blanco.
+      setTitulo((b.titulo || "").trim() ? b.titulo : p?.titulo || "");
+      setAlcance((b.alcance || "").trim() ? b.alcance : p?.alcance || "");
+      const guardadas: Item[] = (b.items || []).map((i) => ({ ...i, editando: false,
+        verif: i.verif?.estado === "verificando" ? { ...i.verif, estado: "sin_verificar" as const } : i.verif }));
+      setItems(guardadas.some((i) => !i.manual) || !p?.entidades?.length ? guardadas
+        : [...(p.entidades || []).map((e) => nuevoItem(e)), ...guardadas]);
       setCampos(b.campos || camposVacios(p?.idiomas || []));
       setPartes(b.partes || []);
     } else {
