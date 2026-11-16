@@ -130,7 +130,7 @@ def _alertar(db: Session, v: VersionTrd, informe: dict, archivo: str) -> None:
     alertas.crear(db, tipo="ccd_trd_no_coinciden", severidad="alta" if informe["sin_retencion"] else "media",
                   modulo="instrumentos", entidad_tipo="version_trd", entidad_id=v.id, fondo_id=v.fondo_id,
                   mensaje=f"El CCD «{archivo}» y la {v.nombre} no coinciden: " + "; ".join(p for p in partes if p)
-                          + ". Revíselo en TRD y CCD, paso 2.",
+                          + ". Revíselo en Instrumentos › Cargar TRD y CCD, paso 2.",
                   detalle={"diferencias": informe["diferencias"]})
 
 

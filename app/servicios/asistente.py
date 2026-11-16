@@ -37,9 +37,7 @@ AVISO = ("Lo que escriba se envía a Gemini, que busca en Google para responder 
 # Pantallas de RICORA, para que el asistente indique dónde se hace cada cosa.
 MAPA = """PANTALLAS DE RICORA (menú lateral):
 - Inicio: tablero del fondo, recorrido y siguiente paso.
-- Instrumentos > TRD y CCD: cargar el cuadro de clasificación y la tabla de retención (paso a paso), cuadro y versiones.
-- Instrumentos > TVD: tabla de valoración documental para fondos acumulados.
-- Instrumentos > Disposición final: calendario de retención y registro de disposiciones (conservar, eliminar, transferir).
+- Instrumentos (una pantalla con pestañas): Instrumentos de la entidad (resumen y versiones vigentes); Cargar TRD y CCD (paso a paso); Cuadro y versiones; TVD (fondos acumulados); Disposición final (calendario de retención y registro de disposiciones: conservar, eliminar, transferir); Estructura orgánica; Control de acceso (TCA); Importar FUID.
 - Carga de documentos: subir archivos (huella SHA-256, OCR), revisar lo cargado.
 - Descripción: documentos por describir; el motor propone, la archivista valida, corrige o descarta; descritas.
 - Agentes y autoridades: agentes, lugares, formas documentales, actividades, mandatos; posibles duplicados; tesauros.
