@@ -597,7 +597,7 @@ function Expertas({ ev }: { ev: EvaluacionBreve }) {
                 <option value="">Elija…</option>
                 {cuentas.filter((c) => !usadas.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.nombre} · {c.correo}</option>)}
               </select>
-              <div className="meta">¿No tiene cuenta? Créela primero en Usuarios y permisos.</div>
+              <div className="meta">¿No tiene cuenta? Créela primero en Administración.</div>
             </div>
             <div className="campo"><label htmlFor="exp-nombre">Nombre completo</label>
               <input id="exp-nombre" className="entrada" required minLength={3} value={f.nombre}

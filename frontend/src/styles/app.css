@@ -15,13 +15,13 @@
   --muted: #5a6478;
   --line: #dbe1ea;
   --sombra: 0 1px 2px rgb(16 24 40 / .05), 0 2px 8px rgb(16 24 40 / .05);
-  --accent: #2f5fd0;
+  --accent: #13756f;  /* verde azulado: acciones sobre el conocimiento */
   --accent-ink: #ffffff;
-  --accent-bg: #dde6fa;
+  --accent-bg: #d6eeeb;
   --ok: #2e7d4f;
   --ok-bg: #d9efe1;
-  --warn: #b0561a;
-  --warn-bg: #fbe4d2;
+  --warn: #8a5d06;  /* dorado: alertas y elementos destacados */
+  --warn-bg: #f6ebcf;
   --danger: #b3363b;
   --danger-bg: #f7dcdc;
   --proc: #4d6480;
@@ -31,19 +31,19 @@
   /* Contexto institucional: actividad, tipo de actividad y mandato (una sola familia). */
   --ctx: #93437f;
   --ctx-bg: #f6e1ef;
-  --side-bg: #1f2b47;
+  --side-bg: #1b3355;  /* azul profundo: navegación y encabezados */
   --side-fg: #e8edf6;
   --side-muted: #9aa8c4;
-  --side-active: #2d3c61;
-  --side-line: #33426a;
+  --side-active: #284873;
+  --side-line: #2f4c76;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #141a26; --surface: #1b2232; --ink: #e6ebf4; --muted: #9aa6bd; --line: #2c3548;
-    --accent: #7ea2f0; --accent-ink: #0f1626; --accent-bg: #22304f;
-    --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #f0a066; --warn-bg: #3a2717;
+    --accent: #5cc6bc; --accent-ink: #0b1f1d; --accent-bg: #163a37;
+    --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #e3b955; --warn-bg: #3a2f14;
     --danger: #ec8a84; --danger-bg: #3a2222; --proc: #9fb6d2; --proc-bg: #233044;
     --agent: #b3a0f0; --agent-bg: #2c2447; --ctx: #e8a2d3; --ctx-bg: #3b2236;
     color-scheme: dark;
@@ -51,8 +51,8 @@
 }
 :root[data-theme="dark"] {
   --bg: #141a26; --surface: #1b2232; --ink: #e6ebf4; --muted: #9aa6bd; --line: #2c3548;
-  --accent: #7ea2f0; --accent-ink: #0f1626; --accent-bg: #22304f;
-  --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #f0a066; --warn-bg: #3a2717;
+  --accent: #5cc6bc; --accent-ink: #0b1f1d; --accent-bg: #163a37;
+  --ok: #7fcf9d; --ok-bg: #1c3326; --warn: #e3b955; --warn-bg: #3a2f14;
   --danger: #ec8a84; --danger-bg: #3a2222; --proc: #9fb6d2; --proc-bg: #233044;
   --agent: #b3a0f0; --agent-bg: #2c2447; --ctx: #e8a2d3; --ctx-bg: #3b2236;
   color-scheme: dark;
@@ -1898,3 +1898,45 @@ body {
 :root[data-theme="dark"] .cadena-funcional .funcion { background: rgba(80, 160, 100, .18); }
 :root[data-theme="dark"] .cadena-funcional .actividad { background: rgba(220, 150, 60, .18); }
 :root[data-theme="dark"] .cadena-funcional .recurso { background: rgba(80, 130, 210, .18); }
+
+/* Panel institucional: el conocimiento RiC del fondo */
+.panel-conocimiento { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.cifra-ric { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 10px; text-decoration: none;
+  color: var(--ink); border: 1px solid var(--line); background: var(--surface); }
+.cifra-ric strong { font-size: 1.6rem; line-height: 1.1; }
+.cifra-ric span { font-size: .85rem; color: var(--muted); }
+.cifra-ric:hover { border-color: var(--accent); }
+.cifra-ric.recursos { background: #e8f0fb; } .cifra-ric.recursos strong { color: #1b3355; }
+.cifra-ric.agentes { background: #e3f1ee; } .cifra-ric.agentes strong { color: #13756f; }
+.cifra-ric.funciones, .cifra-ric.actividades { background: #f6efdf; } .cifra-ric.funciones strong, .cifra-ric.actividades strong { color: #7a5a12; }
+.cifra-ric.relaciones { background: #eee9f6; } .cifra-ric.relaciones strong { color: #5b4790; }
+.cifra-ric.instrumentos { background: #eef1f6; } .cifra-ric.instrumentos strong { color: #3d4b63; }
+.acciones-rapidas { display: flex; flex-wrap: wrap; gap: 8px; }
+.lista-pendientes { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cifra-ric { background: var(--surface); }
+  :root:not([data-theme="light"]) .cifra-ric strong { color: var(--ink); }
+}
+:root[data-theme="dark"] .cifra-ric { background: var(--surface); }
+:root[data-theme="dark"] .cifra-ric strong { color: var(--ink); }
+
+/* Contexto funcional */
+.cf-funcion { margin-bottom: 10px; }
+.cf-etiqueta { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
+.cf-etiqueta.funcion { background: #eaf4ec; color: #2c6b3d; }
+.cf-etiqueta.actividad { background: #fdf1e1; color: #7a5a12; }
+.cf-actividad { border-left: 3px solid var(--line); padding: 6px 0 6px 12px; margin: 10px 0; }
+.cf-cab { margin-bottom: 2px; }
+.cf-conector { margin: 4px 0; }
+.cf-docs { margin: 4px 0 0; padding-left: 18px; font-size: .9rem; }
+
+/* Calidad */
+.calidad-resumen { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.calidad-chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer; }
+.calidad-chip b { margin-left: 4px; }
+.calidad-chip.error b { color: var(--danger); }
+.calidad-chip.aviso b { color: var(--warn); }
+.calidad-chip.cero { color: var(--muted); }
+.calidad-chip.activo { border-color: var(--accent); background: var(--accent-bg); }
+.tabla-calidad td { vertical-align: top; }

@@ -44,7 +44,7 @@ const GUIAS: Record<string, Guia> = {
       { titulo: "Valide y aplique.",
         texto: "«Validar en RiC-O» arma el cuadro y lo prueba contra la ontología sin crear nada. «Aplicar la versión» lo crea y la deja vigente; la anterior pasa a histórica con su fecha de fin." },
       { titulo: "Es el único camino para el cuadro.",
-        texto: "Secciones, series y subseries solo nacen de aplicar una versión. Descripción no las crea, ni las renombra o mueve, y las reglas de retención no se editan sueltas en Autoridades y términos." },
+        texto: "Secciones, series y subseries solo nacen de aplicar una versión. Descripción no las crea, ni las renombra o mueve, y las reglas de retención no se editan sueltas en Agentes y autoridades." },
       { titulo: "La retención anterior no se pierde.",
         texto: "Si una serie cambia de retención, la regla anterior se conserva con su vigencia y cada expediente se rige por la de la fecha en que se cerró." },
     ],
@@ -156,7 +156,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "vocabularios:vocabulario": {
-    titulo: "Autoridades y términos",
+    titulo: "Agentes y autoridades",
     pasos: [
       { titulo: "El control de autoridad del fondo.",
         texto: "Cada agente, lugar, actividad, función, mandato y forma documental existe una sola vez, y todas las descripciones lo reutilizan." },
@@ -189,7 +189,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:catalogo": {
-    titulo: "Consulta y difusión · Catálogo",
+    titulo: "Conocimiento RiC · Catálogo",
     pasos: [
       { titulo: "El fondo como un árbol para consultar.",
         texto: "Baje por niveles: fondo, sección, serie, expediente y documento. Solo aparece lo publicado." },
@@ -200,7 +200,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:grafo": {
-    titulo: "Consulta y difusión · Grafo",
+    titulo: "Conocimiento RiC · Grafo",
     pasos: [
       { titulo: "El fondo como la red que realmente es.",
         texto: "Documentos, agentes, lugares, fechas y actividades unidos por sus relaciones RiC." },
@@ -209,7 +209,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:inventario": {
-    titulo: "Consulta y difusión · Inventario",
+    titulo: "Conocimiento RiC · Inventario",
     pasos: [
       { titulo: "El Formato Único de Inventario Documental, armado solo.",
         texto: "Elija el nivel desde el cual generarlo y revise la vista previa. Un renglón por unidad documental o expediente." },
@@ -220,7 +220,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:guia": {
-    titulo: "Consulta y difusión · Guía",
+    titulo: "Conocimiento RiC · Guía",
     pasos: [
       { titulo: "La guía del fondo, con un borrador del motor.",
         texto: "El motor redacta el texto a partir de lo publicado en los niveles superiores." },
@@ -229,7 +229,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:indice": {
-    titulo: "Consulta y difusión · Índice",
+    titulo: "Conocimiento RiC · Índice",
     pasos: [
       { titulo: "Busque por nombre.",
         texto: "Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Escriba en el buscador para filtrar." },
@@ -240,7 +240,7 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   "instrumentos:rico": {
-    titulo: "Consulta y difusión · RiC-O",
+    titulo: "Conocimiento RiC · RiC-O",
     pasos: [
       { titulo: "El fondo como datos enlazados en RiC-O 1.1.",
         texto: "La ontología oficial del Consejo Internacional de Archivos, con una dirección (URI) propia para cada descripción, agente o lugar." },

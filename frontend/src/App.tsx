@@ -7,6 +7,8 @@ import { puede, type Modulo, type UsuarioBreve } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Alertas } from "@/pages/Alertas";
 import { Buscar } from "@/pages/Buscar";
+import { ContextoFuncional } from "@/pages/ContextoFuncional";
+import { Calidad } from "@/pages/Calidad";
 import { Auditoria, TrazabilidadEntidad } from "@/pages/Auditoria";
 import { EvaluacionCiega } from "@/pages/Evaluacion";
 import { DefinirContrasena } from "@/pages/DefinirContrasena";
@@ -76,6 +78,8 @@ export default function App() {
       <Route path="/evaluacion" element={<Protegida modulo="descripcion" tipo="escribir"><EvaluacionCiega /></Protegida>} />
       <Route path="/auditoria/entidad/:tipo/:id" element={<Protegida modulo="auditoria"><TrazabilidadEntidad /></Protegida>} />
       <Route path="/buscar" element={<Protegida modulo="catalogo"><Buscar /></Protegida>} />
+      <Route path="/funciones" element={<Protegida modulo="catalogo"><ContextoFuncional /></Protegida>} />
+      <Route path="/calidad" element={<Protegida modulo="descripcion"><Calidad /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />

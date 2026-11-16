@@ -22,7 +22,69 @@ interface Paso {
   clave: string; titulo: string; estado: "hecho" | "en_curso" | "pendiente"; resumen: string;
   accion: string | null; ruta: string | null; modulo: string;
 }
-interface Avance { fondo: { id: string; titulo: string }; pasos: Paso[]; siguiente: string | null; hechos: number; total: number }
+interface Conocimiento {
+  recursos: number; relaciones: number; agentes: number; funciones: number; actividades: number; lugares: number;
+  mandatos: number; materias: number; instrumentos_vigentes: number; en_curso: number; posibles_duplicados: number;
+  sin_evidencia: number; alertas: number;
+}
+interface Avance {
+  fondo: { id: string; titulo: string }; pasos: Paso[]; siguiente: string | null; hechos: number; total: number;
+  conocimiento?: Conocimiento | null;
+}
+const n = (x: number) => x.toLocaleString("es-CO");
+
+/** Panel institucional: el conocimiento RiC del fondo, lo que espera a una persona y las acciones de trabajo. */
+function PanelConocimiento({ c }: { c: Conocimiento }) {
+  const { usuario } = useSesion();
+  const tarjetas: [string, number, string, string][] = [
+    ["Recursos documentales descritos", c.recursos, "recursos", "/instrumentos?vista=catalogo"],
+    ["Agentes", c.agentes, "agentes", "/vocabularios"],
+    ["Funciones", c.funciones, "funciones", "/funciones"],
+    ["Actividades", c.actividades, "actividades", "/funciones"],
+    ["Relaciones en el grafo", c.relaciones, "relaciones", "/instrumentos?vista=grafo"],
+    ["Instrumentos vigentes", c.instrumentos_vigentes, "instrumentos", "/fondos?vista=versiones"],
+  ];
+  const pendientes: [string, number, string][] = [
+    ["descripciones en curso", c.en_curso, "/descripcion"],
+    ["posibles duplicados de entidades", c.posibles_duplicados, "/vocabularios?vista=sugerencias"],
+    ["relaciones del motor sin evidencia", c.sin_evidencia, "/calidad"],
+    ["alertas sin atender", c.alertas, "/alertas"],
+  ];
+  const acciones: [string, string, Modulo, "leer" | "escribir"][] = [
+    ["Crear recurso documental", "/descripcion", "descripcion", "escribir"],
+    ["Registrar agente", "/vocabularios", "vocabularios", "escribir"],
+    ["Cargar instrumento", "/fondos?vista=cargar", "catalogo", "leer"],
+    ["Explorar el grafo", "/instrumentos?vista=grafo", "catalogo", "leer"],
+    ["Buscar por contexto", "/buscar", "catalogo", "leer"],
+  ];
+  return (
+    <>
+      <section className="panel-conocimiento" aria-label="Conocimiento RiC del fondo">
+        {tarjetas.map(([etiqueta, valor, clase, ruta]) => (
+          <Link key={etiqueta} to={ruta} className={`cifra-ric ${clase}`}><strong>{n(valor)}</strong><span>{etiqueta}</span></Link>
+        ))}
+      </section>
+      <div className="tarjeta">
+        <div className="tarjeta-cab"><span>Acciones principales</span></div>
+        <div className="tarjeta-cuerpo acciones-rapidas">
+          {acciones.filter(([, , m, t]) => puede(usuario, m, t)).map(([texto, ruta], i) => (
+            <Link key={texto} className={`boton${i === 0 ? " primario" : ""}`} to={ruta}>{texto}</Link>
+          ))}
+        </div>
+      </div>
+      {pendientes.some(([, v]) => v > 0) && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab"><span>Espera revisión</span></div>
+          <ul className="tarjeta-cuerpo lista-pendientes">
+            {pendientes.filter(([, v]) => v > 0).map(([texto, valor, ruta]) => (
+              <li key={texto}><span className="insignia alerta">{n(valor)}</span> <Link to={ruta}>{texto}</Link></li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
 
 const ESTADO: Record<Paso["estado"], { texto: string; clase: string }> = {
   hecho: { texto: "Hecho", clase: "hecho" },
@@ -120,6 +182,7 @@ export function Inicio() {
               { etiqueta: "Documentos cargados", valor: cifras.archivos_listos.toLocaleString("es-CO"), icono: I_CAPAS },
             ]} />
           )}
+          {avance?.conocimiento && <PanelConocimiento c={avance.conocimiento} />}
           {error && <div className="aviso error" role="alert">{error}</div>}
           {!avance && !error && <div className="cargando">Cargando…</div>}
           {avance && siguiente && puedeIr(siguiente) && (

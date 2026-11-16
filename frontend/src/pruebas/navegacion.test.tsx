@@ -44,12 +44,12 @@ const pestanaActual = () => (document.querySelector(".pestanas-modulo [aria-curr
 afterEach(cleanup);
 
 describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro de la pantalla", () => {
-  it("solo Instrumentos y Consulta y difusión se despliegan; lo demás es un enlace", () => {
+  it("solo Instrumentos y Conocimiento RiC se despliegan; lo demás es un enlace", () => {
     montar("/ingesta");
     expect(screen.getAllByRole("button", { expanded: false }).concat(screen.queryAllByRole("button", { expanded: true }))
-      .map((b) => nombre(b.querySelector(".rama-nombre") ?? b))).toEqual(["Instrumentos", "Consulta y difusión"]);
-    for (const m of ["Carga de documentos", "Descripción", "Autoridades y términos", "Preservación", "Auditoría",
-      "Evaluación", "Usuarios y permisos"]) {
+      .map((b) => nombre(b.querySelector(".rama-nombre") ?? b)).sort()).toEqual(["Conocimiento RiC", "Instrumentos"]);
+    for (const m of ["Carga de documentos", "Descripción", "Agentes y autoridades", "Preservación", "Auditoría",
+      "Evaluación", "Administración", "Búsqueda"]) {
       expect(screen.getByRole("link", { name: m })).toBeTruthy();
     }
   });
@@ -80,7 +80,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("elegir un submódulo lleva a su primera vista; la pestaña cambia de vista dentro de él", () => {
     montar("/instrumentos");
-    expect(submodulosVisibles("Consulta y difusión")).toEqual(["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
+    expect(submodulosVisibles("Conocimiento RiC")).toEqual(["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
     expect(pestanas()).toEqual(["Catálogo", "Grafo de contexto"]);
     fireEvent.click(screen.getByRole("link", { name: "Instrumentos de descripción" }));
     expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=inventario");
@@ -92,9 +92,9 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
 
   it("acordeón: abrir un módulo cierra el otro; tocar el abierto lo cierra", () => {
     montar("/fondos");
-    fireEvent.click(rama("Consulta y difusión"));
+    fireEvent.click(rama("Conocimiento RiC"));
     expect(rama("Instrumentos").getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(rama("Consulta y difusión"));
+    fireEvent.click(rama("Conocimiento RiC"));
     expect(screen.queryAllByRole("button", { expanded: true })).toEqual([]);
   });
 
@@ -111,7 +111,7 @@ describe("menú por procesos: módulos, dos con submódulos, y pestañas dentro 
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
     montar("/instrumentos?vista=indice", CONSULTA);
     expect(pestanas()).toEqual([]);
-    expect(screen.queryByRole("link", { name: "Autoridades y términos" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Usuarios y permisos" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Agentes y autoridades" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Administración" })).toBeNull();
   });
 });

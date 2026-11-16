@@ -65,7 +65,7 @@ PARAMETROS_DE_CONTENIDO = ("mecanismos_motor", "fusion_ultima_deteccion", "prese
 RESUMEN = (
     ("Fondos y unidades de descripción", "SELECT count(*) FROM recursos_documentales"),
     ("Archivos cargados", "SELECT count(*) FROM instanciaciones"),
-    ("Autoridades y términos", "SELECT count(*) FROM entidades_vocabulario"),
+    ("Agentes y autoridades", "SELECT count(*) FROM entidades_vocabulario"),
     ("Relaciones", "SELECT count(*) FROM relaciones"),
     ("Versiones de la TRD", "SELECT count(*) FROM trd_versiones"),
     ("Evaluaciones", "SELECT count(*) FROM evaluaciones"),

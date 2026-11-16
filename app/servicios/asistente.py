@@ -42,13 +42,13 @@ MAPA = """PANTALLAS DE RICORA (menú lateral):
 - Instrumentos > Disposición final: calendario de retención y registro de disposiciones (conservar, eliminar, transferir).
 - Carga de documentos: subir archivos (huella SHA-256, OCR), revisar lo cargado.
 - Descripción: documentos por describir; el motor propone, la archivista valida, corrige o descarta; descritas.
-- Autoridades y términos: agentes, lugares, formas documentales, actividades, mandatos; posibles duplicados; tesauros.
-- Consulta y difusión > Catálogo y grafo: buscar y explorar el contexto.
-- Consulta y difusión > Instrumentos de descripción: inventario (FUID), guía del fondo, índice.
-- Consulta y difusión > Datos enlazados (RiC-O): grafo RiC-O, descargas, consulta SPARQL, adopción de RiC.
+- Agentes y autoridades: agentes, lugares, formas documentales, actividades, mandatos; posibles duplicados; tesauros.
+- Conocimiento RiC > Catálogo y grafo: buscar y explorar el contexto.
+- Conocimiento RiC > Instrumentos de descripción: inventario (FUID), guía del fondo, índice.
+- Conocimiento RiC > Datos enlazados (RiC-O): grafo RiC-O, descargas, consulta SPARQL, adopción de RiC.
 - Auditoría: registro de actividad y trazabilidad.
 - Evaluación: comparación humano frente a máquina (a ciegas, asistida, calificación).
-- Usuarios y permisos: usuarios, roles, biblioteca del asistente (leyes y manuales con los que responde), puesta en marcha (solo administración)."""
+- Administración: usuarios, roles, biblioteca del asistente (leyes y manuales con los que responde), puesta en marcha (solo administración)."""
 
 INSTRUCCION = f"""Eres el Asistente RICORA, apoyo para archivistas en un sistema de gestión de archivo histórico de Colombia
 que describe en Records in Contexts (RiC-CM 1.0 y RiC-O 1.1).
@@ -109,7 +109,7 @@ INSTRUCCION_MIXTA = INSTRUCCION_RAG.replace(
 assert INSTRUCCION_MIXTA != INSTRUCCION_RAG
 
 SIN_PASAJES = ("No encontré nada sobre eso en la biblioteca del asistente ni en los documentos y descripciones "
-               "publicadas del fondo. La norma o el manual se cargan en Usuarios y permisos › Biblioteca del "
+               "publicadas del fondo. La norma o el manual se cargan en Administración › Biblioteca del "
                "asistente.")
 
 

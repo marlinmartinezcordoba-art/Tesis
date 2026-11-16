@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.permisos import Actor, lectura_catalogo, solo_administrador
+from app.core.permisos import Actor, acceso_modulo, lectura_catalogo, solo_administrador
 from app.db.session import get_db
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
@@ -121,6 +121,24 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
                        .order_by(RecursoDocumental.titulo)).all()
     return [ExpedienteOut(id=e.id, titulo=e.titulo, fechas_extremas=e.fechas_extremas, incluido_en_id=e.incluido_en_id)
             for e in filas]
+
+
+@router.get("/{fondo_id}/calidad", response_model=rc.CalidadFondo,
+            summary="Validación semántica y calidad: duplicados, identificadores, fechas, incompletas, evidencia, OWL, "
+                    "SHACL e instrumentos")
+def calidad(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.servicios import calidad as servicio
+
+    return servicio.revisar(db, fondo_o_404(db, fondo_id))
+
+
+@router.get("/{fondo_id}/contexto-funcional", response_model=rc.ContextoFuncional,
+            summary="Contexto funcional del fondo: funciones, actividades, quién las ejerce, mandatos y documentos")
+def contexto_funcional(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.routers.instrumentos import ve_restringidos
+    from app.servicios import contexto_funcional as cf
+
+    return cf.de_fondo(db, fondo_o_404(db, fondo_id), ve_restringidos(actor))
 
 
 @router.get("/{fondo_id}/avance", response_model=rc.AvanceFondo,

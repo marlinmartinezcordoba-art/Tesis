@@ -139,6 +139,7 @@ class AvanceFondo(BaseModel):
     siguiente: str | None
     hechos: int
     total: int
+    conocimiento: dict | None = None  # cifras RiC del fondo para el panel institucional
 
 
 class AgrupacionRenombrada(BaseModel):
@@ -146,3 +147,26 @@ class AgrupacionRenombrada(BaseModel):
     id: str
     titulo: str
     dependencias_trd_corregidas: int
+
+
+class ContextoFuncional(BaseModel):
+    """Funciones del fondo (rico:ActivityType) con sus actividades, agentes, mandatos, series y documentos."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    funciones: list[dict]
+    actividades_sin_funcion: list[dict]
+    totales: dict
+
+
+class CalidadFondo(BaseModel):
+    """Validación semántica y calidad del fondo: hallazgos con su descripción afectada, problema, regla y acción."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    resumen: list[dict]
+    errores: int
+    avisos: int
+    hallazgos: list[dict]
+    descripciones_revisadas: int
+    relaciones_revisadas: int

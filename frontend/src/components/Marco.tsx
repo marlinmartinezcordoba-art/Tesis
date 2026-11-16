@@ -14,6 +14,10 @@ import { Ventana } from "@/components/Ventana";
 const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 export const ICONOS: Record<string, ReactNode> = {
+  grafo: <svg viewBox="0 0 24 24" {...trazo}><circle cx="12" cy="5" r="2.2" /><circle cx="5" cy="18" r="2.2" /><circle cx="19" cy="18" r="2.2" /><path d="M11 7l-5 9M13 7l5 9M7.2 18h9.6" /></svg>,
+  calidad: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 3l7 3v6c0 4.5-3 7-7 9-4-2-7-4.5-7-9V6z" /><path d="M9 12l2 2 4-4" /></svg>,
+  buscar: <svg viewBox="0 0 24 24" {...trazo}><circle cx="11" cy="11" r="6" /><path d="M20 20l-4.5-4.5" /></svg>,
+  funciones: <svg viewBox="0 0 24 24" {...trazo}><rect x="3" y="4" width="7" height="5" rx="1" /><rect x="14" y="15" width="7" height="5" rx="1" /><path d="M6.5 9v4.5h11V15" /></svg>,
   inicio: <svg viewBox="0 0 24 24" {...trazo}><path d="M4 11l8-7 8 7" /><path d="M6 10v10h12V10" /><path d="M10 20v-5h4v5" /></svg>,
   fondos: <svg viewBox="0 0 24 24" {...trazo}><path d="M3 7h18v12H3z" /><path d="M3 7l2-3h14l2 3" /><path d="M10 11h4" /></svg>,
   ingesta: <svg viewBox="0 0 24 24" {...trazo}><path d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5M5 16v2a2 2 0 002 2h10a2 2 0 002-2v-2" /></svg>,
@@ -62,6 +66,24 @@ interface Entrada {
 const ENTRADAS: Entrada[] = [
   // Inicio guiado: dónde va el fondo y cuál es el siguiente paso.
   { ruta: "/inicio", nombre: "Inicio", icono: "inicio", grupo: "trabajo", modulo: "catalogo" },
+  // El grafo, el catálogo y los datos enlazados: el conocimiento RiC del archivo, primero después de Inicio.
+  { ruta: "/instrumentos", nombre: "Conocimiento RiC", pista: "Grafo, catálogo y datos enlazados", icono: "grafo", grupo: "trabajo", modulo: "catalogo",
+    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"],
+    pistas: { "Catálogo y grafo": "Buscar y explorar el contexto", "Instrumentos de descripción": "Inventario, guía e índice",
+      "Datos enlazados (RiC-O)": "Descargas y consulta SPARQL" }, vistas: [
+      { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo y grafo" },
+      { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo y grafo" },
+      // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
+      { vista: "inventario", nombre: "Inventario (FUID)", submodulo: "Instrumentos de descripción",
+        permitir: (u) => puede(u, "instrumentos", "escribir") },
+      { vista: "guia", nombre: "Guía del fondo", submodulo: "Instrumentos de descripción",
+        permitir: (u) => puede(u, "instrumentos", "escribir") },
+      // El índice es la puerta de consulta por nombres; el equipo interno trabaja
+      // los mismos términos en Autoridades, salvo quien genera instrumentos: lo aprueba.
+      { vista: "indice", nombre: "Índice", submodulo: "Instrumentos de descripción",
+        permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
+      { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" },
+      { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
   // «Instrumentos archivísticos» no cabía en una línea del menú: nombre corto y la pista dice el proceso.
   { ruta: "/fondos", nombre: "Instrumentos", pista: "Clasificación y valoración", icono: "fondos", grupo: "trabajo",
     modulo: "catalogo", submodulos: ["TRD y CCD", "TVD", "Disposición final"],
@@ -81,29 +103,20 @@ const ENTRADAS: Entrada[] = [
     { vista: "cola", nombre: "Revisar lo cargado" }] },
   { ruta: "/descripcion", nombre: "Descripción", icono: "descripcion", grupo: "trabajo", modulo: "descripcion", vistas: [
     { vista: "cola", nombre: "Por describir" }, { vista: "publicadas", nombre: "Descritas" }] },
-  { ruta: "/vocabularios", nombre: "Autoridades y términos", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
+  { ruta: "/vocabularios", nombre: "Agentes y autoridades", icono: "vocabularios", grupo: "trabajo", modulo: "vocabularios", vistas: [
     { vista: "vocabulario", nombre: "Autoridades" }, { vista: "sugerencias", nombre: "Posibles duplicados" },
     { vista: "tesauros", nombre: "Tesauros" }] },
-  { ruta: "/instrumentos", nombre: "Consulta y difusión", icono: "instrumentos", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"],
-    pistas: { "Catálogo y grafo": "Buscar y explorar el contexto", "Instrumentos de descripción": "Inventario, guía e índice",
-      "Datos enlazados (RiC-O)": "Descargas y consulta SPARQL" }, vistas: [
-      { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo y grafo" },
-      { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo y grafo" },
-      // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
-      { vista: "inventario", nombre: "Inventario (FUID)", submodulo: "Instrumentos de descripción",
-        permitir: (u) => puede(u, "instrumentos", "escribir") },
-      { vista: "guia", nombre: "Guía del fondo", submodulo: "Instrumentos de descripción",
-        permitir: (u) => puede(u, "instrumentos", "escribir") },
-      // El índice es la puerta de consulta por nombres; el equipo interno trabaja
-      // los mismos términos en Autoridades, salvo quien genera instrumentos: lo aprueba.
-      { vista: "indice", nombre: "Índice", submodulo: "Instrumentos de descripción",
-        permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
-      { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" },
-      { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
+  // Por qué existen los documentos: funciones (tipos de actividad), actividades y mandatos.
+  { ruta: "/funciones", nombre: "Contexto funcional", pista: "Funciones, actividades y mandatos", icono: "funciones",
+    grupo: "trabajo", modulo: "catalogo" },
+  // Búsqueda por texto y por contexto RiC (función, actividad, lugar, mandato, materia).
+  { ruta: "/buscar", nombre: "Búsqueda", pista: "Por texto y por contexto", icono: "buscar", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [
     { vista: "panel", nombre: "Panel" },
     { vista: "configuracion", nombre: "Configuración", ruta: "/preservacion/configuracion", permitir: (u) => u.es_administrador }] },
+  // Validación semántica: duplicados, identificadores, fechas, evidencia, OWL, SHACL e instrumentos.
+  { ruta: "/calidad", nombre: "Calidad", pista: "Validación e inconsistencias", icono: "calidad", grupo: "sistema",
+    modulo: "descripcion" },
   { ruta: "/auditoria", nombre: "Auditoría", icono: "auditoria", grupo: "sistema", modulo: "auditoria", vistas: [
     // Registro de actividad: el de todas las personas (administración), «Mis acciones» y «Equipo por semana».
     { vista: "propia", nombre: "Registro de actividad" },
@@ -111,7 +124,7 @@ const ENTRADAS: Entrada[] = [
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
   // Evaluación ciega: quien describe y la administración. Sin vistas internas.
   { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
-  { ruta: "/usuarios", nombre: "Usuarios y permisos", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
+  { ruta: "/usuarios", nombre: "Administración", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
     { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" },
     { vista: "biblioteca", nombre: "Biblioteca del asistente", permitir: (u) => u.es_administrador },
     { vista: "puesta", nombre: "Puesta en marcha", permitir: (u) => u.es_administrador }] },

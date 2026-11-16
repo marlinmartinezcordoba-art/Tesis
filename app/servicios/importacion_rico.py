@@ -96,7 +96,7 @@ def leer(contenido: bytes, archivo: str) -> Graph:
 
         raiz = importacion_ead.raiz_xml(contenido)
         if importacion_ead.es_eac(raiz):
-            raise ErrorImportacion("Es un EAC-CPF (una autoridad, no un fondo): impórtelo en Autoridades y términos.")
+            raise ErrorImportacion("Es un EAC-CPF (una autoridad, no un fondo): impórtelo en Agentes y autoridades.")
         if importacion_ead.es_ead(raiz):
             try:
                 g, omitidas = importacion_ead.a_rico(raiz)

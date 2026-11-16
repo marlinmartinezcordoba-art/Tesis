@@ -299,7 +299,7 @@ export function Vocabularios() {
 
       {pestana === "tesauros" ? <Tesauros /> : pestana === "vocabulario" ? (
         <>
-          <Encabezado titulo="Autoridades y términos"
+          <Encabezado titulo="Agentes y autoridades"
                       descripcion="El vocabulario del fondo: agentes, lugares, formas documentales, actividades y demás términos normalizados. Cada entidad se crea una sola vez al describir y se reutiliza en todos los documentos."
                       acciones={usuario?.es_administrador ? (
                         <button type="button" className="boton" onClick={() => setImportando(!importando)}>

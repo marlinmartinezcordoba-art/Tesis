@@ -22,7 +22,7 @@ const ESTADO: Record<Estado, { texto: string; clase: string }> = {
   cerrado: { texto: "Cerrado", clase: "bien" },
 };
 const COMPONENTES: [string, string][] = [["autenticacion", "Autenticación"], ["ingesta", "Carga de documentos"],
-  ["descripcion", "Descripción"], ["vocabularios", "Autoridades y términos"], ["instrumentos", "Consulta y difusión"],
+  ["descripcion", "Descripción"], ["vocabularios", "Agentes y autoridades"], ["instrumentos", "Conocimiento RiC"],
   ["preservacion", "Preservación"], ["auditoria", "Auditoría"]];
 const NOMBRE_COMPONENTE = Object.fromEntries(COMPONENTES);
 // Con la preservación apagada (fuera del alcance del prototipo), no se ofrece como componente.

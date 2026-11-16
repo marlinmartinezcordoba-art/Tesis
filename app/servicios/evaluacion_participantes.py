@@ -106,7 +106,7 @@ def registrar_participante(db: Session, ev: Evaluacion, datos: dict, usuario_id:
     _validar(datos)
     cuenta = db.get(Usuario, uuid.UUID(str(datos.get("usuario_id"))))
     if cuenta is None or not cuenta.activo:
-        raise ErrorParticipante("La cuenta elegida no existe o está inactiva. Créela en Usuarios y permisos.")
+        raise ErrorParticipante("La cuenta elegida no existe o está inactiva. Créela en Administración.")
     if db.scalar(select(Participante.id).where(Participante.evaluacion_id == ev.id,
                                                Participante.usuario_id == cuenta.id)):
         raise ErrorParticipante("Esa persona ya está registrada en esta evaluación.", 409)
