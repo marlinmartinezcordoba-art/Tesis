@@ -123,6 +123,58 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
             for e in filas]
 
 
+async def _archivo_fuid(request: Request) -> tuple[bytes, str]:
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    formulario = await request.form(max_files=1)
+    try:
+        archivo = formulario.get("archivo")
+        if not isinstance(archivo, StarletteUploadFile):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
+        contenido = await archivo.read(20 * 1024 * 1024 + 1)
+        if len(contenido) > 20 * 1024 * 1024:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="El FUID supera 20 MB.")
+        return contenido, archivo.filename or ""
+    finally:
+        await formulario.close()
+
+
+@router.post("/{fondo_id}/fuid/vista-previa", response_model=rc.ImportacionFuid,
+             summary="Leer un FUID existente (Excel, CSV, PDF o Word) sin crear nada: fila por fila, serie y problemas")
+async def fuid_vista_previa(fondo_id: uuid.UUID, request: Request, _: Actor = Depends(solo_administrador),
+                            db: Session = Depends(get_db)):
+    from starlette.concurrency import run_in_threadpool
+
+    from app.servicios import importacion_fuid as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    contenido, nombre = await _archivo_fuid(request)
+    try:
+        return await run_in_threadpool(servicio.vista_previa, db, fondo, contenido, nombre)
+    except servicio.ErrorFuid as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/{fondo_id}/fuid/aplicar", response_model=rc.ImportacionFuid,
+             summary="Crear los expedientes del FUID en sus series (todo o nada; las filas con problemas quedan fuera)")
+async def fuid_aplicar(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                       db: Session = Depends(get_db)):
+    from starlette.concurrency import run_in_threadpool
+
+    from app.servicios import descripcion
+    from app.servicios import importacion_fuid as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    contenido, nombre = await _archivo_fuid(request)
+    try:
+        resultado = await run_in_threadpool(servicio.aplicar, db, fondo, contenido, nombre, actor.id)
+    except (servicio.ErrorFuid, descripcion.ErrorDescripcion) as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return resultado
+
+
 @router.get("/{fondo_id}/estructura-organica", response_model=rc.EstructuraOrganica,
             summary="Estructura orgánica: cada dependencia como agente, con su superior y su vigencia")
 def estructura_organica(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):

@@ -96,6 +96,7 @@ const ENTRADAS: Entrada[] = [
       { vista: "configuracion", nombre: "Instrumentos de la entidad", submodulo: "Configuración institucional" },
       { vista: "estructura", nombre: "Estructura orgánica", submodulo: "Configuración institucional" },
       { vista: "tca", nombre: "Control de acceso (TCA)", submodulo: "Configuración institucional" },
+      { vista: "fuid", nombre: "Importar FUID", submodulo: "Configuración institucional", permitir: (u) => u.es_administrador },
       { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD", permitir: (u) => !u.modo_evaluacion },
       { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },
       { vista: "tvd", nombre: "Tabla de valoración", submodulo: "TVD", permitir: (u) => !u.modo_evaluacion },

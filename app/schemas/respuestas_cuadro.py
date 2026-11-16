@@ -198,3 +198,8 @@ class EstructuraOrganica(BaseModel):
     entidad: dict | None
     dependencias: list[dict]
     totales: dict
+
+
+class ImportacionFuid(BaseModel):
+    """Vista previa o resultado de importar un FUID existente."""
+    model_config = ConfigDict(extra="allow")

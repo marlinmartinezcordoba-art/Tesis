@@ -3,6 +3,7 @@ import { useVista } from "@/components/Marco";
 import { ConfiguracionInstitucional } from "@/components/ConfiguracionInstitucional";
 import { TablaControlAcceso } from "@/components/TablaControlAcceso";
 import { EstructuraOrganica } from "@/components/EstructuraOrganica";
+import { ImportarFuid } from "@/components/ImportarFuid";
 import { AsistenteTrd } from "@/components/AsistenteTrd";
 import { CuadroClasificacion } from "@/components/CuadroClasificacion";
 import { DisposicionFinal } from "@/components/DisposicionFinal";
@@ -13,7 +14,7 @@ import { useSesion } from "@/lib/sesion";
 // Fondos: el punto de partida del archivo. Todo nace de cargar el cuadro de
 // clasificación (CCD) y la tabla de retención (TRD): el fondo, sus dependencias,
 // series, subseries, tipos y matriz. Lo demás es ajuste manual, aplicación y consulta.
-type VistaFondos = "configuracion" | "estructura" | "tca" | "cargar" | "versiones" | "disposicion" | "tvd";
+type VistaFondos = "configuracion" | "estructura" | "tca" | "fuid" | "cargar" | "versiones" | "disposicion" | "tvd";
 
 // La TVD (Acuerdo 004 de 2019): la valoración del fondo acumulado por periodos
 // institucionales. Mismo recorrido que la TRD; las dependencias y el banco de
@@ -44,6 +45,7 @@ export function Fondos() {
   if (vista === "cargar" || (!fondo && vista === "configuracion")) return <AsistenteTrd key={fondo?.id || "sin-fondo"} />;
   if (!fondo) return <div className="vacio">Registre un fondo primero (Cargar el CCD y la TRD).</div>;
   if (vista === "estructura") return <EstructuraOrganica key={fondo.id} fondoId={fondo.id} />;
+  if (vista === "fuid") return <ImportarFuid key={fondo.id} fondoId={fondo.id} />;
   if (vista === "tca") return <TablaControlAcceso key={fondo.id} fondoId={fondo.id} />;
   if (vista === "configuracion") return <ConfiguracionInstitucional key={fondo.id} fondoId={fondo.id} />;
   if (vista === "tvd") return <Tvd key={fondo.id} fondoId={fondo.id} />;

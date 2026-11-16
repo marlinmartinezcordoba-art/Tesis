@@ -99,6 +99,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "trd_dependencia_guardada": ("Registró o corrigió una dependencia productora", "Cuadro de clasificación"),
     "agrupacion_renombrada": ("Corrigió el nombre de una sección, subsección, serie o subserie", "Cuadro de clasificación"),
     "plan_registrado": ("Registró un PGD o un PINAR", "Gobierno archivístico"),
+    "fuid_importado": ("Importó un inventario documental (FUID)", "Instrumentos"),
     "estructura_organica_derivada": ("Derivó la estructura orgánica del cuadro de clasificación", "Cuadro de clasificación"),
     "trd_dependencia_anulada": ("Anuló una dependencia productora", "Cuadro de clasificación"),
     "trd_termino_guardado": ("Registró o corrigió un término del banco terminológico", "Cuadro de clasificación"),
