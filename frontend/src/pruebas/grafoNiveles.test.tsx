@@ -54,3 +54,15 @@ describe("nombre provisional", () => {
     expect(esNombreProvisional("Secretaría General")).toBe(false);
   });
 });
+
+describe("nombres en dos líneas", () => {
+  it("no corta la parte que distingue a dos homónimos", async () => {
+    const { lineas } = await import("@/components/Grafo");
+    const a = lineas("2000 DESPACHO DEL VICEMINISTRO DE ORDENAMIENTO AMBIENTAL");
+    const b = lineas("3000 DESPACHO DEL VICEMINISTRO DE POLÍTICAS");
+    expect(a.length).toBe(2);
+    expect(a.join(" ")).not.toBe(b.join(" "));
+    expect(b.join(" ")).toContain("POLÍTICAS");
+    expect(lineas("Tunja")).toEqual(["Tunja"]);
+  });
+});

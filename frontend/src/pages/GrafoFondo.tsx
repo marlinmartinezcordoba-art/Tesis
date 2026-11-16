@@ -281,7 +281,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   abrirFicha: (id: string) => void;
 }) {
   const raizClave = centro || `recurso_documental:${fondo.id}`;
-  const [saltos, setSaltos] = useState(1);
+  // Desde el fondo, el cuadro completo (secciones, series, subseries); desde otra entidad, lo directo.
+  const [saltos, setSaltos] = useState(raizClave === `recurso_documental:${fondo.id}` ? 3 : 1);
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
   const [datos, setDatos] = useState<DatosGrafo | null>(null);
@@ -428,6 +429,13 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           <div className="contenedor-lienzo">
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
                          disposicionInicial={(() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
+            {!vacio && datos.nodos.length > 1 && datos.nodos.every((n) => n.tipo === "recurso_documental" && n.familia === "RecordSet") && (
+              <div className="aviso nota-grafo" role="note" data-fijo>
+                Solo se ve la estructura del cuadro de clasificación: este fondo todavía no tiene documentos descritos. Al
+                publicar descripciones aparecen los documentos, sus productores, lugares y fechas.
+                {saltos === 1 && <> Para ver las series, elija «Hasta 3 niveles de relación» en «Mostrar».</>}
+              </div>
+            )}
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (

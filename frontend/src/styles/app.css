@@ -1864,3 +1864,5 @@ body {
 .panel-grupo.g-contexto rect { fill: rgba(232, 123, 164, .06); stroke: rgba(232, 123, 164, .28); }
 .rotulo-grupo { font-size: 12px; font-weight: 700; fill: var(--ink, #1c2333); letter-spacing: .02em; }
 .nota-disposicion { align-self: center; font-size: .8rem; color: var(--muted, #5b6477); background: var(--surface, #fff); padding: 2px 8px; border-radius: 6px; }
+
+.nota-grafo { position: absolute; left: 12px; right: 12px; bottom: 12px; margin: 0; z-index: 2; font-size: .85rem; max-width: 640px; }

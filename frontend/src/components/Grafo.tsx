@@ -130,6 +130,24 @@ function corto(texto: string, n = 30): string {
   return texto.length > n ? `${texto.slice(0, n - 1)}…` : texto;
 }
 
+/** El nombre en dos líneas como máximo, cortando entre palabras: así no se pierde la parte que
+ *  distingue a dos homónimos («Despacho del Viceministro de Ordenamiento…» frente a «…de Políticas…»). */
+export function lineas(texto: string, ancho = 28, maximo = 2): string[] {
+  const salida: string[] = [];
+  let actual = "";
+  for (const palabra of texto.split(/\s+/).filter(Boolean)) {
+    if (!actual) actual = palabra;
+    else if ((actual + " " + palabra).length <= ancho) actual += " " + palabra;
+    else { salida.push(actual); actual = palabra; }
+  }
+  if (actual) salida.push(actual);
+  if (salida.length > maximo) {
+    const resto = salida.slice(maximo - 1).join(" ");
+    return [...salida.slice(0, maximo - 1), corto(resto, ancho)];
+  }
+  return salida.map((l) => corto(l, ancho));
+}
+
 type Punto = SimulationNodeDatum & { clave: string };
 type Disposicion = "red" | "arbol" | "descripcion";
 type Panel = { grupo: string; texto: string; x: number; y: number; w: number; h: number };
@@ -540,7 +558,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       {verLeyenda && (
       <div className="leyenda-grafo" id="leyenda-grafo" role="group"
            aria-label="Leyenda: toque un tipo para mostrarlo u ocultarlo">
-        {FAMILIAS.filter((f) => f.principal || familiasPresentes.has(f.clave)).map((f) => {
+        {FAMILIAS.filter((f) => familiasPresentes.has(f.clave)).map((f) => {
           const cuantos = completo.nodos.filter((n) => n.familia === f.clave).length;
           return (
             <button key={f.clave} type="button" className={`item-leyenda${ocultas.has(f.clave) ? " oculta" : ""}`}
@@ -634,7 +652,8 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
               const r = radio(nq, a.hacia === datos.centro) + 3;
               const fin = { x: q.x - (dx / largo) * r, y: q.y - (dy / largo) * r };
               const resaltada = activo === a.desde || activo === a.hacia;
-              const ver = etiquetasLegibles || resaltada;
+              // «incluye» en cada flecha de la estructura no dice nada nuevo: solo se escribe al señalar el nodo.
+              const ver = (etiquetasLegibles && (disposicion === "descripcion" || !JERARQUIA.has(a.codigo_ric))) || resaltada;
               // La etiqueta va al lado de la línea (no encima), girada con ella si es legible.
               const nx = -dy / largo, ny = dx / largo;
               const d = desplazamiento.get(`${a.desde}-${a.hacia}-${a.codigo_ric}`) || 9;
@@ -675,8 +694,16 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
                     <text x={r + 6} y={n.sin_nombre ? -1 : 4} textAnchor="start">{corto(etiquetaDe(n), 44)}</text>
                     {n.sin_nombre && <text x={r + 6} y={11} textAnchor="start" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
                   </>) : (<>
-                    <text y={r + 13} textAnchor="middle">{corto(etiquetaDe(n), disposicion === "descripcion" ? 40 : 30)}</text>
-                    {n.sin_nombre && <text y={r + 26} textAnchor="middle" className="subtitulo-nodo aviso-nodo">sin nombre en la TRD</text>}
+                    {(() => {
+                      const ls = lineas(etiquetaDe(n), disposicion === "descripcion" ? 34 : 28);
+                      return (<>
+                        <text y={r + 13} textAnchor="middle">
+                          {ls.map((l, i) => <tspan key={i} x={0} dy={i ? 13 : 0}>{l}</tspan>)}
+                        </text>
+                        {n.sin_nombre && <text y={r + 13 + 13 * ls.length} textAnchor="middle" className="subtitulo-nodo aviso-nodo">
+                          sin nombre en la TRD</text>}
+                      </>);
+                    })()}
                   </>)}
                   {n.subtitulo === "Versión de conservación" && (
                     <text y={r + 26} textAnchor="middle" className="subtitulo-nodo">versión de conservación</text>
