@@ -138,9 +138,10 @@ function PanelFiltros({ opciones, filtros, cambiar, cerrar }: {
 
 // --- Panel de detalle de la entidad seleccionada --------------------------------------------------
 
-function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar }: {
+function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar, expandida, alExpandir }: {
   clave: string; fondoId: string; cerrar: () => void; recentrar: (clave: string) => void;
   abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld") => void; alCambiar?: () => void;
+  expandida?: boolean; alExpandir?: () => void;
 }) {
   const { usuario } = useSesion();
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -316,6 +317,11 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar,
             {porque && <p className="pista">{porque}</p>}
             <div className="dos-botones">
               <button type="button" className="boton chico" onClick={() => recentrar(clave)}>Ver en contexto</button>
+              {alExpandir && (
+                <button type="button" className="boton chico" onClick={alExpandir} aria-pressed={!!expandida}
+                        title="Suma al dibujo las conexiones directas de esta entidad, sin perder lo que ya se ve">
+                  {expandida ? "Contraer conexiones" : "Expandir conexiones"}</button>
+              )}
               <details className="menu-exportar">
                 <summary className="boton chico">Exportar</summary>
                 <div>
@@ -348,7 +354,21 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
-  const [datos, setDatos] = useState<DatosGrafo | null>(null);
+  const [base, setDatos] = useState<DatosGrafo | null>(null);
+  // Exploración progresiva: las conexiones directas que se suman al dibujo desde un nodo, sin recentrar.
+  const [expansiones, setExpansiones] = useState<Record<string, DatosGrafo>>({});
+  const datos = useMemo<DatosGrafo | null>(() => {
+    if (!base) return null;
+    const extra = Object.values(expansiones);
+    if (!extra.length) return base;
+    const nodos = new Map(base.nodos.map((n) => [n.clave, n]));
+    const aristas = new Map(base.aristas.map((a) => [`${a.desde}|${a.hacia}|${a.codigo_ric}`, a]));
+    for (const e of extra) {
+      e.nodos.forEach((n) => nodos.has(n.clave) || nodos.set(n.clave, n));
+      e.aristas.forEach((a) => aristas.set(`${a.desde}|${a.hacia}|${a.codigo_ric}`, a));
+    }
+    return { ...base, nodos: [...nodos.values()], aristas: [...aristas.values()] };
+  }, [base, expansiones]);
   const [cargando, setCargando] = useState(false);
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -383,6 +403,18 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   }, [raizClave, saltos, filtros, fondo.id, recarga]);
 
   useEffect(() => setSeleccion(null), [raizClave]);
+  useEffect(() => setExpansiones({}), [raizClave, saltos, filtros, recarga]);
+
+  function expandir(clave: string) {
+    if (expansiones[clave]) {
+      setExpansiones(({ [clave]: _, ...resto }) => resto);
+      return;
+    }
+    const [tipo, id] = clave.split(":");
+    pedir<DatosGrafo>(`${rutaEntidad(tipo, id)}?${consulta(filtros, 1, fondo.id)}`)
+      .then((d) => setExpansiones((x) => ({ ...x, [clave]: d })))
+      .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudieron expandir las conexiones."));
+  }
   // Si un filtro saca del dibujo la entidad seleccionada, su panel se cierra.
   useEffect(() => {
     if (seleccion && datos && !datos.nodos.some((n) => n.clave === seleccion)) setSeleccion(null);
@@ -519,7 +551,9 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           {seleccion && !completa && (
             <PanelDetalle key={seleccion} clave={seleccion} fondoId={fondo.id} cerrar={() => setSeleccion(null)}
                           recentrar={(c) => centrar(c === `recurso_documental:${fondo.id}` ? "" : c)}
-                          abrirFicha={abrirFicha} exportar={exportar} alCambiar={() => setRecarga((n) => n + 1)} />
+                          abrirFicha={abrirFicha} exportar={exportar} alCambiar={() => setRecarga((n) => n + 1)}
+                          expandida={!!expansiones[seleccion]}
+                          alExpandir={seleccion === raizClave ? undefined : () => expandir(seleccion)} />
           )}
         </div>
       )}
