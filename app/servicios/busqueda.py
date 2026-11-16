@@ -281,6 +281,7 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
         return documentos.setdefault(recurso.id, _Doc(recurso, f.fondo, recurso.id in f.borradores))
 
     relacionados = vocabulario._documentos_por_entidad(db, [contexto.id])[contexto.id] if contexto else set()
+    como = _como(db, contexto, relacionados, ver_restringidos) if contexto else {}
     if contexto is not None and not q:
         # Consulta por contexto, sin texto: los documentos visibles que se relacionan con la entidad.
         for f in fondos:
@@ -350,6 +351,8 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
             "fondo": {"id": str(d.fondo.id), "titulo": d.fondo.titulo},
             "ruta": [x.titulo for x in migas if x.id != d.fondo.id][-3:],
             "motivos": d.motivos, "fragmento": fragmentos.get(d.recurso.id),
+            # La relación RiC que respalda el resultado en una consulta por contexto, con su fuente.
+            "respaldo": como.get(d.recurso.id, []),
             "borrador": d.borrador, "puntaje": round(d.puntaje, 3),
         }
 
@@ -371,6 +374,53 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
         "alcance_reserva": "completo" if ver_restringidos else "publico",
         "contexto": {"id": str(contexto.id), "nombre": contexto.nombre, "clase": contexto.clase} if contexto else None,
     }
+
+
+def _como(db: Session, contexto: EntidadVocabulario, documentos: set[uuid.UUID],
+          ver_restringidos: bool) -> dict[uuid.UUID, list[dict]]:
+    """Por qué cada documento se relaciona con la entidad de contexto: la relación directa (con su propiedad
+    RiC-O y su fuente) o la actividad que documenta (RiC-R033) unida a ella. La fuente detallada (motor o
+    persona, y la evidencia) solo la ve el equipo de archivo; el rol de consulta ve que está en el grafo."""
+    from app.servicios import ric_o
+    from app.servicios.instrumentos import ETIQUETA_RELACION
+
+    salida: dict[uuid.UUID, list[dict]] = {}
+    if not documentos:
+        return salida
+    ids = list(documentos)
+
+    def fuente(r: Relacion) -> str:
+        if not ver_restringidos:
+            return "publicada en el grafo RiC del fondo"
+        if r.origen in ("motor", "motor_editado"):
+            return "propuesta por el motor y validada" + (f": «{r.fragmento[:120]}»" if r.fragmento else "")
+        return "registrada por una persona"
+
+    for r in db.scalars(select(Relacion).where(Relacion.estado == "vigente", or_(
+            (Relacion.origen_id.in_(ids)) & (Relacion.destino_id == contexto.id),
+            (Relacion.destino_id.in_(ids)) & (Relacion.origen_id == contexto.id)))):
+        rid = r.origen_id if r.origen_id in documentos else r.destino_id
+        salida.setdefault(rid, []).append({"relacion": ETIQUETA_RELACION.get(r.codigo_ric, r.codigo_ric.replace("_", " ")),
+                                           "propiedad": ric_o.uri(r.codigo_ric), "via": None, "fuente": fuente(r)})
+    for rid in (r.id for r in db.scalars(select(RecursoDocumental).where(RecursoDocumental.id.in_(ids),
+                                                                          RecursoDocumental.forma_documental_id == contexto.id))):
+        salida.setdefault(rid, []).append({"relacion": "tiene la forma documental", "propiedad": "rico:hasDocumentaryFormType",
+                                           "via": None, "fuente": "registrada por una persona"})
+    # Por la actividad que documenta: documento → actividad (R033) → función, mandato o agente.
+    act = EntidadVocabulario
+    for doc_id, a_id, a_nombre in db.execute(
+            select(Relacion.origen_id, act.id, act.nombre).join(act, act.id == Relacion.destino_id)
+            .where(Relacion.origen_id.in_(ids), Relacion.codigo_ric == "documents", Relacion.estado == "vigente",
+                   act.clase == "actividad")):
+        if a_id == contexto.id:
+            continue
+        unida = db.scalar(select(Relacion.id).where(Relacion.estado == "vigente", or_(
+            (Relacion.origen_id == a_id) & (Relacion.destino_id == contexto.id),
+            (Relacion.destino_id == a_id) & (Relacion.origen_id == contexto.id))).limit(1))
+        if unida:
+            salida.setdefault(doc_id, []).append({"relacion": "documenta la actividad", "propiedad": "rico:documents",
+                                                  "via": a_nombre, "fuente": "grafo RiC del fondo"})
+    return salida
 
 
 def _contextos(db: Session, documentos: dict[uuid.UUID, _Doc], fondos: list[_Fondo],

@@ -213,11 +213,18 @@ def test_el_fondo_nace_con_su_trd_vigente_y_el_cuadro_no_se_toca_suelto(cliente,
     serie = db.scalar(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fnd.id,
                                                       RecursoDocumental.codigo_referencia == "110.15"))
     assert retencion.retencion_de(db, serie)["vigencia"] == "2019-03-01/"
-    # Un documento de un fondo con cuadro va dentro de una serie, no suelto en el fondo.
+    # La descripción RiC no depende del árbol: un documento se guarda aunque aún no esté en una serie.
+    # La falta queda a la vista en sus componentes y en la revisión de calidad (sin serie, sin retención).
+    suelto = documento(db, fnd, "Oficio_suelto.pdf", OFICIO_114)
+    r = cliente.post("/api/descripcion/publicar", headers=archivista,
+                     json=aceptar_todo(iniciar(cliente, archivista, [suelto.id])))
+    assert r.status_code == 201, r.text
+    comp = cliente.get(f"/api/descripcion/registros/{r.json()['id']}/componentes-ric", headers=archivista).json()
+    assert any("serie o subserie" in f for c in comp["componentes"] for f in c["falta"])
+    hallazgos = cliente.get(f"/api/fondos/{fnd.id}/calidad", headers=archivista).json()["hallazgos"]
+    assert any(h["afectado"] and h["afectado"]["id"] == r.json()["id"] and "serie" in h["problema"] for h in hallazgos)
     d = documento(db, fnd, "Oficio_114_1948.pdf", OFICIO_114)
     datos = aceptar_todo(iniciar(cliente, archivista, [d.id]))
-    r = cliente.post("/api/descripcion/publicar", headers=archivista, json=datos)
-    assert r.status_code == 422 and "serie" in r.json()["detail"] and "Queda incluido en" in r.json()["detail"], r.text
     # «Queda incluido en» solo ofrece series, subseries y expedientes, con su código y su dependencia.
     opciones = cliente.get("/api/descripcion/niveles-superiores", headers=archivista,
                            params={"fondo_id": str(fnd.id), "nivel": "unidad_documental"}).json()

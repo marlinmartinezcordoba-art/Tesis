@@ -115,6 +115,16 @@ def revisar(db: Session, fondo: RecursoDocumental, *, con_grafo: bool = True) ->
                   "Un recurso documental RiC se identifica (rico:identifier) y dice su contenido (rico:scopeAndContent).",
                   "Complete la descripción.")
 
+    # Documentos y expedientes sin serie del cuadro (cuando el fondo tiene TRD): sin regla de retención.
+    from app.servicios import componentes_ric, descripcion
+
+    if descripcion.tiene_cuadro(db, f):
+        for r in publicados:
+            if r.nivel in ("expediente", "unidad_documental") and not componentes_ric._en_serie(db, r):
+                poner("incompleta", _recurso(r), "No está ubicado en una serie o subserie del cuadro.",
+                      "Cada recurso se rige por la regla de retención de su serie (Acuerdo AGN 004 de 2019).",
+                      "Ubíquelo en su serie o subserie desde «Queda incluido en».")
+
     # Relaciones del motor sin evidencia.
     ids = list(recursos)
     sin = db.scalars(select(Relacion).where(

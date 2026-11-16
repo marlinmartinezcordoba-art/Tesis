@@ -53,3 +53,18 @@ def test_la_consulta_por_contexto_respeta_la_reserva(cliente, db, fondo, archivi
     nombres = {e["nombre"] for c in _buscar(cliente, consulta, "oficio")["facetas"]["contextos"] for e in c["entidades"]}
     assert "Correspondencia oficial" not in nombres and "Boyacá" not in nombres
     assert _buscar(cliente, archivista, "", contexto_id=str(fun.id))["total"] == 1
+
+
+def test_cada_resultado_dice_la_relacion_que_lo_respalda(cliente, db, fondo, archivista, consulta):  # noqa: F811
+    from tests.test_instrumentos import FRAGMENTO_SECRETO
+
+    _, fun = _funcion(db, fondo)
+    [d] = _buscar(cliente, archivista, "", contexto_id=str(fun.id))["documentos"]
+    assert d["respaldo"] == [{"relacion": "documenta la actividad", "propiedad": "rico:documents",
+                              "via": "Informe de daños en el archivo", "fuente": "grafo RiC del fondo"}]
+    boyaca = db.scalar(select(EntidadVocabulario).where(EntidadVocabulario.nombre == "Boyacá"))
+    [d] = _buscar(cliente, archivista, "", contexto_id=str(boyaca.id))["documentos"]
+    assert d["respaldo"][0]["propiedad"] == "rico:hasOrHadSubject" and FRAGMENTO_SECRETO in d["respaldo"][0]["fuente"]
+    # El rol de consulta ve que la relación está en el grafo, no la evidencia del motor.
+    publico = _buscar(cliente, consulta, "", contexto_id=str(boyaca.id))
+    assert FRAGMENTO_SECRETO not in str(publico) and "motor" not in str(publico.get("documentos"))

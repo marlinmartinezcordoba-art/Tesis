@@ -529,7 +529,7 @@ export function EspacioTrabajo() {
                        value={filtroUbicacion} onChange={(e) => setFiltroUbicacion(e.target.value)} style={{ marginBottom: 6 }} />
               )}
               <select id="incluido" className="selector" value={incluidoEn} onChange={(e) => setIncluidoEn(e.target.value)}>
-                {!incluidoEn && <option value="">Elija la serie o subserie…</option>}
+                <option value="">Sin ubicar todavía en el cuadro (se puede guardar y ubicar después)</option>
                 {sugeridas.length > 0 && (
                   <optgroup label="Sugeridas por RICORA">
                     {sugeridas.map((x) => superiores.find((o) => o.id === x.id)).filter(Boolean).map((o) => (

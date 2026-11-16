@@ -43,6 +43,19 @@ def _custodia_heredada(db: Session, recurso: RecursoDocumental) -> bool:
     return False
 
 
+def _en_serie(db: Session, recurso: RecursoDocumental) -> bool:
+    actual = recurso
+    for _ in range(12):
+        if actual.incluido_en_id is None:
+            return False
+        actual = db.get(RecursoDocumental, actual.incluido_en_id)
+        if actual is None:
+            return False
+        if actual.nivel in ("serie", "subserie"):
+            return True
+    return False
+
+
 def componentes(db: Session, recurso: RecursoDocumental, d: dict) -> dict:
     """`d` es la vista interna de `descripcion.detalle(db, recurso)`."""
     ents = d["entidades"]
@@ -84,11 +97,13 @@ def componentes(db: Session, recurso: RecursoDocumental, d: dict) -> dict:
     vinculos = d.get("secuencia", []) + d.get("vinculos", []) + d.get("tambien_en", []) + d.get("partes", [])
     if d.get("parte_de"):
         vinculos.append(d["parte_de"])
+    sin_serie = recurso.nivel in ("expediente", "unidad_documental") and not _en_serie(db, recurso)
     poner("relaciones", "Relaciones con otros recursos", "precedesOrPreceded, hasReply, isRelatedTo, hasOrHadConstituent…",
           COMPLETO if vinculos else POR_COMPLETAR,
           ([f"Incluido en {d['incluido_en']['titulo']}"] if d.get("incluido_en") else [])
           + [v.get("titulo", "") for v in vinculos[:5]],
-          [] if vinculos else ["vínculos con otros documentos (respuesta, antecedente, borrador, copia…)"])
+          ([] if vinculos else ["vínculos con otros documentos (respuesta, antecedente, borrador, copia…)"])
+          + (["su serie o subserie del cuadro (sin ella no le aplica regla de retención)"] if sin_serie else []))
 
     # 5. Tiempo y lugar.
     fechas = [e for e in ents if e["tipo"] == "fecha"] or ([1] if recurso.fechas_extremas_edtf or recurso.fechas_extremas else [])

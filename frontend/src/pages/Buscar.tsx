@@ -208,6 +208,18 @@ export function Buscar() {
                       {d.borrador && <span className="insignia alerta">Borrador sin publicar</span>}
                       {d.motivos.map((m) => <span key={m} className="insignia neutra-borde">{m}</span>)}
                     </div>
+                    {d.respaldo && d.respaldo.length > 0 && datos.contexto && (
+                      <ul className="busqueda-respaldo">
+                        {d.respaldo.map((r, i) => (
+                          <li key={i}>
+                            <span className="meta">Respaldo:</span> {r.relacion}{r.via ? <> «{r.via}», unida a</> : ""}{" "}
+                            <strong>{datos.contexto!.nombre}</strong>
+                            {r.propiedad && <> <code className="rico">{r.propiedad}</code></>}
+                            <span className="meta"> · {r.fuente}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               ))}

@@ -40,6 +40,7 @@ export interface DocumentoHallado {
   fondo: { id: string; titulo: string };
   ruta: string[];
   motivos: string[];
+  respaldo?: { relacion: string; propiedad: string | null; via: string | null; fuente: string }[];
   fragmento: string | null;
   borrador: boolean;
 }

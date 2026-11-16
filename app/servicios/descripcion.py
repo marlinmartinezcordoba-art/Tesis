@@ -1057,13 +1057,9 @@ def _superior(db: Session, fondo_id: uuid.UUID, nivel: str, incluido_en_id: uuid
     # (Secretaría General › Subdirección › Grupo); RiC lo admite (Record Set dentro de Record Set).
     if rango(superior.nivel) >= rango(nivel) and not (nivel == superior.nivel == "subseccion"):
         raise ErrorDescripcion(f"Un {nivel.replace('_', ' ')} no puede quedar dentro de un {superior.nivel.replace('_', ' ')}.")
-    # Con cuadro de clasificación, todo expediente o documento va en una serie o
-    # subserie del cuadro (o en un expediente de ellas), no suelto en el fondo o la sección.
-    if nivel in ("expediente", "unidad_documental") and superior.nivel not in ("serie", "subserie", "expediente") \
-            and tiene_cuadro(db, fondo_id):
-        cual = "esta unidad documental" if nivel == "unidad_documental" else "este expediente"
-        raise ErrorDescripcion(f"Este fondo tiene cuadro de clasificación (TRD): en «Queda incluido en», elija la serie o "
-                               f"subserie (o el expediente) donde va {cual}. RICORA sugiere la más probable.")
+    # La descripción RiC no depende del árbol: un expediente o un documento se guarda aunque todavía
+    # no esté ubicado en una serie o subserie del cuadro. La falta no se esconde: el estado por
+    # componentes y la revisión de calidad la señalan, porque sin serie no le aplica regla de retención.
     return superior
 
 
