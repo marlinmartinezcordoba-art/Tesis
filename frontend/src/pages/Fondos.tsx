@@ -4,6 +4,7 @@ import { ConfiguracionInstitucional } from "@/components/ConfiguracionInstitucio
 import { TablaControlAcceso } from "@/components/TablaControlAcceso";
 import { EstructuraOrganica } from "@/components/EstructuraOrganica";
 import { ImportarFuid } from "@/components/ImportarFuid";
+import { InventarioDelFondo } from "@/pages/Instrumentos";
 import { AsistenteTrd } from "@/components/AsistenteTrd";
 import { CuadroClasificacion } from "@/components/CuadroClasificacion";
 import { DisposicionFinal } from "@/components/DisposicionFinal";
@@ -41,11 +42,17 @@ function Tvd({ fondoId }: { fondoId: string }) {
 export function Fondos() {
   const vista = useVista<VistaFondos>("/fondos");
   const { fondo } = useFondo();
+  const { usuario } = useSesion();
   // Sin fondo todavía, el primer paso es cargar el CCD y la TRD.
   if (vista === "cargar" || (!fondo && vista === "configuracion")) return <AsistenteTrd key={fondo?.id || "sin-fondo"} />;
   if (!fondo) return <div className="vacio">Registre un fondo primero (Cargar el CCD y la TRD).</div>;
   if (vista === "estructura") return <EstructuraOrganica key={fondo.id} fondoId={fondo.id} />;
-  if (vista === "fuid") return <ImportarFuid key={fondo.id} fondoId={fondo.id} />;
+  if (vista === "fuid") return (
+    <>
+      <InventarioDelFondo key={`inv-${fondo.id}`} />
+      {usuario?.es_administrador && <ImportarFuid key={fondo.id} fondoId={fondo.id} />}
+    </>
+  );
   if (vista === "tca") return <TablaControlAcceso key={fondo.id} fondoId={fondo.id} />;
   if (vista === "configuracion") return <ConfiguracionInstitucional key={fondo.id} fondoId={fondo.id} />;
   if (vista === "tvd") return <Tvd key={fondo.id} fondoId={fondo.id} />;

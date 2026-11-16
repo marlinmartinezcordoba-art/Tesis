@@ -78,14 +78,19 @@ describe("menú por procesos: módulos, uno con submódulos, y pestañas dentro 
 
   it("elegir un submódulo lleva a su primera vista; la pestaña cambia de vista dentro de él", () => {
     montar("/instrumentos");
-    expect(submodulosVisibles("Conocimiento RiC")).toEqual(["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"]);
+    expect(submodulosVisibles("Conocimiento RiC")).toEqual(["Catálogo y grafo", "Datos enlazados (RiC-O)"]);
     expect(pestanas()).toEqual(["Catálogo", "Grafo de contexto"]);
-    fireEvent.click(screen.getByRole("link", { name: "Instrumentos de descripción" }));
-    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=inventario");
-    expect(pestanas()).toEqual(["Inventario (FUID)", "Guía del fondo", "Índice"]);
-    fireEvent.click(screen.getByRole("link", { name: "Índice" }));
-    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=indice");
-    expect(pestanaActual()).toBe("Índice");
+    fireEvent.click(screen.getByRole("link", { name: "Datos enlazados (RiC-O)" }));
+    expect(screen.getByTestId("ubicacion").textContent).toBe("/instrumentos?vista=rico");
+    expect(pestanas()).toEqual(["Datos enlazados (RiC-O)", "Adopción de RiC"]);
+  });
+
+  it("el inventario (FUID) está en Instrumentos; las direcciones de la guía y el índice llevan al catálogo", () => {
+    montar("/fondos?vista=fuid");
+    expect(pestanaActual()).toBe("Inventario (FUID)");
+    cleanup();
+    montar("/instrumentos?vista=guia");
+    expect(pestanaActual()).toBe("Catálogo");
   });
 
   it("acordeón: tocar el módulo abierto lo cierra", () => {
@@ -101,13 +106,12 @@ describe("menú por procesos: módulos, uno con submódulos, y pestañas dentro 
     expect(pestanaActual()).toBe("Configuración");
   });
 
-  it("cada rol ve solo lo suyo: consulta ve el índice, no el FUID ni la guía; sin pestañas de una sola vista", () => {
+  it("cada rol ve solo lo suyo; sin pestañas de una sola vista", () => {
     expect(submodulosDe("/instrumentos", CONSULTA).map((sm) => [sm.nombre, sm.vistas.map((v) => v.nombre)])).toEqual([
-      ["Catálogo y grafo", ["Catálogo", "Grafo de contexto"]], ["Instrumentos de descripción", ["Índice"]],
+      ["Catálogo y grafo", ["Catálogo", "Grafo de contexto"]],
       ["Datos enlazados (RiC-O)", ["Datos enlazados (RiC-O)", "Adopción de RiC"]]]);
     expect(vistasDe("/auditoria", ADMIN).map((v) => v.vista)).toEqual(["propia", "decisiones", "hallazgos"]);
-    montar("/instrumentos?vista=indice", CONSULTA);
-    expect(pestanas()).toEqual([]);
+    montar("/instrumentos?vista=rico", CONSULTA);
     expect(screen.queryByRole("link", { name: "Agentes y autoridades" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Administración" })).toBeNull();
   });

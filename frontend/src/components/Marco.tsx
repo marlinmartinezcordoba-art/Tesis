@@ -68,20 +68,13 @@ const ENTRADAS: Entrada[] = [
   { ruta: "/inicio", nombre: "Inicio", icono: "inicio", grupo: "trabajo", modulo: "catalogo" },
   // El grafo, el catálogo y los datos enlazados: el conocimiento RiC del archivo, primero después de Inicio.
   { ruta: "/instrumentos", nombre: "Conocimiento RiC", pista: "Grafo, catálogo y datos enlazados", icono: "grafo", grupo: "trabajo", modulo: "catalogo",
-    submodulos: ["Catálogo y grafo", "Instrumentos de descripción", "Datos enlazados (RiC-O)"],
-    pistas: { "Catálogo y grafo": "Buscar y explorar el contexto", "Instrumentos de descripción": "Inventario, guía e índice",
-      "Datos enlazados (RiC-O)": "Descargas y consulta SPARQL" }, vistas: [
+    submodulos: ["Catálogo y grafo", "Datos enlazados (RiC-O)"],
+    pistas: { "Catálogo y grafo": "Buscar y explorar el contexto", "Datos enlazados (RiC-O)": "Descargas y consulta SPARQL" },
+    // El inventario (FUID) pasó a Instrumentos; la guía y el índice duplicaban el catálogo y la búsqueda
+    // (decisión de la autora): sus direcciones de antes llevan al catálogo.
+    alias: { inventario: "catalogo", guia: "catalogo", indice: "catalogo" }, vistas: [
       { vista: "catalogo", nombre: "Catálogo", submodulo: "Catálogo y grafo" },
       { vista: "grafo", nombre: "Grafo de contexto", submodulo: "Catálogo y grafo" },
-      // Inventario y guía se generan: solo quien puede generar instrumentos los ve.
-      { vista: "inventario", nombre: "Inventario (FUID)", submodulo: "Instrumentos de descripción",
-        permitir: (u) => puede(u, "instrumentos", "escribir") },
-      { vista: "guia", nombre: "Guía del fondo", submodulo: "Instrumentos de descripción",
-        permitir: (u) => puede(u, "instrumentos", "escribir") },
-      // El índice es la puerta de consulta por nombres; el equipo interno trabaja
-      // los mismos términos en Autoridades, salvo quien genera instrumentos: lo aprueba.
-      { vista: "indice", nombre: "Índice", submodulo: "Instrumentos de descripción",
-        permitir: (u) => !puede(u, "vocabularios") || puede(u, "instrumentos", "escribir") },
       { vista: "rico", nombre: "Datos enlazados (RiC-O)", submodulo: "Datos enlazados (RiC-O)" },
       { vista: "adopcion", nombre: "Adopción de RiC", submodulo: "Datos enlazados (RiC-O)" }] },
   // «Instrumentos archivísticos» no cabía en una línea del menú: nombre corto y la pista dice el proceso.
@@ -97,7 +90,7 @@ const ENTRADAS: Entrada[] = [
       { vista: "disposicion", nombre: "Disposición final", permitir: (u) => !u.modo_evaluacion },
       { vista: "estructura", nombre: "Estructura orgánica" },
       { vista: "tca", nombre: "Control de acceso (TCA)" },
-      { vista: "fuid", nombre: "Importar FUID", permitir: (u) => u.es_administrador }] },
+      { vista: "fuid", nombre: "Inventario (FUID)", permitir: (u) => puede(u, "instrumentos") || u.es_administrador }] },
   { ruta: "/ingesta", nombre: "Carga de documentos", icono: "ingesta", grupo: "trabajo", modulo: "ingesta", vistas: [
     { vista: "cargar", nombre: "Cargar", permitir: (u) => puede(u, "ingesta", "escribir") },
     { vista: "cola", nombre: "Revisar lo cargado" }] },
@@ -307,7 +300,7 @@ const ACCIONES: { nombre: string; ruta: string; modulo: Modulo | "usuarios"; tip
   { nombre: "Cargar documentos", ruta: "/ingesta", modulo: "ingesta", tipo: "escribir" },
   { nombre: "Describir el siguiente documento", ruta: "/descripcion", modulo: "descripcion", tipo: "escribir" },
   { nombre: "Revisar posibles duplicados", ruta: "/vocabularios?vista=sugerencias", modulo: "vocabularios" },
-  { nombre: "Generar o aprobar el inventario (FUID)", ruta: "/instrumentos?vista=inventario", modulo: "instrumentos", tipo: "escribir" },
+  { nombre: "Generar o aprobar el inventario (FUID)", ruta: "/fondos?vista=fuid", modulo: "instrumentos", tipo: "escribir" },
   { nombre: "Ver el grafo de contexto", ruta: "/instrumentos?vista=grafo", modulo: "catalogo" },
   { nombre: "Descargar el fondo en RiC-O", ruta: "/instrumentos?vista=rico", modulo: "catalogo" },
   { nombre: "Buscar en todo el archivo", ruta: "/buscar", modulo: "catalogo" },

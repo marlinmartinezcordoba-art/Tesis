@@ -686,6 +686,28 @@ function Proposito({ vista }: { vista: Pestana }) {
   return <aside className="proposito"><strong>{p[0]}</strong>{p[1]}</aside>;
 }
 
+// El inventario documental (FUID) en Instrumentos: es un instrumento de control (Ley 594 de 2000, art. 26;
+// Acuerdo AGN 042 de 2002), no una vista del conocimiento RiC. Se genera desde lo descrito y se aprueba.
+export function InventarioDelFondo() {
+  const { usuario } = useSesion();
+  const { fondo } = useFondo();
+  const [nivel, setNivel] = useState<NivelCatalogo | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!fondo) return;
+    pedir<NivelCatalogo>(`/api/instrumentos/catalogo?fondo_id=${fondo.id}`).then(setNivel)
+      .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el fondo."));
+  }, [fondo]);
+  if (error) return <div className="aviso error" role="alert">{error}</div>;
+  if (!nivel) return <div className="cargando">Cargando…</div>;
+  return (
+    <>
+      <Inventario nivel={nivel} puede={tienePermiso(usuario, "instrumentos", "escribir")} />
+      <Proposito vista="inventario" />
+    </>
+  );
+}
+
 export function Instrumentos() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
