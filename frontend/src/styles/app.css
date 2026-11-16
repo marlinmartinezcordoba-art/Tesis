@@ -1985,3 +1985,7 @@ html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siemp
 .boton-ric.activo { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
 
 .lote-propuestas { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; margin-bottom: 12px; }
+
+/* Campos que exige la ley colombiana y que no son atributos RiC. */
+.bloque-ley { border: 1px dashed var(--borde, #cfd6e0); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+.bloque-ley .tarjeta-cab { margin-bottom: 8px; }

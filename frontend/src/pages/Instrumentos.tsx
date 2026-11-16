@@ -222,6 +222,10 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
   const a = nivel.actual;
   const { usuario } = useSesion();
   const preserva = tienePermiso(usuario, "preservacion", "escribir");
+  // Un nivel que la TRD trajo solo con el código y que no tiene documentos no aporta a la consulta.
+  const vacioSinNombre = (h: (typeof nivel.hijos)[number]) => esNombreProvisional(h.titulo) && !h.unidades_documentales;
+  const visibles = nivel.hijos.filter((h) => !vacioSinNombre(h));
+  const ocultos = nivel.hijos.length - visibles.length;
   return (
     <>
       <Migas fondo={nivel.fondo.titulo} migas={nivel.migas}
@@ -246,7 +250,13 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
             {a.nivel === "fondo" ? "Todavía no hay descripciones publicadas en este fondo." : "Este nivel no tiene descripciones publicadas por debajo."}
           </div>
         )}
-        {nivel.hijos.map((h) => {
+        {ocultos > 0 && (
+          <div className="meta" style={{ padding: "6px 12px" }}>
+            {ocultos} nivel(es) sin nombre ni documentos no se muestran: llegaron de la TRD solo con el código. No se
+            borraron; aparecen cuando tengan documentos, o escriba su nombre en Instrumentos › Estructura orgánica.
+          </div>
+        )}
+        {visibles.map((h) => {
           const entra = AGRUPACIONES.includes(h.nivel) && h.hijos > 0;
           return (
             <button type="button" key={h.id} className="fila fila-enlace fila-boton" onClick={() => (entra ? ir(h.id) : abrir(h.id))}>

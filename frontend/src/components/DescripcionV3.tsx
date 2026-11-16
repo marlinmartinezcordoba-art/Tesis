@@ -433,24 +433,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       <SugerenciaClasificacion valor={valor} alCambiar={alCambiar} revision={revisionDatos} heredada={heredada} />
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
-      <div className="campo">
-        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · requisito colombiano, no es atributo RiC · lo revisa una persona)</span> <GuiaCampo clave="datos_personales" /></label>
-        <select id="datos-personales" className="selector" value={valor.datosPersonales}
-                onChange={(e) => alCambiar({ ...valor, datosPersonales: e.target.value })}>
-          <option value="">Sin revisar</option>
-          {DATOS_PERSONALES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-        </select>
-        {datosSensiblesEnPublico(valor, heredada) ? (
-          <div className="aviso alerta" role="status" style={{ marginTop: 6 }}>
-            Quedaría pública con datos {valor.datosPersonales === "menores" ? "de menores de edad" : "sensibles"}:
-            clasifíquela (Ley 1712, art. 18, literal a) o anonimice la versión de consulta (Ley 1581, arts. 5 a 7).
-          </div>
-        ) : (
-          <div className="pista">No es lo mismo que la clasificación de arriba: un documento público puede tener datos
-            personales que se anonimizan al consultarlo. No sale en el catálogo público ni en los datos abiertos.</div>
-        )}
-      </div>
-      <details className="campos-opcionales" open={!!(valor.condicionesAcceso || valor.condicionesUso || valor.notaAccesibilidad)}>
+      <details className="campos-opcionales" open={!!(valor.condicionesAcceso || valor.condicionesUso)}>
         <summary>Explicar el acceso y la reproducción en palabras <span className="meta">(opcional: lo que decide el
           acceso es la clasificación de arriba)</span></summary>
       <div className="campo">
@@ -467,13 +450,33 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
                   placeholder="Condición para copiarlo o reproducirlo"
                   onChange={(e) => alCambiar({ ...valor, condicionesUso: e.target.value })} />
       </div>
+      </details>
+      <div className="bloque-ley">
+        <div className="tarjeta-cab">Requisitos de la ley colombiana <span className="meta">(no son atributos RiC: no pasan al grafo; los exige la normativa)</span></div>
       <div className="campo">
-        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · requisito colombiano, no es atributo RiC · opcional · se muestra en la ficha pública)</span> <GuiaCampo clave="nota_accesibilidad" /></label>
+        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · lo revisa una persona)</span> <GuiaCampo clave="datos_personales" /></label>
+        <select id="datos-personales" className="selector" value={valor.datosPersonales}
+                onChange={(e) => alCambiar({ ...valor, datosPersonales: e.target.value })}>
+          <option value="">Sin revisar</option>
+          {DATOS_PERSONALES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+        </select>
+        {datosSensiblesEnPublico(valor, heredada) ? (
+          <div className="aviso alerta" role="status" style={{ marginTop: 6 }}>
+            Quedaría pública con datos {valor.datosPersonales === "menores" ? "de menores de edad" : "sensibles"}:
+            clasifíquela (Ley 1712, art. 18, literal a) o anonimice la versión de consulta (Ley 1581, arts. 5 a 7).
+          </div>
+        ) : (
+          <div className="pista">No es lo mismo que la clasificación de arriba: un documento público puede tener datos
+            personales que se anonimizan al consultarlo. No sale en el catálogo público ni en los datos abiertos.</div>
+        )}
+      </div>
+      <div className="campo">
+        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · opcional · se muestra en la ficha pública)</span> <GuiaCampo clave="nota_accesibilidad" /></label>
         <textarea id="accesible" className="entrada" rows={2} value={valor.notaAccesibilidad} maxLength={2000}
                   placeholder="Ej.: «Transcripción en texto plano para lector de pantalla»"
                   onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
-      </details>
+      </div>
       </>}
       {ver("fuentes") && <>
       <div className="campo">
