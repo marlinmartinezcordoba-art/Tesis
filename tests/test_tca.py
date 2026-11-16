@@ -33,3 +33,30 @@ def test_reglas_de_la_ley_1712(cliente, fondo_descrito, cabeceras_admin, archivi
     assert cliente.put(url, headers=archivista, json={"acceso": "publico", "fundamento": "Ley 1712"}).status_code == 403
     doc = f"/api/fondos/{f['fondo'].id}/tca/{f['o114'].id}"
     assert cliente.put(doc, headers=cabeceras_admin, json={"acceso": "publico", "fundamento": "Ley 1712 de 2014"}).status_code == 422
+
+
+def test_importar_la_tca_existente(cliente, db, fondo_descrito, cabeceras_admin, archivista):  # noqa: F811
+    f = fondo_descrito
+    serie = f["serie"]
+    if not serie.codigo_referencia:
+        serie.codigo_referencia = "100.2"
+        db.commit()
+    codigo = serie.codigo_referencia
+    csv = ("Código;Serie;Categoría de acceso;Fundamento legal;Plazo de la reserva;Responsable\n"
+           f"{codigo};{serie.titulo};Información pública reservada;Ley 1712 de 2014, art. 19;5 años;Secretaría General\n"
+           "999.9;Serie que no existe;Pública;Ley 1712 de 2014;;\n"
+           f"{codigo};{serie.titulo};Clasificada;;3 años;\n").encode("utf-8")
+    url = f"/api/fondos/{f['fondo'].id}/tca"
+    archivo = {"archivo": ("tca.csv", csv, "text/csv")}
+    assert cliente.post(f"{url}/vista-previa", headers=archivista, files=archivo).status_code == 403
+    r = cliente.post(f"{url}/vista-previa", headers=cabeceras_admin, files=archivo)
+    assert r.status_code == 200, r.text
+    previa = r.json()
+    assert previa["validas"] == 1 and previa["con_problemas"] == 2
+    buena, otra, sin_fundamento = previa["filas"]
+    assert buena["acceso"] == "reservado" and buena["vigente_hasta"] and buena["responsable"] == "Secretaría General"
+    assert "no es una serie" in otra["problemas"][0] and any("fundamento" in p for p in sin_fundamento["problemas"])
+    r = cliente.post(f"{url}/aplicar", headers=cabeceras_admin, files=archivo)
+    assert r.status_code == 200 and r.json()["aplicadas"] == 1
+    [fila] = [s for s in cliente.get(url, headers=archivista).json()["series"] if s["id"] == str(serie.id)]
+    assert fila["propia"]["acceso"] == "reservado"

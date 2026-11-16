@@ -88,6 +88,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     # Vocabularios
     "fusion_vocabulario": ("Fusionó entidades del vocabulario", "Entidades del vocabulario"),
     "sugerencia_fusion_descartada": ("Descartó una sugerencia de fusión", "Entidades del vocabulario"),
+    "tca_importada": ("Importó la Tabla de Control de Acceso (TCA)", "Descripción"),
     "propuestas_lote_solicitadas": ("Pidió proponer en lote la descripción de los documentos pendientes", "Descripción"),
     "propuestas_lote_generadas": ("RICORA propuso en lote la descripción de documentos pendientes", "Descripción"),
     "plan_documento_adjuntado": ("Adjuntó el documento de un PGD o un PINAR", "Gobierno archivístico"),

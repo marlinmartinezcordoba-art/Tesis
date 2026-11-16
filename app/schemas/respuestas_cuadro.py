@@ -203,3 +203,12 @@ class EstructuraOrganica(BaseModel):
 class ImportacionFuid(BaseModel):
     """Vista previa o resultado de importar un FUID existente."""
     model_config = ConfigDict(extra="allow")
+
+
+class ImportacionTca(BaseModel):
+    """Vista previa o resultado de importar una TCA existente: fila por fila, su serie y sus problemas."""
+    model_config = ConfigDict(extra="allow")
+
+    filas: list[dict]
+    validas: int
+    con_problemas: int

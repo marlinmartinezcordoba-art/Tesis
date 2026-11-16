@@ -535,18 +535,6 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
                          key={saltos === 0 ? "estructura" : "contexto"}
                          disposicionInicial={saltos === 0 ? "arbol" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
-            {!vacio && saltos === 0 && esFondo && (
-              <div className="aviso nota-grafo" role="note" data-fijo>
-                Estas son las dependencias del fondo. Elija una y pulse <strong>«Ver su estructura»</strong> para ver sus series,
-                sus reglas de retención y sus documentos; o pulse «Expandir conexiones» para sumar lo que se relaciona con ella.
-              </div>
-            )}
-            {!vacio && saltos !== 0 && datos.nodos.length > 1 && datos.nodos.every((n) => n.tipo === "recurso_documental" && n.familia === "RecordSet") && (
-              <div className="aviso nota-grafo" role="note" data-fijo>
-                Solo se ve la estructura del cuadro de clasificación: aquí todavía no hay documentos descritos. Al
-                publicar descripciones aparecen los documentos, sus productores, lugares y fechas.
-              </div>
-            )}
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (

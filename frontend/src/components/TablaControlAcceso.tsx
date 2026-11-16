@@ -1,7 +1,7 @@
 // Tabla de Control de Acceso (TCA): la condición de acceso de cada serie y subserie, con su fundamento,
 // vigencia, condiciones de consulta y quién autoriza. Se hereda a los expedientes y documentos de la serie.
 import { FormEvent, useEffect, useState } from "react";
-import { ErrorAPI, pedir } from "@/lib/api";
+import { ErrorAPI, pedir, subir } from "@/lib/api";
 import { diaCivil as fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 import { ParaQueSirve } from "@/components/ParaQueSirve";
@@ -67,15 +67,91 @@ function Formulario({ fila, fondoId, alGuardar, alCancelar }: { fila: Fila; fond
   );
 }
 
+// Importar la TCA que la entidad ya tiene (cualquier formato): primero se ve qué se entendió, fila por fila;
+// después se declaran solo las válidas. Una declaración nueva reemplaza a la anterior, con su traza.
+interface FilaImportada {
+  fila: number; codigo: string; serie: string | null; acceso_nombre: string | null; fundamento: string | null;
+  vigente_hasta: string | null; responsable: string | null; problemas: string[];
+}
+interface Importacion { filas: FilaImportada[]; validas: number; con_problemas: number; aplicadas?: number }
+
+function ImportarTca({ fondoId, alAplicar }: { fondoId: string; alAplicar: () => void }) {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [previa, setPrevia] = useState<Importacion | null>(null);
+  const [hecho, setHecho] = useState<Importacion | null>(null);
+  const [error, setError] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  async function enviar(paso: "vista-previa" | "aplicar") {
+    if (!archivo) return;
+    setError("");
+    setOcupado(true);
+    try {
+      const datos = new FormData();
+      datos.append("archivo", archivo, archivo.name);
+      const r = await subir<Importacion>(`/api/fondos/${fondoId}/tca/${paso}`, datos, () => undefined);
+      if (paso === "vista-previa") { setPrevia(r); setHecho(null); } else { setHecho(r); setPrevia(null); alAplicar(); }
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo leer la TCA.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+  return (
+    <details className="tarjeta seccion-ajuste">
+      <summary><strong>Importar la TCA de la entidad</strong> <span className="meta">En el formato en que la tenga: código
+        de la serie, categoría (pública, clasificada o reservada), fundamento legal, plazo y responsable.</span></summary>
+      <div className="seccion-ajuste-cuerpo">
+        <div className="acciones" style={{ alignItems: "center" }}>
+          <input type="file" aria-label="Archivo de la TCA"
+                 onChange={(e) => { setArchivo(e.target.files?.[0] || null); setPrevia(null); setHecho(null); }} />
+          <button type="button" className="boton chico" disabled={!archivo || ocupado} onClick={() => enviar("vista-previa")}>
+            {ocupado ? "Leyendo…" : "Ver qué se entendió"}</button>
+        </div>
+        {error && <div className="aviso error" role="alert">{error}</div>}
+        {hecho && <div className="aviso bien" role="status">Se declararon {hecho.aplicadas} serie(s).
+          {hecho.con_problemas > 0 && ` ${hecho.con_problemas} fila(s) quedaron fuera por sus problemas.`}</div>}
+        {previa && (
+          <>
+            <p className="meta">{previa.validas} fila(s) listas · {previa.con_problemas} con problemas (no se declaran)</p>
+            <div className="tabla-desplazable">
+              <table className="tabla-permisos">
+                <thead><tr><th>Fila</th><th>Serie</th><th>Acceso</th><th>Fundamento</th><th>Rige hasta</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {previa.filas.map((f) => (
+                    <tr key={f.fila}>
+                      <td>{f.fila}</td>
+                      <td>{f.codigo} {f.serie && <span className="meta">· {f.serie}</span>}</td>
+                      <td>{f.acceso_nombre || "—"}</td>
+                      <td>{f.fundamento || "—"}</td>
+                      <td>{f.vigente_hasta ? fecha(f.vigente_hasta) : "—"}</td>
+                      <td>{f.problemas.length ? <span className="meta" style={{ color: "var(--danger)" }}>{f.problemas.join(" ")}</span>
+                        : <span className="insignia bien">Lista</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {previa.validas > 0 && (
+              <div className="acciones" style={{ marginTop: 10 }}>
+                <button type="button" className="boton primario" disabled={ocupado} onClick={() => enviar("aplicar")}>
+                  Declarar {previa.validas} serie(s)</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function TablaControlAcceso({ fondoId }: { fondoId: string }) {
   const { usuario } = useSesion();
   const [tabla, setTabla] = useState<Tabla | null>(null);
   const [error, setError] = useState("");
   const [editando, setEditando] = useState<string | null>(null);
-  useEffect(() => {
-    pedir<Tabla>(`/api/fondos/${fondoId}/tca`).then(setTabla)
-      .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo cargar la TCA."));
-  }, [fondoId]);
+  const cargar = () => pedir<Tabla>(`/api/fondos/${fondoId}/tca`).then(setTabla)
+    .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo cargar la TCA."));
+  useEffect(() => { cargar(); }, [fondoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -84,6 +160,7 @@ export function TablaControlAcceso({ fondoId }: { fondoId: string }) {
         hereda a sus expedientes y documentos: el catálogo, el buscador, el grafo y los datos abiertos la aplican al rol de
         consulta. Cada cambio reemplaza a la condición anterior, que queda en el historial.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
+      {usuario?.es_administrador && <ImportarTca fondoId={fondoId} alAplicar={cargar} />}
       {!tabla && !error && <div className="cargando">Cargando…</div>}
       {tabla && (
         <>

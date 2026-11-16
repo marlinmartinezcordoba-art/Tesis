@@ -355,6 +355,42 @@ def declarar_tca(fondo_id: uuid.UUID, serie_id: uuid.UUID, datos: CondicionAcces
     return servicio.tabla(db, fondo)
 
 
+@router.post("/{fondo_id}/tca/vista-previa", response_model=rc.ImportacionTca,
+             summary="Leer una TCA existente (cualquier formato) sin declarar nada: fila por fila, serie y problemas")
+async def tca_vista_previa(fondo_id: uuid.UUID, request: Request, _: Actor = Depends(solo_administrador),
+                           db: Session = Depends(get_db)):
+    from starlette.concurrency import run_in_threadpool
+
+    from app.servicios import importacion_tca as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    contenido, nombre = await _archivo_fuid(request)
+    try:
+        return await run_in_threadpool(servicio.vista_previa, db, fondo, contenido, nombre)
+    except servicio.ErrorImportacionTca as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/{fondo_id}/tca/aplicar", response_model=rc.ImportacionTca,
+             summary="Declarar las filas válidas de una TCA importada (las demás quedan fuera, con su motivo)")
+async def tca_aplicar(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(solo_administrador),
+                      db: Session = Depends(get_db)):
+    from starlette.concurrency import run_in_threadpool
+
+    from app.servicios import importacion_tca as servicio
+    from app.servicios.auditoria import ip_de
+
+    fondo = fondo_o_404(db, fondo_id)
+    contenido, nombre = await _archivo_fuid(request)
+    try:
+        r = await run_in_threadpool(servicio.aplicar, db, fondo, contenido, nombre, actor.id, ip_de(request))
+    except servicio.ErrorImportacionTca as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return r
+
+
 @router.get("/{fondo_id}/calidad", response_model=rc.CalidadFondo,
             summary="Validación semántica y calidad: duplicados, identificadores, fechas, incompletas, evidencia, OWL, "
                     "SHACL e instrumentos")

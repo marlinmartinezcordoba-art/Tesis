@@ -275,7 +275,7 @@ def test_descarga_del_fondo_queda_en_auditoria(cliente, db, fondo_rico, archivis
         assert r.status_code == 200 and r.headers["content-type"].startswith("application/rdf+xml"), r.text[:200]
         assert len(Graph().parse(data=r.content, format="xml")) > 0
     eventos = db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.accion == "rdf_exportado")).all()
-    assert [e.valor_nuevo["formato"] for e in eventos] == ["turtle", "jsonld", "rdfxml"]
+    assert sorted(e.valor_nuevo["formato"] for e in eventos) == ["jsonld", "rdfxml", "turtle"]  # el orden de la base no está garantizado
     rep = cliente.get("/api/exportacion/conformidad", headers=archivista, params={"fondo_id": str(f["fondo"].id)}).json()
     assert rep["conforme"] and rep["uris_publicas"] is False
     assert db.scalar(select(RegistroAuditoria).where(RegistroAuditoria.accion == "conformidad_rico_validada"))
