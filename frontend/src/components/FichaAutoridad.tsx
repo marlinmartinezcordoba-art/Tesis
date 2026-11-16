@@ -820,7 +820,7 @@ function AreaIsdiah(p: Props) {
   const { entidad: e, ficha: f, puede, fondoId, alCambiar } = p;
   const datos = (f.campos.isdiah as unknown as Record<string, string> | null) || {};
   return (
-    <Area titulo="Institución que custodia archivos (ISDIAH)" abierta={Object.keys(datos).length > 0}>
+    <Area titulo="Institución que custodia archivos (rico:hasOrHadHolder)" abierta={Object.keys(datos).length > 0}>
       <p className="meta" style={{ marginTop: 0 }}>
         Contacto, acceso y servicios de la institución. RiC-O 1.1 no tiene propiedades para estos datos: se guardan en
         la ficha y no salen en el grafo. La custodia de cada fondo sí sale (rico:hasOrHadHolder).
@@ -845,7 +845,7 @@ function FichaAgente(p: Props) {
   const corporativa = e.subtipo === "entidad_corporativa" || e.subtipo === "grupo";
   return (
     <>
-      <Area titulo="1. Área de identificación" insignia={<code className="rico">{f.clase_rico}</code>}>
+      <Area titulo="Identidad del agente" insignia={<code className="rico">{f.clase_rico}</code>}>
         {e.subtipo !== "mecanismo" && (
           <p style={{ marginTop: 0 }}>
             <button type="button" className="enlace" onClick={() => descargar(`/api/publico/eac/${e.id}`).catch(() => undefined)}>
@@ -868,7 +868,7 @@ function FichaAgente(p: Props) {
         <Identificadores ficha={f} entidad={e} puede={puede} alCambiar={alCambiar} />
       </Area>
 
-      <Area titulo="2. Área de descripción">
+      <Area titulo="Existencia, historia y contexto funcional">
         <dl className="par-dato">
           <FechaEditable etiqueta="Fechas de existencia" campo="existencia_edtf" edtf={(f.campos.existencia_edtf as string) || null}
                          legible={f.existencia_legible} subtipos={["rango", "simple"]} {...comun} />
@@ -897,7 +897,7 @@ function FichaAgente(p: Props) {
                   entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
       </Area>
 
-      <Area titulo="3. Área de relaciones">
+      <Area titulo="Relaciones con otros agentes">
         <Vinculos vinculos={f.vinculos} tipos={["subordinado", "sucesor", "asociado", "ocupa_cargo", "cargo_en", "miembro", "dirige", "subdivision",
                  "progenitor_de", "hermano_de", "conyuge_de", "familiar_de", "ascendiente_de", "autoridad_sobre", "controla_a",
                  "relacion_laboral", "conoce_a", "sabe_de", "correspondencia_con", "maestro_de"]}
@@ -905,7 +905,7 @@ function FichaAgente(p: Props) {
                   vacio="Sin relaciones con otros agentes." entidad={e} fondoId={fondoId} puede={puede} alCambiar={alCambiar} />
       </Area>
 
-      <AreaControl {...p} titulo="4. Área de control" />
+      <AreaControl {...p} titulo="Control de la ficha" />
 
       {e.subtipo === "entidad_corporativa" && <AreaIsdiah {...p} />}
     </>
@@ -933,7 +933,7 @@ function AreaControl(p: Props & { titulo: string }) {
         <ListaEditable etiqueta="Estado de elaboración" campo="estado_elaboracion" valor={f.control.estado_elaboracion || null}
                        opciones={ESTADO_ELABORACION} {...comun} />
         <dt>Nivel de detalle</dt>
-        <dd>{NIVEL_FICHA[nivel]} <span className="meta">(se calcula: parcial con el primer dato del área de descripción;
+        <dd>{NIVEL_FICHA[nivel]} <span className="meta">(se calcula: parcial con el primer dato de existencia o historia;
           completo con fechas, historia, otro elemento y las fuentes)</span></dd>
         <dt>Creación de la ficha</dt><dd>{fecha(f.control.creada_en)}</dd>
         <dt>Última revisión</dt><dd>{f.control.revisada_en ? fecha(f.control.revisada_en) : "—"} <span className="meta">(tomada de la auditoría)</span></dd>
@@ -1072,7 +1072,7 @@ function FichaTipoActividad(p: Props) {
   const comun = { puede, entidadId: e.id, alCambiar };
   return (
     <>
-      <Area titulo="Identificación y descripción (ISDF)" insignia={<code className="rico">skos:notation · skos:scopeNote</code>}>
+      <Area titulo="Identidad de la función (rico:ActivityType)" insignia={<code className="rico">skos:notation · skos:scopeNote</code>}>
         <dl className="par-dato">
           <ListaEditable etiqueta="Tipo" campo="tipo_funcion" valor={(f.campos.tipo_funcion as string) || null} opciones={TIPO_FUNCION} {...comun} />
           <TextoEditable etiqueta="Código de clasificación" campo="codigo_clasificacion" valor={f.campos.codigo_clasificacion}
@@ -1103,7 +1103,7 @@ function FichaTipoActividad(p: Props) {
         {(f.actividades || []).length === 0 ? <p className="meta" style={{ margin: 0 }}>Ninguna actividad lo lleva asignado todavía.</p>
           : (f.actividades || []).map((a) => <div key={a.id} className="fila" style={{ padding: "6px 0" }}><Link to={`/vocabularios/${a.id}`}>{a.nombre}</Link></div>)}
       </Area>
-      <AreaControl {...p} titulo="Área de control (ISDF)" />
+      <AreaControl {...p} titulo="Control de la ficha" />
     </>
   );
 }
