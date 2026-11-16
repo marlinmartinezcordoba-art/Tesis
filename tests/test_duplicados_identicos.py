@@ -86,7 +86,8 @@ def test_la_forma_documental_dudosa_no_entra_y_calidad_la_senala(cliente, db, fo
     series = cuadro.nombres_de_series(db, fondo.id)
     assert "serie" in cuadro.forma_dudosa("RESERVAS FORESTALES", series)
     assert cuadro.forma_dudosa("Acta", series) is None
-    assert cuadro.forma_dudosa("Informe de seguimiento a la ejecución de los planes de manejo ambiental", series)
+    # Sin límite de palabras: una tipología larga de la TRD es una forma documental.
+    assert cuadro.forma_dudosa("Informe de seguimiento a la ejecución de los planes de manejo ambiental", series) is None
     entidad(db, fondo, "Reservas forestales", clase="forma_documental")
     r = cliente.get(f"/api/fondos/{fondo.id}/calidad", headers=archivista)
     assert r.status_code == 200, r.text
@@ -97,3 +98,36 @@ def test_la_forma_documental_dudosa_no_entra_y_calidad_la_senala(cliente, db, fo
 def test_el_filtro_por_reglas_funciona(cliente, fondo, archivista):  # noqa: F811
     r = cliente.get(f"/api/vocabulario?fondo_id={fondo.id}&clase=regla", headers=archivista)
     assert r.status_code == 200, r.text
+
+
+def test_la_forma_sale_de_las_tipologias_de_la_trd(db, fondo):  # noqa: F811
+    from app.servicios import formas_trd
+    from app.servicios.motor import Documento, EntidadPropuesta, Propuesta
+
+    acta = entidad(db, fondo, "Acta", clase="forma_documental")
+    resolucion = entidad(db, fondo, "Resolución", clase="forma_documental")
+    entidad(db, fondo, "Circular", clase="forma_documental")  # no es tipología de ninguna serie
+    serie = RecursoDocumental(id=uuid.uuid4(), nivel="subserie", titulo="Resoluciones", fondo_id=fondo.id,
+                              incluido_en_id=fondo.id, formas_miembros=sorted([acta.id, resolucion.id]))
+    db.add(serie)
+    db.commit()
+    assert {f.id for f in formas_trd.tipologias(db, fondo.id)} == {acta.id, resolucion.id}
+    texto = "MINISTERIO DE AMBIENTE\n  RESOLUCIÓN   No. 0123\nPor la cual se aprueba el acta de la reunión"
+    doc = Documento(id=uuid.uuid4(), nombre="r.pdf", texto=texto)
+    # El motor propuso «Circular», que no es tipología: queda la de la TRD que declara el encabezado.
+    p = Propuesta(entidades=[EntidadPropuesta(clave="p1", tipo="forma_documental", valor="Circular", confianza=0.6)])
+    formas_trd.ajustar(db, fondo.id, p, [doc])
+    [f] = [e for e in p.entidades if e.tipo == "forma_documental"]
+    assert f.existente_id == str(resolucion.id) and f.valor == "Resolución" and f.confianza == 0.9
+    assert texto[f.inicio:f.inicio + len(f.fragmento)] == f.fragmento == "RESOLUCIÓN"
+    # Sin forma propuesta, se agrega; si el motor ya eligió una tipología, no se toca.
+    p = Propuesta()
+    formas_trd.ajustar(db, fondo.id, p, [doc])
+    assert p.entidades[0].existente_id == str(resolucion.id)
+    p = Propuesta(entidades=[EntidadPropuesta(clave="p1", tipo="forma_documental", valor="Acta", existente_id=str(acta.id))])
+    formas_trd.ajustar(db, fondo.id, p, [doc])
+    assert p.entidades[0].existente_id == str(acta.id)
+    # «Acta» dentro de otra palabra no cuenta («Actas» sí sería otra forma).
+    p = Propuesta()
+    formas_trd.ajustar(db, fondo.id, p, [Documento(id=uuid.uuid4(), nombre="x", texto="Contractual sin forma")])
+    assert p.entidades == []

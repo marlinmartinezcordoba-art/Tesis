@@ -212,6 +212,10 @@ async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id:
     # fondo que ya aparecen en el texto, para poder reutilizarlas.
     contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
     propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel, contexto)
+    # La forma documental, de las tipologías de la TRD: la que el documento declara en su encabezado.
+    from app.servicios import formas_trd
+
+    formas_trd.ajustar(db, trabajo.fondo_id, propuesta, documentos)
     # Evidencia (RF-AI-002 y RF-OCR-001): página y zona de cada fragmento, y la
     # propuesta guardada como registro inalterable.
     propuestas_ia.ubicar_fragmentos(db, propuesta)

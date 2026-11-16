@@ -1251,11 +1251,6 @@ def _de_vocabulario(db: Session, fondo_id: uuid.UUID, clase: str, nombre: str, u
                                        usuario_id=usuario_id)
 
 
-# Un tipo documental es una forma (acta, oficio, resolución): unas pocas palabras. Más que esto suele ser
-# una descripción o un nombre de serie que se coló en la columna de tipos.
-MAX_PALABRAS_FORMA = 8
-
-
 def nombres_de_series(db: Session, fondo_id: uuid.UUID, leidas=()) -> set[str]:
     """Los nombres normalizados de las series y subseries del fondo y de las filas que se aplican."""
     from app.servicios import vocabulario
@@ -1273,8 +1268,6 @@ def forma_dudosa(tipo: str, series: set[str]) -> str | None:
 
     if vocabulario.normalizar(tipo) in series:
         return "es el nombre de una serie o subserie del cuadro"
-    if len(tipo.split()) > MAX_PALABRAS_FORMA:
-        return f"tiene más de {MAX_PALABRAS_FORMA} palabras"
     return None
 
 
