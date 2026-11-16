@@ -16,8 +16,8 @@ type Estado = "disponible" | "parcial" | "pendiente";
 const INSTRUMENTOS: { nombre: string; que: string; ric: string; estado: Estado; ruta?: string; nota?: string }[] = [
   { nombre: "Institución", que: "Datos, naturaleza jurídica y custodia", ric: "rico:CorporateBody (ISDIAH)", estado: "parcial",
     ruta: "/vocabularios", nota: "La ficha de la entidad como agente; faltan sedes y responsables." },
-  { nombre: "Estructura orgánica", que: "Dependencias y su vigencia", ric: "hasOrHadSubordinate · agentes con periodo",
-    estado: "parcial", ruta: "/fondos?vista=versiones", nota: "Las dependencias salen del CCD; falta su vigencia y jerarquía como agentes." },
+  { nombre: "Estructura orgánica", que: "Dependencias como agentes, su jerarquía y su vigencia",
+    ric: "rico:CorporateBody · hasOrHadSubordinate", estado: "disponible", ruta: "/fondos?vista=estructura" },
   { nombre: "CCD", que: "Códigos, series y subseries", ric: "rico:RecordSet con su tipo", estado: "disponible", ruta: "/fondos?vista=cargar" },
   { nombre: "TRD", que: "Retención y disposición final", ric: "rico:Rule que regula la serie", estado: "disponible", ruta: "/fondos?vista=versiones" },
   { nombre: "TVD", que: "Valoración del fondo acumulado", ric: "rico:Rule por periodo", estado: "disponible", ruta: "/fondos?vista=tvd" },

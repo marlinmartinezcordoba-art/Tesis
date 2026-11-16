@@ -188,3 +188,13 @@ class GobiernoArchivistico(BaseModel):
     fondo: dict
     planes: list[dict]
     faltan: list[str]
+
+
+class EstructuraOrganica(BaseModel):
+    """Dependencias como agentes RiC: su agrupación, su superior y su vigencia."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    entidad: dict | None
+    dependencias: list[dict]
+    totales: dict

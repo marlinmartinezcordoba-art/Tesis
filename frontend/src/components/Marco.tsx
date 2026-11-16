@@ -94,6 +94,7 @@ const ENTRADAS: Entrada[] = [
       // Pasos guiados (decisión de la autora): subir, revisar, corregir y aprobar en una sola pantalla;
       // aparte, el cuadro que rige y el historial de versiones.
       { vista: "configuracion", nombre: "Instrumentos de la entidad", submodulo: "Configuración institucional" },
+      { vista: "estructura", nombre: "Estructura orgánica", submodulo: "Configuración institucional" },
       { vista: "tca", nombre: "Control de acceso (TCA)", submodulo: "Configuración institucional" },
       { vista: "cargar", nombre: "Cargar y aprobar", submodulo: "TRD y CCD", permitir: (u) => !u.modo_evaluacion },
       { vista: "versiones", nombre: "Cuadro y versiones", submodulo: "TRD y CCD" },

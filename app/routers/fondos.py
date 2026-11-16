@@ -123,6 +123,49 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
             for e in filas]
 
 
+@router.get("/{fondo_id}/estructura-organica", response_model=rc.EstructuraOrganica,
+            summary="Estructura orgánica: cada dependencia como agente, con su superior y su vigencia")
+def estructura_organica(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import estructura_organica as servicio
+
+    return servicio.ver(db, fondo_o_404(db, fondo_id))
+
+
+@router.post("/{fondo_id}/estructura-organica/derivar", response_model=rc.EstructuraOrganica,
+             summary="Completar la estructura orgánica desde el cuadro: agente de cada dependencia y su subordinación")
+def derivar_estructura(fondo_id: uuid.UUID, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import estructura_organica as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    resultado = servicio.derivar(db, fondo, actor.id)
+    db.commit()
+    return servicio.ver(db, fondo) | {"resultado": resultado}
+
+
+class VigenciaIn(BaseModel):
+    vigencia: str = Field(max_length=200)
+
+
+@router.put("/{fondo_id}/estructura-organica/{agente_id}/vigencia", response_model=rc.EstructuraOrganica,
+            summary="Registrar la vigencia (EDTF) de una dependencia")
+def vigencia_dependencia(fondo_id: uuid.UUID, agente_id: uuid.UUID, datos: VigenciaIn,
+                         actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.models.descripcion import EntidadVocabulario
+    from app.servicios import estructura_organica as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    agente = db.get(EntidadVocabulario, agente_id)
+    if agente is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La dependencia no existe.")
+    try:
+        servicio.fijar_vigencia(db, agente, datos.vigencia, actor.id)
+    except servicio.ErrorEstructura as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return servicio.ver(db, fondo)
+
+
 @router.get("/{fondo_id}/gobierno", response_model=rc.GobiernoArchivistico,
             summary="Gobierno archivístico: PGD y PINAR como mandatos, con sus programas, proyectos y acciones")
 def gobierno(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
