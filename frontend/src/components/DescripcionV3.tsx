@@ -359,14 +359,20 @@ export interface RevisionCompletitud {
     hallazgos: { tipo: string; paginas: number[]; detalle: string; confianza: string }[] }[];
 }
 
-export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel, completitud, revisionDatos }: {
+export type SeccionCampos = "caracteristicas" | "acceso" | "relaciones" | "fuentes";
+
+export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianza, heredada, nivel, completitud, revisionDatos,
+                                 secciones }: {
   valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void; fondoId: string;
   propuestos: string[]; confianza: number | null;
   heredada?: { acceso: string; de: string | null } | null;
   nivel?: string;
   completitud?: RevisionCompletitud | null;
   revisionDatos?: RevisionResumen | null;
+  /** Qué partes mostrar (pestañas de la descripción RiC); sin indicar, todas. */
+  secciones?: SeccionCampos[];
 }) {
+  const ver = (s: SeccionCampos) => !secciones || secciones.includes(s);
   const [nuevo, setNuevo] = useState("");
   const [buscando, setBuscando] = useState<"precede" | "sigue" | null>(null);
   const [vinculando, setVinculando] = useState<"respondeA" | "borradorDe" | "copiaDe" | "asociadoA" | "vinculoGenetico" | null>(null);
@@ -378,6 +384,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
   };
   return (
     <div className="tarjeta-prop fija">
+      {ver("caracteristicas") && <>
       <div className="campo">
         <label>Idioma del contenido <span className="meta">(ISO 639-3)</span> <GuiaCampo clave="idiomas" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
@@ -405,6 +412,8 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           <button type="button" className="boton chico" disabled={!/^[a-zA-Z]{3}$/.test(nuevo)} onClick={() => agregar(nuevo)}>Agregar</button>
         </div>
       </div>
+      </>}
+      {ver("acceso") && <>
       <SugerenciaClasificacion valor={valor} alCambiar={alCambiar} revision={revisionDatos} heredada={heredada} />
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
@@ -445,13 +454,17 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
                   placeholder="Ej.: «Transcripción en texto plano para lector de pantalla»"
                   onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
+      </>}
+      {ver("fuentes") && <>
       <div className="campo">
         <label htmlFor="historia">Historia archivística <span className="meta">(rico:history · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
         <textarea id="historia" className="entrada" rows={2} value={valor.historiaArchivistica} maxLength={20000}
                   placeholder="Transferencias, depósitos y custodios anteriores"
                   onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />
       </div>
-      <NotasComplementarias valor={valor} alCambiar={alCambiar} />
+      </>}
+      {ver("caracteristicas") && <NotasComplementarias valor={valor} alCambiar={alCambiar} />}
+      {ver("relaciones") && <>
       <div className="campo" style={{ marginBottom: 0 }}>
         <label>Secuencia en la serie <span className="meta">(opcional · rico:precedesOrPreceded)</span></label>
         {valor.secuencia ? (
@@ -513,6 +526,8 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
         <p className="meta" style={{ margin: "4px 0 0" }}>La respuesta puede estar en otra serie (comunicaciones recibidas y enviadas).</p>
       </div>
+      </>}
+      {ver("caracteristicas") && <>
       {documento && (
         <div className="campo">
           <label>Tipo de contenido <span className="meta">(opcional · uno o varios · rico:hasContentOfType)</span></label>
@@ -568,6 +583,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           </div>
         )}
       </div>
+      </>}
     </div>
   );
 }

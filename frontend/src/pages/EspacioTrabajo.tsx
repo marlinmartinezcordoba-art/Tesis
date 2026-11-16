@@ -169,6 +169,38 @@ function TextoResaltado({ texto, marcas, activa, alElegir }: {
   return <div className="texto-doc">{partes}</div>;
 }
 
+// Descripción RiC por componentes: siete pestañas, no las áreas de una norma anterior.
+type Pestana = "identidad" | "caracteristicas" | "agentes" | "funciones" | "relaciones" | "lugares" | "manifestaciones" | "todo";
+const PESTANAS: [Pestana, string][] = [
+  ["identidad", "Identidad del recurso"], ["caracteristicas", "Características"], ["agentes", "Agentes"],
+  ["funciones", "Funciones y actividades"], ["relaciones", "Relaciones"], ["lugares", "Lugares y acontecimientos"],
+  ["manifestaciones", "Manifestaciones y fuentes"], ["todo", "Ver todo"],
+];
+const PESTANA_DE_TIPO: Record<TipoEntidad, Pestana> = {
+  agente: "agentes", actividad: "funciones", tipo_actividad: "funciones", mandato: "funciones",
+  materia: "relaciones", forma_documental: "relaciones", lugar: "lugares", fecha: "lugares",
+};
+
+/** Lo que ya está relacionado con el recurso, agrupado por clase RiC: el contexto que se va construyendo. */
+function ContextoRelacionado({ items, alElegir }: { items: { clave: string; tipo: TipoEntidad; valor: string; decision: string }[];
+  alElegir: (clave: string) => void }) {
+  const aceptadas = items.filter((i) => i.decision === "aceptada");
+  if (!aceptadas.length) return null;
+  const grupos = new Map<TipoEntidad, typeof aceptadas>();
+  aceptadas.forEach((i) => grupos.set(i.tipo, [...(grupos.get(i.tipo) || []), i]));
+  return (
+    <div className="tarjeta-prop contexto-relacionado" aria-label="Contexto ya relacionado">
+      <div className="meta" style={{ fontWeight: 600 }}>Contexto ya relacionado</div>
+      {[...grupos.entries()].map(([tipo, lista]) => (
+        <div key={tipo} className="contexto-grupo">
+          <span className={`insignia ${TIPO_CLASE[tipo]}`}>{TIPO_NOMBRE[tipo]}</span>{" "}
+          {lista.map((i, n) => <span key={i.clave}>{n > 0 && ", "}<button type="button" className="enlace" onClick={() => alElegir(i.clave)}>{i.valor}</button></span>)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function EspacioTrabajo() {
   const { id = "" } = useParams();
   const navegar = useNavigate();
@@ -182,6 +214,8 @@ export function EspacioTrabajo() {
   const [filtroUbicacion, setFiltroUbicacion] = useState("");
   const [sugeridas, setSugeridas] = useState<{ id: string; palabras: string[] }[]>([]);
   const [activa, setActiva] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<Pestana>("identidad");
+  const ver = (...p: Pestana[]) => pestana === "todo" || p.includes(pestana);
   const [agregando, setAgregando] = useState(false);
   const [error, setError] = useState("");
   const [publicando, setPublicando] = useState(false);
@@ -340,8 +374,13 @@ export function EspacioTrabajo() {
 
   function elegir(clave: string, desdeTexto = false) {
     setActiva(clave);
-    const destino = document.getElementById(desdeTexto ? `t-${clave}` : `m-${clave}`);
-    destino?.scrollIntoView({ block: "center", behavior: "smooth" });
+    const it = items.find((x) => x.clave === clave);
+    if (it && pestana !== "todo") setPestana(PESTANA_DE_TIPO[it.tipo] || "todo");
+    // Tras cambiar de pestaña la tarjeta aparece en el siguiente dibujo: se espera un instante.
+    window.setTimeout(() => {
+      const destino = document.getElementById(desdeTexto ? `t-${clave}` : `m-${clave}`);
+      destino?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 30);
   }
 
   async function publicar() {
@@ -509,20 +548,38 @@ export function EspacioTrabajo() {
         </div>
 
         <div className="propuestas">
-          <div className="tarjeta-prop fija">
-            <div className="campo">
+          <ContextoRelacionado items={items} alElegir={(c) => elegir(c)} />
+          <div className="pestanas-ric" role="tablist" aria-label="Componentes de la descripción RiC">
+            {PESTANAS.map(([k, nombre]) => {
+              const faltan = k === "todo" ? 0 : items.filter((i) => PESTANA_DE_TIPO[i.tipo] === k && porResolver(i, items)).length
+                + (k === "caracteristicas" ? partes.filter(partePendiente).length + datosPendientes : 0);
+              return (
+                <button key={k} type="button" role="tab" aria-selected={pestana === k}
+                        className={`pestana-ric${pestana === k ? " activa" : ""}`} onClick={() => setPestana(k)}>
+                  {nombre}{faltan > 0 && <span className="insignia alerta" title="Por resolver">{faltan}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {ver("identidad") && (
+            <div className="tarjeta-prop">
+              <div className="meta">Tipo de entidad RiC: {NIVEL_NOMBRE[espacio.nivel]} <NivelRiC nivel={espacio.nivel} /></div>
+            </div>
+          )}
+          <div className="tarjeta-prop fija" hidden={!ver("identidad", "caracteristicas")}>
+            <div className="campo" hidden={!ver("identidad")}>
               <label htmlFor="titulo">Título <GuiaCampo clave="titulo" /></label>
               <input id="titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
               {propuesta?.titulo && <EvidenciaCampo campo="titulo" evidencia={propuesta.evidencia_titulo} activa={activa}
                                                     alElegir={(c) => elegir(c)} />}
             </div>
-            <div className="campo">
+            <div className="campo" hidden={!ver("caracteristicas")}>
               <label htmlFor="alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
               <textarea id="alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} />
               {propuesta?.alcance && <EvidenciaCampo campo="alcance" evidencia={propuesta.evidencia_alcance} activa={activa}
                                                      alElegir={(c) => elegir(c)} />}
             </div>
-            <div className="campo" style={{ marginBottom: 0 }}>
+            <div className="campo" style={{ marginBottom: 0 }} hidden={!ver("identidad")}>
               <label htmlFor="incluido">Queda incluido en</label>
               {superiores.length > 12 && (
                 <input className="entrada" aria-label="Buscar la serie o subserie" placeholder="Buscar por código, serie o dependencia…"
@@ -554,7 +611,7 @@ export function EspacioTrabajo() {
             </div>
           </div>
 
-          {espacio.datos_personales && (
+          {espacio.datos_personales && ver("caracteristicas") && (
             <DatosPersonales trabajoId={espacio.trabajo_id} datos={espacio.datos_personales}
                              alCambiar={(d) => {
                                setEspacio({ ...espacio, datos_personales: d });
@@ -563,7 +620,7 @@ export function EspacioTrabajo() {
                              }} />
           )}
 
-          {!!propuesta?.documentos_citados?.length && (() => {
+          {!!propuesta?.documentos_citados?.length && ver("relaciones") && (() => {
             const actuales = campos.isadg.unidades_relacionadas || "";
             const faltan = propuesta.documentos_citados!.filter((c) => !actuales.includes(c.valor));
             return (
@@ -589,16 +646,35 @@ export function EspacioTrabajo() {
             );
           })()}
 
-          <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
-                          completitud={espacio.completitud} revisionDatos={espacio.datos_personales}
-                          propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null} />
+          {ver("caracteristicas", "relaciones", "manifestaciones") && (
+            <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
+                            completitud={espacio.completitud} revisionDatos={espacio.datos_personales}
+                            propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null}
+                            secciones={pestana === "todo" ? undefined : pestana === "caracteristicas" ? ["caracteristicas", "acceso"]
+                              : pestana === "relaciones" ? ["relaciones"] : ["fuentes"]} />
+          )}
 
-          {espacio.nivel === "unidad_documental" && (
+          {ver("manifestaciones") && (
+            <div className="tarjeta-prop">
+              <div className="prop-cab"><span className="insignia proceso">Manifestaciones</span></div>
+              <ul className="cf-docs">
+                {espacio.documentos.map((d) => (
+                  <li key={d.id}>{d.nombre} <span className="meta">· manifestación digital (rico:Instantiation) · texto
+                    {d.origen_texto === "ocr" ? " por OCR" : " de la capa del archivo"}
+                    {d.confianza_ocr !== null && ` · confianza ${confianzaTexto(d.confianza_ocr)}`}</span></li>
+                ))}
+              </ul>
+              <p className="pista" style={{ margin: 0 }}>El original físico (papel, ubicación, signatura) se registra después de
+                publicar, en la vista interna. Cada relación aceptada guarda su fuente: el fragmento del texto y la página.</p>
+            </div>
+          )}
+
+          {espacio.nivel === "unidad_documental" && ver("caracteristicas") && (
             <PartesDocumentales partes={partes} alCambiar={setPartes} trabajoId={espacio.trabajo_id} fondoId={espacio.fondo.id}
                                 documentos={espacio.documentos} />
           )}
 
-          {items.map((i) => {
+          {items.filter((i) => ver(PESTANA_DE_TIPO[i.tipo] || "todo")).map((i) => {
             const baja = i.confianza !== null && i.confianza < umbral;
             return (
               <div key={i.clave} id={`t-${i.clave}`}
@@ -722,7 +798,7 @@ export function EspacioTrabajo() {
             );
           })}
 
-          <div className="tarjeta-prop">
+          <div className="tarjeta-prop" hidden={!ver("agentes", "funciones", "relaciones", "lugares")}>
             <button type="button" className="enlace" onClick={() => setAgregando(true)}>+ Agregar una entidad que el motor no propuso</button>
             {agregando && (
               <Ventana titulo="Agregar una entidad que el motor no propuso" alCerrar={() => setAgregando(false)}>

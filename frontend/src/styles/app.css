@@ -1950,3 +1950,12 @@ a.config-ficha:hover { border-color: var(--accent); }
 .config-ficha code.rico { font-size: .75rem; }
 .busqueda-respaldo { list-style: none; margin: 6px 0 0; padding: 0; font-size: .85rem; }
 .busqueda-respaldo li { margin-top: 2px; }
+
+/* Descripción RiC en pestañas */
+.propuestas [hidden] { display: none !important; }
+.pestanas-ric { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; border-bottom: 1px solid var(--line); }
+.pestana-ric { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; font: inherit;
+  font-size: .86rem; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.pestana-ric.activa { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.pestana-ric .insignia { font-size: .7rem; padding: 0 6px; }
+.contexto-relacionado { display: flex; flex-direction: column; gap: 6px; font-size: .86rem; }

@@ -289,7 +289,8 @@ export function Descripcion() {
                       <button type="button" className="boton chico primario" title="Abre su trabajo con el avance guardado"
                               onClick={() => navegar(`/descripcion/trabajo/${d.trabajo_propio_id}`)}>Continuar</button>
                     ) : !d.en_edicion_por && puede && (
-                      <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}>Describir</button>
+                      <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}
+                              title="Crea un recurso documental individual (rico:Record)">Describir como Record</button>
                     )}
                     <MenuAcciones etiqueta={`Más acciones para ${d.nombre}`} acciones={secundarias} />
                   </div>
@@ -299,10 +300,10 @@ export function Descripcion() {
                 <div className="confirmar">
                   <span>{seleccion.length} documentos seleccionados</span>
                   <div className="acciones" style={{ alignItems: "center" }}>
-                    <span className="pista" style={{ margin: 0 }}>Se describen como un expediente de su serie (las series
-                      salen de la TRD)</span>
+                    <span className="pista" style={{ margin: 0 }}>Se describen como un conjunto documental (rico:RecordSet,
+                      tipo expediente); las partes de un documento (rico:RecordPart) se agregan dentro de su descripción</span>
                     <button type="button" className="boton primario" disabled={!!abriendo} onClick={() => describir(seleccion, "expediente")}>
-                      {abriendo ? "Abriendo…" : "Describir como expediente"}
+                      {abriendo ? "Abriendo…" : "Describir como Record Set (expediente)"}
                     </button>
                   </div>
                 </div>

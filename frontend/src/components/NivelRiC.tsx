@@ -1,7 +1,7 @@
 import { NIVEL_RIC } from "@/lib/terminos";
 
-// El término RiC-O junto al término archivístico de un nivel (ISAD(G) y cuadro
-// de clasificación): la clase y el tipo de agrupación con que se guarda en el
+// El término RiC-O junto al término archivístico de un nivel (del cuadro de
+// clasificación): la clase y el tipo de agrupación con que se guarda en el
 // grafo RiC-O. «≈» cuando el nivel no tiene tipo propio en RiC-O.
 export function textoRiC(nivel: string): string {
   const r = NIVEL_RIC[nivel];
