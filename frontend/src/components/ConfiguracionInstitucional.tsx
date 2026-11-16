@@ -76,10 +76,31 @@ export function ConfiguracionInstitucional({ fondoId }: { fondoId: string }) {
         {!versiones ? <div className="cargando">Cargando…</div> : versiones.length === 0 ? (
           <div className="vacio">Todavía no hay versiones. <Link to="/fondos?vista=cargar">Cargue el CCD y la TRD</Link>.</div>
         ) : (
+          <>
+          {versiones.filter((v) => v.estado === "vigente").length === 0
+            ? <div className="vacio">Ninguna versión está vigente. Apruebe la que rige para que el cuadro y las reglas la usen.</div>
+            : <TablaVersiones filas={versiones.filter((v) => v.estado === "vigente")} />}
+          {versiones.some((v) => v.estado !== "vigente") && (
+            <details className="historial-versiones">
+              <summary>Historial de versiones (traza): {versiones.filter((v) => v.estado !== "vigente").length}</summary>
+              <p className="pista">Las versiones anteriores, los borradores y las anuladas no se borran: quedan aquí como evidencia
+                de lo que rigió y de lo que se descartó.</p>
+              <TablaVersiones filas={versiones.filter((v) => v.estado !== "vigente")} />
+            </details>
+          )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TablaVersiones({ filas }: { filas: Version[] }) {
+  return (
           <table className="tabla-permisos">
             <thead><tr><th>Instrumento</th><th>Versión</th><th>Acto de aprobación</th><th>Vigencia</th><th>Estado</th><th>Filas</th></tr></thead>
             <tbody>
-              {versiones.map((v) => (
+              {filas.map((v) => (
                 <tr key={v.id}>
                   <td>{v.instrumento.toUpperCase()}{v.periodo ? ` · ${v.periodo}` : ""}</td>
                   <td>{String(v.numero).padStart(2, "0")} · {v.nombre}</td>
@@ -91,8 +112,5 @@ export function ConfiguracionInstitucional({ fondoId }: { fondoId: string }) {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </>
   );
 }

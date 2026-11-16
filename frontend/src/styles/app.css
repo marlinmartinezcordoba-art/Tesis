@@ -1969,3 +1969,6 @@ a.config-ficha:hover { border-color: var(--accent); }
   border-radius: 6px; color: var(--ink); max-width: 900px; }
 .para-que-sirve p { margin: 0 0 6px; }
 .para-que-sirve p:last-child { margin: 0; }
+
+.historial-versiones { margin-top: 12px; }
+.historial-versiones > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
