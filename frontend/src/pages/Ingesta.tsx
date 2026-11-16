@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEven
 import { Link } from "react-router-dom";
 import { ICONOS, useVista } from "@/components/Marco";
 import { Encabezado, Indicadores } from "@/components/Encabezado";
-import { LotesDelFondo, NuevoLote, type Lote } from "@/components/Lotes";
+import { LotesDelFondo } from "@/components/Lotes";
 import { RegistrarFondo } from "@/components/RegistrarFondo";
 import { Ventana } from "@/components/Ventana";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
@@ -62,35 +62,11 @@ function IconoArchivo({ nombre, clase = "" }: { nombre: string; clase?: string }
 
 // --- Cargar documentos -------------------------------------------------------------
 
-interface Expediente { id: string; titulo: string; fechas_extremas: string | null; incluido_en_id: string | null }
-interface NodoCuadro { id: string; nivel: string; codigo: string | null; titulo: string; hijos: NodoCuadro[] }
-interface SerieCuadro { id: string; ruta: string }
-
-// Las series y subseries del cuadro, con su ruta (sección › serie › subserie) para elegirlas.
-function seriesDe(nodos: NodoCuadro[], camino: string[] = []): SerieCuadro[] {
-  return nodos.flatMap((n) => {
-    const nombre = `${n.codigo ? `${n.codigo} ` : ""}${n.titulo}`;
-    const ruta = [...camino, nombre];
-    const propia = n.nivel === "serie" || n.nivel === "subserie" ? [{ id: n.id, ruta: ruta.join(" › ") }] : [];
-    return [...propia, ...seriesDe(n.hijos, ruta)];
-  });
-}
-
 function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fondo; alTerminar: () => void;
   accionesEncabezado?: ReactNode; version: number }) {
   const { usuario } = useSesion();
   const esAdmin = !!usuario?.es_administrador;
   const [limite, setLimite] = useState<number | null>(null);
-  const [expedientes, setExpedientes] = useState<Expediente[]>([]);
-  const [expediente, setExpediente] = useState("");
-  // Cuadro de clasificación: primero la serie o subserie, luego su expediente.
-  const [series, setSeries] = useState<SerieCuadro[]>([]);
-  const [serie, setSerie] = useState("");
-  const [nuevoExp, setNuevoExp] = useState<{ titulo: string; fechas: string } | null>(null);
-  const puedeCrearExp = puede(usuario, "descripcion", "escribir");
-  const [lotes, setLotes] = useState<Lote[]>([]);
-  const [lote, setLote] = useState("");
-  const [abriendoLote, setAbriendoLote] = useState(false);
   const [archivos, setArchivos] = useState<ArchivoLocal[]>([]);
   const [encima, setEncima] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
@@ -103,37 +79,12 @@ function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fon
   useEffect(() => {
     pedir<{ limite_bytes: number; limite_mb: number }>("/api/ingesta/limite").then((l) => setLimite(l.limite_bytes)).catch(() => undefined);
   }, []);
-  useEffect(() => {
-    setExpediente("");
-    setSerie("");
-    pedir<Expediente[]>(`/api/fondos/${fondo.id}/expedientes`).then(setExpedientes).catch(() => setExpedientes([]));
-    pedir<NodoCuadro[]>(`/api/cuadro?fondo_id=${fondo.id}`).then((a) => setSeries(seriesDe(a))).catch(() => setSeries([]));
-    setLote("");
-    pedir<Lote[]>(`/api/ingesta/lotes?fondo_id=${fondo.id}`).then((l) => setLotes(l.filter((x) => x.estado === "abierto")))
-      .catch(() => setLotes([]));
-  }, [fondo.id]);
-
   // Si cambia el límite, se recalcula qué archivos lo exceden.
   useEffect(() => {
     if (limite === null) return;
     setArchivos((lista) => lista.map((a) =>
       a.estado === "listo" || a.estado === "excede" ? { ...a, estado: a.archivo.size > limite ? "excede" : "listo" } : a));
   }, [limite]);
-
-  async function crearExpediente() {
-    if (!nuevoExp) return;
-    setError("");
-    try {
-      const r = await pedir<{ id: string }>("/api/descripcion/agrupaciones", { method: "POST", body: JSON.stringify({
-        fondo_id: fondo.id, nivel: "expediente", titulo: nuevoExp.titulo.trim(), incluido_en_id: serie,
-        fechas_extremas: nuevoExp.fechas.trim() || null }) });
-      setExpedientes(await pedir<Expediente[]>(`/api/fondos/${fondo.id}/expedientes`));
-      setExpediente(r.id);
-      setNuevoExp(null);
-    } catch (err) {
-      setError(err instanceof ErrorAPI ? err.message : "No se pudo crear el expediente.");
-    }
-  }
 
   function agregar(lista: FileList | null) {
     if (!lista) return;
@@ -165,8 +116,6 @@ function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fon
       actualizar(a.clave, { estado: "subiendo", avance: 0, mensaje: undefined });
       const datos = new FormData();
       datos.append("fondo_id", fondo.id);
-      if (expediente) datos.append("expediente_id", expediente);
-      if (lote) datos.append("lote_id", lote);
       datos.append("archivos", a.archivo, a.archivo.name);
       try {
         const r = await subir<{ resultados: ResultadoCarga[] }>("/api/ingesta/cargar", datos, (f) => actualizar(a.clave, { avance: f }));
@@ -220,63 +169,8 @@ function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fon
       {error && <div className="aviso error" role="alert">{error}</div>}
 
       <div className="linea-campo" style={{ alignItems: "flex-start" }}>
-        {series.length > 0 && (
-          <div className="campo">
-            <label htmlFor="serie">Serie o subserie <span className="meta">(cuadro de clasificación)</span></label>
-            <select id="serie" className="selector" value={serie} disabled={subiendo}
-                    onChange={(e) => { setSerie(e.target.value); setExpediente(""); }}>
-              <option value="">Todas</option>
-              {series.map((s) => <option key={s.id} value={s.id}>{s.ruta}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="campo">
-          <label htmlFor="expediente">Expediente de destino (opcional)</label>
-          <select id="expediente" className="selector" value={expediente} disabled={subiendo}
-                  onChange={(e) => setExpediente(e.target.value)}>
-            <option value="">Sin asignar, decidir en descripción</option>
-            {expedientes.filter((x) => !serie || x.incluido_en_id === serie)
-              .map((x) => <option key={x.id} value={x.id}>{x.titulo}{x.fechas_extremas ? ` (${x.fechas_extremas})` : ""}</option>)}
-          </select>
-          {serie && puedeCrearExp && !nuevoExp && (
-            <button type="button" className="boton chico" style={{ marginTop: 6 }} onClick={() => setNuevoExp({ titulo: "", fechas: "" })}>
-              + Nuevo expediente en esta serie</button>
-          )}
-          {nuevoExp && (
-            <Ventana titulo="Nuevo expediente" alCerrar={() => setNuevoExp(null)}>
-              <form className="nuevo-expediente" onSubmit={(e) => { e.preventDefault(); if (nuevoExp.titulo.trim().length >= 3) crearExpediente(); }}>
-                <p className="meta" style={{ marginTop: 0 }}>
-                  En la serie {series.find((s) => s.id === serie)?.ruta || "elegida"}.
-                </p>
-                <div className="campo">
-                  <label htmlFor="exp-titulo">Título del expediente</label>
-                  <input id="exp-titulo" className="entrada" value={nuevoExp.titulo}
-                         onChange={(e) => setNuevoExp({ ...nuevoExp, titulo: e.target.value })} />
-                </div>
-                <div className="campo">
-                  <label htmlFor="exp-fechas">Fechas extremas (opcional)</label>
-                  <input id="exp-fechas" className="entrada" placeholder="1948-1952" value={nuevoExp.fechas}
-                         onChange={(e) => setNuevoExp({ ...nuevoExp, fechas: e.target.value })} />
-                </div>
-                <div className="acciones">
-                  <button type="submit" className="boton primario" disabled={nuevoExp.titulo.trim().length < 3}>Crear</button>
-                  <button type="button" className="boton" onClick={() => setNuevoExp(null)}>Cancelar</button>
-                </div>
-              </form>
-            </Ventana>
-          )}
-        </div>
-        <div className="campo">
-          <label htmlFor="lote">Lote de transferencia <span className="meta">(procedencia · custodia anterior, rico:hasOrHadHolder)</span></label>
-          <select id="lote" className="selector" value={lote} disabled={subiendo} onChange={(e) => setLote(e.target.value)}>
-            <option value="">Sin lote</option>
-            {lotes.map((l) => <option key={l.id} value={l.id}>{l.numero} · {l.dependencia_origen?.nombre || l.forma_ingreso_nombre}
-              {l.acta_numero ? ` · acta ${l.acta_numero}` : ""}</option>)}
-          </select>
-          {!abriendoLote && (
-            <button type="button" className="enlace" onClick={() => setAbriendoLote(true)}>+ Abrir un lote de transferencia</button>
-          )}
-        </div>
+        <p className="pista" style={{ margin: 0, flex: "1 1 100%" }}>Los documentos se ubican en su serie y su expediente al
+          describirlos: RICORA propone dónde va cada uno según su contenido y la TRD.</p>
         {esAdmin && !cambiandoLimite && (
           <p className="pista" style={{ margin: 0 }}>
             Límite por archivo: <b>{textoLimite}</b>.{" "}
@@ -297,12 +191,6 @@ function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fon
         )}
       </div>
 
-      {abriendoLote && (
-        <Ventana titulo="Nuevo lote de transferencia" alCerrar={() => setAbriendoLote(false)}>
-          <NuevoLote fondoId={fondo.id} alCancelar={() => setAbriendoLote(false)}
-                     alCrear={(l) => { setLotes((x) => [l, ...x]); setLote(l.id); setAbriendoLote(false); alTerminar(); }} />
-        </Ventana>
-      )}
 
       <div
         className={`zona${encima ? " encima" : ""}`}
@@ -537,7 +425,7 @@ function ActividadReciente({ fondo, version }: { fondo: Fondo; version: number }
         <div className="tarjeta-cab">Cómo empezar</div>
         <ol className="pasos-inicio">
           <li><strong>Arrastre o seleccione los archivos.</strong> Cualquier formato: el sistema calcula su huella digital y reconoce el formato.</li>
-          <li><strong>Si ya lo sabe, elija el expediente de destino.</strong> Es opcional: también se decide al describir.</li>
+          <li><strong>Describa cada documento.</strong> Al describirlo, RICORA propone su serie y su expediente según su contenido y la TRD.</li>
           <li><strong>Revise el resultado en «Revisar lo cargado».</strong> Allí aparece lo que necesita su decisión (duplicados, errores).</li>
         </ol>
       </div>
