@@ -11,7 +11,7 @@ export const TIPO_NOMBRE: Record<TipoEntidad, string> = {
   actividad: "Actividad",
   tipo_actividad: "Tipo de actividad",
   mandato: "Mandato o norma",
-  forma_documental: "Forma documental",
+  forma_documental: "Tipo documental",
   materia: "Materia (tema)",
 };
 

@@ -478,7 +478,7 @@ export function RegistroDescripcion() {
         <div className="tarjeta-cab">Entidades y relaciones RiC</div>
         {registro.forma_documental && (
           <div className={`fila${quitarForma ? " tachada" : ""}`}>
-            <span className="insignia bien">Forma documental</span>
+            <span className="insignia bien">Tipo documental</span>
             <div className="fila-principal"><div className="nombre">{registro.forma_documental.nombre}</div>
               <div className="meta">Atributo RiC-A17 · {ORIGEN_NOMBRE[registro.forma_documental.origen]}</div></div>
             {editando && <button type="button" className="boton chico" onClick={() => setQuitarForma(!quitarForma)}>{quitarForma ? "Deshacer" : "Quitar"}</button>}

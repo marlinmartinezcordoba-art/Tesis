@@ -474,7 +474,7 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
     mecanismos.preparar_motor(db, recurso.fondo_id or recurso.id, motor, usuario_id)
     formas = [e for e in entidades if e.tipo == "forma_documental"]
     if len(formas) > 1:
-        raise ErrorDescripcion("Un documento o conjunto tiene una sola forma documental; deje solo una.")
+        raise ErrorDescripcion("Un documento o conjunto tiene un solo tipo documental; deje solo uno.")
     por_clave = {e.clave: e for e in entidades if e.clave}
     nodos: dict[str, EntidadVocabulario] = {}
     finales: dict[str, dict] = {}
@@ -1585,7 +1585,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
     _estado_y_completitud(recurso, estado_documento, nota_integridad)
     _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes, fecha_acumulacion)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
-        raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
+        raise ErrorDescripcion("Ya tiene tipo documental; quítelo antes de poner otro.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(
         Relacion.origen_id == recurso.id, Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente"))}
     for k, e in enumerate(agregar):

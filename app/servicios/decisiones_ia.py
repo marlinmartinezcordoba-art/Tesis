@@ -19,7 +19,7 @@ from app.models.usuario import Usuario
 from app.servicios.trazabilidad import _zona
 
 DECISIONES = ("aceptada", "corregida", "rechazada", "agregada")
-TIPO_NOMBRE = {"agente": "Agente", "lugar": "Lugar", "fecha": "Fecha", "forma_documental": "Forma documental",
+TIPO_NOMBRE = {"agente": "Agente", "lugar": "Lugar", "fecha": "Fecha", "forma_documental": "Tipo documental",
                "actividad": "Actividad", "tipo_actividad": "Tipo de actividad", "mandato": "Mandato o norma",
                "titulo": "Título", "alcance": "Alcance y contenido", "idioma": "Idioma"}
 DECISION_NOMBRE = {"aceptada": "Aceptada", "corregida": "Corregida", "rechazada": "Rechazada",

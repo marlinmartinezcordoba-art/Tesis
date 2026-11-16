@@ -133,7 +133,7 @@ const GUIAS: Record<string, Guia> = {
     titulo: "Describiendo",
     pasos: [
       { titulo: "La propuesta del motor, para que usted decida.",
-        texto: "A la izquierda, el documento. A la derecha, lo que el motor propone: título, alcance y contenido, y las entidades (agentes, lugares, fechas, actividades, mandatos y forma documental), cada una con el fragmento del texto de donde sale." },
+        texto: "A la izquierda, el documento. A la derecha, lo que el motor propone: título, alcance y contenido, y las entidades (agentes, lugares, fechas, actividades, mandatos y tipo documental), cada una con el fragmento del texto de donde sale." },
       { titulo: "Revise cada entidad.",
         texto: "Use «Aceptar», «Editar» o descártela. Las de confianza baja vienen señaladas. Si el motor dice «existente», la reconoció en el vocabulario del fondo y la reutiliza." },
       { titulo: "Complete lo que el motor no ve.",
@@ -159,7 +159,7 @@ const GUIAS: Record<string, Guia> = {
     titulo: "Agentes y autoridades",
     pasos: [
       { titulo: "El control de autoridad del fondo.",
-        texto: "Cada agente, lugar, actividad, función, mandato y forma documental existe una sola vez, y todas las descripciones lo reutilizan." },
+        texto: "Cada agente, lugar, actividad, función, mandato y tipo documental existe una sola vez, y todas las descripciones lo reutilizan." },
       { titulo: "Busque y filtre.",
         texto: "Por tipo, por nombre o por nivel de detalle (mínimo o completo). Los «mecanismos» son los programas que actúan en el sistema (el motor, Siegfried, Ghostscript), con su versión exacta." },
       { titulo: "Abra una entidad para completar su ficha.",
@@ -232,7 +232,7 @@ const GUIAS: Record<string, Guia> = {
     titulo: "Conocimiento RiC · Índice",
     pasos: [
       { titulo: "Busque por nombre.",
-        texto: "Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Escriba en el buscador para filtrar." },
+        texto: "Agentes, lugares, tipos documentales, actividades y normas del fondo, en orden alfabético. Escriba en el buscador para filtrar." },
       { titulo: "Toque un término para ver sus documentos.",
         texto: "Se despliegan los documentos publicados que lo citan; cada uno abre su ficha." },
       { titulo: "Solo puntos de acceso del contenido.",

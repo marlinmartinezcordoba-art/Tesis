@@ -1,4 +1,5 @@
 import { confirmar as confirmarDialogo } from "@/lib/dialogos";
+import { enRicO } from "@/lib/terminos";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SelectorFecha } from "@/components/SelectorFecha";
@@ -853,7 +854,8 @@ function FichaAgente(p: Props) {
           </p>
         )}
         <dl className="par-dato">
-          <dt>Tipo de entidad</dt><dd>{e.subtipo ? SUBTIPO_NOMBRE[e.subtipo] || e.subtipo : "Agente"}</dd>
+          <dt>Tipo de entidad</dt><dd title={enRicO(e.subtipo || "agente")}>{e.subtipo ? SUBTIPO_NOMBRE[e.subtipo] || e.subtipo : "Agente"}
+            {enRicO(e.subtipo) && <span className="meta"> · {enRicO(e.subtipo)}</span>}</dd>
           <dt>Forma autorizada del nombre</dt><dd><b>{e.nombre}</b> <span className="meta">(se corrige desde la descripción, que la verifica contra el vocabulario)</span></dd>
           {e.subtipo === "mecanismo" && (
             <TextoEditable etiqueta="Versión exacta (obligatoria)" campo="version" valor={f.campos.version} {...comun}

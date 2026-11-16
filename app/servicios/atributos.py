@@ -59,7 +59,7 @@ ATRIBUTOS: tuple[Atributo, ...] = (
     Atributo("valoracion", "Valoración, selección y eliminación", "texto_largo", 0, 1, "3.3.2"),
     Atributo("nuevos_ingresos", "Nuevos ingresos", "texto_largo", 0, 1, "3.3.3", "rico:accruals"),
     Atributo("organizacion", "Organización", "texto_largo", 0, 1, "3.3.4", "rico:structure"),
-    Atributo("forma_documental_id", "Forma documental", "referencia", 0, 1, None, "rico:hasDocumentaryFormType"),
+    Atributo("forma_documental_id", "Tipo documental", "referencia", 0, 1, None, "rico:hasDocumentaryFormType"),
     Atributo("condiciones_acceso", "Condiciones de acceso", "texto_largo", 0, 1, "3.4.1", "rico:conditionsOfAccess"),
     Atributo("condiciones_uso", "Condiciones de reproducción", "texto_largo", 0, 1, "3.4.2", "rico:conditionsOfUse"),
     Atributo("idiomas", "Lenguas (ISO 639-3)", "codigos", 0, 5, "3.4.3", "rico:hasOrHadLanguage",

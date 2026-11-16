@@ -44,7 +44,7 @@ def indice_xlsx(indice: dict) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
-    nombre_clase = {"agente": "Agentes", "lugar": "Lugares", "forma_documental": "Formas documentales",
+    nombre_clase = {"agente": "Agentes", "lugar": "Lugares", "forma_documental": "Tipos documentales",
                     "actividad": "Actividades", "tipo_actividad": "Funciones", "mandato": "Mandatos"}
     libro = Workbook()
     hoja = libro.active

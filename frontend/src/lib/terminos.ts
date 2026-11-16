@@ -147,3 +147,62 @@ export const NIVEL_RIC: Record<string, { clase: string; tipo: string | null; cer
   unidad_documental: { clase: "rico:Record", tipo: null, cercano: null },
   parte_documental: { clase: "rico:RecordPart", tipo: null, cercano: null },
 };
+
+// Clase de RiC-O → etiqueta oficial en español (rdfs:label @es del OWL de RiC-O 1.1).
+export const CLASE_OFICIAL: Record<string, string> = {
+  "rico:Activity": "Actividad",
+  "rico:ActivityType": "Tipo de actividad",
+  "rico:Agent": "Agente",
+  "rico:Concept": "Concepto",
+  "rico:CorporateBody": "Institución",
+  "rico:Date": "Fecha",
+  "rico:DocumentaryFormType": "Tipo documental",
+  "rico:Event": "Evento",
+  "rico:Family": "Familia",
+  "rico:Group": "Grupo de agentes",
+  "rico:Instantiation": "Instanciación",
+  "rico:Mandate": "Norma",
+  "rico:Mechanism": "Mecanismo",
+  "rico:Person": "Persona",
+  "rico:Place": "Lugar",
+  "rico:Position": "Puesto",
+  "rico:Record": "Documento",
+  "rico:RecordPart": "Componente documental",
+  "rico:RecordSet": "Agrupación documental",
+  "rico:Rule": "Regla",
+};
+
+// Clave de RICORA (nivel, subtipo de agente o clase del vocabulario) → clase de RiC-O.
+export const CLASE_DE: Record<string, string> = {
+  fondo: "rico:RecordSet",
+  coleccion: "rico:RecordSet",
+  seccion: "rico:RecordSet",
+  subseccion: "rico:RecordSet",
+  serie: "rico:RecordSet",
+  subserie: "rico:RecordSet",
+  expediente: "rico:RecordSet",
+  unidad_documental: "rico:Record",
+  parte_documental: "rico:RecordPart",
+  persona: "rico:Person",
+  familia: "rico:Family",
+  entidad_corporativa: "rico:CorporateBody",
+  grupo: "rico:Group",
+  cargo: "rico:Position",
+  mecanismo: "rico:Mechanism",
+  lugar: "rico:Place",
+  forma_documental: "rico:DocumentaryFormType",
+  actividad: "rico:Activity",
+  tipo_actividad: "rico:ActivityType",
+  mandato: "rico:Mandate",
+  tipo_parte: "rico:DocumentaryFormType",
+  regla: "rico:Rule",
+  materia: "rico:Concept",
+  agente: "rico:Agent",
+  fecha: "rico:Date",
+};
+
+// «Unidad documental · en RiC-O: Documento (rico:Record)»: la ayuda de un término de RICORA.
+export function enRicO(clave: string | null | undefined): string | undefined {
+  const c = clave ? CLASE_DE[clave] : undefined;
+  return c ? `En RiC-O: ${CLASE_OFICIAL[c] ?? c} (${c})` : undefined;
+}

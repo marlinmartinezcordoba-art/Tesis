@@ -24,9 +24,9 @@ class Guia:
 ATRIBUTOS: dict[str, Guia] = {
     "titulo": Guia(
         "El nombre formal con que se identifica la unidad de descripción.",
-        "Es lo primero que ve quien consulta y lo que se busca. Un título con forma documental, asunto, productor y "
+        "Es lo primero que ve quien consulta y lo que se busca. Un título con tipo documental, asunto, productor y "
         "fecha permite reconocer el documento sin abrirlo.",
-        "Resume a la forma documental, al productor (relación Productor) y a la fecha de creación: si cambian, revise "
+        "Resume al tipo documental, al productor (relación Productor) y a la fecha de creación: si cambian, revise "
         "el título.",
         "Oficio de la Alcaldía de Tunja al Concejo Municipal sobre el permiso de fiestas, 1948"),
     "codigo_referencia": Guia(
@@ -93,7 +93,7 @@ ATRIBUTOS: dict[str, Guia] = {
     "forma_documental_id": Guia(
         "El tipo documental: oficio, acta, resolución, carta…",
         "La forma dice qué función cumplió el documento y orienta su lectura (diplomática). Es obligatoria en el AGN.",
-        "Sale del vocabulario controlado del fondo (formas documentales) y se exporta con rico:hasDocumentaryFormType.",
+        "Sale del vocabulario controlado del fondo (tipos documentales) y se exporta con rico:hasDocumentaryFormType.",
         "Oficio"),
     "condiciones_acceso": Guia(
         "En palabras, las condiciones para consultar la unidad.",

@@ -270,7 +270,39 @@ def generar_ts() -> str:
             lineas.append(f'  {rol}: "{codigo}",')
     lineas += ["};", ""]
     lineas += nivel_ric_ts()
+    lineas += clase_oficial_ts()
     return "\n".join(lineas)
+
+
+def clase_oficial() -> dict[str, str]:
+    """Cada clase de RiC-O que RICORA usa en pantalla (niveles, agentes, vocabulario), con su etiqueta
+    oficial en español del OWL de RiC-O 1.1: la pantalla dice el término archivístico colombiano y,
+    al lado, la etiqueta oficial."""
+    from app.servicios import ric_o
+
+    clases = sorted({*ric_o.CLASE_NIVEL.values(), *ric_o.CLASE_AGENTE.values(), *ric_o.CLASE_VOCABULARIO.values(),
+                     "Agent", "Instantiation", "Date", "Event"})
+    return {f"rico:{c}": ric_o.etiqueta_es(c) or c for c in clases}
+
+
+def clase_oficial_ts() -> list[str]:
+    from app.servicios import ric_o
+
+    lineas = ["// Clase de RiC-O → etiqueta oficial en español (rdfs:label @es del OWL de RiC-O 1.1).",
+              "export const CLASE_OFICIAL: Record<string, string> = {"]
+    lineas += [f'  "{c}": {_ts_texto(e)},' for c, e in clase_oficial().items()]
+    lineas += ["};", "",
+               "// Clave de RICORA (nivel, subtipo de agente o clase del vocabulario) → clase de RiC-O.",
+               "export const CLASE_DE: Record<string, string> = {"]
+    for d in (ric_o.CLASE_NIVEL, ric_o.CLASE_AGENTE, ric_o.CLASE_VOCABULARIO, {"agente": "Agent", "fecha": "Date"}):
+        lineas += [f'  {k}: "rico:{v}",' for k, v in d.items()]
+    lineas += ["};", "",
+               "// «Unidad documental · en RiC-O: Documento (rico:Record)»: la ayuda de un término de RICORA.",
+               "export function enRicO(clave: string | null | undefined): string | undefined {",
+               "  const c = clave ? CLASE_DE[clave] : undefined;",
+               "  return c ? `En RiC-O: ${CLASE_OFICIAL[c] ?? c} (${c})` : undefined;",
+               "}", ""]
+    return lineas
 
 
 def nivel_ric() -> dict[str, dict]:

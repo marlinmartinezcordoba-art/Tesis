@@ -50,7 +50,7 @@ FAMILIAS = {
     "Event": "Hito institucional (Event)",
     "Date": "Fecha (Date)",
     "Instantiation": "Archivo (Instantiation)",
-    "DocumentaryFormType": "Forma documental (Documentary Form Type)",
+    "DocumentaryFormType": "Tipo documental (Documentary Form Type)",
     "ActivityType": "Tipo de actividad (Activity Type)",
     "Mandate": "Mandato, norma o regla (Mandate, Rule)",
     "Concept": "Materia (Concept)",
@@ -557,7 +557,7 @@ def _fichas(db: Session, ctx: _Contexto, tipo: str, ident: uuid.UUID) -> tuple[l
                    _campo("Alcance y contenido", r.alcance_contenido, "texto"),
                    _campo("Fechas", r.fechas_extremas or rango, "fecha"),
                    _campo("Estado", ESTADOS[n["estado"]] if r.nivel != "fondo" else "Fondo registrado", "estado")]
-        atributos = [_campo("Forma documental", forma.nombre if forma else None, "forma"),
+        atributos = [_campo("Tipo documental", forma.nombre if forma else None, "forma"),
                      _campo("Idiomas (ISO 639-3)", ", ".join(r.idiomas or []), "idioma"),
                      _campo("Condiciones de acceso", r.condiciones_acceso, "acceso"),
                      _campo("Condiciones de uso", r.condiciones_uso, "acceso"),

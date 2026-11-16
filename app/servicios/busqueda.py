@@ -404,7 +404,7 @@ def _como(db: Session, contexto: EntidadVocabulario, documentos: set[uuid.UUID],
                                            "propiedad": ric_o.uri(r.codigo_ric), "via": None, "fuente": fuente(r)})
     for rid in (r.id for r in db.scalars(select(RecursoDocumental).where(RecursoDocumental.id.in_(ids),
                                                                           RecursoDocumental.forma_documental_id == contexto.id))):
-        salida.setdefault(rid, []).append({"relacion": "tiene la forma documental", "propiedad": "rico:hasDocumentaryFormType",
+        salida.setdefault(rid, []).append({"relacion": "tiene el tipo documental", "propiedad": "rico:hasDocumentaryFormType",
                                            "via": None, "fuente": "registrada por una persona"})
     # Por la actividad que documenta: documento → actividad (R033) → función, mandato o agente.
     act = EntidadVocabulario

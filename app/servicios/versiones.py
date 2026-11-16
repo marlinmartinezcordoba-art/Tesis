@@ -28,7 +28,7 @@ from app.servicios import atributos
 MOTIVO_NOMBRE = {"estado_inicial": "Estado al activar el versionado", "publicacion": "Publicación",
                  "edicion": "Corrección", "restauracion": "Restauración", "agrupacion": "Creación de la agrupación"}
 CONTEXTO = ("incluido_en", "forma_documental", "entidades", "instanciaciones", "partes", "secuencia")
-ETIQUETA_CONTEXTO = {"incluido_en": "Nivel superior", "forma_documental": "Forma documental (nombre)",
+ETIQUETA_CONTEXTO = {"incluido_en": "Nivel superior", "forma_documental": "Tipo documental (nombre)",
                      "entidades": "Entidades y relaciones", "instanciaciones": "Documentos (instanciaciones)",
                      "partes": "Partes documentales", "secuencia": "Secuencia en la serie"}
 
@@ -165,7 +165,7 @@ def restaurar(db: Session, recurso: RecursoDocumental, numero: int, autor_id: uu
             raise ErrorVersion(str(exc)) from exc
     forma = valores.get("forma_documental_id")
     if forma and db.get(EntidadVocabulario, uuid.UUID(forma)) is None:
-        raise ErrorVersion("La forma documental de esa versión ya no existe en el vocabulario.")
+        raise ErrorVersion("El tipo documental de esa versión ya no existe en el vocabulario.")
     for clave, valor in valores.items():
         if clave == "forma_documental_id":
             valor = uuid.UUID(valor) if valor else None

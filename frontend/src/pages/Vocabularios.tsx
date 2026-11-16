@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
+import { enRicO } from "@/lib/terminos";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ErrorAPI, pedir, puede as tienePermiso } from "@/lib/api";
 import { SUBTIPO_NOMBRE } from "@/lib/descripcion";
@@ -101,7 +102,7 @@ function TarjetaSugerencia({ s, puede, alResolver }: { s: Sugerencia; puede: boo
   return (
     <div className="tarjeta sugerencia">
       <div className="tarjeta-cab">
-        <span><span className={`insignia ${CLASE_INSIGNIA[s.clase]}`}>{CLASE_NOMBRE[s.clase]}</span></span>
+        <span><span className={`insignia ${CLASE_INSIGNIA[s.clase]}`} title={enRicO(s.clase)}>{CLASE_NOMBRE[s.clase]}</span></span>
         <span className="meta">Detectada {fecha(s.creada_en)}</span>
       </div>
       <div className="par-fusion con-centro">
@@ -332,7 +333,7 @@ export function Vocabularios() {
       {pestana === "tesauros" ? <Tesauros /> : pestana === "vocabulario" ? (
         <>
           <Encabezado titulo="Agentes y autoridades"
-                      descripcion="El vocabulario del fondo: agentes, lugares, formas documentales, actividades y demás términos normalizados. Cada entidad se crea una sola vez al describir y se reutiliza en todos los documentos."
+                      descripcion="El vocabulario del fondo: agentes, lugares, tipos documentales, actividades y demás términos normalizados. Cada entidad se crea una sola vez al describir y se reutiliza en todos los documentos."
                       acciones={usuario?.es_administrador ? (
                         <button type="button" className="boton" onClick={() => setImportando(!importando)}>
                           {importando ? "Cerrar la importación" : "Importar autoridades (EAC-CPF)"}</button>) : undefined} />
@@ -413,7 +414,7 @@ export function Vocabularios() {
                              accion={{ texto: "Limpiar filtros", alHacer: limpiarFiltros }} />
               ) : (
                 <EstadoVacio icono="lista" titulo="El vocabulario del fondo está vacío"
-                             texto="Se llena solo, a medida que se publican descripciones: cada agente, lugar o forma documental confirmado queda aquí una sola vez." />
+                             texto="Se llena solo, a medida que se publican descripciones: cada agente, lugar o tipo documental confirmado queda aquí una sola vez." />
               )
             )}
             {mecanismos && (
@@ -444,7 +445,7 @@ export function Vocabularios() {
                             </span>
                           </Link>
                         </td>
-                        <td><span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span></td>
+                        <td><span className={`insignia ${CLASE_INSIGNIA[e.clase]}`} title={enRicO(e.subtipo || e.clase)}>{CLASE_NOMBRE[e.clase]}</span></td>
                         <td className="num">{(esMecanismo(e) ? e.archivos ?? 0 : e.conexiones).toLocaleString("es-CO")}</td>
                         {!mecanismos && (
                           <td>{e.nivel_detalle && !esMecanismo(e) ? (

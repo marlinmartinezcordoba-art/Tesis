@@ -291,7 +291,7 @@ const DECISION: Record<FilaDecision["decision"], { texto: string; clase: string 
   agregada: { texto: "Agregada por la archivista", clase: "proceso" },
 };
 const TIPOS_DECISION: [string, string][] = [["agente", "Agente"], ["lugar", "Lugar"], ["fecha", "Fecha"],
-  ["forma_documental", "Forma documental"], ["actividad", "Actividad"], ["tipo_actividad", "Tipo de actividad"],
+  ["forma_documental", "Tipo documental"], ["actividad", "Actividad"], ["tipo_actividad", "Tipo de actividad"],
   ["mandato", "Mandato o norma"], ["titulo", "Título"], ["alcance", "Alcance y contenido"], ["idioma", "Idioma"]];
 
 function hoyMenos(dias: number): string {

@@ -164,7 +164,7 @@ def test_ficha_con_resumen_atributos_y_relaciones(cliente, fondo_descrito, archi
     assert resumen["Identificador"] == "CO-AM-114" and resumen["Título"] == O114
     assert resumen["Alcance y contenido"].startswith("Informa")
     atributos = {c["campo"]: c["valor"] for c in ficha["atributos"]}
-    assert atributos["Forma documental"] == "Oficio" and atributos["Folios"] == "2"
+    assert atributos["Tipo documental"] == "Oficio" and atributos["Folios"] == "2"
     assert ficha["familia"] == "Record" and ficha["relaciones_total"] == 7
     assert {x["otro"]["etiqueta"] for x in ficha["relaciones"]} >= {ALCALDIA, EXP48}
     hacia_exp = next(x for x in ficha["relaciones"] if x["otro"]["etiqueta"] == EXP48)

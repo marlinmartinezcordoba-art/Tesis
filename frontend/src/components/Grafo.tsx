@@ -73,7 +73,7 @@ export const FAMILIAS: { clave: Familia; nombre: string; ric: string; principal:
   { clave: "Date", nombre: "Fecha", ric: "Date", principal: true },
   { clave: "Instantiation", nombre: "Archivo", ric: "Instantiation", principal: true },
   { clave: "RecordPart", nombre: "Parte documental", ric: "Record Part", principal: false },
-  { clave: "DocumentaryFormType", nombre: "Forma documental", ric: "Documentary Form Type", principal: false },
+  { clave: "DocumentaryFormType", nombre: "Tipo documental", ric: "Documentary Form Type", principal: false },
   { clave: "ActivityType", nombre: "Tipo de actividad", ric: "Activity Type", principal: false },
   { clave: "Mandate", nombre: "Mandato, norma o regla", ric: "Mandate · Rule", principal: false },
   { clave: "Event", nombre: "Hito institucional", ric: "Event", principal: false },

@@ -381,7 +381,7 @@ def conformidad(datos: dict | None) -> dict:
     if not (d.get("titulo") or "").strip():
         problemas.append("Falta el título (rico:title, exactamente uno).")
     if sum(1 for r in d["relaciones"] if r.get("propiedad") == FORMA and r.get("origen") == DOCUMENTO) > 1:
-        problemas.append("El documento tiene más de una forma documental (rico:hasDocumentaryFormType, a lo sumo una).")
+        problemas.append("El documento tiene más de un tipo documental (rico:hasDocumentaryFormType, a lo sumo uno).")
     for e in d["entidades"]:
         if e.get("tipo") == "actividad" and sum(1 for r in d["relaciones"] if r.get("propiedad") == "has_activity_type"
                                                 and r.get("origen") == e.get("clave")) > 1:

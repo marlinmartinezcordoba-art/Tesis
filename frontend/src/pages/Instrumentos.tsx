@@ -98,7 +98,7 @@ function PanelFicha({ id, cerrar, ir, verGrafo }: {
             <dl className="pares">
               {ficha.control.codigo_referencia && <><dt>Código</dt><dd>{ficha.control.codigo_referencia}</dd></>}
               {ficha.forma_documental && (
-                <><dt>Forma documental</dt><dd>{entidad(ficha.forma_documental.nombre, ficha.forma_documental.id, ficha.forma_documental.documentos)}</dd></>
+                <><dt>Tipo documental</dt><dd>{entidad(ficha.forma_documental.nombre, ficha.forma_documental.id, ficha.forma_documental.documentos)}</dd></>
               )}
               {ficha.fechas_extremas && <><dt>{ficha.nivel === "unidad_documental" ? "Fecha" : "Fechas extremas"}</dt><dd>{ficha.fechas_extremas}</dd></>}
               {ficha.entidades.filter((e) => e.tipo !== "fecha").map((e) => (
@@ -550,7 +550,7 @@ function Indice({ fondo, abrir, puede, verAprobados }: {
   return (
     <>
       <h1>Índice</h1>
-      <p className="sub">Agentes, lugares, formas documentales, actividades y normas del fondo, en orden alfabético. Toque un
+      <p className="sub">Agentes, lugares, tipos documentales, actividades y normas del fondo, en orden alfabético. Toque un
         término para ver los documentos que lo citan.</p>
       {error && <div className="aviso error">{error}</div>}
       {!datos && !error && <div className="cargando">Cargando…</div>}
@@ -568,7 +568,7 @@ function Indice({ fondo, abrir, puede, verAprobados }: {
       {datos && grupos.length === 0 && (
         <div className="tarjeta">
           <EstadoVacio icono="lista" titulo={filtro ? "Ningún término coincide con la búsqueda" : "El índice todavía está vacío"}
-                       texto={filtro ? undefined : "Se llena a medida que se publican descripciones que citan agentes, lugares o formas documentales."}
+                       texto={filtro ? undefined : "Se llena a medida que se publican descripciones que citan agentes, lugares o tipos documentales."}
                        accion={filtro ? { texto: "Limpiar búsqueda", alHacer: () => setQ("") } : undefined} />
         </div>
       )}
@@ -664,7 +664,7 @@ function ResumenFondo({ fondoId }: { fondoId: string }) {
         </div>
         {lista("Productores", r.productores, "Ningún productor registrado todavía.")}
         {lista("Lugares más citados", r.lugares, "Ningún lugar citado todavía.")}
-        {lista("Formas documentales", r.formas, "Ninguna forma documental registrada.")}
+        {lista("Tipos documentales", r.formas, "Ningún tipo documental registrado.")}
       </div>
     </div>
   );
@@ -675,7 +675,7 @@ function ResumenFondo({ fondoId }: { fondoId: string }) {
 const PROPOSITO: Partial<Record<Pestana, [string, string]>> = {
   inventario: ["Para control interno.", "El inventario documental (FUID) dice qué hay, dónde está físicamente (caja, carpeta, folios) y en qué soporte: es la herramienta de quien custodia el fondo."],
   guia: ["Para un lector externo.", "La guía presenta el fondo en prosa a quien no lo conoce: su productor, su contenido y cómo se organiza, sin detalle unidad por unidad."],
-  indice: ["Para buscar rápido por nombre.", "El índice es la puerta de consulta por nombres: cada agente, lugar o forma documental lleva a los documentos publicados que lo citan."],
+  indice: ["Para buscar rápido por nombre.", "El índice es la puerta de consulta por nombres: cada agente, lugar o tipo documental lleva a los documentos publicados que lo citan."],
   adopcion: ["Para demostrar el nivel de adopción.", "El sistema se evalúa a sí mismo contra los siete criterios de un sistema nativo en RiC, con los datos reales del archivo, y deja ejecutar las consultas que lo comprueban."],
   rico: ["Para verificar la correspondencia con la ontología.", "La vista RiC-O entrega el fondo como datos enlazados y comprueba que cada clase y propiedad exista en RiC-O 1.1: es la evidencia técnica de conformidad."],
 };

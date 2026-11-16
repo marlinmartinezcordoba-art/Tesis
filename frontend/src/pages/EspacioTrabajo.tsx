@@ -1,4 +1,5 @@
 import { confianzaTexto } from "@/lib/formato";
+import { enRicO } from "@/lib/terminos";
 import { GuiaCampo } from "@/components/GuiaCampo";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -729,7 +730,7 @@ export function EspacioTrabajo() {
                    className={`tarjeta-prop${activa === i.clave ? " activa" : ""}${i.decision === "descartada" ? " descartada" : ""}`}
                    onClick={() => i.inicio !== null && elegir(i.clave)}>
                 <div className="prop-cab">
-                  <span className={`insignia ${TIPO_CLASE[i.tipo]}`}>
+                  <span className={`insignia ${TIPO_CLASE[i.tipo]}`} title={enRicO(i.subtipo || i.tipo)}>
                     {TIPO_NOMBRE[i.tipo]}{i.subtipo ? ` · ${SUBTIPO_NOMBRE[i.subtipo] || i.subtipo}` : ""}{i.rol ? ` · ${ROL_NOMBRE[i.rol] || i.rol}` : ""}
                   </span>
                   <span className="insignias">

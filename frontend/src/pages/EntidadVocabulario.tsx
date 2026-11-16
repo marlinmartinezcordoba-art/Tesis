@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { enRicO } from "@/lib/terminos";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FichaAutoridad, NIVEL_FICHA, type Ficha } from "@/components/FichaAutoridad";
 import { EnlaceHistoria } from "@/components/Historia";
@@ -259,8 +260,8 @@ export function EntidadVocabularioDetalle() {
         )}
       </h1>
       <p className="sub">
-        <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`}>{CLASE_NOMBRE[e.clase]}</span>{" "}
-        {e.subtipo && <span className="insignia neutra-borde">{SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}{" "}
+        <span className={`insignia ${CLASE_INSIGNIA[e.clase]}`} title={enRicO(e.clase)}>{CLASE_NOMBRE[e.clase]}</span>{" "}
+        {e.subtipo && <span className="insignia neutra-borde" title={enRicO(e.subtipo)}>{SUBTIPO_NOMBRE[e.subtipo] || e.subtipo}</span>}{" "}
         <code className="rico">{claseRicDe(e)}</code> ·{" "}
         {esMecanismo(e) ? `${e.archivos ?? 0} archivo${e.archivos === 1 ? "" : "s"} procesado${e.archivos === 1 ? "" : "s"}`
           : `${conexionesTexto(e.conexiones)} conectado${e.conexiones === 1 ? "" : "s"}`} ·

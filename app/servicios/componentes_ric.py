@@ -58,7 +58,7 @@ def componentes(db: Session, recurso: RecursoDocumental, d: dict) -> dict:
               if not (v or "").strip()]
     poner("recurso", "Recurso documental", "rico:Record · rico:RecordSet · rico:RecordPart",
           COMPLETO if not faltan else PARCIAL,
-          [f"Título: {recurso.titulo}"] + ([f"Forma documental: {d['forma_documental']['nombre']}"] if d.get("forma_documental") else []),
+          [f"Título: {recurso.titulo}"] + ([f"Tipo documental: {d['forma_documental']['nombre']}"] if d.get("forma_documental") else []),
           faltan)
 
     # 2. Agentes: quién lo produjo y quién más intervino.

@@ -1,4 +1,4 @@
-import { NIVEL_RIC } from "@/lib/terminos";
+import { NIVEL_RIC, enRicO } from "@/lib/terminos";
 
 // El término RiC-O junto al término archivístico de un nivel (del cuadro de
 // clasificación): la clase y el tipo de agrupación con que se guarda en el
@@ -16,5 +16,5 @@ export function NivelRiC({ nivel }: { nivel: string }) {
   const ayuda = r.tipo ? "Clase y tipo de agrupación en RiC-O 1.1"
     : r.cercano ? "Clase en RiC-O 1.1; este nivel no tiene tipo oficial y se une al más cercano (skos:broadMatch)"
       : "Clase en RiC-O 1.1";
-  return <span className="nivel-ric" title={ayuda}>{texto}</span>;
+  return <span className="nivel-ric" title={`${ayuda}. ${enRicO(nivel) ?? ""}`}>{texto}</span>;
 }

@@ -64,7 +64,7 @@ def evaluar(db: Session) -> dict:
         f"({', '.join(f'{v} de clase {k}' for k, v in sorted(institucionales.items())) or 'ninguna todavía'})",
         f"Citadas por documentos de más de un fondo: {en_varios}",
         "Clases institucionales: " + ", ".join(vocabulario.CLASES_INSTITUCIONALES)
-        + ". Las formas documentales y las funciones siguen siendo del fondo: nacen de su TRD"],
+        + ". Los tipos documentales y las funciones siguen siendo del fondo: nacen de su TRD"],
         "Una autoridad registrada en un fondo aparece al describir en otro y se exporta con la misma URI en ambos",
         "tests/test_ric_nativo.py::test_un_lugar_es_uno_para_toda_la_institucion_y_se_enlaza_con_geonames_y_wikidata",
         en_uso=sum(institucionales.values()) > 0)

@@ -1557,7 +1557,7 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
             except autoridad.ErrorAutoridad:
                 pass  # ya estaba unida
     if dudosas:
-        informe["avisos"].append("No se registraron como forma documental, porque no parecen un tipo documental: " + "; ".join(
+        informe["avisos"].append("No se registraron como tipo documental, porque no lo parecen: " + "; ".join(
             f"«{t}» ({m})" for t, m in list(dudosas.items())[:10]) + (f" y {len(dudosas) - 10} más" if len(dudosas) > 10 else "")
             + ". Corrija la columna de tipos documentales de la TRD.")
     registrar(db, modulo="instrumentos", accion="cuadro_importado", usuario_id=usuario_id,

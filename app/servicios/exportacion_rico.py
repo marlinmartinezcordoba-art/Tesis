@@ -217,7 +217,7 @@ def exportar(db: Session, fondo: RecursoDocumental, incluir_restringidos: bool =
         if _cargar(db, "entidad_vocabulario", ident, recursos, entidades, fechas_, instancias) is None:
             for clave in ("forma_documental", "formas_miembros"):
                 g.remove((None, _apoyo(clave)[0], uri(ident)))
-            ex.omitidas["formas documentales no exportables"] += 1
+            ex.omitidas["tipos documentales no exportables"] += 1
     # Tipos de actividad: también sus conceptos más amplios (SKOS broader).
     pendientes = [e for e in entidades.values() if e.concepto_superior_id]
     while pendientes:
@@ -1079,7 +1079,7 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
 
 # Esquemas SKOS por fondo (hallazgo VOC-04): funciones, formas documentales y tipos de parte.
 ESQUEMAS_SKOS = {"tipo_actividad": ("tipos-de-actividad", "Tipos de actividad (funciones)"),
-                 "forma_documental": ("formas-documentales", "Formas documentales"),
+                 "forma_documental": ("formas-documentales", "Tipos documentales"),
                  "tipo_parte": ("tipos-de-parte", "Tipos de parte documental"),
                  "materia": ("materias", "Materias")}
 

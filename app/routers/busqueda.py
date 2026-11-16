@@ -35,7 +35,7 @@ def buscar(q: str = Query("", max_length=busqueda.LARGO_MAXIMO),
            desde: int | None = Query(None, ge=1, le=2999), hasta: int | None = Query(None, ge=1, le=2999),
            agente_id: uuid.UUID | None = None,
            contexto_id: uuid.UUID | None = Query(None, description="Entidad de contexto RiC: agente, función, actividad, "
-                                                 "mandato, lugar, materia o forma documental. Sin texto, lista sus documentos."),
+                                                 "mandato, lugar, materia o tipo documental. Sin texto, lista sus documentos."),
            pagina: int = Query(1, ge=1, le=500),
            actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     # Se busca en lo que dice el grafo RiC-O de cada fondo (app/servicios/lectura.py).

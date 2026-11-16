@@ -29,7 +29,7 @@ from app.models.trd import VersionTrd
 
 TIPOS = {
     "duplicado": "Entidades duplicadas",
-    "forma": "Formas documentales dudosas",
+    "forma": "Tipos documentales dudosos",
     "identificador": "Identificadores repetidos",
     "fechas": "Fechas contradictorias",
     "incompleta": "Entidades incompletas",
@@ -103,8 +103,8 @@ def revisar(db: Session, fondo: RecursoDocumental, *, con_grafo: bool = False) -
                                                          EntidadVocabulario.estado == "activa")):
         motivo = cuadro.forma_dudosa(e.nombre, series)
         if motivo:
-            poner("forma", _entidad(e), f"«{e.nombre}» {motivo}: no parece una forma documental.",
-                  "Una forma documental (rico:DocumentaryFormType) es el tipo de documento: acta, oficio, resolución.",
+            poner("forma", _entidad(e), f"«{e.nombre}» {motivo}: no parece un tipo documental.",
+                  "Un tipo documental (rico:DocumentaryFormType) es el tipo de documento: acta, oficio, resolución.",
                   "Corrija el tipo documental en la TRD o fusione esta entidad con la forma correcta.")
 
     # Identificadores repetidos.

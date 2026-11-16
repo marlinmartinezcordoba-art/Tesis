@@ -46,7 +46,7 @@ export const CLASES: ClaseVocabulario[] = ["agente", "lugar", "forma_documental"
 export const CLASE_NOMBRE: Record<ClaseVocabulario, string> = {
   agente: "Agente",
   lugar: "Lugar",
-  forma_documental: "Forma documental",
+  forma_documental: "Tipo documental",
   actividad: "Actividad",
   tipo_actividad: "Tipo de actividad",
   mandato: "Mandato o norma",
@@ -57,7 +57,7 @@ export const CLASE_NOMBRE: Record<ClaseVocabulario, string> = {
 export const CLASE_NOMBRE_PLURAL: Record<ClaseVocabulario, string> = {
   agente: "Agentes",
   lugar: "Lugares",
-  forma_documental: "Formas documentales",
+  forma_documental: "Tipos documentales",
   actividad: "Actividades",
   tipo_actividad: "Tipos de actividad",
   mandato: "Mandatos y normas",

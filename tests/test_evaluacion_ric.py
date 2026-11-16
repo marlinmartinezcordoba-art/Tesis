@@ -85,7 +85,7 @@ def test_reglas_del_perfil_titulo_una_forma_y_ninguna_entidad_suelta():
                              [{"origen": "documento", "propiedad": "forma_documental", "destino": "f1"},
                               {"origen": "documento", "propiedad": "forma_documental", "destino": "f2"}], titulo=""))
     problemas = " | ".join(r["problemas"])
-    assert "Falta el título" in problemas and "más de una forma documental" in problemas
+    assert "Falta el título" in problemas and "más de un tipo documental" in problemas
     assert "«Concejo Municipal» no está relacionada con nada" in problemas
 
 

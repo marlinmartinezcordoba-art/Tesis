@@ -348,7 +348,7 @@ PERFIL_CARDINALIDAD = {
     "inclusion_organica": ("Un solo superior orgánico por descripción (incluido_en_id), más inclusiones adicionales "
                            "con rol «adicional»", "Principio de procedencia y orden original del cuadro de "
                            "clasificación; una colección facticia se declara como inclusión adicional."),
-    "forma_documental": ("Una forma documental por documento", "En diplomática un documento tiene un tipo "
+    "forma_documental": ("Un tipo documental por documento", "En diplomática un documento tiene un tipo "
                          "documental; dos formas son dos documentos."),
     "instanciacion_de_un_recurso": ("Una instanciación digital pertenece a un solo Record Resource",
                                     "Un archivo inscribe un documento; si un conjunto mezcla documentos, cada uno "
