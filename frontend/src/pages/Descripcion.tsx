@@ -47,6 +47,46 @@ function PoliticaIA({ administra }: { administra: boolean }) {
   );
 }
 
+// RICORA describe en lote y la archivista revisa: para cada documento pendiente se consulta el motor en
+// segundo plano y su propuesta queda lista. Nada se publica: al abrir el documento, se revisa y se publica.
+interface AvanceLote { pendientes: number; estado: string | null; hechas: number; total: number; fallidas: number; error: string | null }
+
+function ProponerLote({ fondoId, alAvanzar }: { fondoId: string; alAvanzar: () => void }) {
+  const [a, setA] = useState<AvanceLote | null>(null);
+  const [error, setError] = useState("");
+  const leer = useCallback(() => pedir<AvanceLote>(`/api/descripcion/proponer-lote?fondo_id=${fondoId}`).then(setA)
+    .catch(() => setA(null)), [fondoId]);
+  useEffect(() => { leer(); }, [leer]);
+  const generando = a?.estado === "generando";
+  useEffect(() => {
+    if (!generando) return;
+    const t = setInterval(() => { leer(); alAvanzar(); }, 5000);
+    return () => clearInterval(t);
+  }, [generando, leer, alAvanzar]);
+  if (!a) return null;
+  return (
+    <div className="tarjeta lote-propuestas">
+      <div>
+        <strong>Descripción asistida en lote</strong>
+        <div className="meta">
+          {generando ? `RICORA está proponiendo: ${a.hechas} de ${a.total}${a.fallidas ? ` · ${a.fallidas} sin propuesta` : ""}. Puede seguir trabajando.`
+            : a.pendientes ? `${a.pendientes} documento(s) sin propuesta. RICORA propone el título, el alcance, las entidades, el tipo documental y la clasificación de cada uno; usted revisa y publica.`
+              : "Todos los documentos pendientes tienen su propuesta lista: ábralos, revise y publique."}
+          {a.estado === "listo" && !generando && a.hechas > 0 && ` Última vez: ${a.hechas} propuesta(s).`}
+        </div>
+        {(error || a.error) && <div className="meta" role="alert" style={{ color: "var(--danger)" }}>{error || a.error}</div>}
+      </div>
+      {a.pendientes > 0 && !generando && (
+        <button type="button" className="boton primario chico" onClick={async () => {
+          setError("");
+          try { setA(await pedir<AvanceLote>(`/api/descripcion/proponer-lote?fondo_id=${fondoId}`, { method: "POST" })); }
+          catch (err) { setError(err instanceof ErrorAPI ? err.message : "No se pudo iniciar."); }
+        }}>Proponer la descripción de los {a.pendientes}</button>
+      )}
+    </div>
+  );
+}
+
 // «Descritas» muestra las más recientes; el resto, en la exportación.
 const RECIENTES_DESCRITAS = 15;
 
@@ -75,6 +115,7 @@ interface PorDescribir {
   en_edicion_por: string | null;
   trabajo_propio_id?: string | null;  // lo tiene abierto quien mira: puede continuar
   trabajo_id?: string | null;  // solo para la administración: puede liberarlo
+  propuesta_lista?: boolean;  // RICORA ya propuso su descripción en lote
 }
 
 interface Publicada {
@@ -264,6 +305,7 @@ export function Descripcion() {
                 nota: "Lea su texto con cuidado", tono: dudosos ? "alerta" : undefined },
             ]} />
             <PoliticaIA administra={!!usuario?.es_administrador} />
+            {puede && fondo && <ProponerLote fondoId={fondo.id} alAvanzar={cargar} />}
             <div className="tarjeta">
               <div className="lista-titulo">
                 <h2>Documentos pendientes</h2>
@@ -319,13 +361,14 @@ export function Descripcion() {
                     {d.ocr_baja_confianza && <span className="insignia alerta" title="La transcripción automática es dudosa: léala con cuidado">OCR dudoso</span>}
                     {d.trabajo_propio_id ? <span className="insignia acento">En curso por usted</span>
                       : d.en_edicion_por ? <span className="insignia proceso">En edición por {d.en_edicion_por}</span>
-                        : <span className="insignia pendiente">Pendiente</span>}
+                        : d.propuesta_lista ? <span className="insignia bien" title="RICORA ya propuso su descripción: ábralo para revisarla">Propuesta lista</span>
+                          : <span className="insignia pendiente">Pendiente</span>}
                     {d.trabajo_propio_id ? (
                       <button type="button" className="boton chico primario" title="Abre su trabajo con el avance guardado"
                               onClick={() => navegar(`/descripcion/trabajo/${d.trabajo_propio_id}`)}>Continuar</button>
                     ) : !d.en_edicion_por && puede && (
                       <button type="button" className="boton chico" disabled={!!abriendo} onClick={() => describir([d.id])}
-                              title="Crea un recurso documental individual (rico:Record)">Describir como Record</button>
+                              title="Crea un recurso documental individual (rico:Record)">{d.propuesta_lista ? "Revisar y publicar" : "Describir como Record"}</button>
                     )}
                     <MenuAcciones etiqueta={`Más acciones para ${d.nombre}`} acciones={secundarias} />
                   </div>

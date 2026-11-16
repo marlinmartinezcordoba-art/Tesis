@@ -103,7 +103,12 @@ def cola(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descripcion"
     db.commit()  # por si venció alguna marca de edición
     expedientes = {e.id: e.titulo for e in db.scalars(select(RecursoDocumental).where(
         RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel == "expediente"))}
-    return [ElementoPorDescribir(
+    from app.models.evidencia_ia import PropuestaIA
+    from app.servicios import propuestas_lote
+
+    listas = {p[0] for p in db.scalars(select(PropuestaIA.instanciaciones).where(
+        PropuestaIA.fondo_id == fondo_id, *propuestas_lote._sin_usar())) if len(p) == 1}
+    return [ElementoPorDescribir(propuesta_lista=i.id in listas,
         id=i.id, nombre=i.nombre_original, tamano_bytes=i.tamano_bytes, formato=i.formato_nombre,
         expediente=expedientes.get(i.expediente_destino_id), origen_texto=i.origen_texto,
         confianza_ocr=i.confianza_ocr, ocr_baja_confianza=i.ocr_baja_confianza, cargado_en=i.cargado_en,
@@ -177,6 +182,55 @@ def cambiar_politica_ia(datos: PoliticaIA, request: Request, actor: Actor = Depe
     return PoliticaIA(politica=parametros.politica_ia(db), modo_evaluacion=settings.modo_evaluacion)
 
 
+class AvanceLote(BaseModel):
+    """Propuestas de descripción en lote: cuántos documentos faltan y cómo va la generación."""
+    pendientes: int
+    estado: str | None = None
+    hechas: int = 0
+    total: int = 0
+    fallidas: int = 0
+    error: str | None = None
+
+
+def _avance_lote(db: Session, fondo_id: uuid.UUID) -> AvanceLote:
+    from app.servicios import propuestas_lote
+
+    e = propuestas_lote.avance(fondo_id) or {}
+    return AvanceLote(pendientes=len(propuestas_lote.pendientes(db, fondo_id)), estado=e.get("estado"),
+                      hechas=e.get("hechas", 0), total=e.get("total", 0), fallidas=e.get("fallidas", 0),
+                      error=e.get("error"))
+
+
+@router.get("/proponer-lote", response_model=AvanceLote,
+            summary="Documentos por describir sin propuesta en lote, y el avance de la generación")
+def ver_lote(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")),
+             db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    avance = _avance_lote(db, fondo_id)
+    db.commit()  # por si venció alguna marca de edición
+    return avance
+
+
+@router.post("/proponer-lote", response_model=AvanceLote,
+             summary="Proponer en segundo plano la descripción de todos los documentos pendientes (nada se publica)")
+def proponer_lote(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("descripcion")),
+                  db: Session = Depends(get_db)):
+    from app.servicios import propuestas_lote
+
+    fondo_o_404(db, fondo_id)
+    if motor.motor_activo() is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="El motor de análisis no está configurado.")
+    total = len(propuestas_lote.pendientes(db, fondo_id))
+    db.commit()
+    if total:
+        propuestas_lote.empezar(fondo_id, actor.id, total)
+        registrar(db, modulo="descripcion", accion="propuestas_lote_solicitadas", usuario_id=actor.id,
+                  entidad_tipo="recurso_documental", entidad_id=fondo_id, request=request,
+                  detalle=f"Propuestas de descripción en lote para {total} documento(s).")
+        db.commit()
+    return _avance_lote(db, fondo_id)
+
+
 @router.get("/ubicacion-sugerida", response_model=list[UbicacionSugeridaOut],
             summary="Series y subseries del cuadro donde más probablemente va un documento, según su texto")
 def ubicacion_sugerida(trabajo_id: uuid.UUID, db: Session = Depends(get_db)):
@@ -222,7 +276,20 @@ async def iniciar(datos: IniciarIn, request: Request, actor: Actor = Depends(acc
     return _espacio(db, trabajo)
 
 
-async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID) -> None:
+async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
+                          reusar_lote: bool = True) -> None:
+    # Si RICORA ya propuso la descripción de este documento en lote, se usa esa propuesta (registro
+    # inalterable) en vez de esperar al motor; la persona la revisa igual que siempre.
+    from app.servicios import propuestas_lote
+
+    documentos_trabajo = descripcion.documentos_de(db, trabajo)
+    if reusar_lote and len(documentos_trabajo) == 1 and trabajo.nivel == propuestas_lote.NIVEL:
+        previa = propuestas_lote.vigente(db, documentos_trabajo[0].id)
+        if previa is not None:
+            trabajo.propuesta_id = previa.id  # la propuesta es inalterable: el trabajo la cita
+            trabajo.propuesta = json.dumps({**previa.contenido, "propuesta_id": str(previa.id)}, ensure_ascii=False)
+            descripcion.latido(db, trabajo)
+            return
     # El motor se consulta con la marca ya tomada (puede tardar unos segundos).
     # Antes de salir hacia el motor (un servicio externo), el texto pierde los identificadores personales.
     from app.servicios.datos_personales import anonimizar_para_motor
@@ -262,7 +329,7 @@ async def reproponer(trabajo_id: uuid.UUID, request: Request, actor: Actor = Dep
         db.commit()
         return _error(exc)
     anterior = trabajo.propuesta_id
-    await _consultar_motor(db, trabajo, actor.id)
+    await _consultar_motor(db, trabajo, actor.id, reusar_lote=False)
     registrar(db, modulo="descripcion", accion="propuesta_repetida", usuario_id=actor.id,
               entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
               detalle="Se volvió a consultar el motor de análisis.",

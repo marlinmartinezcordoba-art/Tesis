@@ -25,6 +25,8 @@ class ElementoPorDescribir(BaseModel):
     trabajo_propio_id: uuid.UUID | None = None
     # …o, para la administración, el de cualquiera (para liberarlo).
     trabajo_id: uuid.UUID | None = None
+    # RICORA ya propuso su descripción en lote: al abrirlo no se espera al motor.
+    propuesta_lista: bool = False
 
 
 class IniciarIn(BaseModel):

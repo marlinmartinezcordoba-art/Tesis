@@ -1983,3 +1983,5 @@ html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siemp
 .boton-ric { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
 .boton-ric.activo { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+.lote-propuestas { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; margin-bottom: 12px; }
