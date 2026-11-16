@@ -103,16 +103,11 @@ def derivar(db: Session, fondo: RecursoDocumental, usuario_id: uuid.UUID) -> dic
             if cuadro.es_nombre_provisional(a.titulo):
                 omitidos.append(a.titulo)
                 continue
-            ag = db.scalar(select(EntidadVocabulario).where(
-                EntidadVocabulario.fondo_id == fondo.id, EntidadVocabulario.clase == "agente",
-                EntidadVocabulario.estado == "activa", EntidadVocabulario.nombre == a.titulo))
-            if ag is None:
-                from app.servicios import vocabulario
+            from app.servicios import vocabulario
 
-                ag = vocabulario.crear(db, fondo_id=fondo.id, clase="agente", nombre=a.titulo,
-                                       subtipo="entidad_corporativa", origen="persona", confianza=None, motor=None,
-                                       usuario_id=usuario_id)
-                creados += 1
+            ag, nuevo = vocabulario.obtener_o_crear(db, fondo_id=fondo.id, clase="agente", nombre=a.titulo,
+                                                    subtipo="entidad_corporativa", usuario_id=usuario_id)
+            creados += int(nuevo)
             db.add(Relacion(origen_tipo="recurso_documental", origen_id=a.id, destino_tipo="entidad_vocabulario",
                             destino_id=ag.id, tipo_relacion="procedencia", codigo_ric="has_creator", rol="productor",
                             origen="persona", confirmada_por_id=usuario_id))

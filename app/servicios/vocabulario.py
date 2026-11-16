@@ -210,6 +210,107 @@ def crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str, subtipo:
     return entidad
 
 
+# Clases y subtipos en que dos entidades con el mismo nombre pueden ser distintas: dos personas homónimas,
+# dos versiones de un programa, dos actividades o dos reglas que se llaman igual. Las demás (una
+# dependencia, un lugar, una materia, un mandato, una forma documental, una función) con el mismo nombre
+# normalizado y en el mismo ámbito son la misma: se reutilizan en lugar de crearse otra vez.
+NO_REUTILIZABLES = ("actividad", "regla")
+SUBTIPOS_HOMONIMOS = ("persona", "mecanismo")
+
+
+def reutilizable(clase: str, subtipo: str | None = None) -> bool:
+    return clase not in NO_REUTILIZABLES and subtipo not in SUBTIPOS_HOMONIMOS
+
+
+def existente(db: Session, fondo_id: uuid.UUID, clase: str, nombre: str,
+              subtipo: str | None = None) -> EntidadVocabulario | None:
+    """La entidad activa idéntica (misma clase y mismo nombre normalizado) en el mismo ámbito: el fondo o,
+    para las autoridades de la institución, cualquier fondo (primero la del propio fondo)."""
+    if not reutilizable(clase, subtipo):
+        return None
+    ambito = es_compartida() if compartida(clase, subtipo) else EntidadVocabulario.fondo_id == fondo_id
+    return db.scalars(select(EntidadVocabulario).where(
+        ambito, EntidadVocabulario.clase == clase, EntidadVocabulario.estado == "activa",
+        EntidadVocabulario.nombre_normalizado == normalizar(nombre),
+        or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo.not_in(SUBTIPOS_HOMONIMOS)))
+        .order_by(EntidadVocabulario.fondo_id != fondo_id, EntidadVocabulario.creado_en)).first()
+
+
+def obtener_o_crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str, subtipo: str | None,
+                    usuario_id: uuid.UUID) -> tuple[EntidadVocabulario, bool]:
+    """La entidad idéntica si ya existe; si no, una nueva creada por una persona. Devuelve (entidad, creada)."""
+    e = existente(db, fondo_id, clase, nombre, subtipo)
+    if e is not None:
+        return e, False
+    e = crear(db, fondo_id=fondo_id, clase=clase, nombre=nombre, subtipo=subtipo, origen="persona",
+              confianza=None, motor=None, usuario_id=usuario_id)
+    db.flush()
+    return e, True
+
+
+_NUMEROS = re.compile(r"\d+")
+
+
+def numeros_distintos(a: str, b: str) -> bool:
+    """«Resolución 0123 de 2015» y «Resolución 0124 de 2015» se parecen en el nombre pero son actos
+    distintos: si los dos nombres traen números y no coinciden, no son la misma entidad."""
+    na, nb = [int(x) for x in _NUMEROS.findall(a or "")], [int(x) for x in _NUMEROS.findall(b or "")]
+    return bool(na and nb) and na != nb
+
+
+def depurar_sugerencias(db: Session, fondo_id: uuid.UUID | None = None) -> int:
+    """Marca obsoletas (no borra) las sugerencias pendientes entre entidades cuyos números difieren."""
+    from sqlalchemy.orm import aliased
+
+    from app.models.descripcion import SugerenciaFusion
+
+    a, b = aliased(EntidadVocabulario), aliased(EntidadVocabulario)
+    consulta = (select(SugerenciaFusion, a.nombre_normalizado, b.nombre_normalizado)
+                .join(a, a.id == SugerenciaFusion.entidad_a_id).join(b, b.id == SugerenciaFusion.entidad_b_id)
+                .where(SugerenciaFusion.estado == "pendiente", SugerenciaFusion.motivo == "nombre"))
+    if fondo_id is not None:
+        consulta = consulta.where(SugerenciaFusion.fondo_id == fondo_id)
+    n = 0
+    for s, x, y in db.execute(consulta).all():
+        if numeros_distintos(x, y):
+            s.estado = "obsoleta"
+            n += 1
+    return n
+
+
+def grupos_identicos(db: Session, fondo_id: uuid.UUID) -> list[list[EntidadVocabulario]]:
+    """Grupos de entidades activas idénticas (misma clase, subtipo y nombre normalizado, mismo ámbito)
+    en que al menos una es del fondo. Excluye las que pueden ser homónimas (personas, mecanismos,
+    actividades y reglas)."""
+    candidatas = db.scalars(select(EntidadVocabulario).where(
+        EntidadVocabulario.estado == "activa", EntidadVocabulario.clase.not_in(NO_REUTILIZABLES),
+        or_(EntidadVocabulario.subtipo.is_(None), EntidadVocabulario.subtipo.not_in(SUBTIPOS_HOMONIMOS)),
+        del_fondo_o_compartida(fondo_id)).order_by(EntidadVocabulario.creado_en)).all()
+    grupos: dict[tuple, list[EntidadVocabulario]] = {}
+    for e in candidatas:
+        ambito = "institucion" if compartida(e.clase, e.subtipo) else e.fondo_id
+        grupos.setdefault((ambito, e.clase, e.subtipo, e.nombre_normalizado), []).append(e)
+    return [g for g in grupos.values() if len(g) > 1 and any(x.fondo_id == fondo_id for x in g)]
+
+
+def fusionar_identicos(db: Session, fondo_id: uuid.UUID, usuario_id: uuid.UUID, ip: str | None = None) -> dict:
+    """Fusiona cada grupo de idénticas en la más conectada (a igualdad, la más antigua). Nada se borra:
+    las absorbidas quedan «fusionadas» y enlazadas a la definitiva, con su traza en la auditoría."""
+    grupos = grupos_identicos(db, fondo_id)
+    fusionadas = movidas = 0
+    for g in grupos:
+        conexiones = conexiones_de(db, [x.id for x in g])
+        definitiva = max(g, key=lambda x: conexiones[x.id])  # max conserva la primera (la más antigua) en empate
+        for absorbida in g:
+            if absorbida is definitiva:
+                continue
+            movidas += fusionar(db, definitiva=definitiva, absorbida=absorbida, usuario_id=usuario_id, ip=ip)
+            fusionadas += 1
+    obsoletas = depurar_sugerencias(db, fondo_id)
+    return {"grupos": len(grupos), "fusionadas": fusionadas, "relaciones_movidas": movidas,
+            "sugerencias_obsoletas": obsoletas}
+
+
 # --- Módulo 3: navegación, detección de candidatos y fusión -------------------------------------------
 
 def conexiones_de(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
@@ -404,6 +505,8 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
         if (x.id, y.id) in existentes:
             continue
         if motivo != "identificador" and (conexiones[x.id] > maximo or conexiones[y.id] > maximo):
+            continue
+        if motivo == "nombre" and numeros_distintos(x.nombre_normalizado, y.nombre_normalizado):
             continue
         # Dos versiones de un mismo programa son mecanismos distintos: el
         # resultado de cada una debe poder atribuirse a la suya.

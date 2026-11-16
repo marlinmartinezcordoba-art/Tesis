@@ -29,6 +29,7 @@ from app.models.trd import VersionTrd
 
 TIPOS = {
     "duplicado": "Entidades duplicadas",
+    "forma": "Formas documentales dudosas",
     "identificador": "Identificadores repetidos",
     "fechas": "Fechas contradictorias",
     "incompleta": "Entidades incompletas",
@@ -38,7 +39,7 @@ TIPOS = {
     "instrumentos": "Inconsistencias entre instrumentos",
 }
 GRAVEDAD = {"shacl": "error", "owl": "error", "identificador": "error", "fechas": "error", "instrumentos": "error",
-            "duplicado": "aviso", "incompleta": "aviso", "sin_evidencia": "aviso"}
+            "duplicado": "aviso", "forma": "aviso", "incompleta": "aviso", "sin_evidencia": "aviso"}
 MAXIMO = 200  # hallazgos que se listan por tipo; el resto se cuenta
 
 
@@ -84,6 +85,27 @@ def revisar(db: Session, fondo: RecursoDocumental, *, con_grafo: bool = False) -
         poner("duplicado", _entidad(a), f"«{a.nombre}» y «{b.nombre}» parecen la misma entidad.",
               "Una entidad RiC se registra una sola vez y se reutiliza en todas las descripciones.",
               "Revise la sugerencia: fusione las dos o márquelas como distintas.", "/vocabularios?vista=sugerencias")
+
+    # Idénticas que se pueden fusionar sin revisar una por una (misma clase y mismo nombre normalizado).
+    from app.servicios import cuadro, vocabulario
+
+    for g in vocabulario.grupos_identicos(db, f)[:MAXIMO]:
+        poner("duplicado", _entidad(g[0]), f"«{g[0].nombre}» está registrada {len(g)} veces con el mismo nombre.",
+              "Una entidad RiC se registra una sola vez y se reutiliza en todas las descripciones.",
+              "Use «Fusionar idénticas» en Agentes y autoridades: quedan en una sola, con su traza.",
+              "/vocabularios?vista=sugerencias")
+
+    # Formas documentales que no parecen un tipo documental: un nombre de serie o un texto largo que se
+    # coló en la columna de tipos de la TRD.
+    series = cuadro.nombres_de_series(db, f)
+    for e in db.scalars(select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == f,
+                                                         EntidadVocabulario.clase == "forma_documental",
+                                                         EntidadVocabulario.estado == "activa")):
+        motivo = cuadro.forma_dudosa(e.nombre, series)
+        if motivo:
+            poner("forma", _entidad(e), f"«{e.nombre}» {motivo}: no parece una forma documental.",
+                  "Una forma documental (rico:DocumentaryFormType) es el tipo de documento: acta, oficio, resolución.",
+                  "Corrija el tipo documental en la TRD o fusione esta entidad con la forma correcta.")
 
     # Identificadores repetidos.
     cuenta = Counter((r.codigo_referencia or "").strip() for r in publicados if (r.codigo_referencia or "").strip())

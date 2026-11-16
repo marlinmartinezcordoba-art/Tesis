@@ -247,3 +247,33 @@ class CandidatosWikidata(BaseModel):
 
     consulta: str
     candidatos: list[CandidatoWikidata]
+
+
+class GrupoIdenticas(BaseModel):
+    """Entidades idénticas (misma clase y mismo nombre normalizado) que se pueden fusionar."""
+
+    model_config = ConfigDict(extra="allow")
+
+    clase: str
+    nombre: str
+    veces: int
+
+
+class IdenticasFondo(BaseModel):
+    """Los grupos de entidades idénticas del fondo."""
+
+    model_config = ConfigDict(extra="allow")
+
+    grupos: list[GrupoIdenticas]
+    entidades_sobrantes: int
+
+
+class ResultadoIdenticas(BaseModel):
+    """Lo que hizo «Fusionar idénticas»."""
+
+    model_config = ConfigDict(extra="allow")
+
+    grupos: int
+    fusionadas: int
+    relaciones_movidas: int
+    sugerencias_obsoletas: int

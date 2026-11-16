@@ -32,7 +32,8 @@ from app.servicios.auditoria import ip_de, registrar
 router = APIRouter(prefix="/api/vocabulario", tags=["Módulo 3 · Vocabularios"],
                    dependencies=[Depends(acceso_modulo("vocabularios"))])
 
-Clase = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte", "materia"]
+Clase = Literal["agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "tipo_parte", "regla",
+                "materia"]
 
 
 class EntidadOut(BaseModel):
@@ -186,6 +187,15 @@ def listar(fondo_id: uuid.UUID, clase: Clase | None = None, q: str | None = None
     else:
         filas = sorted(filas, key=lambda e: (conexiones[e.id] * (-1 if orden == "conexiones_desc" else 1), e.nombre_normalizado))
     return [_entidad_out(db, e, conexiones[e.id], fondo_id) for e in filas]
+
+
+@router.get("/identicas", responses={200: {"model": rv.IdenticasFondo, "description": "Grupos de entidades idénticas"}},
+            summary="Entidades registradas más de una vez con el mismo nombre (sin personas, mecanismos, actividades ni reglas)")
+def identicas(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    grupos = vocabulario.grupos_identicos(db, fondo_id)
+    return {"grupos": [{"clase": g[0].clase, "nombre": g[0].nombre, "veces": len(g)} for g in grupos],
+            "entidades_sobrantes": sum(len(g) - 1 for g in grupos)}
 
 
 @router.get("/sugerencias-fusion", responses={200: {"model": list[rv.SugerenciaFusionOut], "description": "Candidatos a fusión pendientes, de mayor a menor similitud"}},
@@ -480,9 +490,27 @@ def verificar(datos: VerificarIn, db: Session = Depends(get_db)):
              summary="Buscar candidatos a fusión ahora, sin esperar la búsqueda periódica")
 def detectar(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("vocabularios")), db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
+    vocabulario.depurar_sugerencias(db, fondo_id)
     nuevas = vocabulario.detectar_candidatos(db, fondo_id)
     db.commit()
     return {"nuevas": nuevas}
+
+
+@router.post("/fusionar-identicas", responses={200: {"model": rv.ResultadoIdenticas, "description": "Fusión de idénticas"}},
+             summary="Fusionar las entidades idénticas: cada grupo queda en la más conectada, con su traza")
+def fusionar_identicas(fondo_id: uuid.UUID, request: Request, actor: Actor = Depends(acceso_modulo("vocabularios")),
+                       db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    try:
+        resultado = vocabulario.fusionar_identicos(db, fondo_id, actor.id, ip=ip_de(request))
+    except vocabulario.ErrorFusion as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    registrar(db, modulo="vocabularios", accion="identicas_fusionadas", usuario_id=actor.id, entidad_tipo="recurso_documental",
+              entidad_id=fondo_id, request=request, detalle=f"{resultado['fusionadas']} entidad(es) idénticas fusionadas "
+              f"en {resultado['grupos']} grupo(s); {resultado['sugerencias_obsoletas']} sugerencia(s) obsoletas.")
+    db.commit()
+    return resultado
 
 
 @router.post("/sugerencias-fusion/{sugerencia_id}/aprobar", responses={200: {"model": rv.ResultadoFusion, "description": "Fusión ejecutada"}},

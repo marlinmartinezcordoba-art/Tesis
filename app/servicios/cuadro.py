@@ -1247,17 +1247,35 @@ def _de_vocabulario(db: Session, fondo_id: uuid.UUID, clase: str, nombre: str, u
                     subtipo: str | None = None) -> tuple[EntidadVocabulario, bool]:
     from app.servicios import vocabulario
 
-    existente = db.scalar(select(EntidadVocabulario).where(EntidadVocabulario.fondo_id == fondo_id,
-                                                           EntidadVocabulario.clase == clase,
-                                                           EntidadVocabulario.estado == "activa",
-                                                           EntidadVocabulario.nombre_normalizado ==
-                                                           vocabulario.normalizar(nombre)))
-    if existente is not None:
-        return existente, False
-    e = vocabulario.crear(db, fondo_id=fondo_id, clase=clase, nombre=nombre, subtipo=subtipo, origen="persona",
-                          confianza=None, motor=None, usuario_id=usuario_id)
-    db.flush()
-    return e, True
+    return vocabulario.obtener_o_crear(db, fondo_id=fondo_id, clase=clase, nombre=nombre, subtipo=subtipo,
+                                       usuario_id=usuario_id)
+
+
+# Un tipo documental es una forma (acta, oficio, resolución): unas pocas palabras. Más que esto suele ser
+# una descripción o un nombre de serie que se coló en la columna de tipos.
+MAX_PALABRAS_FORMA = 8
+
+
+def nombres_de_series(db: Session, fondo_id: uuid.UUID, leidas=()) -> set[str]:
+    """Los nombres normalizados de las series y subseries del fondo y de las filas que se aplican."""
+    from app.servicios import vocabulario
+
+    nombres = {vocabulario.normalizar(t) for t in db.scalars(select(RecursoDocumental.titulo).where(
+        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.nivel.in_(("serie", "subserie"))))}
+    for f in leidas:
+        nombres |= {vocabulario.normalizar(n.nombre) for n in (f.serie, f.subserie) if n is not None and n.nombre}
+    return nombres
+
+
+def forma_dudosa(tipo: str, series: set[str]) -> str | None:
+    """Por qué un «tipo documental» de la TRD no parece una forma documental, o None si sí lo parece."""
+    from app.servicios import vocabulario
+
+    if vocabulario.normalizar(tipo) in series:
+        return "es el nombre de una serie o subserie del cuadro"
+    if len(tipo.split()) > MAX_PALABRAS_FORMA:
+        return f"tiene más de {MAX_PALABRAS_FORMA} palabras"
+    return None
 
 
 def _texto_regla(f: FilaCuadro, version: dict | None) -> str | None:
@@ -1380,6 +1398,8 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
     if con_problemas:
         informe["avisos"].append(f"{len(con_problemas)} fila(s) quedaron fuera porque no se pudieron mapear (la primera, "
                                  f"la {con_problemas[0].fila}: {con_problemas[0].problemas[0]}).")
+    agrupaciones = nombres_de_series(db, fondo.id, leidas)
+    dudosas: dict[str, str] = {}
     for f in leidas:
         c = codigos_compuestos(f)
         productor, nuevo = _de_vocabulario(db, fondo.id, "agente", f.seccion.nombre, usuario_id, "entidad_corporativa")
@@ -1403,6 +1423,10 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
             if f.subserie else serie
         formas = []
         for t in f.tipos:
+            motivo = forma_dudosa(t, agrupaciones)
+            if motivo:
+                dudosas.setdefault(t, motivo)
+                continue
             forma, creado = _de_vocabulario(db, fondo.id, "forma_documental", t, usuario_id)
             formas.append(forma.id)
             informe["tipos_documentales"] += int(creado)
@@ -1420,6 +1444,10 @@ def aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], usuario_id
                                    con_id=hoja.id, usuario_id=usuario_id)
             except autoridad.ErrorAutoridad:
                 pass  # ya estaba unida
+    if dudosas:
+        informe["avisos"].append("No se registraron como forma documental, porque no parecen un tipo documental: " + "; ".join(
+            f"«{t}» ({m})" for t, m in list(dudosas.items())[:10]) + (f" y {len(dudosas) - 10} más" if len(dudosas) > 10 else "")
+            + ". Corrija la columna de tipos documentales de la TRD.")
     registrar(db, modulo="instrumentos", accion="cuadro_importado", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=fondo.id, detalle=f"CCD y TRD: {len(leidas)} fila(s)",
               nuevo={k: v for k, v in informe.items() if k not in ("avisos", "_nuevos")})

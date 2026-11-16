@@ -31,6 +31,7 @@ import {
 } from "@/lib/vocabulario";
 
 type Orden = "conexiones_desc" | "conexiones_asc" | "nombre";
+interface Identicas { grupos: { clase: string; nombre: string; veces: number }[]; entidades_sobrantes: number }
 
 interface NodoFuncion {
   id: string;
@@ -227,6 +228,7 @@ export function Vocabularios() {
   const [vistaArbol, setVistaArbol] = useState(false);
   const [entidades, setEntidades] = useState<EntidadVocabulario[] | null>(null);
   const [sugerencias, setSugerencias] = useState<Sugerencia[] | null>(null);
+  const [identicas, setIdenticas] = useState<Identicas | null>(null);
   const [aviso, setAviso] = useState((ubicacion.state as { aviso?: string } | null)?.aviso || "");
   const [error, setError] = useState("");
   const [buscando, setBuscando] = useState(false);
@@ -274,6 +276,16 @@ export function Vocabularios() {
     cargarSugerencias();
   }, [cargarSugerencias]);
 
+  const cargarIdenticas = useCallback(async () => {
+    if (!fondo) return;
+    try {
+      setIdenticas(await pedir<Identicas>(`/api/vocabulario/identicas?fondo_id=${fondo.id}`));
+    } catch {
+      setIdenticas(null);
+    }
+  }, [fondo]);
+  useEffect(() => { cargarIdenticas(); }, [cargarIdenticas]);
+
   async function detectarAhora() {
     if (!fondo) return;
     setBuscando(true);
@@ -284,6 +296,26 @@ export function Vocabularios() {
       await cargarSugerencias();
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo buscar.");
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  async function fusionarIdenticas() {
+    if (!fondo || !identicas?.entidades_sobrantes) return;
+    if (!window.confirm(`Se unirán ${identicas.entidades_sobrantes} entidad(es) repetidas con exactamente el mismo nombre en `
+      + `${identicas.grupos.length} grupo(s). Ninguna se borra: quedan «fusionadas» en la más conectada, con su traza. ¿Continuar?`)) return;
+    setBuscando(true);
+    setError("");
+    try {
+      const r = await pedir<{ fusionadas: number; grupos: number; sugerencias_obsoletas: number }>(
+        `/api/vocabulario/fusionar-identicas?fondo_id=${fondo.id}`, { method: "POST" });
+      setAviso(`Se fusionaron ${r.fusionadas} entidad(es) idénticas en ${r.grupos} grupo(s).`
+        + (r.sugerencias_obsoletas ? ` ${r.sugerencias_obsoletas} sugerencia(s) entre actos con números distintos quedaron como obsoletas.` : ""));
+      await Promise.all([cargarSugerencias(), cargarIdenticas()]);
+      cargarEntidades();
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo fusionar.");
     } finally {
       setBuscando(false);
     }
@@ -450,6 +482,12 @@ export function Vocabularios() {
               <button type="button" className="boton chico" disabled={buscando} onClick={detectarAhora}>
                 {buscando ? "Buscando…" : "Buscar candidatos ahora"}
               </button>
+              {identicas && identicas.entidades_sobrantes > 0 && (
+                <button type="button" className="boton chico primario" disabled={buscando} onClick={fusionarIdenticas}
+                        title={identicas.grupos.slice(0, 8).map((g) => `${g.nombre} (${g.veces})`).join(" · ")}>
+                  Fusionar idénticas ({identicas.entidades_sobrantes})
+                </button>
+              )}
             </div>
           )}
           {sugerencias === null && <div className="cargando">Cargando…</div>}
