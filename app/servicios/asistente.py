@@ -37,12 +37,11 @@ AVISO = ("Lo que escriba se envía a Gemini, que busca en Google para responder 
 # Pantallas de RICORA, para que el asistente indique dónde se hace cada cosa.
 MAPA = """PANTALLAS DE RICORA (menú lateral):
 - Inicio: tablero del fondo, recorrido y siguiente paso.
-- Instrumentos (una pantalla con pestañas): Instrumentos de la entidad (resumen y versiones vigentes); Cargar TRD y CCD (paso a paso); Cuadro y versiones; TVD (fondos acumulados); Disposición final (calendario de retención y registro de disposiciones: conservar, eliminar, transferir); Estructura orgánica; Control de acceso (TCA); Importar FUID.
+- Instrumentos (una pantalla con pestañas): Instrumentos de la entidad (resumen y versiones vigentes); Cargar TRD y CCD (paso a paso); Cuadro y versiones; TVD (fondos acumulados); Disposición final (calendario de retención y registro de disposiciones: conservar, eliminar, transferir); Estructura orgánica; Control de acceso (TCA); Inventario (FUID): generarlo desde lo descrito, aprobarlo o importar uno existente.
 - Carga de documentos: subir archivos (huella SHA-256, OCR), revisar lo cargado.
 - Descripción: documentos por describir; el motor propone, la archivista valida, corrige o descarta; descritas.
 - Agentes y autoridades: agentes, lugares, formas documentales, actividades, mandatos; posibles duplicados; tesauros.
 - Conocimiento RiC > Catálogo y grafo: buscar y explorar el contexto.
-- Conocimiento RiC > Instrumentos de descripción: inventario (FUID), guía del fondo, índice.
 - Conocimiento RiC > Datos enlazados (RiC-O): grafo RiC-O, descargas, consulta SPARQL, adopción de RiC.
 - Auditoría: registro de actividad y trazabilidad.
 - Evaluación: comparación humano frente a máquina (a ciegas, asistida, calificación).
