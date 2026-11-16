@@ -183,4 +183,4 @@ def test_xml_con_entidad_externa_no_se_resuelve(cliente, cabeceras_admin):
     assert "root:" not in v.text
     eac = cliente.post("/api/importacion/rico/vista-previa", headers=cabeceras_admin,
                        files={"archivo": ("a.xml", EAC2)})
-    assert eac.status_code == 422 and "Autoridades" in eac.json()["detail"]
+    assert eac.status_code == 422 and "Agentes y autoridades" in eac.json()["detail"]
