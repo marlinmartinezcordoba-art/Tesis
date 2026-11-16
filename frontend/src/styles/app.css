@@ -1959,3 +1959,5 @@ a.config-ficha:hover { border-color: var(--accent); }
 .pestana-ric.activa { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
 .pestana-ric .insignia { font-size: .7rem; padding: 0 6px; }
 .contexto-relacionado { display: flex; flex-direction: column; gap: 6px; font-size: .86rem; }
+.tca-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 14px; padding: 8px 0; }
+.tca-form .acciones { grid-column: 1 / -1; }

@@ -170,3 +170,12 @@ class CalidadFondo(BaseModel):
     hallazgos: list[dict]
     descripciones_revisadas: int
     relaciones_revisadas: int
+
+
+class TablaControlAcceso(BaseModel):
+    """TCA del fondo: la condición de acceso de cada serie y subserie, propia o heredada."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    series: list[dict]
+    totales: dict

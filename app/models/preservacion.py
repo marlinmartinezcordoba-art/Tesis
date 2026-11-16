@@ -128,6 +128,8 @@ class DeclaracionDerechos(Base):
     fundamento = Column(String(500), nullable=False)  # p. ej. «Ley 1712 de 2014, art. 19»
     nota = Column(String(500), nullable=True)
     vigente_hasta = Column(Date, nullable=True)
+    # Quién autoriza la consulta de lo restringido (TCA): un cargo o una dependencia.
+    responsable_autorizacion = Column(String(200), nullable=True)
     vigente = Column(Boolean, nullable=False, default=True, index=True)
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
     creada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)

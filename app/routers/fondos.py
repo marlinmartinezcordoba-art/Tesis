@@ -123,6 +123,43 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
             for e in filas]
 
 
+@router.get("/{fondo_id}/tca", response_model=rc.TablaControlAcceso,
+            summary="Tabla de Control de Acceso: categoría, fundamento, vigencia y responsable de cada serie")
+def tca(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    from app.servicios import tca as servicio
+
+    return servicio.tabla(db, fondo_o_404(db, fondo_id))
+
+
+class CondicionAccesoIn(BaseModel):
+    acceso: str = Field(max_length=20)
+    fundamento: str = Field(max_length=500)
+    reproduccion: str = Field(default="permitida", max_length=20)
+    vigente_hasta: date | None = None
+    condiciones: str | None = Field(default=None, max_length=500)
+    responsable: str | None = Field(default=None, max_length=200)
+
+
+@router.put("/{fondo_id}/tca/{serie_id}", response_model=rc.TablaControlAcceso,
+            summary="Declarar la condición de acceso de una serie o subserie (se hereda a sus documentos)")
+def declarar_tca(fondo_id: uuid.UUID, serie_id: uuid.UUID, datos: CondicionAccesoIn, request: Request,
+                 actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.servicios import tca as servicio
+    from app.servicios.auditoria import ip_de
+
+    fondo = fondo_o_404(db, fondo_id)
+    serie = db.get(RecursoDocumental, serie_id)
+    if serie is None or serie.fondo_id != fondo.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La serie no existe en este fondo.")
+    try:
+        servicio.declarar(db, serie, **datos.model_dump(), usuario_id=actor.id, ip=ip_de(request))
+    except servicio.ErrorTca as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return servicio.tabla(db, fondo)
+
+
 @router.get("/{fondo_id}/calidad", response_model=rc.CalidadFondo,
             summary="Validación semántica y calidad: duplicados, identificadores, fechas, incompletas, evidencia, OWL, "
                     "SHACL e instrumentos")
