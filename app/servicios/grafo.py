@@ -401,6 +401,95 @@ def subgrafo(db: Session, fondo: RecursoDocumental, raiz_tipo: str, raiz_id: uui
         "truncado": truncado, "maximo_nodos": max_nodos, "filtros_activos": f.activos()})
 
 
+MAX_NODOS_ESTRUCTURA = 600
+
+
+def estructura(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False,
+               max_nodos: int = MAX_NODOS_ESTRUCTURA) -> dict:
+    """La estructura del fondo como la pide RiC, de arriba abajo: el fondo y sus dependencias (secciones),
+    las series y subseries del cuadro y, dentro, los expedientes y documentos (rico:includesOrIncluded,
+    R024; la parte documental, rico:hasOrHadConstituent, R003); la regla de retención de cada serie
+    (rico:Rule que rico:regulatesOrRegulated la serie, R063); y el documento de la TRD, que expresa esas
+    reglas (rico:isOrWasExpressedBy, R064) y describe el fondo (rico:describesOrDescribed, R021).
+    Agentes, lugares y fechas no entran: esta vista muestra la estructura; el contexto está en la vista Red."""
+    from app.models.trd import VersionTrd
+
+    ctx = _Contexto(db, fondo, ver_restringidos)
+    raiz = f"recurso_documental:{fondo.id}"
+    nodos: dict[str, dict] = {}
+    aristas: list[dict] = []
+    truncado = False
+
+    def poner(clave: str, datos: dict | None, ident) -> bool:
+        nonlocal truncado
+        if clave in nodos:
+            return True
+        if datos is None:
+            return False
+        if len(nodos) >= max_nodos:
+            truncado = True
+            return False
+        nodos[clave] = {**datos, "id": str(ident), "clave": clave, "salto": 0}
+        return True
+
+    # 1. El cuadro: de cada agrupación a lo que incluye, por niveles (primero toda la estructura,
+    #    después los documentos, para que un fondo grande no se quede sin series por el tope).
+    orden = {"fondo": 0, "coleccion": 1, "seccion": 1, "subseccion": 2, "serie": 3, "subserie": 4, "expediente": 5,
+             "unidad_documental": 6, "parte_documental": 7}
+    poner(raiz, ctx.nodo("recurso_documental", fondo.id), fondo.id)
+    for r in sorted(ctx.recursos.values(), key=lambda x: (orden.get(x.nivel, 9), x.codigo_referencia or "", x.titulo or "")):
+        if r.id == fondo.id or r.incluido_en_id not in ctx.recursos:
+            continue
+        padre, hijo = f"recurso_documental:{r.incluido_en_id}", f"recurso_documental:{r.id}"
+        if padre in nodos and poner(hijo, ctx.nodo("recurso_documental", r.id), r.id):
+            aristas.append(_arista(padre, hijo, _jerarquia(r)))
+    # 2. Las reglas de retención de la TRD que regulan cada serie o subserie.
+    reglas = db.execute(select(Relacion.origen_id, Relacion.destino_id, Relacion.fecha_edtf).where(
+        Relacion.codigo_ric == "regulates_or_regulated", Relacion.rol == "retencion", Relacion.estado == "vigente",
+        Relacion.destino_id.in_(list(ctx.recursos)))).all()
+    vistas_reglas = []
+    for regla_id, serie_id, vigencia in reglas:
+        serie = f"recurso_documental:{serie_id}"
+        clave = f"entidad_vocabulario:{regla_id}"
+        if serie in nodos and poner(clave, ctx.nodo("entidad_vocabulario", regla_id), regla_id):
+            aristas.append(_arista(clave, serie, "regulates_or_regulated"))
+            vistas_reglas.append((clave, vigencia))
+    # 3. El documento de cada versión aplicada de la TRD (o de la TVD): describe el fondo y expresa sus reglas.
+    versiones = list(db.scalars(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id,
+                                                          VersionTrd.estado.in_(("vigente", "historica")))
+                                .order_by(VersionTrd.vigente_desde.nulls_first(), VersionTrd.numero)))
+    for v in versiones:
+        clave = f"trd:{v.id}"
+        etiqueta = f"{'TVD' if v.instrumento == 'tvd' else 'TRD'} · {v.nombre}"
+        poner(clave, {"tipo": "trd", "clase": "unidad_documental", "familia": "Record", "etiqueta": etiqueta,
+                      "subtitulo": v.acto_aprobacion or "Tabla de retención documental", "estado": v.estado,
+                      "fecha_inicio": v.vigente_desde, "fecha_fin": v.vigente_hasta, "codigo": None,
+                      "sin_nombre": False}, v.id)
+        aristas.append(_arista(clave, raiz, "describes_or_described"))
+
+    def version_de(vigencia: str | None):
+        if len(versiones) == 1 or not vigencia:
+            return versiones[-1] if versiones else None
+        inicio, _ = _limites_edtf(vigencia)
+        cubre = [v for v in versiones if inicio and (not v.vigente_desde or v.vigente_desde <= inicio)
+                 and (not v.vigente_hasta or inicio <= v.vigente_hasta)]
+        return (cubre or versiones)[-1]
+
+    for clave, vigencia in vistas_reglas:
+        v = version_de(vigencia)
+        if v is not None and f"trd:{v.id}" in nodos:
+            aristas.append(_arista(clave, f"trd:{v.id}", "is_or_was_expressed_by"))
+    for n in nodos.values():
+        for k in ("fecha_inicio", "fecha_fin"):
+            n[k] = n[k].isoformat() if hasattr(n.get(k), "isoformat") else n.get(k)
+        if n["tipo"] == "entidad_vocabulario":
+            n.setdefault("documentos", None)
+    return sin_campos_internos({
+        "fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "centro": raiz, "saltos": 0,
+        "nodos": list(nodos.values()), "aristas": aristas, "truncado": truncado, "maximo_nodos": max_nodos,
+        "filtros_activos": 0})
+
+
 def opciones(db: Session, fondo: RecursoDocumental, ver_restringidos: bool) -> dict:
     """Lo que ofrece el panel de filtros y el selector de entidad raíz."""
     from app.models.enums import CODIGO_RELACION_RIC

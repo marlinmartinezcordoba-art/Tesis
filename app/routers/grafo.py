@@ -71,6 +71,16 @@ def opciones(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: 
     return grafo.opciones(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
 
 
+@router.get("/estructura", responses={200: {"model": rg.Subgrafo, "description": "Estructura del fondo según la TRD"}},
+            summary="El fondo, sus dependencias, series y subseries, la regla de retención de cada una, el documento "
+                    "de la TRD y los documentos, con las relaciones de RiC-O")
+def estructura(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    try:
+        return grafo.estructura(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
+    except ErrorInstrumento as exc:
+        raise _error(exc) from exc
+
+
 @router.get("/{tipo}/{ident}", responses={200: {"model": rg.Subgrafo, "description": "Nodos y relaciones del subgrafo"}},
              summary="Subgrafo acotado alrededor de una entidad raíz (1 a 3 saltos, con filtros)")
 def subgrafo(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, saltos: int = Query(1, ge=1, le=3),

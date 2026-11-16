@@ -1487,3 +1487,48 @@ def probar_y_aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], u
     else:
         punto.commit()
     return informe, validacion
+
+
+
+# --- Corregir el nombre de una agrupación ya creada -------------------------------------------------
+
+NIVELES_RENOMBRABLES = ("seccion", "subseccion", "serie", "subserie")
+_NOMBRE_PROVISIONAL = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente|dependencia)?\s*[\d.]*",
+                                 re.IGNORECASE)
+
+
+class ErrorRenombrar(ValueError):
+    pass
+
+
+def renombrar_agrupacion(db: Session, recurso: RecursoDocumental, nombre: str, usuario_id: uuid.UUID) -> dict:
+    """Pone el nombre real a una sección, subsección, serie o subserie (por ejemplo «Dependencia 3203», que la
+    carga de la TRD crea cuando trae el código sin el nombre). Corrige también la dependencia de la TRD con el
+    mismo código, para que la TRD y el cuadro digan lo mismo. Queda en la auditoría; el grafo RiC-O se actualiza
+    solo (se marca el cambio del fondo)."""
+    from app.models.trd import DependenciaTrd
+
+    nombre = " ".join((nombre or "").split())[:300]
+    if recurso.nivel not in NIVELES_RENOMBRABLES:
+        raise ErrorRenombrar("Desde aquí se corrige el nombre de una sección, subsección, serie o subserie.")
+    if len(nombre) < 3 or _NOMBRE_PROVISIONAL.fullmatch(nombre):
+        raise ErrorRenombrar("Escriba el nombre de la dependencia o de la serie tal como figura en el CCD o la TRD, "
+                             "no solo un número.")
+    anterior = recurso.titulo
+    if nombre == anterior:
+        raise ErrorRenombrar("Ese ya es su nombre.")
+    recurso.titulo = nombre
+    dependencias = []
+    if recurso.nivel in ("seccion", "subseccion") and recurso.codigo_referencia:
+        codigo = recurso.codigo_referencia.strip().split()[-1].split(".")[-1]
+        for d in db.scalars(select(DependenciaTrd).where(DependenciaTrd.fondo_id == recurso.fondo_id,
+                                                          DependenciaTrd.estado == "activa",
+                                                          DependenciaTrd.codigo.in_({codigo,
+                                                                                     recurso.codigo_referencia}))):
+            d.nombre = nombre
+            dependencias.append(str(d.id))
+    db.flush()
+    registrar(db, modulo="instrumentos", accion="agrupacion_renombrada", usuario_id=usuario_id,
+              entidad_tipo="recurso_documental", entidad_id=recurso.id, detalle=f"«{anterior}» → «{nombre}»",
+              anterior={"titulo": anterior}, nuevo={"titulo": nombre, "dependencias_trd": dependencias})
+    return {"id": str(recurso.id), "titulo": nombre, "dependencias_trd_corregidas": len(dependencias)}

@@ -109,3 +109,25 @@ def validar(datos: AplicarIn, actor: Actor = Depends(solo_administrador), db: Se
         raise HTTPException(exc.codigo, detail=str(exc)) from exc
     db.rollback()
     return {"creado": False, "informe": informe, "validacion": validacion}
+
+
+class RenombrarIn(BaseModel):
+    nombre: str = Field(min_length=3, max_length=300)
+
+
+@router.patch("/agrupaciones/{recurso_id}", response_model=rc.AgrupacionRenombrada,
+              summary="Corregir el nombre de una sección, subsección, serie o subserie del cuadro")
+def renombrar(recurso_id: uuid.UUID, datos: RenombrarIn, actor: Actor = Depends(solo_administrador),
+              db: Session = Depends(get_db)):
+    from app.models.recurso_documental import RecursoDocumental
+
+    r = db.get(RecursoDocumental, recurso_id)
+    if r is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La agrupación no existe.")
+    try:
+        salida = cuadro.renombrar_agrupacion(db, r, datos.nombre, actor.id)
+    except cuadro.ErrorRenombrar as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return salida

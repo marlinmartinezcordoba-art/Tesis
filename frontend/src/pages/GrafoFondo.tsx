@@ -138,11 +138,14 @@ function PanelFiltros({ opciones, filtros, cambiar, cerrar }: {
 
 // --- Panel de detalle de la entidad seleccionada --------------------------------------------------
 
-function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar }: {
+function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar }: {
   clave: string; fondoId: string; cerrar: () => void; recentrar: (clave: string) => void;
-  abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld") => void;
+  abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld") => void; alCambiar?: () => void;
 }) {
   const { usuario } = useSesion();
+  const [nombreNuevo, setNombreNuevo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [avisoNombre, setAvisoNombre] = useState("");
   const navegar = useNavigate();
   const [ficha, setFicha] = useState<FichaEntidad | null>(null);
   const [error, setError] = useState("");
@@ -152,6 +155,7 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar 
   useEffect(() => {
     setFicha(null);
     setError("");
+    if (tipo === "trd") return;  // el documento de la TRD no tiene ficha en el grafo: se abre en Instrumentos
     pedir<FichaEntidad>(`${rutaEntidad(tipo, id)}/ficha?fondo_id=${fondoId}`).then(setFicha)
       .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo abrir la entidad."));
   }, [tipo, id, fondoId]);
@@ -165,6 +169,23 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar 
     else if (tipo === "entidad_vocabulario" && puede(usuario, "vocabularios")) abrir = () => navegar(`/vocabularios/${id}`);
     else if (tipo === "instanciacion" && puede(usuario, "preservacion")) abrir = () => navegar(`/preservacion/instanciacion/${id}`);
     else porque = tipo === "fecha" ? "Una fecha no tiene ficha propia: se edita en la descripción que la cita." : "Su rol no tiene acceso a ese módulo.";
+  }
+
+  if (tipo === "trd") {
+    return (
+      <aside className="detalle-grafo" aria-label="Entidad seleccionada" aria-live="polite">
+        <div className="detalle-cab">
+          <span>Entidad seleccionada</span>
+          <button type="button" className="ayuda-cerrar" aria-label="Cerrar el detalle" onClick={cerrar}>×</button>
+        </div>
+        <span className="insignia insignia-familia f-Record"><MuestraFamilia familia="Record" tamano={16} /> Documento (Record)</span>
+        <h2 className="titulo-nodo">Tabla de retención documental</h2>
+        <p className="meta">En RiC, la TRD es un documento que <b>describe</b> el fondo (rico:describesOrDescribed, R021) y
+          en el que se <b>expresan</b> las reglas de retención (rico:isOrWasExpressedBy, R064). Cada regla, a su vez,
+          <b> regula</b> su serie o subserie (rico:regulatesOrRegulated, R063).</p>
+        <button type="button" className="boton primario" onClick={() => navegar("/instrumentos")}>Abrir la TRD en Instrumentos</button>
+      </aside>
+    );
   }
 
   return (
@@ -185,9 +206,35 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar 
             && esNombreProvisional(ficha.etiqueta) && (
             <div className="aviso alerta" role="note" data-fijo>
               <strong>Nombre provisional.</strong> La TRD trajo el código de esta agrupación sin su nombre, y RICORA no lo
-              inventa. Corríjalo en Instrumentos › TRD › Dependencias productoras (o cargue el CCD y use «Cotejar con la
-              TRD», que toma el nombre de ahí). Revise también su lugar: si su código empieza como el de otra sección
-              (por ejemplo, 3203 y 3000), puede ser una subsección de esa.
+              inventa. Escriba el nombre tal como figura en el CCD o la TRD: se corrige aquí y en la TRD. Revise también
+              su lugar: si su código empieza como el de otra sección (por ejemplo, 3203 y 3000), puede ser una
+              subsección de esa.
+              {usuario?.es_administrador ? (
+                <form style={{ marginTop: 8, display: "grid", gap: 6 }} onSubmit={async (e) => {
+                  e.preventDefault();
+                  setGuardando(true);
+                  setAvisoNombre("");
+                  try {
+                    await pedir(`/api/cuadro/agrupaciones/${id}`, { method: "PATCH", body: JSON.stringify({ nombre: nombreNuevo }) });
+                    const f = await pedir<FichaEntidad>(`${rutaEntidad(tipo, id)}/ficha?fondo_id=${fondoId}`);
+                    setFicha(f);
+                    setNombreNuevo("");
+                    alCambiar?.();
+                  } catch (err) {
+                    setAvisoNombre(err instanceof ErrorAPI ? err.message : "No se pudo guardar el nombre.");
+                  } finally {
+                    setGuardando(false);
+                  }
+                }}>
+                  <label htmlFor="nombre-agrupacion" className="meta">Nombre correcto</label>
+                  <input id="nombre-agrupacion" className="entrada" minLength={3} maxLength={300} required
+                         placeholder="Ej.: Dirección de Bosques, Biodiversidad y Servicios Ecosistémicos"
+                         value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} />
+                  <button type="submit" className="boton chico primario" disabled={guardando || nombreNuevo.trim().length < 3}>
+                    {guardando ? "Guardando…" : "Guardar el nombre"}</button>
+                  {avisoNombre && <span className="aviso error" role="alert" data-fijo>{avisoNombre}</span>}
+                </form>
+              ) : <div className="meta" style={{ marginTop: 6 }}>Pida a la administración que lo corrija.</div>}
             </div>
           )}
           <div className="pestanas compactas" role="tablist">
@@ -239,6 +286,12 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar 
                     </li>
                   ))}
                 </ul>
+                {tipo === "recurso_documental" && ficha.clase !== "fondo" && puede(usuario, "descripcion") && (
+                  <p className="pista">De dónde salió cada relación (motor o persona, certeza, evidencia, quién la confirmó y
+                    cuándo) se consulta en la{" "}
+                    <button type="button" className="enlace" onClick={() => navegar(`/descripcion/registro/${id}`)}>vista interna de la descripción</button>.
+                    Este grafo no la muestra porque también lo usa el rol de consulta.</p>
+                )}
                 {ficha.relaciones_total > ficha.relaciones.length && (
                   <p className="pista">
                     Se muestran las {ficha.relaciones.length} más recientes de {ficha.relaciones_total}.{" "}
@@ -282,7 +335,11 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
 }) {
   const raizClave = centro || `recurso_documental:${fondo.id}`;
   // Desde el fondo, el cuadro completo (secciones, series, subseries); desde otra entidad, lo directo.
-  const [saltos, setSaltos] = useState(raizClave === `recurso_documental:${fondo.id}` ? 3 : 1);
+  // Desde el fondo: la estructura según la TRD (0); desde otra entidad, lo directo.
+  const esFondo = raizClave === `recurso_documental:${fondo.id}`;
+  const [saltos, setSaltos] = useState(esFondo ? 0 : 1);
+  useEffect(() => { if (!esFondo && saltos === 0) setSaltos(1); }, [esFondo, saltos]);
+  const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
   const [datos, setDatos] = useState<DatosGrafo | null>(null);
@@ -311,12 +368,13 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     setError("");
     setCargando(true);
     const vivo = { si: true };
-    pedir<DatosGrafo>(`${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
+    pedir<DatosGrafo>(saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}`
+      : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
       .then((d) => vivo.si && setDatos(d))
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
       .finally(() => vivo.si && setCargando(false));
     return () => { vivo.si = false; };
-  }, [raizClave, saltos, filtros, fondo.id]);
+  }, [raizClave, saltos, filtros, fondo.id, recarga]);
 
   useEffect(() => setSeleccion(null), [raizClave]);
   // Si un filtro saca del dibujo la entidad seleccionada, su panel se cierra.
@@ -405,6 +463,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           <span>Mostrar</span>
           <select className="entrada" value={saltos} onChange={(e) => setSaltos(Number(e.target.value))}
                   aria-label="Qué tan lejos mostrar las relaciones">
+            {esFondo && <option value={0}>Estructura según la TRD: dependencias, series, reglas y documentos</option>}
             {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
           </select>
         </label>
@@ -428,7 +487,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
         <div className={`grafo-y-detalle${seleccion && !completa ? " con-detalle" : ""}${cargando ? " recargando" : ""}`}>
           <div className="contenedor-lienzo">
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
-                         disposicionInicial={(() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
+                         key={saltos === 0 ? "estructura" : "contexto"}
+                         disposicionInicial={saltos === 0 ? "arbol" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
             {!vacio && datos.nodos.length > 1 && datos.nodos.every((n) => n.tipo === "recurso_documental" && n.familia === "RecordSet") && (
               <div className="aviso nota-grafo" role="note" data-fijo>
                 Solo se ve la estructura del cuadro de clasificación: este fondo todavía no tiene documentos descritos. Al
@@ -453,7 +513,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           {seleccion && !completa && (
             <PanelDetalle key={seleccion} clave={seleccion} fondoId={fondo.id} cerrar={() => setSeleccion(null)}
                           recentrar={(c) => centrar(c === `recurso_documental:${fondo.id}` ? "" : c)}
-                          abrirFicha={abrirFicha} exportar={exportar} />
+                          abrirFicha={abrirFicha} exportar={exportar} alCambiar={() => setRecarga((n) => n + 1)} />
           )}
         </div>
       )}

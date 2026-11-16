@@ -97,6 +97,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "trd_version_anulada": ("Anuló una versión de la TRD en borrador", "Cuadro de clasificación"),
     "trd_version_aplicada": ("Aplicó una versión de la TRD (queda vigente)", "Cuadro de clasificación"),
     "trd_dependencia_guardada": ("Registró o corrigió una dependencia productora", "Cuadro de clasificación"),
+    "agrupacion_renombrada": ("Corrigió el nombre de una sección, subsección, serie o subserie", "Cuadro de clasificación"),
     "trd_dependencia_anulada": ("Anuló una dependencia productora", "Cuadro de clasificación"),
     "trd_termino_guardado": ("Registró o corrigió un término del banco terminológico", "Cuadro de clasificación"),
     "trd_termino_anulado": ("Anuló un término del banco terminológico", "Cuadro de clasificación"),

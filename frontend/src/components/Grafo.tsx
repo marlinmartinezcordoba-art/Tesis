@@ -341,17 +341,26 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
     if (disposicion === "arbol") {
       // Por niveles: cada entidad en la fila de su distancia a la raíz y, dentro de la fila,
       // junto a las demás hijas de su mismo padre. Sin fuerzas: la estructura se lee de arriba abajo.
-      const vecinosDe = new Map<string, string[]>();
-      for (const a of datos.aristas) {
-        for (const [x, y] of [[a.desde, a.hacia], [a.hacia, a.desde]]) vecinosDe.set(x, [...(vecinosDe.get(x) || []), y]);
-      }
+      // Primero la estructura (inclusión y regla de cada serie), después lo demás: así la regla de
+      // retención queda junto a su serie y no junto al documento de la TRD.
+      const vecinos = (filtro: (a: AristaGrafo) => boolean) => {
+        const m = new Map<string, string[]>();
+        for (const a of datos.aristas.filter(filtro)) {
+          for (const [x, y] of [[a.desde, a.hacia], [a.hacia, a.desde]]) m.set(x, [...(m.get(x) || []), y]);
+        }
+        return m;
+      };
+      const estructurales = vecinos((a) => JERARQUIA.has(a.codigo_ric) || a.codigo_ric === "regulates_or_regulated");
+      const todos = vecinos(() => true);
       const raiz = datos.centro;
       const nivel = new Map<string, number>([[raiz, 0]]);
       const orden: string[] = [raiz];
-      for (let i = 0; i < orden.length; i++) {
-        const hijos = (vecinosDe.get(orden[i]) || []).filter((v) => !nivel.has(v))
-          .sort((a, b) => etiquetaDe(porClave.get(a)!).localeCompare(etiquetaDe(porClave.get(b)!), "es", { numeric: true }));
-        for (const h of hijos) { nivel.set(h, nivel.get(orden[i])! + 1); orden.push(h); }
+      for (const vecinosDe of [estructurales, todos]) {
+        for (let i = 0; i < orden.length; i++) {
+          const hijos = (vecinosDe.get(orden[i]) || []).filter((v) => !nivel.has(v) && porClave.has(v))
+            .sort((a, b) => etiquetaDe(porClave.get(a)!).localeCompare(etiquetaDe(porClave.get(b)!), "es", { numeric: true }));
+          for (const h of hijos) { nivel.set(h, nivel.get(orden[i])! + 1); orden.push(h); }
+        }
       }
       for (const n of nodos) if (!nivel.has(n.clave)) { nivel.set(n.clave, 1); orden.push(n.clave); }
       const filas = new Map<number, string[]>();

@@ -139,3 +139,10 @@ class AvanceFondo(BaseModel):
     siguiente: str | None
     hechos: int
     total: int
+
+
+class AgrupacionRenombrada(BaseModel):
+    """La agrupación con su nombre corregido y cuántas dependencias de la TRD se corrigieron con ella."""
+    id: str
+    titulo: str
+    dependencias_trd_corregidas: int

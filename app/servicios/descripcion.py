@@ -1220,6 +1220,15 @@ def _clasificacion_de(db: Session, recurso: RecursoDocumental) -> dict:
     return {"clasificacion": datos(propia) if propia else None, "clasificacion_heredada": heredada}
 
 
+def _nombre_usuario(db: Session, usuario_id) -> str | None:
+    if not usuario_id:
+        return None
+    from app.models.usuario import Usuario
+
+    u = db.get(Usuario, usuario_id)
+    return u.nombre if u is not None else None
+
+
 def detalle(db: Session, recurso: RecursoDocumental) -> dict:
     """Vista interna completa, con origen y confianza de cada dato. Solo
     para las pantallas de trabajo y la auditoría."""
@@ -1326,6 +1335,9 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
             "pagina": r.fragmento_pagina, "zona": r.fragmento_zona,
             "propuesta_id": str(r.propuesta_id) if r.propuesta_id else None,
             "origen": r.origen, "confianza": r.confianza, "motor": r.motor, "estado_revision": r.estado_revision, **extra,
+            # Trazabilidad de la relación: cuándo se registró y quién la confirmó.
+            "registrada": r.creado_en.isoformat() if r.creado_en else None,
+            "responsable": _nombre_usuario(db, r.confirmada_por_id),
             **({"periodo": r.fecha_edtf, "periodo_legible": fechas.legible(r.fecha_edtf), "nota": r.nota}
                if r.codigo_ric == "has_or_had_holder" else {}),
         })

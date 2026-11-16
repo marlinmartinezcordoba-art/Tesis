@@ -37,6 +37,9 @@ interface EntidadRegistrada {
   fragmento: string | null;
   origen: string;
   confianza: number | null;
+  motor?: string | null;
+  registrada?: string | null;
+  responsable?: string | null;
   fecha_normalizada?: string | null;
   fecha_legible?: string | null;
   edtf?: string | null;
@@ -498,6 +501,13 @@ export function RegistroDescripcion() {
                 {e.fragmento && ` · «${e.fragmento}»`}
                 {e.fragmento && e.pagina && <span className="prop-pagina"> · pág. {e.pagina}</span>}
               </div>
+              {(e.motor || e.responsable || e.registrada) && (
+                <div className="meta">
+                  {e.motor && `Motor: ${e.motor}`}{e.motor && (e.responsable || e.registrada) && " · "}
+                  {e.responsable && `Confirmó: ${e.responsable}`}{e.responsable && e.registrada && " · "}
+                  {e.registrada && `Registrada: ${new Date(e.registrada).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}`}
+                </div>
+              )}
             </div>
             {editando && (
               <button type="button" className="boton chico"
