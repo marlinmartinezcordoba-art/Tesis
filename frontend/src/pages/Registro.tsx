@@ -5,6 +5,7 @@ import { EnlaceHistoria } from "@/components/Historia";
 import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
 import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/components/Versiones";
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
+import { ComponentesRic } from "@/components/ComponentesRic";
 import {
   CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
   proteccionParaEnviar,
@@ -287,6 +288,13 @@ export function RegistroDescripcion() {
         {registro.actualizado_en && ` · corregida ${fecha(registro.actualizado_en)}`} · {registro.instanciaciones.map((i) => i.nombre).join(", ")}
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
+
+      {!editando && (
+        <ComponentesRic recursoId={registro.id} titulo={registro.titulo} identificador={registro.control.codigo_referencia}
+                        actualizado={registro.actualizado_en}
+                        actividades={registro.entidades.filter((e) => e.tipo === "actividad")}
+                        instanciaciones={registro.instanciaciones} />
+      )}
 
       <div className="tarjeta">
         <div className="tarjeta-cab">

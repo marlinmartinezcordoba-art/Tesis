@@ -923,6 +923,15 @@ class OriginalFisicoEditarIn(DatosFisicosAgn):
     caracteristicas_fisicas: str | None = Field(default=None, max_length=5000)
 
 
+@router.get("/registros/{recurso_id}/componentes-ric",
+            summary="Estado de la descripción por componentes RiC: recurso, agentes, funciones y actividades, "
+                    "relaciones, tiempo y lugar, custodia y manifestaciones, fuentes y validación")
+def componentes_ric(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.servicios import componentes_ric as cr
+
+    return cr.componentes(db, (r := _recurso_o_404(db, recurso_id)), descripcion.detalle(db, r))
+
+
 @router.get("/registros/{recurso_id}/isadg", responses={200: {"model": FichaIsadgOut, "description": "Ficha ISAD(G) con los 26 elementos"}},
             summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
 def ficha_isadg(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
