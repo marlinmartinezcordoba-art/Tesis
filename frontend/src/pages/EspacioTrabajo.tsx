@@ -76,6 +76,9 @@ interface Espacio {
     generada_en?: string | null;
   } | null;
   umbral_confianza: number;
+  // Qué propuestas llegan aceptadas: revisar_todo (ninguna), alta_confianza (las de confianza alta con su
+  // fragmento hallado) o todo. Lo fija la administración y queda en la auditoría de cada publicación.
+  politica_ia?: "revisar_todo" | "alta_confianza" | "todo";
   // El avance guardado (para continuar donde se dejó) y si este trabajo continúa uno anterior.
   borrador?: Borrador | null;
   borrador_guardado_en?: string | null;
@@ -284,7 +287,11 @@ export function EspacioTrabajo() {
   useEffect(() => {
     if (!espacio || vencido || autoAceptado.current === espacio.trabajo_id || !items.length) return;
     autoAceptado.current = espacio.trabajo_id;
-    items.filter((i) => i.decision === "pendiente" && !i.manual && !i.porRicora).forEach((i) => {
+    const politica = espacio.politica_ia || "alta_confianza";
+    if (politica === "revisar_todo") return;
+    const preacepta = (i: Item) => politica === "todo"
+      || (i.confianza !== null && i.confianza >= espacio.umbral_confianza && i.fragmento_localizado);
+    items.filter((i) => i.decision === "pendiente" && !i.manual && !i.porRicora && preacepta(i)).forEach((i) => {
       cambiar(i.clave, { porRicora: true });
       aceptar({ ...i, porRicora: true });
     });
@@ -507,6 +514,7 @@ export function EspacioTrabajo() {
   const opciones = (tipo: TipoEntidad) => items.filter((x) => x.tipo === tipo && x.decision !== "descartada");
   const nombreDe = (clave: string | null) => items.find((x) => x.clave === clave)?.valor;
   const aceptadas = items.filter((i) => i.decision === "aceptada").length;
+  const preaceptadas = items.filter((i) => i.decision === "aceptada" && i.porRicora && !i.editada).length;
   const bajas = items.filter((i) => i.decision !== "descartada" && i.confianza !== null && i.confianza < umbral).length;
   const nombreDoc = (docId: string | null) => espacio.documentos.find((d) => d.id === docId)?.nombre;
   const propuesta = espacio.propuesta;
@@ -809,6 +817,9 @@ export function EspacioTrabajo() {
                         {!i.fragmento_localizado && !i.manual && " · no se encontró en el texto: verifíquelo"}
                       </div>
                     )}
+                    {i.porRicora && i.decision === "aceptada" && !i.editada && (
+                      <div className="meta" title="Sugerida por la IA y preaceptada según la política vigente: queda validada al publicar.">
+                        Preaceptada por RICORA · revise</div>)}
                     <div className="acciones" onClick={(e) => e.stopPropagation()}>
                       {i.decision !== "aceptada" && i.decision !== "descartada" && (
                         <button type="button" className="boton chico primario" disabled={i.tipo === "fecha" && !i.edtf}
@@ -852,6 +863,7 @@ export function EspacioTrabajo() {
       <div className="barra-publicar">
         <span>
           {items.length} entidad{items.length === 1 ? "" : "es"} · {aceptadas} aceptada{aceptadas === 1 ? "" : "s"}
+          {preaceptadas > 0 && ` (${preaceptadas} preaceptada${preaceptadas === 1 ? "" : "s"} por RICORA)`}
           {bajas > 0 && ` · ${bajas} con confianza baja`}
           {pendientes > 0 ? ` · ${pendientes} pendiente${pendientes === 1 ? "" : "s"} de resolver` : " · nada pendiente"}
           {datosPendientes > 0 && ` · ${datosPendientes} dato${datosPendientes === 1 ? "" : "s"} personal${datosPendientes === 1 ? "" : "es"} por revisar`}

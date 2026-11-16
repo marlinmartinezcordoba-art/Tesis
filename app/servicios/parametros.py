@@ -58,6 +58,13 @@ DEFINICIONES: dict[str, Definicion] = {
     "ingesta_umbral_ocr": Definicion(70, _entero_entre(0, 100),
                                      "Confianza mínima del OCR (sobre 100); por debajo, el documento se marca para "
                                      "leerlo con cuidado."),
+    # Política de aprobación de lo que propone la IA al describir (configurable y auditable): «revisar_todo»
+    # (todo llega como sugerido), «alta_confianza» (llega aceptado lo de confianza alta con su fragmento
+    # hallado en el texto) o «todo» (llega aceptado todo lo propuesto). En cualquier caso, nada queda
+    # definitivo hasta que una persona publica, y cada decisión queda registrada.
+    "ia_politica_aceptacion": Definicion("alta_confianza", lambda v: None if v in POLITICAS_IA else
+                                         "Debe ser revisar_todo, alta_confianza o todo.",
+                                         "Qué propuestas de la IA llegan aceptadas al describir; la persona revisa y publica."),
     "fusion_similitud_pct": Definicion(60, _entero_entre(30, 100),
                                        "Similitud mínima (%) entre dos entidades para sugerir fusionarlas."),
     "fusion_max_conexiones": Definicion(10, _entero_entre(0, 10000),
@@ -94,6 +101,14 @@ DEFINICIONES: dict[str, Definicion] = {
                                     "Si las URI de RiC-O (/id/…) se resuelven sin iniciar sesión. Apagado por "
                                     "defecto: encenderlo publica en internet lo descrito con acceso público."),
 }
+
+
+POLITICAS_IA = ("revisar_todo", "alta_confianza", "todo")
+
+
+def politica_ia(db: Session) -> str:
+    """La política vigente; en modo evaluación siempre «revisar_todo», para medir la validación humana."""
+    return "revisar_todo" if settings.modo_evaluacion else leer(db, "ia_politica_aceptacion")
 
 
 def _segunda_ubicacion(valor: Any) -> str | None:

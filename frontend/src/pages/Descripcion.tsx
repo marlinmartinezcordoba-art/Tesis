@@ -13,6 +13,40 @@ import { VentanaVisor } from "@/components/VisorDocumento";
 import { Encabezado, IconoDocumento, Indicadores, MenuAcciones, type Accion } from "@/components/Encabezado";
 import { NivelRiC } from "@/components/NivelRiC";
 
+// Política de aprobación de la IA: qué propuestas llegan aceptadas al describir. Solo la administración
+// la cambia; cada cambio y cada publicación la registran en la auditoría.
+type Politica = "revisar_todo" | "alta_confianza" | "todo";
+const POLITICAS: Record<Politica, string> = {
+  revisar_todo: "Todo llega como sugerido: la archivista acepta una por una",
+  alta_confianza: "Llega aceptado lo de confianza alta con su fragmento en el texto; lo demás, sugerido",
+  todo: "Llega aceptado todo lo propuesto; la archivista corrige lo que no esté bien",
+};
+
+function PoliticaIA({ administra }: { administra: boolean }) {
+  const [p, setP] = useState<{ politica: Politica; modo_evaluacion: boolean } | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { pedir<{ politica: Politica; modo_evaluacion: boolean }>("/api/descripcion/politica-ia").then(setP).catch(() => setP(null)); }, []);
+  if (!p) return null;
+  return (
+    <p className="meta" style={{ margin: "0 0 12px" }}>
+      Propuestas de la IA: {administra && !p.modo_evaluacion ? (
+        <select className="selector" style={{ width: "auto", display: "inline-block" }} aria-label="Política de aprobación de la IA"
+                value={p.politica} onChange={async (e) => {
+                  setError("");
+                  try {
+                    setP(await pedir("/api/descripcion/politica-ia", { method: "PUT",
+                      body: JSON.stringify({ politica: e.target.value }) }));
+                  } catch (err) { setError(err instanceof ErrorAPI ? err.message : "No se pudo cambiar."); }
+                }}>
+          {(Object.keys(POLITICAS) as Politica[]).map((k) => <option key={k} value={k}>{POLITICAS[k]}</option>)}
+        </select>) : POLITICAS[p.politica]}
+      {p.modo_evaluacion && " (modo evaluación: se mide la validación humana)"}
+      {" "}· Nada queda definitivo hasta que usted publica.
+      {error && <span role="alert" style={{ color: "var(--danger)" }}> {error}</span>}
+    </p>
+  );
+}
+
 // «Descritas» muestra las más recientes; el resto, en la exportación.
 const RECIENTES_DESCRITAS = 15;
 
@@ -229,6 +263,7 @@ export function Descripcion() {
               { etiqueta: "OCR con confianza baja", valor: cola === null ? "—" : dudosos.toLocaleString("es-CO"),
                 nota: "Lea su texto con cuidado", tono: dudosos ? "alerta" : undefined },
             ]} />
+            <PoliticaIA administra={!!usuario?.es_administrador} />
             <div className="tarjeta">
               <div className="lista-titulo">
                 <h2>Documentos pendientes</h2>

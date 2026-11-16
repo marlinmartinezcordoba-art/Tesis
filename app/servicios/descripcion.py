@@ -1224,8 +1224,13 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
 
         db.get(PropuestaIA, trabajo.propuesta_id).recurso_id = recurso.id
     db.flush()
+    from app.servicios import parametros
+
+    # La política de la IA con que se describió queda en la auditoría: así se sabe si lo aceptado llegó
+    # sugerido o preaceptado.
     registrar(db, modulo="descripcion", accion="descripcion_publicada", usuario_id=usuario_id,
-              entidad_tipo="recurso_documental", entidad_id=recurso.id, nuevo=resumen(db, recurso))
+              entidad_tipo="recurso_documental", entidad_id=recurso.id,
+              nuevo={**resumen(db, recurso), "politica_ia": parametros.politica_ia(db)})
     registrar_decisiones(db, recurso, propuesta, finales, [e for e in entidades if e.clave not in claves_propuestas],
                          titulo, alcance, usuario_id)
     return recurso

@@ -87,6 +87,7 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         # Posibles datos personales (Ley 1581): cada uno se confirma, corrige o descarta antes de publicar.
         "datos_personales": datos_personales.de_documentos(db, descripcion.instanciaciones_del_trabajo(db, trabajo)),
         "umbral_confianza": settings.umbral_confianza,
+        "politica_ia": parametros.politica_ia(db),
     }
     db.commit()  # la búsqueda de datos personales guarda sus hallazgos la primera vez
     return espacio
@@ -154,6 +155,26 @@ def niveles_superiores(fondo_id: uuid.UUID, nivel: str, adicional: bool = False,
     posibles.sort(key=lambda r: (descripcion.rango(r.nivel), r.codigo_referencia or "", r.titulo))
     return [NivelSuperiorOut(id=r.id, titulo=r.titulo, nivel=r.nivel, codigo=r.codigo_referencia,
                              dependencia=dependencia(r)) for r in posibles]
+
+
+class PoliticaIA(BaseModel):
+    """Qué propuestas de la IA llegan aceptadas al describir."""
+    politica: Literal["revisar_todo", "alta_confianza", "todo"]
+    modo_evaluacion: bool = False
+
+
+@router.get("/politica-ia", response_model=PoliticaIA, summary="Política de aprobación de lo que propone la IA")
+def ver_politica_ia(_: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+    return PoliticaIA(politica=parametros.politica_ia(db), modo_evaluacion=settings.modo_evaluacion)
+
+
+@router.put("/politica-ia", response_model=PoliticaIA,
+            summary="Cambiar la política de aprobación de la IA (solo administración; queda en la auditoría)")
+def cambiar_politica_ia(datos: PoliticaIA, request: Request, actor: Actor = Depends(solo_administrador),
+                        db: Session = Depends(get_db)):
+    parametros.cambiar(db, "ia_politica_aceptacion", datos.politica, actor.id, "descripcion", ip=ip_de(request))
+    db.commit()
+    return PoliticaIA(politica=parametros.politica_ia(db), modo_evaluacion=settings.modo_evaluacion)
 
 
 @router.get("/ubicacion-sugerida", response_model=list[UbicacionSugeridaOut],
