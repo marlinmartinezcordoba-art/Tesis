@@ -112,6 +112,10 @@ class RecursoDocumental(Base):
     publicado_en = Column(DateTime(timezone=True), nullable=True)
     publicado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     actualizado_en = Column(DateTime(timezone=True), nullable=True)
+    # Devuelta por la administración para redescribirla (sigue publicada; ver 0064).
+    devuelta_en = Column(DateTime(timezone=True), nullable=True)
+    devuelta_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    devuelta_motivo = Column(Text, nullable=True)
 
     # --- Datos de control para el inventario (módulo 4, FUID del AGN) ---
     # Los escribe siempre una persona al describir o corregir; si faltan,

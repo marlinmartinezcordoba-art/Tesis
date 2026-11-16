@@ -36,7 +36,7 @@ from app.schemas.respuestas_descripcion import (
     ComponentesRicOut,
     AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, EstadoDigitalizacionOut,
     FichaPublicaOut, GuiaMetadatos, PaginasOut, PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut,
-    LoQueRige, ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
+    DevueltaOut, LoQueRige, PropuestaRegistroOut, ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
 from app.servicios import (completitud, consulta, datos_personales, descripcion, digitalizacion, motor, parametros,
                            propuestas_ia, versiones_trd, vocabulario)
@@ -182,10 +182,11 @@ def acceso_que_rige(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
     d = derechos.declaracion_de_recurso(db, recurso)
     origen = db.get(RecursoDocumental, d.entidad_id) if d is not None else None
     r = retencion.retencion_de(db, recurso)
+    contexto = descripcion.contexto_de_serie(db, recurso)
     return LoQueRige(acceso=d.acceso if d else None, fundamento=d.fundamento if d else None,
                      reproduccion=d.reproduccion if d else None, vigente_hasta=d.vigente_hasta if d else None,
                      de=origen.titulo if origen else None, retencion=r["resumen"] if r else None,
-                     disposicion=r["disposicion_nombre"] if r else None)
+                     disposicion=r["disposicion_nombre"] if r else None, **contexto)
 
 
 @router.get("/politica-ia", response_model=PoliticaIA, summary="Política de aprobación de lo que propone la IA")
@@ -1147,6 +1148,78 @@ def reabrir(recurso_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("descrip
     return {"trabajo_id": str(trabajo.id), "descripcion": descripcion.detalle(db, recurso), "datos_personales": revision}
 
 
+class DevolverIn(BaseModel):
+    motivo: str = Field(min_length=5, max_length=1000)
+
+
+@router.post("/registros/{recurso_id}/devolver", response_model=DevueltaOut,
+             summary="Devolver una descripción publicada para redescribirla (solo administración)")
+def devolver(recurso_id: uuid.UUID, datos: DevolverIn, request: Request, actor: Actor = Depends(solo_administrador),
+             db: Session = Depends(get_db)):
+    """Sigue publicada con su identificador; queda en «Por describir › Devueltas»
+    hasta que se guarde la corrección, que se asienta como versión nueva."""
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        descripcion.devolver(db, recurso, datos.motivo, actor.id)
+    except descripcion.ErrorDescripcion as exc:
+        db.rollback()
+        return _error(exc)
+    registrar(db, modulo="descripcion", accion="descripcion_devuelta", usuario_id=actor.id,
+              entidad_tipo="recurso_documental", entidad_id=recurso.id, request=request,
+              detalle=f"Devuelta para redescribir: {recurso.devuelta_motivo}")
+    db.commit()
+    return descripcion.devuelta_out(db, recurso)
+
+
+@router.get("/devueltas", response_model=list[DevueltaOut], summary="Descripciones devueltas para redescribir")
+def devueltas(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    filas = db.scalars(select(RecursoDocumental).where(
+        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.devuelta_en.is_not(None))
+        .order_by(RecursoDocumental.devuelta_en)).all()
+    return [descripcion.devuelta_out(db, r) for r in filas]
+
+
+@router.post("/registros/{recurso_id}/propuesta", response_model=PropuestaRegistroOut,
+             summary="Propuesta nueva de RICORA para una descripción abierta en corrección")
+async def proponer_para_registro(recurso_id: uuid.UUID, trabajo_id: uuid.UUID,
+                                 actor: Actor = Depends(acceso_modulo("descripcion")),
+                                 db: Session = Depends(get_db)):
+    """Lee de nuevo los documentos con las reglas y el cuadro de hoy: título, alcance,
+    tipo documental (de las tipologías de la TRD) y la serie donde más probablemente va.
+    No cambia nada: la persona aplica lo que acepte y guarda la corrección."""
+    from app.servicios import formas_trd
+    from app.servicios.datos_personales import anonimizar_para_motor
+
+    recurso = _recurso_o_404(db, recurso_id)
+    try:
+        trabajo = descripcion.trabajo_propio(db, trabajo_id, actor.id)
+        if trabajo.recurso_id != recurso.id:
+            raise descripcion.ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
+    except descripcion.ErrorDescripcion as exc:
+        db.commit()
+        return _error(exc)
+    instancias = descripcion.instanciaciones_del_trabajo(db, trabajo)
+    documentos = [motor.Documento(id=d.id, nombre=d.nombre_original,
+                                  texto=anonimizar_para_motor(d.texto_extraido or "")[0]) for d in instancias]
+    contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
+    propuesta = await run_in_threadpool(motor.proponer, documentos, recurso.nivel, contexto)
+    formas_trd.ajustar(db, trabajo.fondo_id, propuesta, documentos)
+    propuestas_ia.ubicar_fragmentos(db, propuesta)
+    propuestas_ia.registrar(db, propuesta, origen="descripcion", fondo_id=trabajo.fondo_id, nivel=recurso.nivel,
+                            instanciaciones=[d.id for d in instancias], solicitada_por_id=actor.id,
+                            trabajo_id=trabajo.id)
+    texto = " ".join(i.texto_extraido or "" for i in instancias)
+    ubicaciones = descripcion.sugerir_ubicacion(db, trabajo.fondo_id, texto)
+    forma = next((e for e in propuesta.entidades if e.tipo == "forma_documental"), None)
+    descripcion.latido(db, trabajo)
+    db.commit()
+    return PropuestaRegistroOut(titulo=propuesta.titulo or None, alcance=propuesta.alcance or None,
+                                tipo_documental=forma.valor if forma else None,
+                                ubicaciones=[UbicacionSugeridaOut(**u) for u in ubicaciones[:3]],
+                                aviso=propuesta.aviso or None)
+
+
 @router.patch("/{recurso_id}", responses={200: {"model": DetalleDescripcionOut, "description": "La descripción corregida, vista interna"}},
               summary="Corregir una descripción publicada (queda en auditoría)")
 def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso_modulo("descripcion")),
@@ -1177,6 +1250,9 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
         _proteger(db, recurso, datos.proteccion, actor.id)
         datos_personales.exigir_revision(db, descripcion.instanciaciones_del_trabajo(db, trabajo), recurso, actor.id)
         versiones_trd.clasificar(db, recurso, reclasificado=recurso.incluido_en_id != incluido_antes)
+        if recurso.devuelta_en is not None:  # la corrección responde a la devolución
+            recurso.devuelta_en = recurso.devuelta_por_id = recurso.devuelta_motivo = None
+            cambio = True
         descripcion.versionar(db, recurso, "edicion", actor.id, hubo_cambio=cambio)
         _asentar(db, recurso)
         db.commit()

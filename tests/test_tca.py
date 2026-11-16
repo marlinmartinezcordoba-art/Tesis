@@ -75,5 +75,6 @@ def test_lo_que_hereda_quien_se_clasifica_en_la_serie(cliente, fondo_descrito, c
     assert r.status_code == 200, r.text
     rige = cliente.get(url, headers=archivista, params={"recurso_id": str(f["serie"].id)}).json()
     assert rige["acceso"] == "clasificado" and rige["fundamento"] == "Ley 1712 de 2014, art. 18"
-    assert rige["de"] == f["serie"].titulo
+    assert rige["de"] == f["serie"].titulo and rige["serie"] == f["serie"].titulo
+    assert isinstance(rige["tipos_documentales"], list)
     assert cliente.get(url, headers=archivista, params={"recurso_id": str(uuid.uuid4())}).status_code == 404

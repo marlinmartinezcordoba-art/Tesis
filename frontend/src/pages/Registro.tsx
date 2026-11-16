@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { GuiaCampo } from "@/components/GuiaCampo";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EnlaceHistoria } from "@/components/Historia";
 import { PropuestaRegistrada, PropuestasIA } from "@/components/PropuestasIA";
 import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/components/Versiones";
@@ -62,7 +62,34 @@ function clasificacionInicial(c: ClasificacionGuardada | null): Clasificacion {
   return { acceso: c.acceso, fundamento: c.fundamento, hasta: c.vigente_hasta || "", reproduccion: c.reproduccion };
 }
 
+interface PropuestaRegistro {
+  titulo: string | null; alcance: string | null; tipo_documental: string | null; aviso: string | null;
+  ubicaciones: { id: string; titulo: string; codigo: string | null; palabras: string[] }[];
+}
+
+export interface LoQueRige {
+  acceso: string | null; fundamento: string | null; retencion: string | null; disposicion: string | null;
+  serie: string | null; codigo: string | null; dependencia: string | null; tipos_documentales: string[];
+}
+
+const ACCESO: Record<string, string> = { publico: "público", clasificado: "clasificado", reservado: "reservado" };
+
+// Lo que la serie trae de la TRD y la TCA: dependencia, tipos documentales, acceso y retención.
+export function ContextoSerie({ rige }: { rige: LoQueRige | null }) {
+  if (!rige || !(rige.serie || rige.dependencia)) return null;
+  return (
+    <div className="pista" style={{ marginTop: 6 }}>
+      {rige.dependencia && <div>Dependencia: <strong>{rige.dependencia}</strong></div>}
+      {rige.serie && <div>Serie: {rige.codigo ? `${rige.codigo} · ` : ""}{rige.serie}</div>}
+      <div>Acceso (TCA): {rige.acceso ? `${ACCESO[rige.acceso] || rige.acceso}${rige.fundamento ? ` · ${rige.fundamento}` : ""}` : "sin declarar"}</div>
+      {(rige.retencion || rige.disposicion) && <div>Retención (TRD): {[rige.retencion, rige.disposicion && `disposición final: ${rige.disposicion}`].filter(Boolean).join(" · ")}</div>}
+      {rige.tipos_documentales.length > 0 && <div>Tipos documentales de la serie: {rige.tipos_documentales.join(", ")}</div>}
+    </div>
+  );
+}
+
 interface Registro {
+  devuelta?: { motivo: string | null; devuelta_en: string | null; devuelta_por: string | null } | null;
   id: string;
   nivel: string;
   titulo: string;
@@ -155,6 +182,10 @@ export function RegistroDescripcion() {
   const [campos, setCampos] = useState<CamposRegistroValor>(camposVacios());
   const tiposContenido = useTiposContenido();
   const [partes, setPartes] = useState<ParteBorrador[]>([]);
+  const [busqueda] = useSearchParams();
+  const [propuesta, setPropuesta] = useState<PropuestaRegistro | null>(null);
+  const [proponiendo, setProponiendo] = useState(false);
+  const [rige, setRige] = useState<LoQueRige | null>(null);
   const [control, setControl] = useState<Record<keyof Control, string>>(
     { codigo_referencia: "", caja: "", carpeta: "", folios: "", soporte: "", tomo: "", otra_unidad: "", frecuencia_consulta: "" });
 
@@ -189,7 +220,7 @@ export function RegistroDescripcion() {
       .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar la descripción."));
   }, [id]);
 
-  async function corregir() {
+  async function corregir(): Promise<string | null> {
     setError("");
     try {
       const r = await pedir<{ trabajo_id: string; descripcion: Registro; datos_personales: RevisionDatos }>(
@@ -197,10 +228,37 @@ export function RegistroDescripcion() {
       setTrabajo(r.trabajo_id);
       setDatosPersonales(r.datos_personales);
       cargar(r.descripcion);
+      return r.trabajo_id;
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo abrir para corregir.");
+      return null;
     }
   }
+
+  // RICORA lee de nuevo los documentos con la TRD, la TCA y el cuadro de hoy. Nada se aplica solo.
+  async function pedirPropuesta(t: string | null = trabajo) {
+    if (!t) return;
+    setProponiendo(true);
+    try {
+      setPropuesta(await pedir<PropuestaRegistro>(`/api/descripcion/registros/${id}/propuesta?trabajo_id=${t}`, { method: "POST" }));
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "RICORA no pudo proponer.");
+    } finally {
+      setProponiendo(false);
+    }
+  }
+
+  // Desde «Devueltas para redescribir»: abre la corrección y pide la propuesta.
+  const redescribir = busqueda.get("redescribir") === "1";
+  useEffect(() => {
+    if (!redescribir || !registro || trabajo || !puede) return;
+    corregir().then((t) => { if (t) pedirPropuesta(t); });
+  }, [redescribir, registro?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!incluido) { setRige(null); return; }
+    pedir<LoQueRige>(`/api/descripcion/acceso-que-rige?recurso_id=${incluido}`).then(setRige).catch(() => setRige(null));
+  }, [incluido]);
 
   async function agregar(e: EntidadManual) {
     if (!registro) return;
@@ -289,6 +347,13 @@ export function RegistroDescripcion() {
         {registro.actualizado_en && ` · corregida ${fecha(registro.actualizado_en)}`} · {registro.instanciaciones.map((i) => i.nombre).join(", ")}
       </p>
       {error && <div className="aviso error" role="alert">{error}</div>}
+      {registro.devuelta && (
+        <div className="aviso alerta" role="status">
+          <strong>Devuelta para redescribir</strong>{registro.devuelta.devuelta_por && ` por ${registro.devuelta.devuelta_por}`}
+          {registro.devuelta.devuelta_en && ` el ${fecha(registro.devuelta.devuelta_en)}`}: {registro.devuelta.motivo}
+          <div className="meta">Sigue publicada con su identificador. Al guardar la corrección queda como versión nueva y sale de las devueltas.</div>
+        </div>
+      )}
 
       {!editando && (
         <ComponentesRic recursoId={registro.id} titulo={registro.titulo} identificador={registro.control.codigo_referencia}
@@ -300,19 +365,45 @@ export function RegistroDescripcion() {
       <div className="tarjeta">
         <div className="tarjeta-cab">
           <span>Descripción</span>
-          {puede && !editando && <button type="button" className="boton chico primario" onClick={corregir}>Corregir</button>}
+          {puede && !editando && <button type="button" className="boton chico primario" onClick={() => corregir()}>Corregir</button>}
+          {editando && <button type="button" className="boton chico" disabled={proponiendo} onClick={() => pedirPropuesta()}
+                               title="RICORA lee de nuevo los documentos con la TRD, la TCA y el cuadro actuales">
+            {proponiendo ? "RICORA está leyendo…" : "Pedir propuesta a RICORA"}</button>}
         </div>
         <div className="tarjeta-cuerpo">
           {editando ? (
             <>
+              {propuesta && (
+                <div className="aviso" role="region" aria-label="Propuesta de RICORA">
+                  <strong>Propuesta de RICORA</strong> <span className="meta">(revísela: aplique lo que acepte y guarde)</span>
+                  {propuesta.aviso && <div className="meta">{propuesta.aviso}</div>}
+                  {propuesta.titulo && propuesta.titulo !== titulo && (
+                    <div className="acciones" style={{ marginTop: 6 }}><span>Título: «{propuesta.titulo}»</span>
+                      <button type="button" className="boton chico" onClick={() => setTitulo(propuesta.titulo!)}>Aplicar</button></div>)}
+                  {propuesta.alcance && propuesta.alcance !== alcance && (
+                    <div className="acciones" style={{ marginTop: 6 }}><span>Alcance: {propuesta.alcance.slice(0, 160)}{propuesta.alcance.length > 160 ? "…" : ""}</span>
+                      <button type="button" className="boton chico" onClick={() => setAlcance(propuesta.alcance!)}>Aplicar</button></div>)}
+                  {propuesta.tipo_documental && <div style={{ marginTop: 6 }}>Tipo documental: {propuesta.tipo_documental}
+                    {registro.entidades.some((e) => e.tipo === "forma_documental" && e.valor === propuesta.tipo_documental)
+                      ? <span className="meta"> · ya es el registrado</span>
+                      : <span className="meta"> · agréguelo abajo en las entidades si lo acepta</span>}</div>}
+                  {propuesta.ubicaciones.filter((u) => u.id !== incluido).slice(0, 1).map((u) => (
+                    <div className="acciones" style={{ marginTop: 6 }} key={u.id}>
+                      <span>Serie: {u.codigo ? `${u.codigo} · ` : ""}{u.titulo}{u.palabras.length > 0 && <span className="meta"> (menciona «{u.palabras.slice(0, 4).join("», «")}»)</span>}</span>
+                      {superiores.some((x) => x.id === u.id) && <button type="button" className="boton chico" onClick={() => setIncluido(u.id)}>Aplicar</button>}
+                    </div>))}
+                  {!propuesta.aviso && !propuesta.titulo && !propuesta.ubicaciones.length && <div className="meta">Nada nuevo que proponer.</div>}
+                </div>
+              )}
               <div className="campo"><label htmlFor="r-titulo">Título <GuiaCampo clave="titulo" /></label>
                 <input id="r-titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
               <div className="campo"><label htmlFor="r-alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
                 <textarea id="r-alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} /></div>
-              <div className="campo"><label htmlFor="r-incluido">Queda incluido en</label>
+              <div className="campo"><label htmlFor="r-incluido">Clasificación <span className="meta">(<code className="rico">RiC-A07</code> · dónde queda en el cuadro)</span></label>
                 <select id="r-incluido" className="selector" value={incluido} onChange={(e) => setIncluido(e.target.value)}>
-                  {superiores.map((s) => <option key={s.id} value={s.id}>{NIVEL_NOMBRE[s.nivel]}: {s.titulo}</option>)}
-                </select></div>
+                  {superiores.map((s) => <option key={s.id} value={s.id}>{NIVEL_NOMBRE[s.nivel]}: {s.codigo ? `${s.codigo} · ` : ""}{s.titulo}{s.dependencia ? ` — ${s.dependencia}` : ""}</option>)}
+                </select>
+                <ContextoSerie rige={rige} /></div>
             </>
           ) : (
             <dl className="pares" style={{ margin: 0 }}>

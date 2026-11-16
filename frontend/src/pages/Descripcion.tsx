@@ -178,6 +178,9 @@ function EsperaMotor({ cantidad, nombre }: { cantidad: number; nombre: string })
   );
 }
 
+type Devuelta = { id: string; titulo: string; nivel: string; motivo: string | null; devuelta_en: string | null;
+                 devuelta_por: string | null };
+
 export function Descripcion() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
@@ -187,6 +190,7 @@ export function Descripcion() {
   const pestana = useVista<"cola" | "publicadas">("/descripcion");
   const [cola, setCola] = useState<PorDescribir[] | null>(null);
   const [publicadas, setPublicadas] = useState<Publicada[] | null>(null);
+  const [devueltas, setDevueltas] = useState<Devuelta[]>([]);
   const [seleccion, setSeleccion] = useState<string[]>([]);
   const [abriendo, setAbriendo] = useState<{ cantidad: number; nombre: string } | null>(null);
   const [error, setError] = useState("");
@@ -202,10 +206,12 @@ export function Descripcion() {
   const cargar = useCallback(async () => {
     if (!fondo) return;
     try {
-      const [c, p] = await Promise.all([
+      const [c, p, d] = await Promise.all([
         pedir<PorDescribir[]>(`/api/descripcion/cola?fondo_id=${fondo.id}`),
         pedir<Publicada[]>(`/api/descripcion/publicadas?fondo_id=${fondo.id}`),
+        pedir<Devuelta[]>(`/api/descripcion/devueltas?fondo_id=${fondo.id}`).catch(() => [] as Devuelta[]),
       ]);
+      setDevueltas(d);
       setCola(c);
       setPublicadas(p);
       setVersion((v) => v + 1);
@@ -223,6 +229,22 @@ export function Descripcion() {
 
   // Solo la administración elimina un documento cargado por error, y solo si nunca
   // se describió: el archivo se borra y queda constancia (quién, cuándo, por qué, huella).
+  // Solo la administración devuelve una descripción publicada para redescribirla con los
+  // instrumentos de hoy. Sigue publicada con su identificador; la corrección queda como versión nueva.
+  async function devolver(p: Publicada) {
+    const motivo = await pedirTexto(`«${p.titulo}» vuelve a «Por describir › Devueltas» para que se redescriba con la `
+      + "TRD, la TCA y el cuadro actuales. Sigue publicada con su identificador hasta que se guarde la corrección.",
+    { titulo: "Devolver para redescribir", aceptar: "Devolver", minimo: 5 });
+    if (!motivo || motivo.trim().length < 5) return;
+    setError("");
+    try {
+      await pedir(`/api/descripcion/registros/${p.id}/devolver`, { method: "POST", body: JSON.stringify({ motivo: motivo.trim() }) });
+      await cargar();
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo devolver.");
+    }
+  }
+
   async function eliminar(d: PorDescribir) {
     const motivo = await pedirTexto(`«${d.nombre}» se borra de forma definitiva por haberse cargado por error. En la `
       + "auditoría quedan su nombre, su huella SHA-256, quién lo eliminó y por qué.",
@@ -306,6 +328,23 @@ export function Descripcion() {
             ]} />
             <PoliticaIA administra={!!usuario?.es_administrador} />
             {puede && fondo && <ProponerLote fondoId={fondo.id} alAvanzar={cargar} />}
+            {devueltas.length > 0 && (
+              <div className="tarjeta">
+                <div className="lista-titulo"><h2>Devueltas para redescribir ({devueltas.length})</h2></div>
+                {devueltas.map((d) => (
+                  <div className="fila" key={d.id}>
+                    <div className="fila-principal">
+                      <div className="nombre">{d.titulo}</div>
+                      <div className="meta">{NIVEL_NOMBRE[d.nivel] || d.nivel} · devuelta {d.devuelta_en ? fecha(d.devuelta_en) : ""}
+                        {d.devuelta_por && ` por ${d.devuelta_por}`} · {d.motivo}</div>
+                    </div>
+                    <span className="insignia alerta">Devuelta</span>
+                    {puede && <button type="button" className="boton chico primario"
+                                      onClick={() => navegar(`/descripcion/registro/${d.id}?redescribir=1`)}>Redescribir</button>}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="tarjeta">
               <div className="lista-titulo">
                 <h2>Documentos pendientes</h2>
@@ -413,6 +452,10 @@ export function Descripcion() {
                   </div>
                 </div>
                 {p.en_edicion_por && <span className="insignia proceso">En edición por {p.en_edicion_por}</span>}
+                {devueltas.some((d) => d.id === p.id) ? <span className="insignia alerta">Devuelta</span>
+                  : usuario?.es_administrador && !p.en_edicion_por && !["fondo", "seccion", "subseccion", "serie", "subserie"].includes(p.nivel) && (
+                  <button type="button" className="boton chico" onClick={() => devolver(p)}
+                          title="Para redescribirla con los instrumentos actuales (solo administración)">Devolver</button>)}
                 <button type="button" className="boton chico" onClick={() => navegar(`/descripcion/registro/${p.id}`)}>
                   {puede ? "Ver y corregir" : "Ver"}
                 </button>

@@ -1,3 +1,4 @@
+import { ContextoSerie, type LoQueRige } from "@/pages/Registro";
 import { confianzaTexto } from "@/lib/formato";
 import { enRicO } from "@/lib/terminos";
 import { GuiaCampo } from "@/components/GuiaCampo";
@@ -223,7 +224,7 @@ export function EspacioTrabajo() {
   const [cambiandoUbicacion, setCambiandoUbicacion] = useState(false);
   // El acceso que rige la serie o el expediente elegido (la TCA de la serie): el documento lo hereda.
   const [heredada, setHeredada] = useState<{ acceso: string; de: string | null; fundamento?: string | null } | null>(null);
-  const [rige, setRige] = useState<{ retencion: string | null; disposicion: string | null } | null>(null);
+  const [rige, setRige] = useState<LoQueRige | null>(null);
   const [folios, setFolios] = useState("");
   // RICORA describe y clasifica; la archivista revisa y cambia lo que no esté bien. Las propuestas del
   // motor llegan aceptadas (una sola vez por trabajo); las dudosas quedan como pregunta.
@@ -304,10 +305,8 @@ export function EspacioTrabajo() {
 
   useEffect(() => {
     if (!incluidoEn) { setHeredada(null); setRige(null); return; }
-    pedir<{ acceso: string | null; de: string | null; fundamento: string | null; retencion: string | null; disposicion: string | null }>(
-      `/api/descripcion/acceso-que-rige?recurso_id=${incluidoEn}`)
-      .then((x) => { setHeredada(x.acceso ? { acceso: x.acceso, de: x.de, fundamento: x.fundamento } : null);
-                     setRige(x.retencion || x.disposicion ? { retencion: x.retencion, disposicion: x.disposicion } : null); })
+    pedir<LoQueRige & { de: string | null }>(`/api/descripcion/acceso-que-rige?recurso_id=${incluidoEn}`)
+      .then((x) => { setHeredada(x.acceso ? { acceso: x.acceso, de: x.de, fundamento: x.fundamento } : null); setRige(x); })
       .catch(() => { setHeredada(null); setRige(null); });
   }, [incluidoEn]);
 
@@ -648,9 +647,7 @@ export function EspacioTrabajo() {
                       <div className="meta">{sugerida
                         ? <>Clasificado por RICORA: el documento menciona «{sugerida.palabras.slice(0, 4).join("», «")}». Revise que sea la serie correcta.</>
                         : "Elegida por usted."}</div>
-                      {(heredada || rige) && <div className="meta">Hereda de la serie: {heredada
-                        ? `acceso ${ {publico: "público", clasificado: "clasificado", reservado: "reservado"}[heredada.acceso] || heredada.acceso} (TCA${heredada.fundamento ? ` · ${heredada.fundamento}` : ""})`
-                        : "sin acceso declarado en la TCA"}{rige?.retencion && ` · retención ${rige.retencion} (TRD)`}{rige?.disposicion && ` · disposición final: ${rige.disposicion}`}</div>}</div>
+                      <ContextoSerie rige={rige} /></div>
                     <button type="button" className="boton chico" onClick={() => setCambiandoUbicacion(true)}>Cambiar</button>
                   </div>
                 );

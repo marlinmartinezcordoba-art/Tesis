@@ -11,6 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.descripcion import UbicacionSugeridaOut
+
 # --- Piezas comunes -----------------------------------------------------------------------
 
 
@@ -588,3 +590,27 @@ class LoQueRige(BaseModel):
     de: str | None = None
     retencion: str | None = None
     disposicion: str | None = None
+    # El contexto de la serie: su código, su dependencia y los tipos documentales que le da la TRD.
+    serie: str | None = None
+    codigo: str | None = None
+    dependencia: str | None = None
+    tipos_documentales: list[str] = []
+
+
+class DevueltaOut(BaseModel):
+    """Una descripción publicada que la administración devolvió para redescribir."""
+    id: str
+    titulo: str
+    nivel: str
+    motivo: str | None = None
+    devuelta_en: str | None = None
+    devuelta_por: str | None = None
+
+
+class PropuestaRegistroOut(BaseModel):
+    """Lo que RICORA propone hoy para una descripción ya publicada; nada se aplica solo."""
+    titulo: str | None = None
+    alcance: str | None = None
+    tipo_documental: str | None = None
+    ubicaciones: list[UbicacionSugeridaOut] = []
+    aviso: str | None = None

@@ -1412,6 +1412,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "confianza_alcance": recurso.confianza_alcance, "motor": recurso.motor,
         "publicado_en": recurso.publicado_en.isoformat() if recurso.publicado_en else None,
         "actualizado_en": recurso.actualizado_en.isoformat() if recurso.actualizado_en else None,
+        "devuelta": devuelta_out(db, recurso) if recurso.devuelta_en else None,
     }
 
 
@@ -1923,3 +1924,47 @@ def custodios_de(db: Session, nodo_id: uuid.UUID) -> list[dict]:
     for x in salida:
         x.pop("_orden")
     return salida
+
+
+# --- Devolver para redescribir y contexto de la serie ---------------------------------------------
+
+
+def devolver(db: Session, recurso: RecursoDocumental, motivo: str, usuario_id: uuid.UUID) -> None:
+    """La administración devuelve una descripción publicada para redescribirla. No se
+    despublica ni cambia de identificador: queda marcada hasta que se guarde la corrección."""
+    if recurso.nivel in NIVELES_CUADRO or recurso.nivel == "fondo":
+        raise ErrorDescripcion("Los niveles del cuadro los fija la TRD: se cambian con una versión nueva de la TRD.", 409)
+    motivo = " ".join((motivo or "").split())
+    if len(motivo) < 5:
+        raise ErrorDescripcion("Escriba por qué se devuelve (queda en la auditoría).")
+    recurso.devuelta_en, recurso.devuelta_por_id, recurso.devuelta_motivo = ahora(), usuario_id, motivo[:1000]
+
+
+def devuelta_out(db: Session, recurso: RecursoDocumental) -> dict:
+    quien = db.get(Usuario, recurso.devuelta_por_id) if recurso.devuelta_por_id else None
+    return {"id": str(recurso.id), "titulo": recurso.titulo, "nivel": recurso.nivel, "motivo": recurso.devuelta_motivo,
+            "devuelta_en": recurso.devuelta_en.isoformat() if recurso.devuelta_en else None,
+            "devuelta_por": quien.nombre if quien else None}
+
+
+def contexto_de_serie(db: Session, recurso: RecursoDocumental) -> dict:
+    """Lo que la TRD dice de la agrupación donde se clasifica un documento: la serie o
+    subserie, su código, su dependencia y sus tipos documentales (los de la subserie o,
+    si no tiene, los de su serie)."""
+    serie, dependencia, formas = None, None, []
+    actual = recurso
+    while actual is not None:
+        if serie is None and actual.nivel in ("serie", "subserie"):
+            serie = actual
+        if not formas and actual.formas_miembros:
+            formas = list(actual.formas_miembros)
+        if actual.nivel in ("seccion", "subseccion"):
+            dependencia = actual
+            break
+        if actual.nivel == "fondo" or not actual.incluido_en_id:
+            break
+        actual = db.get(RecursoDocumental, actual.incluido_en_id)
+    nombres = sorted(e.nombre for e in db.scalars(select(EntidadVocabulario).where(
+        EntidadVocabulario.id.in_(formas), EntidadVocabulario.estado == "activa"))) if formas else []
+    return {"serie": serie.titulo if serie else None, "codigo": (serie or recurso).codigo_referencia,
+            "dependencia": dependencia.titulo if dependencia else None, "tipos_documentales": nombres}
