@@ -131,3 +131,23 @@ def test_la_forma_sale_de_las_tipologias_de_la_trd(db, fondo):  # noqa: F811
     p = Propuesta()
     formas_trd.ajustar(db, fondo.id, p, [Documento(id=uuid.uuid4(), nombre="x", texto="Contractual sin forma")])
     assert p.entidades == []
+
+
+def test_la_clasificacion_usa_la_tipologia_y_el_expediente_citado(db, fondo):  # noqa: F811
+    from app.servicios import descripcion
+
+    resolucion = entidad(db, fondo, "Resolución", clase="forma_documental")
+    con_tipologia = RecursoDocumental(id=uuid.uuid4(), nivel="subserie", titulo="Procesos ambientales de sustracción",
+                                      fondo_id=fondo.id, incluido_en_id=fondo.id, formas_miembros=[resolucion.id])
+    sin_tipologia = RecursoDocumental(id=uuid.uuid4(), nivel="subserie", titulo="Informes ambientales de sustracción",
+                                      fondo_id=fondo.id, incluido_en_id=fondo.id)
+    db.add_all([con_tipologia, sin_tipologia])
+    db.flush()
+    expediente = RecursoDocumental(id=uuid.uuid4(), nivel="expediente", titulo="Expediente SRF-676 sustracción Almaguer",
+                                   fondo_id=fondo.id, incluido_en_id=con_tipologia.id)
+    db.add(expediente)
+    db.commit()
+    texto = "RESOLUCIÓN No. 1923\nPor la cual se resuelve un recurso ambiental de sustracción, expediente SRF 676"
+    [primera, segunda, *_] = descripcion.sugerir_ubicacion(db, fondo.id, texto)
+    assert primera["id"] == expediente.id and primera["palabras"] == ["expediente SRF 676"]
+    assert segunda["id"] == con_tipologia.id and "tipología resolución" in segunda["palabras"]

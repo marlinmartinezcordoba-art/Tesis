@@ -1972,3 +1972,7 @@ a.config-ficha:hover { border-color: var(--accent); }
 
 .historial-versiones { margin-top: 12px; }
 .historial-versiones > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+
+.clasificacion-hecha { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--accent-bg); }
+.clasificacion-hecha strong { display: block; }

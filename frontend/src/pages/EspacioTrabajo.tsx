@@ -93,6 +93,8 @@ interface Borrador {
 
 interface Item extends EntidadPropuesta {
   decision: "pendiente" | "aceptada" | "descartada";
+  // RICORA ya la aceptó al abrir el trabajo: si la persona la devuelve a pendiente, no se vuelve a aceptar sola.
+  porRicora?: boolean;
   editada: boolean;
   manual: boolean;
   editando: boolean;
@@ -114,6 +116,8 @@ function porResolver(i: Item, todos: Item[]) {
   }
   return false;
 }
+
+const normal = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
 function nuevoItem(e: EntidadPropuesta, manual = false): Item {
   return {
@@ -212,6 +216,10 @@ export function EspacioTrabajo() {
   const [superiores, setSuperiores] = useState<NivelSuperior[]>([]);
   const [incluidoEn, setIncluidoEn] = useState("");
   const [filtroUbicacion, setFiltroUbicacion] = useState("");
+  const [cambiandoUbicacion, setCambiandoUbicacion] = useState(false);
+  // RICORA describe y clasifica; la archivista revisa y cambia lo que no esté bien. Las propuestas del
+  // motor llegan aceptadas (una sola vez por trabajo); las dudosas quedan como pregunta.
+  const autoAceptado = useRef<string | null>(null);
   const [sugeridas, setSugeridas] = useState<{ id: string; palabras: string[] }[]>([]);
   const [activa, setActiva] = useState<string | null>(null);
   const [pestana, setPestana] = useState<Pestana>("identidad");
@@ -272,6 +280,15 @@ export function EspacioTrabajo() {
         : validas[0]?.id || (conFondo ? espacio.fondo.id : "")));
     }).catch(() => undefined).finally(() => { listo.current = true; });
   }, [espacio]);
+
+  useEffect(() => {
+    if (!espacio || vencido || autoAceptado.current === espacio.trabajo_id || !items.length) return;
+    autoAceptado.current = espacio.trabajo_id;
+    items.filter((i) => i.decision === "pendiente" && !i.manual && !i.porRicora).forEach((i) => {
+      cambiar(i.clave, { porRicora: true });
+      aceptar({ ...i, porRicora: true });
+    });
+  }, [espacio, items, vencido]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // El motor no respondió: se le pregunta de nuevo sin perder lo hecho. Lo que el motor
   // propone ahora entra a la lista; lo escrito a mano (título, alcance, campos) se respeta.
@@ -341,6 +358,13 @@ export function EspacioTrabajo() {
       if (item.existente_id && !item.editada && valor === item.valor) {
         cambiar(item.clave, { verif: { estado: "resuelta", coincidencias: c, reutilizarId: item.existente_id,
                                        reutilizarNombre: item.existente_nombre || item.valor, crearNueva: false } });
+        return;
+      }
+      // La misma entidad escrita igual (sin tildes ni mayúsculas): se reutiliza sin preguntar.
+      const igual = c.find((x) => normal(x.nombre) === normal(valor));
+      if (igual) {
+        cambiar(item.clave, { verif: { estado: "resuelta", coincidencias: c, reutilizarId: igual.id,
+                                       reutilizarNombre: igual.nombre, crearNueva: false } });
         return;
       }
       cambiar(item.clave, { verif: c.length ? { estado: "pregunta", coincidencias: c } : { estado: "resuelta", coincidencias: [], crearNueva: true } });
@@ -584,12 +608,28 @@ export function EspacioTrabajo() {
                                                      alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" style={{ marginBottom: 0 }} hidden={!ver("identidad")}>
-              <label htmlFor="incluido">Queda incluido en</label>
+              <label htmlFor="incluido">Clasificación <span className="meta">(dónde queda en el cuadro)</span></label>
+              {(() => {
+                const elegida = superiores.find((o) => o.id === incluidoEn);
+                const sugerida = sugeridas.find((x) => x.id === incluidoEn);
+                if (!elegida || cambiandoUbicacion) return null;
+                return (
+                  <div className="clasificacion-hecha">
+                    <div><strong>{elegida.codigo ? `${elegida.codigo} · ` : ""}{elegida.titulo}</strong>
+                      {elegida.dependencia && <div className="meta">{elegida.dependencia}</div>}
+                      <div className="meta">{sugerida
+                        ? <>Clasificado por RICORA: el documento menciona «{sugerida.palabras.slice(0, 4).join("», «")}». Revise que sea la serie correcta.</>
+                        : "Elegida por usted."}</div></div>
+                    <button type="button" className="boton chico" onClick={() => setCambiandoUbicacion(true)}>Cambiar</button>
+                  </div>
+                );
+              })()}
+              <div hidden={!!superiores.find((o) => o.id === incluidoEn) && !cambiandoUbicacion}>
               {superiores.length > 12 && (
                 <input className="entrada" aria-label="Buscar la serie o subserie" placeholder="Buscar por código, serie o dependencia…"
                        value={filtroUbicacion} onChange={(e) => setFiltroUbicacion(e.target.value)} style={{ marginBottom: 6 }} />
               )}
-              <select id="incluido" className="selector" value={incluidoEn} onChange={(e) => setIncluidoEn(e.target.value)}>
+              <select id="incluido" className="selector" value={incluidoEn} onChange={(e) => { setIncluidoEn(e.target.value); if (e.target.value) setCambiandoUbicacion(false); }}>
                 <option value="">Sin ubicar todavía en el cuadro (se puede guardar y ubicar después)</option>
                 {sugeridas.length > 0 && (
                   <optgroup label="Sugeridas por RICORA">
@@ -607,11 +647,7 @@ export function EspacioTrabajo() {
                     {o.titulo}{o.dependencia ? ` — ${o.dependencia}` : ""}</option>)}
                 </optgroup>
               </select>
-              {sugeridas.some((x) => x.id === incluidoEn) && (
-                <p className="meta" style={{ margin: "4px 0 0" }}>Sugerida por RICORA porque el documento menciona
-                  {" "}«{sugeridas.find((x) => x.id === incluidoEn)!.palabras.slice(0, 4).join("», «")}». Verifique que
-                  sea la serie correcta.</p>
-              )}
+              </div>
             </div>
           </div>
 

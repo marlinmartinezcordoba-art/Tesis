@@ -1102,9 +1102,44 @@ def sugerir_ubicacion(db: Session, fondo_id: uuid.UUID, texto: str, maximo: int 
             puntaje *= 1.05  # lo más específico, a igualdad
         if puntaje > 0:
             puntuados.append((puntaje, r, sorted(en_nombre | en_tipos)))
+    # La tipología que el documento declara en su encabezado («RESOLUCIÓN No. …»): las series cuya TRD la
+    # incluye son las más probables (Acuerdo AGN 004 de 2019: la serie se reconoce por sus tipos documentales).
+    from app.servicios import formas_trd
+
+    hallada = formas_trd.en_encabezado(formas_trd.tipologias(db, fondo_id), [type("D", (), {"texto": texto, "id": None})()])
+    if hallada is not None:
+        forma = hallada[0]
+        puntuados = [(p * 1.6, r, [f"tipología {forma.nombre.lower()}", *c]) if forma.id in (r.formas_miembros or [])
+                     else (p, r, c) for p, r, c in puntuados]
+    # Un expediente que ya existe y cuyo identificador cita el documento («expediente SRF 676»): el
+    # documento va en ese expediente, dentro de su serie.
+    puntuados += _expedientes_citados(db, fondo_id, texto)
     puntuados.sort(key=lambda x: -x[0])
     return [{"id": r.id, "titulo": r.titulo, "nivel": r.nivel, "codigo": r.codigo_referencia,
              "puntaje": round(p, 3), "palabras": coinciden[:8]} for p, r, coinciden in puntuados[:maximo]]
+
+
+# Sigla en mayúsculas y número: «SRF 676», «SRF-676», «SRF No. 676».
+_IDENTIFICADOR = re.compile(r"\b([A-Z]{2,6})[\s.\-–]*(?:N[o°º.]*\s*)?(\d{1,6})\b")
+
+
+def _identificadores(texto: str | None) -> dict[str, str]:
+    """Identificadores con sigla y número, normalizados («srf676») y como se escribieron («SRF 676»)."""
+    return {f"{m.group(1).lower()}{int(m.group(2))}": f"{m.group(1)} {int(m.group(2))}"
+            for m in _IDENTIFICADOR.finditer(texto or "")}
+
+
+def _expedientes_citados(db: Session, fondo_id: uuid.UUID, texto: str) -> list[tuple]:
+    del_doc = _identificadores(texto[:40000])
+    if not del_doc:
+        return []
+    salida = []
+    for r in db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
+                                                        RecursoDocumental.nivel == "expediente")):
+        comunes = _identificadores(f"{r.titulo} {r.codigo_referencia or ''}").keys() & del_doc.keys()
+        if comunes:
+            salida.append((10.0 + len(comunes), r, [f"expediente {del_doc[x]}" for x in sorted(comunes)]))
+    return salida
 
 
 def tiene_cuadro(db: Session, fondo_id: uuid.UUID) -> bool:
