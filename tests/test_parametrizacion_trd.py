@@ -86,6 +86,15 @@ def test_parametrizar_validar_y_aplicar_una_version(cliente, db, fondo, cabecera
     assert regla["vigencia"] == "2019-03-01/" and "Soporte: híbrido" in regla["procedimiento"]
     assert "Resolución 045" in regla["procedimiento"]
     assert len(eventos(db, "trd_version_aplicada")) == 1
+    # La aprobación es el resultado de una valoración (RiC-AG): una actividad que afecta al fondo y da como
+    # resultado la regla de retención, con la fecha de aprobación y el acto en su historia.
+    from app.models.descripcion import EntidadVocabulario, Relacion
+
+    val = db.scalar(select(EntidadVocabulario).where(EntidadVocabulario.clase == "actividad",
+                                                     EntidadVocabulario.nombre.like("Valoración documental: TRD%")))
+    assert val is not None and val.existencia_edtf == "2019-02-15" and "Resolución 045" in val.historia
+    rel = {(r.codigo_ric, r.destino_id) for r in db.scalars(select(Relacion).where(Relacion.origen_id == val.id))}
+    assert ("affects_or_affected", fondo.id) in rel and ("results_or_resulted_in", uuid.UUID(regla["regla"]["id"])) in rel
     # Lo vigente no se edita.
     r = cliente.post(f"/api/trd/versiones/{vid}/filas", headers=cab, json={
         "dependencia_id": a["oficina"]["id"], "serie_id": a["serie"]["id"]})

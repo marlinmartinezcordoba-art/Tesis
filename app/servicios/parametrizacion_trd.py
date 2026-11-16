@@ -591,6 +591,10 @@ def aplicar(db: Session, v: VersionTrd, usuario_id: uuid.UUID, crear: bool) -> t
         v.aplicado_en = ahora()
         v.informe = {k: x for k, x in informe.items() if k not in ("faltan_para_aplicar", "series_sin_funcion")}
         db.flush()
+        # La aprobación es el resultado de una valoración: en RiC, una actividad que da como resultado las reglas.
+        from app.servicios import valoracion
+
+        valoracion.registrar(db, v, usuario_id)
         registrar(db, modulo="instrumentos", accion="trd_version_aplicada", usuario_id=usuario_id,
                   entidad_tipo="recurso_documental", entidad_id=v.fondo_id,
                   detalle=(f"{v.nombre} aplicada al periodo {v.periodo_desde.isoformat()} a {v.periodo_hasta.isoformat()}"
