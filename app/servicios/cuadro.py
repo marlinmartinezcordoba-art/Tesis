@@ -337,7 +337,8 @@ def _filas_zip(contenido: bytes, motivos: dict | None = None, contenidos: dict |
         nombre = info.filename
         if info.is_dir() or "__MACOSX" in nombre or nombre.rsplit("/", 1)[-1].startswith((".", "~$")):
             continue
-        if not nombre.lower().endswith(EXTENSIONES) or nombre.lower().endswith(".zip"):
+        # Dentro de un .zip, un .txt es casi siempre un «Léame» o unas notas, no la tabla: no se lee.
+        if not nombre.lower().endswith(EXTENSIONES) or nombre.lower().endswith((".zip", ".txt")):
             continue
         total += info.file_size
         if info.file_size > MAX_BYTES or total > 4 * MAX_BYTES:
