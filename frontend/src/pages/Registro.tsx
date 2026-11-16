@@ -7,7 +7,7 @@ import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/c
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import { ComponentesRic } from "@/components/ComponentesRic";
 import {
-  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, NOTAS_RIC, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, NOTAS_RIC, NOTAS_ISAD, PartesDocumentales, camposVacios, clasificacionParaEnviar,
   proteccionParaEnviar,
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
@@ -172,7 +172,7 @@ export function RegistroDescripcion() {
                 respondeA: null, borradorDe: null, estadoDocumento: r.estado_documento || "",
                 notaIntegridad: r.nota_integridad || "", copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: r.tipos_contenido || [],
                 fechasPredominantes: r.fechas_predominantes || "", fechaAcumulacion: r.fecha_acumulacion || "",
-                isadg: Object.fromEntries(NOTAS_RIC.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
+                isadg: Object.fromEntries([...NOTAS_RIC, ...NOTAS_ISAD].map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [],
                 datosPersonales: r.proteccion?.datos_personales || "", notaAccesibilidad: r.proteccion?.nota_accesibilidad || "" });
     setControl({

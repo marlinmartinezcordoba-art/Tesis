@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as EventoPuntero } from "react";
+import { useEffect, useRef, useState, type PointerEvent as EventoPuntero, type ReactNode } from "react";
 import { GuiaCampo } from "@/components/GuiaCampo";
 import { PreguntaVocabulario } from "@/components/Vocabulario";
 import { ErrorAPI, pedir, pedirArchivo } from "@/lib/api";
@@ -58,20 +58,27 @@ export interface CamposRegistroValor {
   notaAccesibilidad: string;
 }
 
-// Textos que escribe una persona: [clave, propiedad RiC-O o "" si es extensión local, nombre].
+// Atributos RiC-CM que se escriben como texto: [clave, propiedad RiC-O, nombre].
 export const NOTAS_RIC: [string, string, string][] = [
-  ["nota", "rico:generalDescription", "Descripción general"],
-  ["organizacion", "rico:structure", "Estructura interna (cómo está ordenado)"],
-  ["nuevos_ingresos", "rico:accruals", "Ingresos previstos (solo conjuntos)"],
-  ["forma_ingreso", "", "Forma de ingreso (además del lote de transferencia)"],
-  ["valoracion", "", "Valoración (además de la regla de retención, rico:Rule)"],
-  ["localizacion_originales", "", "Dónde están los originales"],
-  ["localizacion_copias", "", "Dónde hay copias"],
-  ["unidades_relacionadas", "", "Otros recursos relacionados que no están en el sistema"],
-  ["instrumentos_descripcion", "", "Instrumentos de consulta externos"],
-  ["nota_publicaciones", "", "Publicaciones sobre el recurso"],
-  ["nota_archivero", "", "Nota de quien describe"],
-  ["reglas_descripcion", "", "Normas seguidas al describir"],
+  ["nota", "rico:generalDescription", "Descripción general (RiC-A43)"],
+  ["organizacion", "rico:structure", "Estructura (RiC-A40): cómo está ordenado"],
+  ["nuevos_ingresos", "rico:accruals", "Ingresos (RiC-A01): si se esperan más documentos (solo conjuntos)"],
+];
+
+// Notas de ISAD(G) sin atributo en RiC-CM. RiC las resuelve con entidades y
+// relaciones (la regla, la instanciación y su ubicación, el agente, el registro
+// relacionado). No se ofrecen para escribir; si un registro ya trae alguna, se
+// conserva y se puede ver y corregir.
+export const NOTAS_ISAD: [string, string][] = [
+  ["forma_ingreso", "Forma de ingreso (en RiC: el lote de transferencia)"],
+  ["valoracion", "Valoración (en RiC: la regla de retención, rico:Rule)"],
+  ["localizacion_originales", "Dónde están los originales (en RiC: la instanciación y su ubicación)"],
+  ["localizacion_copias", "Dónde hay copias (en RiC: otra instanciación)"],
+  ["unidades_relacionadas", "Otros recursos relacionados (en RiC: una relación con el recurso)"],
+  ["instrumentos_descripcion", "Instrumentos de consulta externos"],
+  ["nota_publicaciones", "Publicaciones sobre el recurso"],
+  ["nota_archivero", "Nota de quien describe (en RiC: la actividad de descripción y su agente)"],
+  ["reglas_descripcion", "Normas seguidas al describir (en RiC: rico:Rule)"],
 ];
 
 export const ESCRITURAS: Record<string, string> = {
@@ -291,15 +298,27 @@ function SugerenciaClasificacion({ valor, alCambiar, revision, heredada }: {
 }
 
 function NotasComplementarias({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
-  const llenos = NOTAS_RIC.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
+  const llenos = NOTAS_RIC.filter(([c]) => (valor.isadg[c] || "").trim()).length;
+  const anteriores = NOTAS_ISAD.filter(([c]) => (valor.isadg[c] || "").trim());
+  const texto = (clave: string, nombre: ReactNode) => (
+    <div className="campo" key={clave}>
+      <label htmlFor={`nota-${clave}`}>{nombre} <GuiaCampo clave={clave} /></label>
+      <textarea id={`nota-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
+                onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
+    </div>
+  );
   return (
+    <>
     <details className="campo">
-      <summary>Notas complementarias <span className="meta">({llenos} con dato · opcionales)</span></summary>
-      <p className="pista">Textos que una persona escribe sobre el recurso. Los que tienen atributo RiC-O pasan al grafo;
-        los demás son extensiones locales de RICORA (RiC-O 1.1 no tiene propiedad para ellos): quedan en el sistema
-        y en los instrumentos.</p>
+      <summary>Otros atributos RiC <span className="meta">({llenos} con dato · opcionales)</span></summary>
+      {NOTAS_RIC.map(([clave, rico, nombre]) => texto(clave,
+        <>{nombre} <span className="meta">(<code className="rico">{rico}</code>)</span></>))}
+    </details>
+    <details className="campo" open={anteriores.length > 0 || valor.escrituras.length > 0}>
+      <summary>Datos que no son atributos RiC <span className="meta">(extensiones locales: quedan en el sistema y en
+        los instrumentos, no pasan al grafo)</span></summary>
       <div className="campo" style={{ marginTop: 8 }}>
-        <label>Escritura <span className="meta">(ISO 15924 · extensión local: RiC-O 1.1 no tiene propiedad)</span> <GuiaCampo clave="escrituras" /></label>
+        <label>Escritura <span className="meta">(ISO 15924 · RiC-O 1.1 no tiene propiedad)</span> <GuiaCampo clave="escrituras" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.escrituras.map((c) => (
             <span key={c} className="pastilla">{ESCRITURAS[c] || c} <code className="rico">{c}</code>{" "}
@@ -315,16 +334,13 @@ function NotasComplementarias({ valor, alCambiar }: { valor: CamposRegistroValor
           </select>
         </div>
       </div>
-      {NOTAS_RIC.map(([clave, rico, nombre]) => (
-        <div className="campo" key={clave}>
-          <label htmlFor={`nota-${clave}`}>{nombre}{" "}
-            <span className="meta">({rico ? <code className="rico">{rico}</code> : "extensión local · no pasa al grafo"})</span>{" "}
-            <GuiaCampo clave={clave} /></label>
-          <textarea id={`nota-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
-                    onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
-        </div>
-      ))}
+      {anteriores.length > 0 && <>
+        <p className="pista">Notas de ISAD(G) que ya traía este registro. Se conservan; en RiC esto se expresa con
+          entidades y relaciones, por eso no se piden en registros nuevos.</p>
+        {anteriores.map(([clave, nombre]) => texto(clave, nombre))}
+      </>}
     </details>
+    </>
   );
 }
 
@@ -386,7 +402,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
     <div className="tarjeta-prop fija">
       {ver("caracteristicas") && <>
       <div className="campo">
-        <label>Idioma del contenido <span className="meta">(ISO 639-3)</span> <GuiaCampo clave="idiomas" /></label>
+        <label>Idioma <span className="meta">(<code className="rico">RiC-A25</code> · ISO 639-3)</span> <GuiaCampo clave="idiomas" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.idiomas.map((c) => (
             <span key={c} className="pastilla">
@@ -418,7 +434,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       <ClasificacionAcceso valor={valor.clasificacion} heredada={heredada}
                            alCambiar={(clasificacion) => alCambiar({ ...valor, clasificacion })} />
       <div className="campo">
-        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · lo revisa una persona)</span> <GuiaCampo clave="datos_personales" /></label>
+        <label htmlFor="datos-personales">Datos personales <span className="meta">(Ley 1581 de 2012 · requisito colombiano, no es atributo RiC · lo revisa una persona)</span> <GuiaCampo clave="datos_personales" /></label>
         <select id="datos-personales" className="selector" value={valor.datosPersonales}
                 onChange={(e) => alCambiar({ ...valor, datosPersonales: e.target.value })}>
           <option value="">Sin revisar</option>
@@ -434,8 +450,11 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
             personales que se anonimizan al consultarlo. No sale en el catálogo público ni en los datos abiertos.</div>
         )}
       </div>
+      <details className="campos-opcionales" open={!!(valor.condicionesAcceso || valor.condicionesUso || valor.notaAccesibilidad)}>
+        <summary>Explicar el acceso y la reproducción en palabras <span className="meta">(opcional: lo que decide el
+          acceso es la clasificación de arriba)</span></summary>
       <div className="campo">
-        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(rico:conditionsOfAccess · opcional · las decide la institución, no el motor)</span> <GuiaCampo clave="condiciones_acceso" /></label>
+        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(<code className="rico">RiC-A08</code> <code className="rico">rico:conditionsOfAccess</code> · opcional · las decide la institución, no el motor)</span> <GuiaCampo clave="condiciones_acceso" /></label>
         <textarea id="acceso" className="entrada" rows={2} value={valor.condicionesAcceso} maxLength={5000}
                   placeholder="Ej.: «Consulta en sala con cita previa» o «Contiene datos de salud de terceros»"
                   onChange={(e) => alCambiar({ ...valor, condicionesAcceso: e.target.value })} />
@@ -443,21 +462,22 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
           oculta es la clasificación de arriba.</div>
       </div>
       <div className="campo">
-        <label htmlFor="uso">Condiciones de uso o de reproducción <GuiaCampo clave="condiciones_uso" /></label>
+        <label htmlFor="uso">Condiciones de uso o de reproducción <span className="meta">(<code className="rico">RiC-A09</code> <code className="rico">rico:conditionsOfUse</code> · opcional)</span> <GuiaCampo clave="condiciones_uso" /></label>
         <textarea id="uso" className="entrada" rows={2} value={valor.condicionesUso} maxLength={5000}
                   placeholder="Condición para copiarlo o reproducirlo"
                   onChange={(e) => alCambiar({ ...valor, condicionesUso: e.target.value })} />
       </div>
       <div className="campo">
-        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · opcional · se muestra en la ficha pública)</span> <GuiaCampo clave="nota_accesibilidad" /></label>
+        <label htmlFor="accesible">Versión accesible <span className="meta">(Ley 1680 de 2013 · requisito colombiano, no es atributo RiC · opcional · se muestra en la ficha pública)</span> <GuiaCampo clave="nota_accesibilidad" /></label>
         <textarea id="accesible" className="entrada" rows={2} value={valor.notaAccesibilidad} maxLength={2000}
                   placeholder="Ej.: «Transcripción en texto plano para lector de pantalla»"
                   onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
+      </details>
       </>}
       {ver("fuentes") && <>
       <div className="campo">
-        <label htmlFor="historia">Historia archivística <span className="meta">(rico:history · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
+        <label htmlFor="historia">Historia <span className="meta">(<code className="rico">RiC-A21</code> <code className="rico">rico:history</code> · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
         <textarea id="historia" className="entrada" rows={2} value={valor.historiaArchivistica} maxLength={20000}
                   placeholder="Transferencias, depósitos y custodios anteriores"
                   onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />
@@ -466,7 +486,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       {ver("caracteristicas") && <NotasComplementarias valor={valor} alCambiar={alCambiar} />}
       {ver("relaciones") && <>
       <div className="campo" style={{ marginBottom: 0 }}>
-        <label>Secuencia en la serie <span className="meta">(opcional · rico:precedesOrPreceded)</span></label>
+        <label>Secuencia en la serie <span className="meta">(opcional · <code className="rico">rico:precedesOrPreceded</code>)</span></label>
         {valor.secuencia ? (
           <p style={{ margin: "4px 0" }}>
             Este documento {valor.secuencia.posicion === "precede" ? "precede a" : "sigue a"} <b>{valor.secuencia.titulo}</b>{" "}
@@ -485,9 +505,9 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
       </div>
       <div className="campo" style={{ marginTop: 12 }}>
-        <label>Respuesta, borrador, copia y otros documentos relacionados <span className="meta">(opcional · rico:hasReply,
-          rico:isDraftOf, rico:hasCopy, rico:isRecordResourceAssociatedWithRecordResource,
-          rico:hasGeneticLinkToRecordResource)</span></label>
+        <label>Respuesta, borrador, copia y otros documentos relacionados <span className="meta">(opcional · <code className="rico">rico:hasReply</code>,
+          <code className="rico">rico:isDraftOf</code>, <code className="rico">rico:hasCopy</code>, <code className="rico">rico:isRecordResourceAssociatedWithRecordResource</code>,
+          <code className="rico">rico:hasGeneticLinkToRecordResource</code>)</span></label>
         {valor.respondeA && (
           <p style={{ margin: "4px 0" }}>Responde a <b>{valor.respondeA.titulo}</b>{" "}
             <button type="button" className="enlace" onClick={() => alCambiar({ ...valor, respondeA: null })}>Quitar</button></p>
@@ -530,26 +550,26 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
       {ver("caracteristicas") && <>
       {documento && (
         <div className="campo">
-          <label>Tipo de contenido <span className="meta">(opcional · uno o varios · rico:hasContentOfType)</span></label>
+          <label>Tipo de contenido <span className="meta">(<code className="rico">RiC-A10</code> · opcional · uno o varios · <code className="rico">rico:hasContentOfType</code>)</span></label>
           <TiposContenido valor={valor.tiposContenido} alCambiar={(tiposContenido) => alCambiar({ ...valor, tiposContenido })} />
         </div>
       )}
       {!documento && (
         <div className="campo">
-          <label htmlFor="predominantes">Fechas predominantes <span className="meta">(opcional · EDTF · las de la mayoría de sus documentos · rico:hasOrHadMostMembersWithCreationDate)</span></label>
+          <label htmlFor="predominantes">Fechas predominantes <span className="meta">(opcional · EDTF · las de la mayoría de sus documentos · <code className="rico">rico:hasOrHadMostMembersWithCreationDate</code>)</span></label>
           <input id="predominantes" className="entrada" value={valor.fechasPredominantes} maxLength={200}
                  placeholder="Ej.: 1948/1952" onChange={(e) => alCambiar({ ...valor, fechasPredominantes: e.target.value })} />
         </div>
       )}
       <div className="campo">
         <label htmlFor="acumulacion">Fecha de acumulación <span className="meta">(opcional · EDTF · cuándo se reunió, si es
-          distinta de la creación · rico:hasAccumulationDate)</span></label>
+          distinta de la creación · <code className="rico">rico:hasAccumulationDate</code>)</span></label>
         <input id="acumulacion" className="entrada" value={valor.fechaAcumulacion} maxLength={200}
                placeholder="Ej.: 1960" onChange={(e) => alCambiar({ ...valor, fechaAcumulacion: e.target.value })} />
       </div>
       {documento && (
         <div className="campo">
-          <label htmlFor="estado-doc">Estado del documento <span className="meta">(opcional · rico:hasRecordState)</span></label>
+          <label htmlFor="estado-doc">Estado del documento <span className="meta">(<code className="rico">RiC-A39</code> · opcional · <code className="rico">rico:hasRecordState</code>)</span></label>
           <select id="estado-doc" className="selector" value={valor.estadoDocumento}
                   onChange={(e) => alCambiar({ ...valor, estadoDocumento: e.target.value })}>
             <option value="">Sin indicar</option>
@@ -558,7 +578,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         </div>
       )}
       <div className="campo" style={{ marginBottom: 0 }}>
-        <label htmlFor="integridad">Completitud <span className="meta">(opcional · rico:integrityNote · ¿le falta algo?)</span></label>
+        <label htmlFor="integridad">Nota de integridad <span className="meta">(<code className="rico">RiC-A24</code> · opcional · <code className="rico">rico:integrityNote</code> · ¿le falta algo?)</span></label>
         <textarea id="integridad" className="entrada" rows={2} value={valor.notaIntegridad} maxLength={5000}
                   placeholder="Ej.: «Completo» o «Falta el oficio del folio 12»"
                   onChange={(e) => alCambiar({ ...valor, notaIntegridad: e.target.value })} />

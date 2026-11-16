@@ -221,6 +221,8 @@ export function EspacioTrabajo() {
   const [incluidoEn, setIncluidoEn] = useState("");
   const [filtroUbicacion, setFiltroUbicacion] = useState("");
   const [cambiandoUbicacion, setCambiandoUbicacion] = useState(false);
+  // El acceso que rige la serie o el expediente elegido (la TCA de la serie): el documento lo hereda.
+  const [heredada, setHeredada] = useState<{ acceso: string; de: string | null; fundamento?: string | null } | null>(null);
   // RICORA describe y clasifica; la archivista revisa y cambia lo que no esté bien. Las propuestas del
   // motor llegan aceptadas (una sola vez por trabajo); las dudosas quedan como pregunta.
   const autoAceptado = useRef<string | null>(null);
@@ -297,6 +299,12 @@ export function EspacioTrabajo() {
       aceptar({ ...i, porRicora: true });
     });
   }, [espacio, items, vencido]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!incluidoEn) { setHeredada(null); return; }
+    pedir<{ acceso: string; de: string | null; fundamento: string | null } | null>(`/api/descripcion/acceso-que-rige?recurso_id=${incluidoEn}`)
+      .then(setHeredada).catch(() => setHeredada(null));
+  }, [incluidoEn]);
 
   // El motor no respondió: se le pregunta de nuevo sin perder lo hecho. Lo que el motor
   // propone ahora entra a la lista; lo escrito a mano (título, alcance, campos) se respeta.
@@ -605,19 +613,19 @@ export function EspacioTrabajo() {
           )}
           <div className="tarjeta-prop fija" hidden={!ver("identidad", "caracteristicas")}>
             <div className="campo" hidden={!ver("identidad")}>
-              <label htmlFor="titulo">Título <GuiaCampo clave="titulo" /></label>
+              <label htmlFor="titulo">Título <span className="meta">(<code className="rico">RiC-A28</code>)</span> <GuiaCampo clave="titulo" /></label>
               <input id="titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
               {propuesta?.titulo && <EvidenciaCampo campo="titulo" evidencia={propuesta.evidencia_titulo} activa={activa}
                                                     alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" hidden={!ver("caracteristicas")}>
-              <label htmlFor="alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
+              <label htmlFor="alcance">Alcance y contenido <span className="meta">(<code className="rico">RiC-A38</code>)</span> <GuiaCampo clave="alcance_contenido" /></label>
               <textarea id="alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} />
               {propuesta?.alcance && <EvidenciaCampo campo="alcance" evidencia={propuesta.evidencia_alcance} activa={activa}
                                                      alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" style={{ marginBottom: 0 }} hidden={!ver("identidad")}>
-              <label htmlFor="incluido">Clasificación <span className="meta">(dónde queda en el cuadro)</span></label>
+              <label htmlFor="incluido">Clasificación <span className="meta">(<code className="rico">RiC-A07</code> · dónde queda en el cuadro)</span></label>
               {(() => {
                 const elegida = superiores.find((o) => o.id === incluidoEn);
                 const sugerida = sugeridas.find((x) => x.id === incluidoEn);
@@ -688,7 +696,7 @@ export function EspacioTrabajo() {
                       ...campos.isadg,
                       unidades_relacionadas: [actuales.trim(), ...faltan.map((c) => c.valor)].filter(Boolean).join("; "),
                     } })}>Llevar a «Otros recursos relacionados»</button>
-                  ) : <span className="meta">Ya están en «Unidades de descripción relacionadas».</span>}
+                  ) : <span className="meta">Ya están en «Otros recursos relacionados» (Datos que no son atributos RiC).</span>}
                   <span className="meta">Si el documento citado ya está en RICORA, enlácelo abajo con «Responde a» o «Es copia de».</span>
                 </div>
               </div>
@@ -696,7 +704,7 @@ export function EspacioTrabajo() {
           })()}
 
           {ver("caracteristicas", "relaciones", "manifestaciones") && (
-            <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel}
+            <CamposRegistro valor={campos} alCambiar={setCampos} fondoId={espacio.fondo.id} nivel={espacio.nivel} heredada={heredada}
                             completitud={espacio.completitud} revisionDatos={espacio.datos_personales}
                             propuestos={propuesta?.idiomas || []} confianza={propuesta?.confianza_idiomas ?? null}
                             secciones={pestana === "todo" ? undefined : pestana === "caracteristicas" ? ["caracteristicas", "acceso"]
