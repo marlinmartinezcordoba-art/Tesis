@@ -154,7 +154,7 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
 
-  async function bajar(formato: "turtle" | "jsonld") {
+  async function bajar(formato: "turtle" | "jsonld" | "rdfxml") {
     setOcupado(formato);
     setError("");
     setAviso("");
@@ -237,6 +237,9 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
             <button type="button" className="boton" disabled={!!ocupado} onClick={() => bajar("jsonld")}>
               {ocupado === "jsonld" ? "Exportando…" : "Descargar JSON-LD"}
             </button>
+            <button type="button" className="boton" disabled={!!ocupado} onClick={() => bajar("rdfxml")}>
+              {ocupado === "rdfxml" ? "Exportando…" : "Descargar RDF/XML (.rdf)"}
+            </button>
             <button type="button" className="boton" disabled={!!ocupado} onClick={validar}>
               {ocupado === "validar" ? "Validando…" : "Validar conformidad"}
             </button>
@@ -275,8 +278,8 @@ export function ExportacionRico({ fondo }: { fondo: { id: string; titulo: string
           <div className="tarjeta-cuerpo">
             <p>URI del fondo: <code>{reporte.uri_fondo}</code></p>
             <p className="meta">
-              Cada URI devuelve la descripción RDF del nodo (Turtle, o JSON-LD con <code>Accept: application/ld+json</code>
-              {" "}o la extensión <code>.jsonld</code>). Lo clasificado o reservado no se resuelve nunca por esta vía.
+              Cada URI devuelve la descripción RDF del nodo: Turtle; JSON-LD con <code>Accept: application/ld+json</code>
+              {" "}o la extensión <code>.jsonld</code>; RDF/XML con <code>Accept: application/rdf+xml</code> o la extensión <code>.rdf</code>. Lo clasificado o reservado no se resuelve nunca por esta vía.
             </p>
             <p>
               Resolución sin iniciar sesión:{" "}

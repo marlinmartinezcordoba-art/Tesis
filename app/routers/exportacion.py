@@ -53,9 +53,9 @@ def _leer(db: Session, fondo, incluir_restringidos: bool):
 
 
 @router.get("/rdf", summary="El fondo en RiC-O 1.1 (Turtle o JSON-LD)",
-            responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
+            responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "application/rdf+xml": {}},
                              "description": "El fondo en RDF; X-RICORA-Conformidad dice si pasó OWL y SHACL"}})
-def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld"] = "turtle",
+def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld", "rdfxml"] = "turtle",
         incluir_restringidos: bool = False, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     fondo, ex = _exportacion(db, actor, fondo_id, incluir_restringidos)
     cuerpo = exportacion_rico.serializar(ex.grafo, formato)
@@ -251,6 +251,8 @@ def _formato(ruta: str, aceptar: str) -> tuple[str, str]:
             return ruta[: -len(extension) - 1], formato
     if "application/ld+json" in aceptar or "application/json" in aceptar:
         return ruta, "jsonld"
+    if "application/rdf+xml" in aceptar:
+        return ruta, "rdfxml"
     return ruta, "turtle"
 
 
@@ -269,8 +271,8 @@ def _actor_si_hay(request: Request, db: Session = Depends(get_db)) -> Actor | No
 
 
 @uris.get("/id/{ruta:path}", summary="Descripción RDF de un nodo (URI de RiC-O)", include_in_schema=True,
-          responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "text/html": {}},
-                           "description": "El nodo en RiC-O, según la cabecera Accept o la extensión (.ttl, .jsonld); "
+          responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "application/rdf+xml": {}, "text/html": {}},
+                           "description": "El nodo en RiC-O, según la cabecera Accept o la extensión (.ttl, .jsonld, .rdf); "
                                           "en un navegador (text/html), su ficha legible"},
                      301: {"description": "La entidad se fusionó: redirige a la URI que la absorbió"}})
 def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: Actor | None = Depends(_actor_si_hay)):
@@ -282,7 +284,8 @@ def resolver(ruta: str, request: Request, db: Session = Depends(get_db), actor: 
     aceptar = request.headers.get("accept", "")
     ruta, formato = _formato(pedida, aceptar)
     # Una persona en el navegador (text/html, sin extensión) recibe la ficha legible; una máquina, RiC-O.
-    quiere_html = ruta == pedida and "text/html" in aceptar and "application/ld+json" not in aceptar
+    quiere_html = ruta == pedida and "text/html" in aceptar and "application/ld+json" not in aceptar \
+        and "application/rdf+xml" not in aceptar
     m = _UUID.match(ruta)
     if not m:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No existe.")

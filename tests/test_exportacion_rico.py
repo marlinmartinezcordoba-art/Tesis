@@ -199,7 +199,8 @@ def test_turtle_y_json_ld_dicen_lo_mismo(db, fondo_rico):
     g = exportar(db, fondo_rico).grafo
     de_turtle = Graph().parse(data=exportacion_rico.serializar(g, "turtle"), format="turtle")
     de_jsonld = Graph().parse(data=exportacion_rico.serializar(g, "jsonld"), format="json-ld")
-    assert isomorphic(de_turtle, de_jsonld) and isomorphic(de_turtle, g)
+    de_xml = Graph().parse(data=exportacion_rico.serializar(g, "rdfxml"), format="xml")
+    assert isomorphic(de_turtle, de_jsonld) and isomorphic(de_turtle, g) and isomorphic(de_turtle, de_xml)
 
 
 # --- Conformidad ---------------------------------------------------------------------------------
@@ -264,8 +265,17 @@ def test_descarga_del_fondo_queda_en_auditoria(cliente, db, fondo_rico, archivis
     r = cliente.get("/api/exportacion/rdf", headers=archivista, params={"fondo_id": str(f["fondo"].id), "formato": "jsonld"})
     assert r.headers["content-type"].startswith("application/ld+json")
     json.loads(r.content)
+    r = cliente.get("/api/exportacion/rdf", headers=archivista, params={"fondo_id": str(f["fondo"].id), "formato": "rdfxml"})
+    assert r.headers["content-type"].startswith("application/rdf+xml") and ".rdf" in r.headers["content-disposition"]
+    Graph().parse(data=r.content, format="xml")
+    # La URI de cada nodo también en RDF/XML: por la extensión o por la cabecera Accept.
+    nodo = f"/id/{f['o114'].id}"
+    for r in (cliente.get(nodo + ".rdf", headers=archivista),
+              cliente.get(nodo, headers={**archivista, "Accept": "application/rdf+xml, text/html"})):
+        assert r.status_code == 200 and r.headers["content-type"].startswith("application/rdf+xml"), r.text[:200]
+        assert len(Graph().parse(data=r.content, format="xml")) > 0
     eventos = db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.accion == "rdf_exportado")).all()
-    assert [e.valor_nuevo["formato"] for e in eventos] == ["turtle", "jsonld"]
+    assert [e.valor_nuevo["formato"] for e in eventos] == ["turtle", "jsonld", "rdfxml"]
     rep = cliente.get("/api/exportacion/conformidad", headers=archivista, params={"fondo_id": str(f["fondo"].id)}).json()
     assert rep["conforme"] and rep["uris_publicas"] is False
     assert db.scalar(select(RegistroAuditoria).where(RegistroAuditoria.accion == "conformidad_rico_validada"))

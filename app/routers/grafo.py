@@ -115,10 +115,10 @@ def relaciones_excel(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = N
                     headers={"Content-Disposition": f'attachment; filename="relaciones-{ident}.xlsx"'})
 
 
-@router.get("/{tipo}/{ident}/exportar", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}}, "description": "Fragmento del grafo en RiC-O (Turtle o JSON-LD)"}},
+@router.get("/{tipo}/{ident}/exportar", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "application/rdf+xml": {}}, "description": "Fragmento del grafo en RiC-O (Turtle, JSON-LD o RDF/XML)"}},
              summary="El fragmento visible del grafo en RiC-O (Turtle o JSON-LD); GET como toda consulta")
 def exportar(request: Request, tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None,
-             saltos: int = Query(1, ge=1, le=3), formato: Literal["turtle", "jsonld"] = "turtle",
+             saltos: int = Query(1, ge=1, le=3), formato: Literal["turtle", "jsonld", "rdfxml"] = "turtle",
              filtros: grafo.Filtros = Depends(_filtros), actor: Actor = Depends(lectura_catalogo),
              db: Session = Depends(get_db)):
     fondo = _fondo(db, tipo, ident, fondo_id)

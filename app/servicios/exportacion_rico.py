@@ -1365,7 +1365,9 @@ def _instanciacion(db: Session, ex: Exportacion, i: Instanciacion) -> None:
 
 # --- Serialización ------------------------------------------------------------------------------------
 
-FORMATOS = {"turtle": ("turtle", "text/turtle", "ttl"), "jsonld": ("json-ld", "application/ld+json", "jsonld")}
+FORMATOS = {"turtle": ("turtle", "text/turtle", "ttl"), "jsonld": ("json-ld", "application/ld+json", "jsonld"),
+            # RDF/XML: la serialización en que se publica el propio OWL de RiC-O; la que más esperan otros sistemas.
+            "rdfxml": ("pretty-xml", "application/rdf+xml", "rdf")}
 
 
 def serializar(g: Graph, formato: str) -> bytes:

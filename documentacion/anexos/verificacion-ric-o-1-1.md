@@ -99,7 +99,7 @@ RiC-O 1.1 no declara ninguna propiedad funcional (`owl:FunctionalProperty`). Cad
 | Restricción | Razón |
 |---|---|
 | Un solo superior orgánico por descripción (incluido_en_id), más inclusiones adicionales con rol «adicional» | Principio de procedencia y orden original del cuadro de clasificación; una colección facticia se declara como inclusión adicional. |
-| Una forma documental por documento | En diplomática un documento tiene un tipo documental; dos formas son dos documentos. |
+| Un tipo documental por documento | En diplomática un documento tiene un tipo documental; dos formas son dos documentos. |
 | Una instanciación digital pertenece a un solo Record Resource | Un archivo inscribe un documento; si un conjunto mezcla documentos, cada uno se individualiza en su propio Record (CM-03). |
 | Una regla de retención vigente por serie o subserie | La TRD asigna un solo tiempo de retención y una sola disposición final por serie o subserie. |
 | Un tipo de actividad por actividad | La actividad es el ejercicio concreto de una competencia; dos competencias son dos actividades. |

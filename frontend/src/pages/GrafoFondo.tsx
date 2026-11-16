@@ -140,7 +140,7 @@ function PanelFiltros({ opciones, filtros, cambiar, cerrar }: {
 
 function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar, expandida, alExpandir, verEstructura }: {
   clave: string; fondoId: string; cerrar: () => void; recentrar: (clave: string) => void;
-  abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld") => void; alCambiar?: () => void;
+  abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld" | "rdfxml") => void; alCambiar?: () => void;
   expandida?: boolean; alExpandir?: () => void; verEstructura?: (clave: string) => void;
 }) {
   const { usuario } = useSesion();
@@ -331,6 +331,7 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar,
                 <div>
                   <button type="button" className="enlace" onClick={() => exportar("turtle")}>Turtle (.ttl)</button>
                   <button type="button" className="enlace" onClick={() => exportar("jsonld")}>JSON-LD (.jsonld)</button>
+                  <button type="button" className="enlace" onClick={() => exportar("rdfxml")}>RDF/XML (.rdf)</button>
                 </div>
               </details>
             </div>
@@ -452,7 +453,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     }
   }
 
-  function exportar(formato: "turtle" | "jsonld") {
+  function exportar(formato: "turtle" | "jsonld" | "rdfxml") {
     const [tipo, id] = raizClave.split(":");
     const p = consulta(filtros, saltos, fondo.id);
     p.set("formato", formato);

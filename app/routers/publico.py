@@ -51,10 +51,10 @@ def _visibles(db: Session, fondo: RecursoDocumental):
         return instrumentos.arbol(ldb, lectura.en(ldb, fondo), ver_restringidos=False)
 
 
-@router.get("/rdf", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}},
+@router.get("/rdf", responses={200: {"content": {"text/turtle": {}, "application/ld+json": {}, "application/rdf+xml": {}},
                                      "description": "El subconjunto público del fondo en RiC-O."}},
             summary="El subconjunto público del fondo en RiC-O (Turtle o JSON-LD), sin sesión si está encendido")
-def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld"] = "turtle",
+def rdf(request: Request, fondo_id: uuid.UUID, formato: Literal["turtle", "jsonld", "rdfxml"] = "turtle",
         actor: Actor | None = Depends(acceso_publico), db: Session = Depends(get_db)):
     fondo = fondo_o_404(db, fondo_id)
     try:
