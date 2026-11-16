@@ -1976,3 +1976,10 @@ a.config-ficha:hover { border-color: var(--accent); }
 .clasificacion-hecha { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
   padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--accent-bg); }
 .clasificacion-hecha strong { display: block; }
+
+/* Términos de RiC-O ocultos por omisión; el interruptor «RiC-O» los muestra. En Datos enlazados se ven siempre. */
+html[data-ric="ocultar"] code.rico, html[data-ric="ocultar"] .nivel-ric { display: none; }
+html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siempre-ric .nivel-ric { display: inline; }
+.boton-ric { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.boton-ric.activo { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }

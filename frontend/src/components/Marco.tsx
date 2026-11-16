@@ -134,6 +134,29 @@ const ENTRADAS: Entrada[] = [
 ];
 
 /** Vistas de un módulo que el usuario puede ver, en orden. */
+// Los términos de RiC-O (rico:…) van «debajo del capó» (RiC-AG, estrategias de implementación): la
+// archivista ve el término archivístico. Quien audita o evalúa los enciende con este interruptor; la
+// preferencia queda en el navegador.
+const CLAVE_RIC = "ricora.ver_terminos_ric";
+function aplicarRic(ver: boolean) {
+  document.documentElement.dataset.ric = ver ? "ver" : "ocultar";
+}
+try { aplicarRic(localStorage.getItem(CLAVE_RIC) === "1"); } catch { aplicarRic(false); }
+
+function InterruptorRic() {
+  const [ver, setVer] = useState(() => { try { return localStorage.getItem(CLAVE_RIC) === "1"; } catch { return false; } });
+  return (
+    <button type="button" className={`boton-ric${ver ? " activo" : ""}`} aria-pressed={ver}
+            title={ver ? "Ocultar los términos de RiC-O (rico:…)" : "Ver los términos de RiC-O (rico:…) junto a cada dato"}
+            onClick={() => {
+              const v = !ver;
+              setVer(v);
+              aplicarRic(v);
+              try { localStorage.setItem(CLAVE_RIC, v ? "1" : "0"); } catch { /* sin almacenamiento: solo esta sesión */ }
+            }}>RiC-O</button>
+  );
+}
+
 export function vistasDe(ruta: string, u: UsuarioBreve | null): Vista[] {
   const e = ENTRADAS.find((x) => x.ruta === ruta);
   return (e?.vistas || []).filter((v) => !v.permitir || (u && v.permitir(u)));
@@ -542,6 +565,7 @@ export function Marco({ children }: { children: ReactNode }) {
           <Lanzador />
           <div className="superior-derecha">
             <BotonAsistente />
+            <InterruptorRic />
             <Ayuda />
             <AvisoAlertas />
             <MenuPersona />
