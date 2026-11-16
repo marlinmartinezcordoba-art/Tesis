@@ -1,6 +1,6 @@
 """
 EAD3: cada productor con su elemento según su clase (persname, famname, corpname), sin partir
-«Apellidos, Nombres». SHACL: el fondo sin los esenciales de ISAD(G) recibe advertencias, no violaciones.
+«Apellidos, Nombres». SHACL: el fondo sin lo esencial RiC recibe advertencias, no violaciones.
 """
 
 from lxml import etree
@@ -27,4 +27,4 @@ def test_fondo_sin_esenciales_da_advertencias_y_sigue_conforme(db, fondo):  # no
     r = conformidad_rico.validar_shacl(ex.grafo)
     advertencias = [x["mensaje"] for x in r["advertencias"]]
     assert r["conforme"] is True and r["resultados"] == []
-    assert any("ISAD(G) 3.2.1" in m for m in advertencias)
+    assert any("RiC rico:hasCreator" in m for m in advertencias) and not any("ISAD" in m for m in advertencias)

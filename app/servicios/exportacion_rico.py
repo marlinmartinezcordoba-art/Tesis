@@ -1028,6 +1028,9 @@ def _recurso(ex: Exportacion, r: RecursoDocumental, recursos: dict) -> None:
     codigo = _codigo_ccd(r, recursos)
     if codigo:
         g.add((s, _a("clasificacion"), Literal(codigo)))
+    if r.fecha_acumulacion_edtf:  # rico:hasAccumulationDate: cuándo se reunió, distinta de la creación
+        _fecha_libre(ex, s, _apoyo("fecha_acumulacion")[0], URIRef(f"{s}/fecha-acumulacion"),
+                     fechas.legible(r.fecha_acumulacion_edtf), r.fecha_acumulacion_edtf)
     if r.nota_integridad:  # RiC-A24: completitud intelectual
         g.add((s, _a("integridad"), Literal(r.nota_integridad, lang="es")))
     if clase == "RecordSet":

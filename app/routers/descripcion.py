@@ -33,8 +33,8 @@ from app.schemas.descripcion import (
     CoincidenciaOut, EditarIn, ElementoPorDescribir, IniciarIn, NivelSuperiorOut, PublicadaOut, UbicacionSugeridaOut, PublicarIn, VerificarIn,
 )
 from app.schemas.respuestas_descripcion import (
+    ComponentesRicOut,
     AtributoCatalogo, CustodiosOut, DatosPersonalesOut, DetalleDescripcionOut, EspacioTrabajoOut, EstadoDigitalizacionOut,
-    FichaIsadgOut,
     FichaPublicaOut, GuiaMetadatos, PaginasOut, PrevisualizacionOut, ProductividadOut, PropuestaIAOut, ReabrirOut,
     ReferenciaBreve, RevisionDatosFondoOut, VersionCompleta, VersionResumen,
 )
@@ -617,7 +617,7 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
             copia_de_id=datos.copia_de_id, asociado_a_id=datos.asociado_a_id,
             vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
-            fechas_predominantes=datos.fechas_predominantes,
+            fechas_predominantes=datos.fechas_predominantes, fecha_acumulacion=datos.fecha_acumulacion,
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
@@ -924,25 +924,13 @@ class OriginalFisicoEditarIn(DatosFisicosAgn):
 
 
 @router.get("/registros/{recurso_id}/componentes-ric",
+            responses={200: {"model": ComponentesRicOut, "description": "Estado por componentes RiC"}},
             summary="Estado de la descripción por componentes RiC: recurso, agentes, funciones y actividades, "
                     "relaciones, tiempo y lugar, custodia y manifestaciones, fuentes y validación")
 def componentes_ric(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
     from app.servicios import componentes_ric as cr
 
     return cr.componentes(db, (r := _recurso_o_404(db, recurso_id)), descripcion.detalle(db, r))
-
-
-@router.get("/registros/{recurso_id}/isadg", responses={200: {"model": FichaIsadgOut, "description": "Ficha ISAD(G) con los 26 elementos"}},
-            summary="Ficha ISAD(G) completa: los 26 elementos y su fuente")
-def ficha_isadg(recurso_id: uuid.UUID, db: Session = Depends(get_db)):
-    from app.servicios import isadg
-
-    recurso = db.get(RecursoDocumental, recurso_id)
-    if recurso is None or (recurso.publicado_en is None and recurso.nivel != "fondo"):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="La descripción no existe.")
-    elementos = isadg.ficha(db, recurso)
-    return {"id": str(recurso.id), "titulo": recurso.titulo, "elementos": elementos,
-            "con_dato": sum(1 for e in elementos if e["valor"]), "total": len(elementos)}
 
 
 @router.post("/registros/{recurso_id}/original-fisico", status_code=status.HTTP_201_CREATED,
@@ -1065,7 +1053,7 @@ def editar(recurso_id: uuid.UUID, datos: EditarIn, actor: Actor = Depends(acceso
             estado_documento=datos.estado_documento, nota_integridad=datos.nota_integridad,
             copia_de_id=datos.copia_de_id, asociado_a_id=datos.asociado_a_id,
             vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
-            fechas_predominantes=datos.fechas_predominantes,
+            fechas_predominantes=datos.fechas_predominantes, fecha_acumulacion=datos.fecha_acumulacion,
             agregar_partes=_partes_de(datos.agregar_partes), historia_archivistica=datos.historia_archivistica,
             isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.clasificacion is not None:

@@ -381,6 +381,7 @@ export function EspacioTrabajo() {
           copia_de_id: campos.copiaDe?.id || null, asociado_a_id: campos.asociadoA?.id || null,
           vinculo_genetico_con_id: campos.vinculoGenetico?.id || null, tipos_contenido: campos.tiposContenido,
           fechas_predominantes: campos.fechasPredominantes.trim() || null,
+          fecha_acumulacion: campos.fechaAcumulacion.trim() || null,
           partes: partes.map(parteParaEnviar),
         }),
       });
@@ -580,7 +581,7 @@ export function EspacioTrabajo() {
                     <button type="button" className="boton chico" onClick={() => setCampos({ ...campos, isadg: {
                       ...campos.isadg,
                       unidades_relacionadas: [actuales.trim(), ...faltan.map((c) => c.valor)].filter(Boolean).join("; "),
-                    } })}>Llevar a «Unidades de descripción relacionadas» (ISAD-G 3.5.3)</button>
+                    } })}>Llevar a «Otros recursos relacionados»</button>
                   ) : <span className="meta">Ya están en «Unidades de descripción relacionadas».</span>}
                   <span className="meta">Si el documento citado ya está en RICORA, enlácelo abajo con «Responde a» o «Es copia de».</span>
                 </div>

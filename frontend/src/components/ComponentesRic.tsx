@@ -1,5 +1,5 @@
 // Descripción por componentes RiC: el estado de cada parte de la descripción
-// (no las áreas de ISAD(G)), el contexto funcional (función → actividad →
+// (recurso, agentes, funciones y actividades, relaciones, tiempo y lugar, custodia, fuentes), el contexto funcional (función → actividad →
 // recurso) y las manifestaciones física y digital del recurso.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";

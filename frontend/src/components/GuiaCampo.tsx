@@ -7,7 +7,7 @@ import { pedir } from "@/lib/api";
 
 interface FilaAgn { id: string; elemento: string; obligatoriedad: string; codigo_agn: string }
 interface GuiaAtributo {
-  clave: string; etiqueta: string; isad: string | null; rico: string | null; cardinalidad: string; obligatorio: boolean;
+  clave: string; etiqueta: string; rico: string | null; cardinalidad: string; obligatorio: boolean;
   que_es: string; por_que: string; se_relaciona: string; ejemplo: string | null; agn: FilaAgn[];
 }
 interface GuiaEntidad { tipo: string; rico: string; que_es: string; por_que: string; se_relaciona: string; ejemplo: string | null }
@@ -45,7 +45,7 @@ export function GuiaCampo({ clave }: { clave: string }) {
   const a = guia?.atributos.find((x) => x.clave === clave);
   if (!a) return null;
   const normas = [
-    a.isad ? `ISAD(G) ${a.isad}` : null, a.rico, `Cardinalidad ${a.cardinalidad}${a.obligatorio ? " (obligatorio)" : ""}`,
+    a.rico, `Cardinalidad ${a.cardinalidad}${a.obligatorio ? " (obligatorio)" : ""}`,
     ...a.agn.map((f) => `AGN ${f.id}: ${f.elemento}${f.obligatoriedad !== "—" ? ` (${f.obligatoriedad.toLowerCase()})` : ""}`),
   ].filter(Boolean) as string[];
   return (

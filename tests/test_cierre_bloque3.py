@@ -107,9 +107,11 @@ def test_publicar_con_todos_los_elementos_y_la_ficha_los_devuelve(cliente, db, f
     recurso_id = r.json()["id"]
     detalle = cliente.get(f"/api/descripcion/registros/{recurso_id}", headers=archivista).json()
     assert detalle["isadg"]["escrituras"] == ["Latn"] and detalle["isadg"]["nota"] == TEXTOS["nota"]
-    ficha = cliente.get(f"/api/descripcion/registros/{recurso_id}/isadg", headers=archivista).json()
-    por = {e["elemento"]: e for e in ficha["elementos"]}
-    assert ficha["total"] == 26
+    # ISAD(G) ya no es una pantalla ni una ruta: la tabla de equivalencias queda solo para el intercambio (EAD3).
+    assert cliente.get(f"/api/descripcion/registros/{recurso_id}/isadg", headers=archivista).status_code == 404
+    elementos = isadg.ficha(db, db.get(RecursoDocumental, uuid.UUID(recurso_id)))
+    por = {e["elemento"]: e for e in elementos}
+    assert len(elementos) == 26
     for campo, elemento in isadg.CAMPOS_TEXTO.items():
         assert TEXTOS[campo] in (por[elemento]["valor"] or ""), elemento
     assert "Latn (latina)" in por["3.4.3"]["valor"] and "spa" in por["3.4.3"]["valor"]
@@ -146,8 +148,8 @@ def test_forma_de_ingreso_sale_del_lote_y_las_caracteristicas_del_original(clien
     assert cliente.post(f"/api/descripcion/registros/{recurso_id}/original-fisico", headers=archivista, json={
         "soporte": "papel", "ubicacion": "Caja 3, carpeta 2",
         "caracteristicas_fisicas": "Manchas de humedad en los folios 1 a 3."}).status_code == 201
-    por = {e["elemento"]: e for e in cliente.get(f"/api/descripcion/registros/{recurso_id}/isadg",
-                                                 headers=archivista).json()["elementos"]}
+    db.expire_all()
+    por = {e["elemento"]: e for e in isadg.ficha(db, db.get(RecursoDocumental, uuid.UUID(recurso_id)))}
     assert por["3.2.4"]["valor"].startswith("Transferencia primaria desde Secretaría de Gobierno, acta AT-014")
     assert "Manchas de humedad" in por["3.4.4"]["valor"]
     assert "Caja 3, carpeta 2" in por["3.5.1"]["valor"]

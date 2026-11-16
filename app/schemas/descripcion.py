@@ -121,6 +121,8 @@ class CamposRegistro(BaseModel):
     # Varios a la vez (texto e imagen fija…); lista vacía: se quita; None: no cambia.
     tipos_contenido: list[str] | None = Field(default=None, max_length=12)
     fechas_predominantes: str | None = Field(default=None, max_length=200)
+    # Fecha de acumulación (EDTF), cuando se reunió el recurso; "" la quita, None no cambia.
+    fecha_acumulacion: str | None = Field(default=None, max_length=200)
 
 
 class ClasificacionIn(BaseModel):

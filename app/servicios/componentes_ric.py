@@ -1,5 +1,5 @@
 """
-Estado de una descripción por componentes RiC, no por áreas de ISAD(G).
+Estado de una descripción por componentes RiC.
 
 La descripción en RICORA se construye por partes que se conectan: el recurso
 documental, sus agentes, la actividad que documenta y su función, sus

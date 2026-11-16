@@ -328,7 +328,7 @@ function ReporteConformidad({ r }: { r: Reporte }) {
         )}
         {(r.shacl.advertencias || []).length > 0 && (
           <div className="aviso alerta" role="note">
-            <strong>Advertencias de ISAD(G)</strong> (no impiden la conformidad):
+            <strong>Advertencias de lo esencial RiC</strong> (no impiden la conformidad):
             <ul style={{ margin: "6px 0 0" }}>{(r.shacl.advertencias || []).slice(0, 20).map((x, i) => <li key={i}>{x.mensaje}</li>)}</ul>
           </div>
         )}

@@ -211,7 +211,7 @@ def _es_publico(db: Session, r: RecursoDocumental) -> bool:
 
 @router.get("/dip/{recurso_id}", responses={200: {"content": {"application/zip": {}}, "description": "Paquete de difusión en ZIP."}},
             summary="Paquete de difusión (DIP) de una descripción pública: copia de acceso, "
-                                          "ISAD(G), RiC-O, IIIF y huellas")
+                                          "RiC-O (Turtle y JSON-LD), IIIF y huellas")
 def paquete_difusion(recurso_id: uuid.UUID, request: Request, actor: Actor | None = Depends(acceso_publico),
                      db: Session = Depends(get_db)):
     r = _recurso_publico(db, recurso_id)

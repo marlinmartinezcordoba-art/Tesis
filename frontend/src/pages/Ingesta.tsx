@@ -267,7 +267,7 @@ function Cargar({ fondo, alTerminar, accionesEncabezado, version }: { fondo: Fon
           )}
         </div>
         <div className="campo">
-          <label htmlFor="lote">Lote de transferencia <span className="meta">(procedencia · ISAD-G 3.2.4)</span></label>
+          <label htmlFor="lote">Lote de transferencia <span className="meta">(procedencia · custodia anterior, rico:hasOrHadHolder)</span></label>
           <select id="lote" className="selector" value={lote} disabled={subiendo} onChange={(e) => setLote(e.target.value)}>
             <option value="">Sin lote</option>
             {lotes.map((l) => <option key={l.id} value={l.id}>{l.numero} · {l.dependencia_origen?.nombre || l.forma_ingreso_nombre}

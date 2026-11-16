@@ -7,7 +7,7 @@ import { AtributoConFuente, AtributosConFuente, VersionesDescripcion } from "@/c
 import { CadenaActividad, type ContextoActividad } from "@/components/ContextoActividad";
 import { ComponentesRic } from "@/components/ComponentesRic";
 import {
-  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, ISADG_TEXTOS, PartesDocumentales, camposVacios, clasificacionParaEnviar,
+  CLASIFICACION_VACIA, CamposRegistro, DATOS_PERSONALES, ESTADO_DOCUMENTO, IDIOMAS, VINCULO_NOMBRE, nombresContenido, useTiposContenido, NOTAS_RIC, PartesDocumentales, camposVacios, clasificacionParaEnviar,
   proteccionParaEnviar,
   parteParaEnviar, partePendiente,
   type CamposRegistroValor, type Clasificacion, type ParteBorrador,
@@ -101,6 +101,7 @@ interface Registro {
   tipos_contenido?: string[];
   clasificado_con?: { id: string; nombre: string; acto: string | null; estado: string } | null;
   fechas_predominantes?: string | null;
+  fecha_acumulacion?: string | null;
 }
 
 // Datos de control del inventario (FUID); los usa el módulo de instrumentos.
@@ -170,8 +171,8 @@ export function RegistroDescripcion() {
                 historiaArchivistica: r.historia_archivistica || "", secuencia: null,
                 respondeA: null, borradorDe: null, estadoDocumento: r.estado_documento || "",
                 notaIntegridad: r.nota_integridad || "", copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: r.tipos_contenido || [],
-                fechasPredominantes: r.fechas_predominantes || "",
-                isadg: Object.fromEntries(ISADG_TEXTOS.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
+                fechasPredominantes: r.fechas_predominantes || "", fechaAcumulacion: r.fecha_acumulacion || "",
+                isadg: Object.fromEntries(NOTAS_RIC.map(([c]) => [c, (r.isadg[c] as string | null) || ""])),
                 escrituras: r.isadg.escrituras || [],
                 datosPersonales: r.proteccion?.datos_personales || "", notaAccesibilidad: r.proteccion?.nota_accesibilidad || "" });
     setControl({
@@ -244,7 +245,7 @@ export function RegistroDescripcion() {
           estado_documento: campos.estadoDocumento, nota_integridad: campos.notaIntegridad,
           copia_de_id: campos.copiaDe?.id || null, asociado_a_id: campos.asociadoA?.id || null,
           vinculo_genetico_con_id: campos.vinculoGenetico?.id || null, tipos_contenido: campos.tiposContenido,
-          fechas_predominantes: campos.fechasPredominantes,
+          fechas_predominantes: campos.fechasPredominantes, fecha_acumulacion: campos.fechaAcumulacion,
           agregar_partes: partes.map(parteParaEnviar),
           control: {
             codigo_referencia: control.codigo_referencia.trim() || null, caja: control.caja.trim() || null,
@@ -391,11 +392,11 @@ export function RegistroDescripcion() {
               </>) : (<>
                 <dt>Fechas predominantes</dt><dd>{registro.fechas_predominantes || "—"}</dd>
               </>)}
+              <dt>Fecha de acumulación</dt><dd>{registro.fecha_acumulacion || "—"}</dd>
             </dl>
           </div>
         </div>
       )}
-      {!editando && <FichaIsadg recursoId={registro.id} actualizado={registro.actualizado_en} />}
       {editando && (registro.vinculos ?? []).map((x) => (
         <div key={x.relacion_id} className={`fila${quitar.includes(x.relacion_id) ? " tachada" : ""}`}>
           <div className="fila-principal">{VINCULO_NOMBRE[x.tipo] ?? x.tipo} {x.titulo}</div>
@@ -564,37 +565,3 @@ export function RegistroDescripcion() {
 // Ficha ISAD(G) completa (hallazgo DES-07): los 26 elementos, cada uno con su
 // valor o vacío, de dónde sale en el sistema y con qué propiedad RiC-O se
 // exporta (o por qué no tiene una).
-interface ElementoIsadg {
-  elemento: string; area: string; nombre: string; valor: string | null; fuente: string; rico: string | null;
-  sin_propiedad: string | null;
-}
-
-function FichaIsadg({ recursoId, actualizado }: { recursoId: string; actualizado: string | null }) {
-  const [ficha, setFicha] = useState<{ elementos: ElementoIsadg[]; con_dato: number; total: number } | null>(null);
-  useEffect(() => {
-    pedir<{ elementos: ElementoIsadg[]; con_dato: number; total: number }>(`/api/descripcion/registros/${recursoId}/isadg`)
-      .then(setFicha).catch(() => setFicha(null));
-  }, [recursoId, actualizado]);
-  if (!ficha) return null;
-  let area = "";
-  return (
-    <details className="tarjeta">
-      <summary className="tarjeta-cab">Ficha ISAD(G) · {ficha.con_dato} de {ficha.total} elementos con dato</summary>
-      <div className="tarjeta-cuerpo">
-        <dl className="pares" style={{ margin: 0 }}>
-          {ficha.elementos.map((e) => {
-            const cabecera = e.area !== area ? (area = e.area) : null;
-            return (
-              <Fragment key={e.elemento}>
-                {cabecera && <dt style={{ gridColumn: "1 / -1", fontWeight: 600, marginTop: 8 }}>Área de {cabecera.toLowerCase()}</dt>}
-                <dt>{e.elemento} {e.nombre}</dt>
-                <dd>{e.valor || <span className="meta">Sin dato</span>}
-                  <div className="meta">{e.rico ? <code className="rico">{e.rico}</code> : e.sin_propiedad}</div></dd>
-              </Fragment>
-            );
-          })}
-        </dl>
-      </div>
-    </details>
-  );
-}

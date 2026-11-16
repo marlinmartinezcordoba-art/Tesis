@@ -359,7 +359,8 @@ def test_dip_lleva_la_copia_de_acceso_publica_y_deja_fuera_lo_reservado(cliente,
         # La copia de acceso es la migración vigente (PDF/A), y lo reservado no está.
         assert m["nueva_instanciacion"]["nombre"] == "Oficio 114 (PDF/A-2b).pdf"
         assert contenido == ["contenido/Oficio 114 (PDF_A-2b).pdf"]  # la barra se reemplaza, no corta el nombre
-        for n in ("descripcion/isadg.json", "descripcion/isadg.txt", "descripcion/ric-o.ttl",
+        assert not any("isadg" in n for n in nombres)  # la descripción va en RiC-O, no en ISAD(G)
+        for n in ("descripcion/ric-o.ttl", "descripcion/ric-o.jsonld",
                   "descripcion/iiif-manifest.json", "manifest-sha256.txt", "LEEME.txt"):
             assert raiz + n in nombres, n
         manifiesto = z.read(raiz + "manifest-sha256.txt").decode()
@@ -369,13 +370,13 @@ def test_dip_lleva_la_copia_de_acceso_publica_y_deja_fuera_lo_reservado(cliente,
         leeme = z.read(raiz + "LEEME.txt").decode()
         assert leeme.startswith("PAQUETE DE INFORMACIÓN DE DIFUSIÓN (DIP)") and "Quedaron fuera 1 archivo(s)" in leeme
         assert "Anexo" not in leeme and "Anexo" not in z.read(raiz + "descripcion/iiif-manifest.json").decode()
-        ficha = {e["elemento"]: e["valor"] for e in __import__("json").loads(z.read(raiz + "descripcion/isadg.json"))}
-        assert ficha["3.1.2"] == "Oficio 114"
-        from rdflib import Graph, RDF, URIRef
+        from rdflib import RDF, Graph, URIRef
 
         from app.servicios import exportacion_rico
         g = Graph().parse(data=z.read(raiz + "descripcion/ric-o.ttl"), format="turtle")
         assert (URIRef(exportacion_rico.base() + str(r.id)), RDF.type, None) in g
+        assert "Oficio 114" in {str(o) for o in g.objects(URIRef(exportacion_rico.base() + str(r.id)), exportacion_rico.RICO.title)}
+        assert len(Graph().parse(data=z.read(raiz + "descripcion/ric-o.jsonld"), format="json-ld")) == len(g)
         assert "Anexo" not in z.read(raiz + "descripcion/ric-o.ttl").decode()
     assert list((almacen.raiz() / ".temporal").glob("dip-*")) == []
     # Una descripción sin publicar no tiene DIP.

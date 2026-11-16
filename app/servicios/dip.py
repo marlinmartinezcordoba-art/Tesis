@@ -9,8 +9,7 @@ Contenido del .zip:
 - contenido/: la copia de acceso de cada archivo público de la descripción
   (si hubo migración, la versión migrada vigente; nunca uno restringido por
   su declaración de derechos);
-- descripcion/isadg.json e isadg.txt: la ficha ISAD(G) de la descripción;
-- descripcion/ric-o.ttl: su descripción RiC-O (la misma que resuelve /id/);
+- descripcion/ric-o.ttl y ric-o.jsonld: su descripción RiC-O (la misma que resuelve /id/);
 - descripcion/iiif-manifest.json: el manifiesto IIIF para un visor externo;
 - manifest-sha256.txt: la huella de cada archivo del paquete;
 - LEEME.txt: qué es, de dónde sale y qué se dejó fuera (cuántos, no cuáles).
@@ -35,7 +34,7 @@ from app.db.base import ahora
 from app.models.descripcion import Relacion
 from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
-from app.servicios import almacen, derechos, exportacion_rico, intercambio, isadg
+from app.servicios import almacen, derechos, exportacion_rico, intercambio
 from app.servicios.paquete import _sha256, nombre_seguro
 
 LEEME = """PAQUETE DE INFORMACIÓN DE DIFUSIÓN (DIP) · {sistema}
@@ -48,10 +47,9 @@ Generado el {fecha}.
 
 contenido/
     Copia de acceso de {n} archivo(s) público(s) de la descripción.
-descripcion/isadg.json · descripcion/isadg.txt
-    Ficha ISAD(G) (26 elementos) de la descripción.
-descripcion/ric-o.ttl
-    La misma descripción en RiC-O 1.1 (Turtle).
+descripcion/ric-o.ttl · descripcion/ric-o.jsonld
+    La descripción en RiC-O 1.1 (Turtle y JSON-LD): el recurso, sus agentes,
+    actividades, lugares, fechas, relaciones e instanciaciones.
 descripcion/iiif-manifest.json
     Manifiesto IIIF Presentation 3.0 para abrir las páginas en un visor.
 manifest-sha256.txt
@@ -96,11 +94,6 @@ def instancias_de(db: Session, recurso: RecursoDocumental) -> tuple[list[Instanc
     return publicas, fuera
 
 
-def _texto_ficha(ficha: list[dict]) -> str:
-    lineas = []
-    for e in ficha:
-        lineas.append(f"{e['elemento']} {e['nombre']}: {e['valor'] or '—'}")
-    return "\n".join(lineas) + "\n"
 
 
 def armar(db: Session, recurso: RecursoDocumental, base_publica: str) -> Path:
@@ -111,8 +104,9 @@ def armar(db: Session, recurso: RecursoDocumental, base_publica: str) -> Path:
 
     ex = grafo_rdf.leer(db, fondo, incluir_restringidos=False)
     nodo = URIRef(exportacion_rico.base() + str(recurso.id))
-    rdf = exportacion_rico.serializar(exportacion_rico.descripcion_de(ex, nodo), "turtle")
-    ficha = isadg.ficha(db, recurso)
+    descripcion = exportacion_rico.descripcion_de(ex, nodo)
+    rdf = exportacion_rico.serializar(descripcion, "turtle")
+    jsonld = exportacion_rico.serializar(descripcion, "jsonld")
     publicas, fuera = instancias_de(db, recurso)
     manifiesto = intercambio.manifiesto_iiif(db, recurso, base_publica)
 
@@ -140,9 +134,8 @@ def armar(db: Session, recurso: RecursoDocumental, base_publica: str) -> Path:
                                "antes de entregarlo.", 409)
             z.write(origen, f"{raiz}/contenido/{nombre}")
             huellas.append((inst.huella, f"contenido/{nombre}"))
-        poner("descripcion/isadg.json", json.dumps(ficha, ensure_ascii=False, indent=2, default=str).encode("utf-8"))
-        poner("descripcion/isadg.txt", _texto_ficha(ficha).encode("utf-8"))
         poner("descripcion/ric-o.ttl", rdf)
+        poner("descripcion/ric-o.jsonld", jsonld)
         poner("descripcion/iiif-manifest.json", json.dumps(manifiesto, ensure_ascii=False, indent=2).encode("utf-8"))
         texto_fuera = (f"\nQuedaron fuera {fuera} archivo(s) por su declaración de derechos (clasificados o "
                        "reservados, Ley 1712 de 2014).\n" if fuera else "")

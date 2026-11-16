@@ -949,7 +949,7 @@ def tipos_de_contenido(db: Session) -> dict[str, str]:
 
 
 def _contenido_y_predominantes(db: Session, recurso: RecursoDocumental, tipos_contenido: list[str] | None,
-                               fechas_predominantes: str | None) -> None:
+                               fechas_predominantes: str | None, fecha_acumulacion: str | None = None) -> None:
     """Tipos de contenido de un documento (RiC-A10, varios a la vez: texto e imagen fija) y
     fechas predominantes de una agrupación (RiC-R083). None: no cambia; lista vacía: se quita."""
     if tipos_contenido is not None:
@@ -973,6 +973,14 @@ def _contenido_y_predominantes(db: Session, recurso: RecursoDocumental, tipos_co
             except fechas.FechaInvalida as exc:
                 raise ErrorDescripcion(f"Fechas predominantes: {exc}") from exc
         recurso.fechas_predominantes_edtf = edtf
+    if fecha_acumulacion is not None:  # rico:hasAccumulationDate: de un documento o de un conjunto
+        edtf = fecha_acumulacion.strip() or None
+        if edtf:
+            try:
+                edtf = fechas.interpretar(edtf).edtf
+            except fechas.FechaInvalida as exc:
+                raise ErrorDescripcion(f"Fecha de acumulación: {exc}") from exc
+        recurso.fecha_acumulacion_edtf = edtf
 
 
 @dataclass
@@ -1122,7 +1130,8 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
              nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
              asociado_a_id: uuid.UUID | None = None, vinculo_genetico_con_id: uuid.UUID | None = None,
-             tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> RecursoDocumental:
+             tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None,
+             fecha_acumulacion: str | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -1155,7 +1164,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     _historia(recurso, historia_archivistica)
     _isadg(recurso, isadg_textos, escrituras)
     _estado_y_completitud(recurso, estado_documento, nota_integridad)
-    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes)
+    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes, fecha_acumulacion)
     db.add(recurso)
     db.flush()
     db.add(Relacion(origen_tipo="recurso_documental", origen_id=superior.id, destino_tipo="recurso_documental",
@@ -1360,6 +1369,7 @@ def detalle(db: Session, recurso: RecursoDocumental) -> dict:
         "origen_historia_archivistica": recurso.origen_historia_archivistica,
         "estado_documento": recurso.estado_documento, "nota_integridad": recurso.nota_integridad,
         "tipos_contenido": list(recurso.tipos_contenido or []), "fechas_predominantes": recurso.fechas_predominantes_edtf,
+        "fecha_acumulacion": recurso.fecha_acumulacion_edtf,
         # La TRD que regía cuando se clasificó (requisito 7).
         "clasificado_con": _version_trd(db, recurso.version_trd_id),
         "isadg": _isadg_valores(recurso),
@@ -1481,7 +1491,8 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
            borrador_de_id: uuid.UUID | None = None, estado_documento: str | None = None,
            nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
            asociado_a_id: uuid.UUID | None = None, vinculo_genetico_con_id: uuid.UUID | None = None,
-           tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None) -> bool:
+           tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None,
+           fecha_acumulacion: str | None = None) -> bool:
     """Aplica la corrección. Devuelve si algo cambió."""
     if trabajo.recurso_id != recurso.id:
         raise ErrorDescripcion("Este espacio de trabajo no corresponde a esta descripción.", 409)
@@ -1539,7 +1550,7 @@ def editar(db: Session, *, recurso: RecursoDocumental, trabajo: TrabajoDescripci
         if otro_id:
             _vinculo(db, recurso, otro_id, campo, usuario_id)
     _estado_y_completitud(recurso, estado_documento, nota_integridad)
-    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes)
+    _contenido_y_predominantes(db, recurso, tipos_contenido, fechas_predominantes, fecha_acumulacion)
     if any(e.tipo == "forma_documental" for e in agregar) and recurso.forma_documental_id and not quitar_forma:
         raise ErrorDescripcion("Ya tiene forma documental; quítela antes de poner otra.")
     documentos = {str(r.destino_id) for r in db.scalars(select(Relacion).where(

@@ -101,7 +101,7 @@ def validar_cardinalidad(clave: str, valores) -> None:
 def catalogo() -> list[dict]:
     return [{"clave": a.clave, "etiqueta": a.etiqueta, "tipo": a.tipo,
              "cardinalidad": f"{a.minimo}..{'n' if a.maximo > 1 else a.maximo}" + (f" (máx. {a.maximo})" if a.maximo > 1 else ""),
-             "minimo": a.minimo, "maximo": a.maximo, "isad": a.isad, "rico": a.rico,
+             "minimo": a.minimo, "maximo": a.maximo, "rico": a.rico,
              "procedencia": "columna propia (el motor puede proponerlo)" if a.origen else "siempre una persona"}
             for a in ATRIBUTOS]
 
@@ -120,5 +120,5 @@ def con_fuente(recurso: RecursoDocumental) -> list[dict]:
         fuente = (getattr(recurso, a.origen) if a.origen else None) or "persona"
         salida.append({"clave": a.clave, "etiqueta": a.etiqueta, "valor": str(valor) if a.tipo == "referencia" else valor,
                        "fuente": fuente, "confianza": getattr(recurso, a.confianza) if a.confianza else None,
-                       "cardinalidad": f"{a.minimo}..{'n' if a.maximo > 1 else a.maximo}", "rico": a.rico, "isad": a.isad})
+                       "cardinalidad": f"{a.minimo}..{'n' if a.maximo > 1 else a.maximo}", "rico": a.rico})
     return salida

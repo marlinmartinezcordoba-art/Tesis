@@ -49,7 +49,8 @@ export interface CamposRegistroValor {
   vinculoGenetico?: { id: string; titulo: string } | null;
   tiposContenido: string[];  // RiC-A10: varios a la vez (texto e imagen fija)
   fechasPredominantes: string;
-  // Resto de ISAD(G) (hallazgo DES-07): textos de una persona y escrituras ISO 15924.
+  fechaAcumulacion: string;
+  // Notas complementarias: atributos RiC-O (generalDescription, structure, accruals) y extensiones locales.
   isadg: Record<string, string>;
   escrituras: string[];
   // Ley 1581 de 2012 (clase de datos personales; vacío = sin revisar) y Ley 1680 de 2013 (versión accesible).
@@ -57,29 +58,21 @@ export interface CamposRegistroValor {
   notaAccesibilidad: string;
 }
 
-// Elementos de ISAD(G) que se escriben a mano; el resto sale de otros datos
-// del sistema (lote, regla de retención, instanciaciones…). Mismo orden y
-// claves que app/servicios/isadg.py.
-export const ISADG_TEXTOS: [string, string, string][] = [
-  ["forma_ingreso", "3.2.4", "Forma de ingreso (además del lote de transferencia)"],
-  ["valoracion", "3.3.2", "Valoración, selección y eliminación (además de la regla de retención)"],
-  ["nuevos_ingresos", "3.3.3", "Nuevos ingresos"],
-  ["organizacion", "3.3.4", "Organización"],
-  ["instrumentos_descripcion", "3.4.5", "Instrumentos de descripción (además de los del sistema)"],
-  ["localizacion_originales", "3.5.1", "Existencia y localización de los originales"],
-  ["localizacion_copias", "3.5.2", "Existencia y localización de copias"],
-  ["unidades_relacionadas", "3.5.3", "Unidades de descripción relacionadas (fuera del sistema)"],
-  ["nota_publicaciones", "3.5.4", "Nota de publicaciones"],
-  ["nota", "3.6.1", "Notas"],
-  ["nota_archivero", "3.7.1", "Nota del archivero"],
-  ["reglas_descripcion", "3.7.2", "Reglas o normas"],
+// Textos que escribe una persona: [clave, propiedad RiC-O o "" si es extensión local, nombre].
+export const NOTAS_RIC: [string, string, string][] = [
+  ["nota", "rico:generalDescription", "Descripción general"],
+  ["organizacion", "rico:structure", "Estructura interna (cómo está ordenado)"],
+  ["nuevos_ingresos", "rico:accruals", "Ingresos previstos (solo conjuntos)"],
+  ["forma_ingreso", "", "Forma de ingreso (además del lote de transferencia)"],
+  ["valoracion", "", "Valoración (además de la regla de retención, rico:Rule)"],
+  ["localizacion_originales", "", "Dónde están los originales"],
+  ["localizacion_copias", "", "Dónde hay copias"],
+  ["unidades_relacionadas", "", "Otros recursos relacionados que no están en el sistema"],
+  ["instrumentos_descripcion", "", "Instrumentos de consulta externos"],
+  ["nota_publicaciones", "", "Publicaciones sobre el recurso"],
+  ["nota_archivero", "", "Nota de quien describe"],
+  ["reglas_descripcion", "", "Normas seguidas al describir"],
 ];
-
-// Atributo RiC-O con que se exporta cada texto (app/servicios/ric_o.py, ATRIBUTOS); los demás no tienen
-// propiedad literal en RiC-O 1.1 (motivo en ric_o.SIN_PROPIEDAD).
-const RICO_TEXTO: Record<string, string> = {
-  nuevos_ingresos: "rico:accruals", organizacion: "rico:structure", nota: "rico:generalDescription",
-};
 
 export const ESCRITURAS: Record<string, string> = {
   Latn: "latina", Grek: "griega", Hebr: "hebrea", Arab: "árabe", Cyrl: "cirílica", Hani: "han (china)",
@@ -90,7 +83,7 @@ export const ESCRITURAS: Record<string, string> = {
 export function camposVacios(idiomas: string[] = []): CamposRegistroValor {
   return { idiomas, clasificacion: CLASIFICACION_VACIA, condicionesAcceso: "", condicionesUso: "", historiaArchivistica: "", secuencia: null,
            respondeA: null, borradorDe: null, estadoDocumento: "", notaIntegridad: "",
-           copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: [], fechasPredominantes: "",
+           copiaDe: null, asociadoA: null, vinculoGenetico: null, tiposContenido: [], fechasPredominantes: "", fechaAcumulacion: "",
            isadg: {}, escrituras: [], datosPersonales: "", notaAccesibilidad: "" };
 }
 
@@ -297,16 +290,16 @@ function SugerenciaClasificacion({ valor, alCambiar, revision, heredada }: {
   );
 }
 
-function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
-  const llenos = ISADG_TEXTOS.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
+function NotasComplementarias({ valor, alCambiar }: { valor: CamposRegistroValor; alCambiar: (v: CamposRegistroValor) => void }) {
+  const llenos = NOTAS_RIC.filter(([c]) => (valor.isadg[c] || "").trim()).length + (valor.escrituras.length ? 1 : 0);
   return (
     <details className="campo">
       <summary>Notas complementarias <span className="meta">({llenos} con dato · opcionales)</span></summary>
       <p className="pista">Textos que una persona escribe sobre el recurso. Los que tienen atributo RiC-O pasan al grafo;
-        los demás no tienen propiedad en RiC-O 1.1 y quedan en el sistema y en los instrumentos. Se indica su
-        equivalencia ISAD(G) solo para intercambio con sistemas que todavía la usan.</p>
+        los demás son extensiones locales de RICORA (RiC-O 1.1 no tiene propiedad para ellos): quedan en el sistema
+        y en los instrumentos.</p>
       <div className="campo" style={{ marginTop: 8 }}>
-        <label>Escritura <span className="meta">(ISO 15924 · sin propiedad en RiC-O · equivale a ISAD(G) 3.4.3)</span> <GuiaCampo clave="escrituras" /></label>
+        <label>Escritura <span className="meta">(ISO 15924 · extensión local: RiC-O 1.1 no tiene propiedad)</span> <GuiaCampo clave="escrituras" /></label>
         <div className="insignias" style={{ flexWrap: "wrap" }}>
           {valor.escrituras.map((c) => (
             <span key={c} className="pastilla">{ESCRITURAS[c] || c} <code className="rico">{c}</code>{" "}
@@ -322,12 +315,12 @@ function OtrosIsadg({ valor, alCambiar }: { valor: CamposRegistroValor; alCambia
           </select>
         </div>
       </div>
-      {ISADG_TEXTOS.map(([clave, elemento, nombre]) => (
+      {NOTAS_RIC.map(([clave, rico, nombre]) => (
         <div className="campo" key={clave}>
-          <label htmlFor={`isadg-${clave}`}>{nombre}{" "}
-            <span className="meta">({RICO_TEXTO[clave] ? <code className="rico">{RICO_TEXTO[clave]}</code> : "queda en el sistema"} ·
-              equivale a ISAD(G) {elemento})</span> <GuiaCampo clave={clave} /></label>
-          <textarea id={`isadg-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
+          <label htmlFor={`nota-${clave}`}>{nombre}{" "}
+            <span className="meta">({rico ? <code className="rico">{rico}</code> : "extensión local · no pasa al grafo"})</span>{" "}
+            <GuiaCampo clave={clave} /></label>
+          <textarea id={`nota-${clave}`} className="entrada" rows={2} maxLength={20000} value={valor.isadg[clave] || ""}
                     onChange={(e) => alCambiar({ ...valor, isadg: { ...valor.isadg, [clave]: e.target.value } })} />
         </div>
       ))}
@@ -433,7 +426,7 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
         )}
       </div>
       <div className="campo">
-        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(ISAD-G 3.4.1 · opcional · las decide la institución, no el motor)</span> <GuiaCampo clave="condiciones_acceso" /></label>
+        <label htmlFor="acceso">Condiciones de acceso, en palabras <span className="meta">(rico:conditionsOfAccess · opcional · las decide la institución, no el motor)</span> <GuiaCampo clave="condiciones_acceso" /></label>
         <textarea id="acceso" className="entrada" rows={2} value={valor.condicionesAcceso} maxLength={5000}
                   placeholder="Ej.: «Consulta en sala con cita previa» o «Contiene datos de salud de terceros»"
                   onChange={(e) => alCambiar({ ...valor, condicionesAcceso: e.target.value })} />
@@ -453,12 +446,12 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
                   onChange={(e) => alCambiar({ ...valor, notaAccesibilidad: e.target.value })} />
       </div>
       <div className="campo">
-        <label htmlFor="historia">Historia archivística <span className="meta">(ISAD-G 3.2.3 · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
+        <label htmlFor="historia">Historia archivística <span className="meta">(rico:history · cómo llegó a su custodio actual)</span> <GuiaCampo clave="historia_archivistica" /></label>
         <textarea id="historia" className="entrada" rows={2} value={valor.historiaArchivistica} maxLength={20000}
                   placeholder="Transferencias, depósitos y custodios anteriores"
                   onChange={(e) => alCambiar({ ...valor, historiaArchivistica: e.target.value })} />
       </div>
-      <OtrosIsadg valor={valor} alCambiar={alCambiar} />
+      <NotasComplementarias valor={valor} alCambiar={alCambiar} />
       <div className="campo" style={{ marginBottom: 0 }}>
         <label>Secuencia en la serie <span className="meta">(opcional · rico:precedesOrPreceded)</span></label>
         {valor.secuencia ? (
@@ -533,6 +526,12 @@ export function CamposRegistro({ valor, alCambiar, fondoId, propuestos, confianz
                  placeholder="Ej.: 1948/1952" onChange={(e) => alCambiar({ ...valor, fechasPredominantes: e.target.value })} />
         </div>
       )}
+      <div className="campo">
+        <label htmlFor="acumulacion">Fecha de acumulación <span className="meta">(opcional · EDTF · cuándo se reunió, si es
+          distinta de la creación · rico:hasAccumulationDate)</span></label>
+        <input id="acumulacion" className="entrada" value={valor.fechaAcumulacion} maxLength={200}
+               placeholder="Ej.: 1960" onChange={(e) => alCambiar({ ...valor, fechaAcumulacion: e.target.value })} />
+      </div>
       {documento && (
         <div className="campo">
           <label htmlFor="estado-doc">Estado del documento <span className="meta">(opcional · rico:hasRecordState)</span></label>

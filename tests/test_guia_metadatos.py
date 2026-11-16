@@ -20,7 +20,7 @@ def test_la_guia_une_cada_campo_con_sus_normas(cliente, cabeceras_admin):
     assert r.status_code == 200
     por_clave = {a["clave"]: a for a in r.json()["atributos"]}
     titulo = por_clave["titulo"]
-    assert titulo["isad"] == "3.1.2" and titulo["rico"] == "rico:title" and titulo["obligatorio"]
+    assert "isad" not in titulo and titulo["rico"] == "rico:title" and titulo["obligatorio"]
     assert {"AGN-REC-02", "AGN-FUID-02"} <= {f["id"] for f in titulo["agn"]}
     # Una fila del AGN cubre varios campos: volumen documental = folios, caja y carpeta.
     for clave in ("folios", "caja", "carpeta"):

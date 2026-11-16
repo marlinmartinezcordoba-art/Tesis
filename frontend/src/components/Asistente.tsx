@@ -32,7 +32,7 @@ const PREGUNTAS: [string, string[]][] = [
     "¿Qué significa conservación total, selección y eliminación?", "¿Quién aprueba la TRD y qué acto la adopta?"]],
   ["/ingesta", ["¿Qué formatos se recomiendan para preservar un documento digital?", "¿Para qué sirve la huella SHA-256?",
     "¿Qué hago si el OCR sale con confianza baja?", "¿Cómo asigno los documentos a un expediente?"]],
-  ["/descripcion", ["¿Qué va en «Alcance y contenido» según ISAD(G)?", "¿Cómo escribo el título de una unidad documental?",
+  ["/descripcion", ["¿Qué va en «Alcance y contenido» (rico:scopeAndContent)?", "¿Cómo escribo el título de una unidad documental?",
     "¿Cómo registro una fecha aproximada o incierta?", "¿Qué diferencia hay entre productor y destinatario en RiC-O?"]],
   ["/vocabularios", ["¿Cómo se escribe la forma autorizada de un nombre?", "¿Cuándo dos autoridades son la misma y se fusionan?",
     "¿Qué diferencia hay entre función, actividad y mandato?", "¿Qué es una ficha ISAAR(CPF)?"]],

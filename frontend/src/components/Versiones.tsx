@@ -37,7 +37,6 @@ export interface AtributoConFuente {
   confianza: number | null;
   cardinalidad: string;
   rico: string | null;
-  isad: string | null;
 }
 
 const FUENTE: Record<string, string> = { motor: "Motor", motor_editado: "Motor, corregido", persona: "Persona" };
@@ -136,7 +135,7 @@ export function AtributosConFuente({ atributos }: { atributos: AtributoConFuente
         <tbody>
           {atributos.map((a) => (
             <tr key={a.clave}>
-              <td>{a.etiqueta}{a.isad && <span className="meta"> · {a.isad}</span>}</td>
+              <td>{a.etiqueta}{a.rico && <span className="meta"> · {a.rico}</span>}</td>
               <td>{texto(a.valor)}</td>
               <td>{FUENTE[a.fuente] || a.fuente}{a.confianza !== null && ` (${Math.round(a.confianza * 100)} %)`}</td>
               <td><code>{a.cardinalidad}</code></td>

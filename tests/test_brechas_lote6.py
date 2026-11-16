@@ -132,7 +132,7 @@ def test_cada_valor_muestra_su_fuente_en_la_vista_interna(cliente, db, fondo, ar
     assert por_clave["idiomas"]["cardinalidad"] == "0..n" and por_clave["titulo"]["cardinalidad"] == "1..1"
     catalogo = cliente.get("/api/descripcion/atributos", headers=archivista).json()
     titulo = next(a for a in catalogo if a["clave"] == "titulo")
-    assert titulo["rico"] == "rico:title" and titulo["isad"] == "3.1.2" and titulo["minimo"] == 1
+    assert titulo["rico"] == "rico:title" and "isad" not in titulo and titulo["minimo"] == 1
 
 
 def test_el_catalogo_cubre_las_columnas_que_versiona_la_migracion():

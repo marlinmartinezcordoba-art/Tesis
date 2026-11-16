@@ -103,7 +103,7 @@ export function NuevoLote({ fondoId, alCrear, alCancelar }: {
     <form className="tarjeta-cuerpo" onSubmit={enviar}>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="campo">
-        <label htmlFor="forma-ingreso">Forma de ingreso <span className="meta">(ISAD-G 3.2.4)</span></label>
+        <label htmlFor="forma-ingreso">Forma de ingreso <span className="meta">(procedencia · custodia anterior, rico:hasOrHadHolder)</span></label>
         <select id="forma-ingreso" className="selector" value={forma} onChange={(e) => setForma(e.target.value)}>
           {FORMAS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
         </select>

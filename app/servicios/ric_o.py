@@ -579,6 +579,7 @@ APOYO = {
     "fecha_se_cruza": ("intersects", ("Date",), "Date"),  # o que se cruza con ellas (R086)
     "fechas_algunos": ("hasOrHadSomeMembersWithCreationDate", ("RecordSet",), "Date"),  # RiC-R082
     "fechas_mayoria": ("hasOrHadMostMembersWithCreationDate", ("RecordSet",), "Date"),  # predominantes, RiC-R083
+    "fecha_acumulacion": ("hasAccumulationDate", ("Record", "RecordSet", "RecordPart"), "Date"),  # cuándo se reunió
     "equivalente": ("isFunctionallyEquivalentTo", ("Instantiation",), "Instantiation"),  # migración (RiC-R035)
     "instanciacion_asociada": ("isInstantiationAssociatedWithInstantiation", ("Instantiation",), "Instantiation"),  # R034
     "original_de": ("isOriginalOf", REGISTROS, "Record"),  # RiC-R010, desde has_copy
@@ -607,19 +608,19 @@ SIN_PROPIEDAD = {
               "cada fondo sí se exporta (rico:hasOrHadHolder).",
     "fuentes": "RiC-O solo ofrece fuente para relaciones reificadas (isEvidencedBy); se conserva interno.",
     "origen_confianza": "Procedencia del dato (motor o persona): nunca sale del sistema.",
-    # ISAD-G sin propiedad literal en RiC-O 1.1 (hallazgo DES-07; motivo de cada uno en isadg.SIN_PROPIEDAD_RICO).
-    "forma_ingreso": "ISAD-G 3.2.4: RiC-O lo expresa con la custodia anterior (hasOrHadHolder); el texto queda en "
-                     "la ficha ISAD(G).",
-    "valoracion": "ISAD-G 3.3.2: se exporta la regla de retención (rico:Rule) que regula la serie; el texto queda "
-                  "en la ficha.",
-    "escrituras": "ISAD-G 3.4.3: RiC-O 1.1 no tiene propiedad para la escritura (ISO 15924).",
-    "instrumentos_descripcion": "ISAD-G 3.4.5: sin propiedad literal en RiC-O.",
-    "localizacion_originales": "ISAD-G 3.5.1: el original registrado sale como instanciación; el texto no.",
-    "localizacion_copias": "ISAD-G 3.5.2: sin propiedad literal en RiC-O.",
-    "unidades_relacionadas": "ISAD-G 3.5.3: las unidades del sistema salen como relaciones; el texto no.",
-    "nota_publicaciones": "ISAD-G 3.5.4: sin propiedad literal en RiC-O.",
-    "nota_archivero": "ISAD-G 3.7.1: metadato de la descripción, no del documento.",
-    "reglas_descripcion": "ISAD-G 3.7.2: metadato de la descripción, no del documento.",
+    # Extensiones locales: textos sin propiedad literal en RiC-O 1.1 (no pasan al grafo).
+    "forma_ingreso": "Extensión local de RICORA: RiC-O lo expresa con la custodia anterior (hasOrHadHolder); el texto queda en "
+                     "el sistema.",
+    "valoracion": "Extensión local de RICORA: se exporta la regla de retención (rico:Rule) que regula la serie; el texto queda "
+                  "en el sistema.",
+    "escrituras": "Extensión local de RICORA: RiC-O 1.1 no tiene propiedad para la escritura (ISO 15924).",
+    "instrumentos_descripcion": "Extensión local de RICORA: sin propiedad literal en RiC-O.",
+    "localizacion_originales": "Extensión local de RICORA: el original registrado sale como instanciación; el texto no.",
+    "localizacion_copias": "Extensión local de RICORA: sin propiedad literal en RiC-O.",
+    "unidades_relacionadas": "Extensión local de RICORA: las unidades del sistema salen como relaciones; el texto no.",
+    "nota_publicaciones": "Extensión local de RICORA: sin propiedad literal en RiC-O.",
+    "nota_archivero": "Extensión local de RICORA: metadato de la descripción, no del documento.",
+    "reglas_descripcion": "Extensión local de RICORA: metadato de la descripción, no del documento.",
 }
 
 # --- Columna «propiedad RiC-O» de auditoría ----------------------------------

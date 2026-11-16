@@ -256,7 +256,6 @@ class AtributoConFuente(BaseModel):
     confianza: float | None
     cardinalidad: str
     rico: str | None
-    isad: str | None
 
 
 class VocabularioBreve(BaseModel):
@@ -359,6 +358,7 @@ class DetalleDescripcionOut(BaseModel):
     nota_integridad: str | None = None
     tipos_contenido: list[str] = []
     fechas_predominantes: str | None = None
+    fecha_acumulacion: str | None = None
     origen_titulo: str | None
     origen_alcance: str | None
     confianza_alcance: float | None
@@ -383,38 +383,11 @@ class CustodiosOut(BaseModel):
     custodios: list[CustodioOut]
 
 
-# --- Ficha ISAD(G) ------------------------------------------------------------------------------
-
-
-class ElementoIsadg(BaseModel):
-    """Un elemento de la ISAD(G), con su valor, su fuente y su propiedad RiC-O."""
-    model_config = ConfigDict(extra="allow")
-
-    elemento: str
-    area: str
-    nombre: str
-    valor: str | None
-    fuente: str
-    rico: str | None  # algunos elementos no tienen propiedad en RiC-O 1.1
-    sin_propiedad: str | None
-
-
-class FichaIsadgOut(BaseModel):
-    """Ficha ISAD(G) completa: los 26 elementos y cuántos tienen dato."""
-    model_config = ConfigDict(extra="allow")
-
-    id: str
-    titulo: str
-    elementos: list[ElementoIsadg]
-    con_dato: int
-    total: int
-
-
 # --- Atributos y versiones (RF-RIC-001 y RF-RIC-002) ------------------------------------------------
 
 
 class AtributoCatalogo(BaseModel):
-    """Un atributo del catálogo: tipo, cardinalidad, ISAD(G), RiC-O y procedencia."""
+    """Un atributo del catálogo: tipo, cardinalidad, propiedad RiC-O y procedencia."""
     model_config = ConfigDict(extra="allow")
 
     clave: str
@@ -423,7 +396,6 @@ class AtributoCatalogo(BaseModel):
     cardinalidad: str
     minimo: int
     maximo: int
-    isad: str | None
     rico: str | None
     procedencia: str
 
@@ -535,6 +507,7 @@ class FichaPublicaOut(BaseModel):
     nota_integridad: str | None = None
     tipos_contenido: list[str] = []
     fechas_predominantes: str | None = None
+    fecha_acumulacion: str | None = None
     publicado_en: str | None
 
 
@@ -554,7 +527,6 @@ class GuiaAtributo(BaseModel):
 
     clave: str
     etiqueta: str
-    isad: str | None
     rico: str | None
     cardinalidad: str
     obligatorio: bool
@@ -583,3 +555,24 @@ class GuiaMetadatos(BaseModel):
 
     atributos: list[GuiaAtributo]
     entidades: list[GuiaEntidad]
+
+
+# --- Descripción por componentes RiC -----------------------------------------------------------
+
+
+class ComponenteRic(BaseModel):
+    """Un componente de la descripción RiC con su estado, lo que tiene y lo que falta."""
+    clave: str
+    nombre: str
+    ric: str
+    estado: str  # completo | parcial | por_completar
+    tiene: list[str]
+    falta: list[str]
+
+
+class ComponentesRicOut(BaseModel):
+    """Estado de la descripción por componentes RiC."""
+    id: str
+    componentes: list[ComponenteRic]
+    completos: int
+    total: int

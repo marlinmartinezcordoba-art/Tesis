@@ -109,7 +109,7 @@ CATALOGO: tuple[Fila, ...] = (
       "ric:physicalLocation · RiC-P35", "Obligatorio", "Incluir signatura topográfica, depósito, estantería",
       "RiC-A27 Physical Location (en RiC-O es atributo del Lugar, no de la instanciación)", (),
       "ubicacion_fisica + deposito, estante, entrepano; caja y carpeta en el FUID", "agn", "cubierto",
-      "intermedio", "Se guarda y sale en la ficha, el inventario y la ficha ISAD(G); no va al RDF porque RiC-O 1.1 "
+      "intermedio", "Se guarda y sale en la ficha y en el inventario; no va al RDF porque RiC-O 1.1 "
       "no tiene propiedad de dato para la ubicación de una instanciación.", False),
     F("AGN-INS-03", "Tabla 4", "Instanciación", "Extensión", "ric:extent · RiC-P32", "Obligatorio",
       "Unidades normalizadas (MB, GB, cajas, legajos)", "RiC-A23 Instantiation Extent",

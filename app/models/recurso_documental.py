@@ -143,3 +143,5 @@ class RecursoDocumental(Base):
     tipos_contenido = Column(ARRAY(String(40)), nullable=True)
     # Fechas predominantes de una agrupación (las de la mayoría de sus documentos; RiC-R083), en EDTF.
     fechas_predominantes_edtf = Column(String(200), nullable=True)
+    # Cuándo se reunió o acumuló el recurso (rico:hasAccumulationDate), distinta de su creación.
+    fecha_acumulacion_edtf = Column(String(200), nullable=True)

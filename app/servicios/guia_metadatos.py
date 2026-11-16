@@ -129,9 +129,9 @@ ATRIBUTOS: dict[str, Guia] = {
     "nota_archivero": Guia("Quién hizo la descripción, con qué fuentes.", "Da transparencia y responsabilidad sobre la "
                            "descripción.", "El sistema ya registra autor y fecha de cada versión.",
                            "Descripción revisada con el inventario de 1995."),
-    "reglas_descripcion": Guia("Las normas aplicadas al describir (ISAD(G), NTC 4095, RiC-CM).",
+    "reglas_descripcion": Guia("Las normas aplicadas al describir (RiC-CM, RiC-O, perfil del AGN).",
                                "Permite interpretar e intercambiar la descripción.", "Es metadato de la descripción.",
-                               "ISAD(G), RiC-CM 1.0"),
+                               "RiC-CM 1.0, RiC-O 1.1"),
     "datos_personales": Guia(
         "Si la unidad contiene datos personales, sensibles o de menores (Ley 1581 de 2012).",
         "Protege a las personas: lo que tiene datos sensibles no sale en la consulta pública sin control.",
@@ -197,7 +197,7 @@ def atributos() -> list[dict]:
     salida = []
     for a in catalogo.ATRIBUTOS:
         g = ATRIBUTOS[a.clave]
-        salida.append({"clave": a.clave, "etiqueta": a.etiqueta, "isad": a.isad, "rico": a.rico,
+        salida.append({"clave": a.clave, "etiqueta": a.etiqueta, "rico": a.rico,
                        "cardinalidad": f"{a.minimo}..{'n' if a.maximo > 1 else a.maximo}",
                        "obligatorio": a.minimo > 0, "que_es": g.que_es, "por_que": g.por_que,
                        "se_relaciona": g.se_relaciona, "ejemplo": g.ejemplo, "agn": agn.get(a.clave, [])})
