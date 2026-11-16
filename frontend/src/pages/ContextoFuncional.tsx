@@ -7,6 +7,7 @@ import { ErrorAPI, pedir, puede } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Breve { id: string; nombre: string; clase: string }
 interface Docs { total: number; ejemplos: { id: string; titulo: string; nivel: string }[] }
@@ -74,9 +75,9 @@ export function ContextoFuncional() {
   return (
     <>
       <h1>Contexto funcional</h1>
-      <p className="sub">Por qué existen los documentos: las funciones del fondo (en RiC-O, tipos de actividad), las
+      <ParaQueSirve><p>Por qué existen los documentos: las funciones del fondo (en RiC-O, tipos de actividad), las
         actividades que las desarrollan, quién las ejerce, los mandatos que las regulan y los documentos que las
-        documentan. Las funciones nacen de la TRD; las actividades, de la descripción.</p>
+        documentan. Las funciones nacen de la TRD; las actividades, de la descripción.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!datos && !error && <div className="cargando">Cargando…</div>}
       {datos && (

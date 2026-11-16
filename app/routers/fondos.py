@@ -305,10 +305,13 @@ def declarar_tca(fondo_id: uuid.UUID, serie_id: uuid.UUID, datos: CondicionAcces
 @router.get("/{fondo_id}/calidad", response_model=rc.CalidadFondo,
             summary="Validación semántica y calidad: duplicados, identificadores, fechas, incompletas, evidencia, OWL, "
                     "SHACL e instrumentos")
-def calidad(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):
+def calidad(fondo_id: uuid.UUID, grafo: bool = False, _: Actor = Depends(acceso_modulo("descripcion")),
+            db: Session = Depends(get_db)):
+    """Las revisiones rápidas siempre; la validación del grafo completo (OWL y SHACL), que en un fondo
+    grande tarda minutos, solo cuando se pide (`grafo=true`)."""
     from app.servicios import calidad as servicio
 
-    return servicio.revisar(db, fondo_o_404(db, fondo_id))
+    return servicio.revisar(db, fondo_o_404(db, fondo_id), con_grafo=grafo) | {"con_grafo": grafo}
 
 
 @router.get("/{fondo_id}/contexto-funcional", response_model=rc.ContextoFuncional,

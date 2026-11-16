@@ -173,10 +173,10 @@ def ficha(db: Session, recurso: RecursoDocumental) -> list[dict]:
     from app.servicios import lotes, retencion
 
     productores = _agentes(db, recurso, "has_creator")
-    instancias = instancias(db, recurso)
-    digitales = sorted({i.formato_nombre or i.formato_puid for i in instancias
+    propias = instancias(db, recurso)
+    digitales = sorted({i.formato_nombre or i.formato_puid for i in propias
                         if i.estado != "registro_fisico" and (i.formato_nombre or i.formato_puid)})
-    fisicos = [i for i in instancias if i.estado == "registro_fisico"]
+    fisicos = [i for i in propias if i.estado == "registro_fisico"]
     volumen = ", ".join(x for x in (f"{recurso.folios} folios" if recurso.folios is not None else None,
                                     f"caja {recurso.caja}" if recurso.caja else None,
                                     f"carpeta {recurso.carpeta}" if recurso.carpeta else None,

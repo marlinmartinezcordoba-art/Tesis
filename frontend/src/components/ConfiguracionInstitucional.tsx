@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { pedir } from "@/lib/api";
 import { diaCivil as fecha } from "@/lib/formato";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Version {
   id: string; numero: number; nombre: string; acto_aprobacion: string | null; fecha_aprobacion: string | null;
@@ -51,10 +52,10 @@ export function ConfiguracionInstitucional({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Configuración archivística institucional</h1>
-      <p className="sub">Los instrumentos de la entidad alimentan el contexto RiC del fondo: las series pasan a ser
+      <ParaQueSirve><p>Los instrumentos de la entidad alimentan el contexto RiC del fondo: las series pasan a ser
         conjuntos documentales (Record Set), la retención y la valoración, reglas (rico:Rule) que los regulan, las
         funciones, tipos de actividad, y los términos, vocabularios controlados. No gobiernan la descripción: la
-        alimentan.</p>
+        alimentan.</p></ParaQueSirve>
       <div className="config-rejilla">
         {INSTRUMENTOS.map((i) => {
           const e = ESTADO[i.estado];

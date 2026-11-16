@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ErrorAPI, pedir, puede } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Plan {
   id: string; tipo: string; sigla: string; nombre: string; acto: string | null; vigencia: string | null;
@@ -72,10 +73,10 @@ export function Gobierno() {
   return (
     <>
       <h1>Gobierno archivístico</h1>
-      <p className="sub">El Programa de Gestión Documental (PGD) y el Plan Institucional de Archivos (PINAR) como contexto
+      <ParaQueSirve><p>El Programa de Gestión Documental (PGD) y el Plan Institucional de Archivos (PINAR) como contexto
         de la gestión. En RiC, un plan adoptado por acto administrativo es un mandato (rico:Mandate), y sus programas,
         proyectos y acciones son actividades que ese mandato regula. Los documentos que documentan una de ellas aparecen
-        bajo ella.</p>
+        bajo ella.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {datos?.faltan.length ? <p className="pista">Falta registrar: {datos.faltan.join(" y ")}.</p> : null}
       {usuario?.es_administrador && (

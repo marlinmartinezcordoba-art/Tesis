@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Dep {
   id: string; nivel: string; codigo: string | null; titulo: string; superior_en_cuadro: string | null; provisional: boolean;
@@ -62,9 +63,9 @@ export function EstructuraOrganica({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Estructura orgánica</h1>
-      <p className="sub">Cada dependencia es un agente (rico:CorporateBody) que produce su agrupación del cuadro
+      <ParaQueSirve><p>Cada dependencia es un agente (rico:CorporateBody) que produce su agrupación del cuadro
         (rico:hasCreator) y está subordinado a la dependencia superior (rico:hasOrHadSubordinate), con su vigencia. Si una
-        dependencia cambió de nombre, no se renombra: se registra en su ficha el nombre nuevo con su periodo o su sucesora.</p>
+        dependencia cambió de nombre, no se renombra: se registra en su ficha el nombre nuevo con su periodo o su sucesora.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!datos && !error && <div className="cargando">Cargando…</div>}
       {datos && t && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useSesion } from "@/lib/sesion";
 import { Ventana } from "@/components/Ventana";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 // Disposición final: el calendario de retención (qué cumplió y qué manda la TRD) y el
 // registro de lo ejecutado como rico:Activity. Nada se borra: lo eliminado sigue descrito.
@@ -57,11 +58,17 @@ export function DisposicionFinal({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Disposición final</h1>
-      <p className="sub">
-        El calendario de retención del fondo: cuándo cumple cada expediente su tiempo en archivo de gestión y central, y
-        qué manda la TRD. Lo que se ejecuta queda registrado con su acta como una actividad de RiC (rico:Activity), con
-        quién la ejecutó, la regla que la mandó y lo que afectó. Nada se borra: un expediente eliminado sigue descrito.
-      </p>
+      <ParaQueSirve>
+        <p>Aquí se aplica la <strong>disposición final</strong> que manda la TRD (o la TVD) cuando un expediente cumple sus años
+          en archivo de gestión y en archivo central: conservarlo, eliminarlo, seleccionarlo o reproducirlo en otro medio.</p>
+        <p><strong>Cumplieron su retención:</strong> los expedientes que ya pueden disponerse. <strong>En retención:</strong> los
+          que aún no. <strong>Ya dispuestos:</strong> los que tienen acta registrada.</p>
+        <p><strong>Cómo se usa:</strong> 1) entre en «Cumplieron su retención»; 2) marque los expedientes con la misma
+          disposición; 3) pulse «Registrar la disposición» y escriba el acta (número, fecha y quién la aprobó).</p>
+        <p>El calendario se calcula con la fecha final de cada expediente y la regla de su serie: si una pestaña aparece en
+          cero, es porque aún no hay expedientes con fechas en esas series. Nada se borra: un expediente eliminado sigue
+          descrito, con el acta que lo eliminó (en RiC, una actividad de disposición).</p>
+      </ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {aviso && <div className="aviso bien" role="status">{aviso}</div>}
       <div className="acciones" role="group" aria-label="Filtrar">

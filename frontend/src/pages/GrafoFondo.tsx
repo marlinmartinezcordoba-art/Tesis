@@ -138,10 +138,10 @@ function PanelFiltros({ opciones, filtros, cambiar, cerrar }: {
 
 // --- Panel de detalle de la entidad seleccionada --------------------------------------------------
 
-function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar, expandida, alExpandir }: {
+function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar, alCambiar, expandida, alExpandir, verEstructura }: {
   clave: string; fondoId: string; cerrar: () => void; recentrar: (clave: string) => void;
   abrirFicha: (id: string) => void; exportar: (formato: "turtle" | "jsonld") => void; alCambiar?: () => void;
-  expandida?: boolean; alExpandir?: () => void;
+  expandida?: boolean; alExpandir?: () => void; verEstructura?: (clave: string) => void;
 }) {
   const { usuario } = useSesion();
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -317,6 +317,10 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar,
             {porque && <p className="pista">{porque}</p>}
             <div className="dos-botones">
               <button type="button" className="boton chico" onClick={() => recentrar(clave)}>Ver en contexto</button>
+              {verEstructura && ficha && ["seccion", "subseccion", "serie", "subserie", "expediente"].includes(ficha.clase) && (
+                <button type="button" className="boton chico primario" onClick={() => verEstructura(clave)}
+                        title="Muestra sus series, expedientes y documentos, con sus reglas de retención">Ver su estructura</button>
+              )}
               {alExpandir && (
                 <button type="button" className="boton chico" onClick={alExpandir} aria-pressed={!!expandida}
                         title="Suma al dibujo las conexiones directas de esta entidad, sin perder lo que ya se ve">
@@ -349,8 +353,10 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   // Desde el fondo, el cuadro completo (secciones, series, subseries); desde otra entidad, lo directo.
   // Desde el fondo: la estructura según la TRD (0); desde otra entidad, lo directo.
   const esFondo = raizClave === `recurso_documental:${fondo.id}`;
+  // La estructura se ve desde el fondo (sus dependencias) o desde una dependencia o serie (lo que incluye).
+  const esRecurso = raizClave.startsWith("recurso_documental:");
   const [saltos, setSaltos] = useState(esFondo ? 0 : 1);
-  useEffect(() => { if (!esFondo && saltos === 0) setSaltos(1); }, [esFondo, saltos]);
+  useEffect(() => { if (!esRecurso && saltos === 0) setSaltos(1); }, [esRecurso, saltos]);
   const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
@@ -394,7 +400,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     setError("");
     setCargando(true);
     const vivo = { si: true };
-    pedir<DatosGrafo>(saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}`
+    pedir<DatosGrafo>(saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}${esFondo ? "" : `&desde=${id}`}`
       : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
       .then((d) => vivo.si && setDatos(d))
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
@@ -501,7 +507,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           <span>Mostrar</span>
           <select className="entrada" value={saltos} onChange={(e) => setSaltos(Number(e.target.value))}
                   aria-label="Qué tan lejos mostrar las relaciones">
-            {esFondo && <option value={0}>Estructura según la TRD: dependencias, series, reglas y documentos</option>}
+            {esRecurso && <option value={0}>{esFondo ? "Estructura: las dependencias del fondo (abra una para ver sus series)"
+              : "Estructura: lo que incluye, con sus reglas de retención y documentos"}</option>}
             {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
           </select>
         </label>
@@ -527,11 +534,16 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
                          key={saltos === 0 ? "estructura" : "contexto"}
                          disposicionInicial={saltos === 0 ? "arbol" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
-            {!vacio && datos.nodos.length > 1 && datos.nodos.every((n) => n.tipo === "recurso_documental" && n.familia === "RecordSet") && (
+            {!vacio && saltos === 0 && esFondo && (
               <div className="aviso nota-grafo" role="note" data-fijo>
-                Solo se ve la estructura del cuadro de clasificación: este fondo todavía no tiene documentos descritos. Al
+                Estas son las dependencias del fondo. Elija una y pulse <strong>«Ver su estructura»</strong> para ver sus series,
+                sus reglas de retención y sus documentos; o pulse «Expandir conexiones» para sumar lo que se relaciona con ella.
+              </div>
+            )}
+            {!vacio && saltos !== 0 && datos.nodos.length > 1 && datos.nodos.every((n) => n.tipo === "recurso_documental" && n.familia === "RecordSet") && (
+              <div className="aviso nota-grafo" role="note" data-fijo>
+                Solo se ve la estructura del cuadro de clasificación: aquí todavía no hay documentos descritos. Al
                 publicar descripciones aparecen los documentos, sus productores, lugares y fechas.
-                {saltos === 1 && <> Para ver las series, elija «Hasta 3 niveles de relación» en «Mostrar».</>}
               </div>
             )}
             {vacio && (
@@ -553,6 +565,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
                           recentrar={(c) => centrar(c === `recurso_documental:${fondo.id}` ? "" : c)}
                           abrirFicha={abrirFicha} exportar={exportar} alCambiar={() => setRecarga((n) => n + 1)}
                           expandida={!!expansiones[seleccion]}
+                          verEstructura={(c) => { centrar(c); setSaltos(0); }}
                           alExpandir={seleccion === raizClave ? undefined : () => expandir(seleccion)} />
           )}
         </div>

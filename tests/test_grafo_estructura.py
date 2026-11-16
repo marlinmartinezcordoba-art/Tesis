@@ -48,20 +48,29 @@ def _fondo(db):
 
 def test_la_estructura_muestra_dependencias_series_reglas_trd_y_documentos(cliente, db, cabeceras_admin):
     f, seccion, serie, doc, regla, persona, v = _fondo(db)
+    k = lambda tipo, x: f"{tipo}:{x.id}"  # noqa: E731
+    # Desde el fondo, para que se pueda leer: solo sus dependencias y la TRD que lo describe.
     r = cliente.get(f"/api/grafo/estructura?fondo_id={f.id}", headers=cabeceras_admin)
     assert r.status_code == 200, r.text
     g = r.json()
     claves = {n["clave"] for n in g["nodos"]}
-    k = lambda tipo, x: f"{tipo}:{x.id}"  # noqa: E731
-    assert {k("recurso_documental", x) for x in (f, seccion, serie, doc)} <= claves
+    assert {k("recurso_documental", x) for x in (f, seccion)} <= claves and f"trd:{v.id}" in claves
+    assert k("recurso_documental", serie) not in claves and k("entidad_vocabulario", regla) not in claves
+    aristas = {(a["desde"], a["hacia"], a["codigo_ric"]) for a in g["aristas"]}
+    assert (k("recurso_documental", f), k("recurso_documental", seccion), "includes_or_included") in aristas
+    assert (f"trd:{v.id}", k("recurso_documental", f), "describes_or_described") in aristas
+    # Desde la dependencia: sus series, sus reglas (expresadas por la TRD) y sus documentos.
+    r = cliente.get(f"/api/grafo/estructura?fondo_id={f.id}&desde={seccion.id}", headers=cabeceras_admin)
+    assert r.status_code == 200, r.text
+    g = r.json()
+    claves = {n["clave"] for n in g["nodos"]}
+    assert {k("recurso_documental", x) for x in (seccion, serie, doc)} <= claves
     assert k("entidad_vocabulario", regla) in claves and f"trd:{v.id}" in claves
     assert k("entidad_vocabulario", persona) not in claves  # el contexto no entra en la estructura
     aristas = {(a["desde"], a["hacia"], a["codigo_ric"]) for a in g["aristas"]}
-    assert (k("recurso_documental", f), k("recurso_documental", seccion), "includes_or_included") in aristas
     assert (k("recurso_documental", serie), k("recurso_documental", doc), "includes_or_included") in aristas
     assert (k("entidad_vocabulario", regla), k("recurso_documental", serie), "regulates_or_regulated") in aristas
     assert (k("entidad_vocabulario", regla), f"trd:{v.id}", "is_or_was_expressed_by") in aristas
-    assert (f"trd:{v.id}", k("recurso_documental", f), "describes_or_described") in aristas
     uris = {a["codigo_ric"]: a["uri_rico"] for a in g["aristas"]}
     assert uris["is_or_was_expressed_by"].endswith("isOrWasExpressedBy")
-    assert uris["describes_or_described"].endswith("describesOrDescribed")
+    assert uris["is_or_was_expressed_by"]

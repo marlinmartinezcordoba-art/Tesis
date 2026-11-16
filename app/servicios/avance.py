@@ -149,7 +149,9 @@ def conocimiento(db: Session, fondo: RecursoDocumental, duplicados: int) -> dict
     f = fondo.id
     recursos = select(RecursoDocumental.id).where(RecursoDocumental.fondo_id == f)
     descritos = _contar(db, select(RecursoDocumental.id).where(
-        RecursoDocumental.fondo_id == f, RecursoDocumental.nivel != "fondo", RecursoDocumental.publicado_en.is_not(None)))
+        RecursoDocumental.fondo_id == f, RecursoDocumental.publicado_en.is_not(None),
+        # Lo descrito: expedientes, documentos y sus partes. Las secciones y series nacen de la TRD, no se describen.
+        RecursoDocumental.nivel.in_(("expediente", "unidad_documental", "parte_documental"))))
     del_fondo = (Relacion.estado == "vigente") & (Relacion.origen_id.in_(recursos) | Relacion.destino_id.in_(recursos))
     relaciones = _contar(db, select(Relacion.id).where(del_fondo))
     # Entidades de contexto citadas por los recursos del fondo, y las unidas a sus actividades (un salto).

@@ -64,7 +64,7 @@ def _intervalo(edtf: str | None):
     return (i.inicio, i.fin) if i.inicio and i.fin else None
 
 
-def revisar(db: Session, fondo: RecursoDocumental, *, con_grafo: bool = True) -> dict:
+def revisar(db: Session, fondo: RecursoDocumental, *, con_grafo: bool = False) -> dict:
     hallazgos: list[dict] = []
 
     def poner(tipo: str, afectado: dict | None, problema: str, regla: str, accion: str, enlace: str | None = None):

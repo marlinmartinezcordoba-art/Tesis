@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { diaCivil as fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Condicion {
   acceso: string; acceso_nombre: string; fundamento: string; reproduccion: string; vigente_hasta: string | null;
@@ -79,9 +80,9 @@ export function TablaControlAcceso({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Tabla de Control de Acceso (TCA)</h1>
-      <p className="sub">La condición de acceso de cada serie y subserie. En RiC es una regla que rige la agrupación y se
+      <ParaQueSirve><p>La condición de acceso de cada serie y subserie. En RiC es una regla que rige la agrupación y se
         hereda a sus expedientes y documentos: el catálogo, el buscador, el grafo y los datos abiertos la aplican al rol de
-        consulta. Cada cambio reemplaza a la condición anterior, que queda en el historial.</p>
+        consulta. Cada cambio reemplaza a la condición anterior, que queda en el historial.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!tabla && !error && <div className="cargando">Cargando…</div>}
       {tabla && (

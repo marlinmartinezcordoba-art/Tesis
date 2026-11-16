@@ -74,9 +74,10 @@ def opciones(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: 
 @router.get("/estructura", responses={200: {"model": rg.Subgrafo, "description": "Estructura del fondo según la TRD"}},
             summary="El fondo, sus dependencias, series y subseries, la regla de retención de cada una, el documento "
                     "de la TRD y los documentos, con las relaciones de RiC-O")
-def estructura(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+def estructura(fondo_id: uuid.UUID, desde: uuid.UUID | None = None, actor: Actor = Depends(lectura_catalogo),
+               db: Session = Depends(get_db)):
     try:
-        return grafo.estructura(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
+        return grafo.estructura(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor), desde=desde)
     except ErrorInstrumento as exc:
         raise _error(exc) from exc
 

@@ -401,17 +401,25 @@ MAX_NODOS_ESTRUCTURA = 600
 
 
 def estructura(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False,
-               max_nodos: int = MAX_NODOS_ESTRUCTURA) -> dict:
+               max_nodos: int = MAX_NODOS_ESTRUCTURA, desde: uuid.UUID | None = None) -> dict:
     """La estructura del fondo como la pide RiC, de arriba abajo: el fondo y sus dependencias (secciones),
     las series y subseries del cuadro y, dentro, los expedientes y documentos (rico:includesOrIncluded,
     R024; la parte documental, rico:hasOrHadConstituent, R003); la regla de retención de cada serie
     (rico:Rule que rico:regulatesOrRegulated la serie, R063); y el documento de la TRD, que expresa esas
     reglas (rico:isOrWasExpressedBy, R064) y describe el fondo (rico:describesOrDescribed, R021).
-    Agentes, lugares y fechas no entran: esta vista muestra la estructura; el contexto está en la vista Red."""
+    Agentes, lugares y fechas no entran: esta vista muestra la estructura; el contexto está en la vista Red.
+
+    Se explora por partes para que se pueda leer: desde el fondo, solo sus dependencias (secciones y
+    subsecciones) y la TRD; desde una dependencia o una serie (`desde`), todo lo que incluye, con sus
+    reglas y sus documentos."""
     from app.models.trd import VersionTrd
 
     ctx = _Contexto(db, fondo, ver_restringidos)
-    raiz = f"recurso_documental:{fondo.id}"
+    if desde is not None and desde not in ctx.recursos:
+        raise ErrorInstrumento("Esa agrupación no está en el fondo o no es visible.", 404)
+    origen = desde or fondo.id
+    desde_fondo = origen == fondo.id
+    raiz = f"recurso_documental:{origen}"
     nodos: dict[str, dict] = {}
     aristas: list[dict] = []
     truncado = False
@@ -432,10 +440,12 @@ def estructura(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = F
     #    después los documentos, para que un fondo grande no se quede sin series por el tope).
     orden = {"fondo": 0, "coleccion": 1, "seccion": 1, "subseccion": 2, "serie": 3, "subserie": 4, "expediente": 5,
              "unidad_documental": 6, "parte_documental": 7}
-    poner(raiz, ctx.nodo("recurso_documental", fondo.id), fondo.id)
+    poner(raiz, ctx.nodo("recurso_documental", origen), origen)
     for r in sorted(ctx.recursos.values(), key=lambda x: (orden.get(x.nivel, 9), x.codigo_referencia or "", x.titulo or "")):
-        if r.id == fondo.id or r.incluido_en_id not in ctx.recursos:
+        if r.id == origen or r.incluido_en_id not in ctx.recursos:
             continue
+        if desde_fondo and orden.get(r.nivel, 9) > orden["subseccion"]:
+            continue  # desde el fondo, solo las dependencias: las series se ven al abrir cada una
         padre, hijo = f"recurso_documental:{r.incluido_en_id}", f"recurso_documental:{r.id}"
         if padre in nodos and poner(hijo, ctx.nodo("recurso_documental", r.id), r.id):
             aristas.append(_arista(padre, hijo, _jerarquia(r)))
@@ -454,14 +464,15 @@ def estructura(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = F
     versiones = list(db.scalars(select(VersionTrd).where(VersionTrd.fondo_id == fondo.id,
                                                           VersionTrd.estado.in_(("vigente", "historica")))
                                 .order_by(VersionTrd.vigente_desde.nulls_first(), VersionTrd.numero)))
-    for v in versiones:
+    for v in versiones if desde_fondo or vistas_reglas else []:
         clave = f"trd:{v.id}"
         etiqueta = f"{'TVD' if v.instrumento == 'tvd' else 'TRD'} · {v.nombre}"
         poner(clave, {"tipo": "trd", "clase": "unidad_documental", "familia": "Record", "etiqueta": etiqueta,
                       "subtitulo": v.acto_aprobacion or "Tabla de retención documental", "estado": v.estado,
                       "fecha_inicio": v.vigente_desde, "fecha_fin": v.vigente_hasta, "codigo": None,
                       "sin_nombre": False}, v.id)
-        aristas.append(_arista(clave, raiz, "describes_or_described"))
+        if desde_fondo:  # la TRD describe el fondo; desde una dependencia, solo expresa sus reglas
+            aristas.append(_arista(clave, raiz, "describes_or_described"))
 
     def version_de(vigencia: str | None):
         if len(versiones) == 1 or not vigencia:

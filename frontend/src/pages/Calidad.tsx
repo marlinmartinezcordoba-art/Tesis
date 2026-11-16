@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface Afectado { tipo: string; id: string; titulo: string; nivel: string; enlace: string }
 interface Hallazgo {
@@ -13,6 +14,7 @@ interface Hallazgo {
 interface Calidad {
   resumen: { tipo: string; nombre: string; gravedad: string; total: number }[];
   errores: number; avisos: number; hallazgos: Hallazgo[]; descripciones_revisadas: number; relaciones_revisadas: number;
+  con_grafo?: boolean;
 }
 
 export function Calidad() {
@@ -22,15 +24,15 @@ export function Calidad() {
   const [tipo, setTipo] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
 
-  function revisar() {
+  function revisar(grafo = false) {
     if (!fondo) return;
     setCargando(true);
     setError("");
-    pedir<Calidad>(`/api/fondos/${fondo.id}/calidad`).then(setDatos)
+    pedir<Calidad>(`/api/fondos/${fondo.id}/calidad${grafo ? "?grafo=true" : ""}`).then(setDatos)
       .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo revisar la calidad."))
       .finally(() => setCargando(false));
   }
-  useEffect(revisar, [fondo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => revisar(), [fondo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!fondo) return <div className="aviso">Elija un fondo para revisar su calidad.</div>;
   const lista = (datos?.hallazgos || []).filter((h) => !tipo || h.tipo === tipo);
@@ -39,18 +41,23 @@ export function Calidad() {
     <>
       <div className="cabecera-nivel">
         <h1 style={{ margin: 0 }}>Calidad</h1>
-        <button type="button" className="boton chico" onClick={revisar} disabled={cargando}>
-          {cargando ? "Revisando…" : "Revisar de nuevo"}</button>
+        <div className="acciones">
+          <button type="button" className="boton chico" onClick={() => revisar()} disabled={cargando}>
+            {cargando ? "Revisando…" : "Revisar de nuevo"}</button>
+          <button type="button" className="boton chico" onClick={() => revisar(true)} disabled={cargando}
+                  title="Valida todo el grafo RiC-O del fondo contra la ontología y el perfil SHACL: en un fondo grande tarda varios minutos">
+            Validar también el grafo (RiC-O y SHACL)</button>
+        </div>
       </div>
-      <p className="sub">Validación semántica del fondo: entidades duplicadas, identificadores repetidos, fechas
+      <ParaQueSirve><p>Validación semántica del fondo: entidades duplicadas, identificadores repetidos, fechas
         contradictorias, descripciones incompletas, relaciones sin evidencia, relaciones y propiedades fuera de RiC-O,
-        el perfil SHACL y la coherencia entre el CCD y la TRD vigente.</p>
+        el perfil SHACL y la coherencia entre el CCD y la TRD vigente.</p></ParaQueSirve>
       {error && <div className="aviso error" role="alert">{error}</div>}
       {!datos && !error && <div className="cargando">Revisando…</div>}
       {datos && (
         <>
           <p className="meta">{datos.descripciones_revisadas} descripción(es) y {datos.relaciones_revisadas} relación(es)
-            revisadas · <span className="insignia error">{datos.errores} error(es)</span>{" "}
+            revisadas{datos.con_grafo ? " · con el grafo completo (RiC-O y SHACL)" : " · sin el grafo completo (pulse «Validar también el grafo»)"} · <span className="insignia error">{datos.errores} error(es)</span>{" "}
             <span className="insignia alerta">{datos.avisos} aviso(s)</span></p>
           <div className="calidad-resumen" role="group" aria-label="Filtrar por tipo de hallazgo">
             <button type="button" className={`calidad-chip${!tipo ? " activo" : ""}`} onClick={() => setTipo(null)}>

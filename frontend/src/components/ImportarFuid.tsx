@@ -3,6 +3,7 @@
 // se entendió; después se crea, todo o nada.
 import { useState } from "react";
 import { ErrorAPI, subir } from "@/lib/api";
+import { ParaQueSirve } from "@/components/ParaQueSirve";
 
 interface FilaFuid {
   fila: number; codigo_serie: string; serie: string | null; codigo: string | null; titulo: string;
@@ -37,9 +38,9 @@ export function ImportarFuid({ fondoId }: { fondoId: string }) {
   return (
     <>
       <h1>Importar un inventario (FUID)</h1>
-      <p className="sub">Para los inventarios ya hechos. Cada fila del FUID pasa a ser un expediente (rico:RecordSet) dentro de
+      <ParaQueSirve><p>Para los inventarios ya hechos. Cada fila del FUID pasa a ser un expediente (rico:RecordSet) dentro de
         la serie o subserie del cuadro cuyo código trae, con sus fechas extremas, su unidad de conservación, sus folios, su
-        soporte y su frecuencia de consulta. Una fila cuyo código no esté en el cuadro no se crea.</p>
+        soporte y su frecuencia de consulta. Una fila cuyo código no esté en el cuadro no se crea.</p></ParaQueSirve>
       <div className="tarjeta" style={{ padding: 14 }}>
         <input type="file" accept=".xlsx,.csv,.pdf,.docx" aria-label="Archivo del FUID"
                onChange={(e) => { setArchivo(e.target.files?.[0] || null); setPrevia(null); setResultado(null); }} />
