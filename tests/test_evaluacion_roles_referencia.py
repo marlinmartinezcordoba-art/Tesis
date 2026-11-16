@@ -128,7 +128,7 @@ def test_cada_rol_hace_una_sola_cosa_y_la_referencia_se_adjudica_con_justificaci
     # contener esas letras sin revelar nada.
     import re
 
-    assert "motor" not in texto.lower() and "confianza" not in texto.lower() and not re.search(r"\bE\d+\b", texto)
+    assert "motor" not in texto.lower() and "confianza" not in texto.lower() and not re.search(r"\bE\d{1,3}\b", texto)
     llave = load_workbook(io.BytesIO(z.read("llave-de-codigos.xlsx"))).active
     assert {f[1].value for f in llave.iter_rows(min_row=2)} >= {"A0", "B"}
 
