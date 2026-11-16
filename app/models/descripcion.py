@@ -158,6 +158,9 @@ class EntidadVocabulario(_Procedencia, Base):
     # ISDIAH (institución que custodia fondos): contacto, acceso y servicios, que ISAAR no
     # tiene. Solo en una entidad corporativa; claves en autoridad.CAMPOS_ISDIAH.
     isdiah = Column(JSONB, nullable=True)
+    # Documento de soporte de un mandato (el PGD o el PINAR adoptado): nombre, ruta en el almacenamiento,
+    # formato, tamaño y huella SHA-256. El archivo no se borra: uno nuevo lo reemplaza y queda en la auditoría.
+    soporte = Column(JSONB, nullable=True)
     # --- Lugar ampliado (RiC-A11 coordenadas; rico:PlaceType) ---
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)

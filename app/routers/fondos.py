@@ -220,7 +220,7 @@ def gobierno(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Sess
 class PlanIn(BaseModel):
     tipo: str = Field(max_length=10)
     vigencia: str = Field(max_length=60)
-    acto: str = Field(max_length=300)
+    acto: str | None = Field(default=None, max_length=300)
 
 
 class AccionPlanIn(BaseModel):
@@ -263,6 +263,59 @@ def agregar_accion(fondo_id: uuid.UUID, plan_id: uuid.UUID, datos: AccionPlanIn,
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     db.commit()
     return servicio.listar(db, fondo)
+
+
+def _plan_o_404(db: Session, fondo, plan_id: uuid.UUID):
+    from app.models.descripcion import EntidadVocabulario
+
+    plan = db.get(EntidadVocabulario, plan_id)
+    if plan is None or plan.fondo_id != fondo.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El plan no existe en este fondo.")
+    return plan
+
+
+@router.post("/{fondo_id}/gobierno/planes/{plan_id}/documento", response_model=rc.GobiernoArchivistico,
+             summary="Adjuntar el documento del plan (cualquier formato); reemplaza al anterior, que queda en la auditoría")
+async def adjuntar_documento_plan(fondo_id: uuid.UUID, plan_id: uuid.UUID, request: Request,
+                                  actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):
+    from app.routers.archivos import leer_archivo
+    from app.servicios import gobierno as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    plan = _plan_o_404(db, fondo, plan_id)
+    contenido, nombre, _ = await leer_archivo(request, servicio.LIMITE_SOPORTE, falta="Adjunte el documento del plan.",
+                                              nombre_por_defecto="plan", rechazar_si_excede=True)
+    try:
+        servicio.adjuntar(db, plan, contenido=contenido, nombre=nombre, usuario_id=actor.id)
+    except servicio.ErrorGobierno as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return servicio.listar(db, fondo)
+
+
+@router.get("/{fondo_id}/gobierno/planes/{plan_id}/documento",
+            responses={200: {"content": {"application/octet-stream": {}}, "description": "El documento del plan, tal como se adjuntó."}},
+            summary="Descargar el documento del plan (comprueba su huella)")
+def documento_plan(fondo_id: uuid.UUID, plan_id: uuid.UUID, _: Actor = Depends(lectura_catalogo),
+                   db: Session = Depends(get_db)):
+    import hashlib
+    from urllib.parse import quote
+
+    from fastapi import Response
+
+    from app.servicios import almacen
+
+    fondo = fondo_o_404(db, fondo_id)
+    plan = _plan_o_404(db, fondo, plan_id)
+    if not plan.soporte:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El plan no tiene documento adjunto.")
+    contenido = almacen.ruta_absoluta(plan.soporte["ruta"]).read_bytes()
+    if hashlib.sha256(contenido).hexdigest() != plan.soporte["huella"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="El documento no coincide con su huella: fue alterado.")
+    return Response(contenido, media_type=plan.soporte.get("formato") or "application/octet-stream",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(plan.soporte['nombre'])}",
+                             "X-Huella-SHA256": plan.soporte["huella"]})
 
 
 @router.get("/{fondo_id}/tca", response_model=rc.TablaControlAcceso,

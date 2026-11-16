@@ -198,7 +198,7 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
     <>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <p className="meta" style={{ marginTop: 0 }}>
-        El instrumento en el formato de la entidad (Excel, PDF con texto o escaneado, Word, CSV o un .zip): las columnas se reconocen por su nombre. Lo leído llena la matriz del borrador
+        El instrumento en el formato de la entidad (Excel, PDF (también escaneado), Word, OpenDocument, CSV, página web, RTF, imagen escaneada o un .zip): las columnas se reconocen por su nombre. Lo leído llena la matriz del borrador
         y el banco terminológico; nada se crea en el cuadro hasta que aplique la versión.
       </p>
       <div className="acciones">
@@ -206,7 +206,7 @@ function CargarArchivo({ version, alTerminar }: { version: VersionTrd; alTermina
                 onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>Descargar la plantilla Excel</button>
         <label className="boton chico primario">
           {ocupado ? "Leyendo…" : "Leer un archivo"}
-          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+          <input type="file" multiple hidden disabled={ocupado}
                  onChange={async (e) => {
                    const lista = Array.from(e.target.files || []); e.target.value = "";
                    if (!lista.length) return;
@@ -289,12 +289,11 @@ function ImportarInstrumento({ fondoId, instrumento, alTerminar }: { fondoId: st
   return (
     <>
       {error && <div className="aviso error" role="alert">{error}</div>}
-      <p className="meta" style={{ marginTop: 0 }}>Suba la {sigla} tal como la tiene la entidad: Excel, PDF (también escaneado),
-        Word, CSV o un .zip; uno o varios archivos a la vez. Nada entra al cuadro hasta que aplique la versión.</p>
+      <p className="meta" style={{ marginTop: 0 }}>Suba la {sigla} tal como la tiene la entidad: Excel, PDF (también escaneado), Word, OpenDocument, CSV, página web, RTF, imagen escaneada o un .zip; uno o varios archivos a la vez. Nada entra al cuadro hasta que aplique la versión.</p>
       <div className="acciones">
         <label className="boton chico primario">
           {ocupado && !vista ? "Leyendo…" : vista ? "Leer otros archivos" : `Elegir los archivos de la ${sigla}`}
-          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+          <input type="file" multiple hidden disabled={ocupado}
                  onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void leer(l); }} />
         </label>
         <button type="button" className="boton chico" onClick={() => descargar("/api/cuadro/plantilla").catch(() => undefined)}>

@@ -2,7 +2,7 @@
 // administrativo, y sus programas, proyectos y acciones como actividades que regulan.
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ErrorAPI, pedir, puede } from "@/lib/api";
+import { ErrorAPI, descargar, pedir, puede, subir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
 import { ParaQueSirve } from "@/components/ParaQueSirve";
@@ -10,8 +10,47 @@ import { ParaQueSirve } from "@/components/ParaQueSirve";
 interface Plan {
   id: string; tipo: string; sigla: string; nombre: string; acto: string | null; vigencia: string | null;
   vigencia_legible: string | null; acciones: { id: string; nombre: string; documentos: number }[];
+  documento: { nombre: string; tamano: number; huella: string; formato: string } | null;
 }
 interface Datos { planes: Plan[]; faltan: string[] }
+
+// El documento del plan (el PGD o el PINAR tal como se aprobó), en cualquier formato, con su huella.
+function DocumentoPlan({ fondoId, plan, puedeAdjuntar, alGuardar }: {
+  fondoId: string; plan: Plan; puedeAdjuntar: boolean; alGuardar: (d: Datos) => void;
+}) {
+  const [error, setError] = useState("");
+  const [subiendo, setSubiendo] = useState(false);
+  const url = `/api/fondos/${fondoId}/gobierno/planes/${plan.id}/documento`;
+  async function adjuntar(archivo: File | undefined) {
+    if (!archivo) return;
+    setError("");
+    setSubiendo(true);
+    try {
+      const datos = new FormData();
+      datos.append("archivo", archivo, archivo.name);
+      alGuardar(await subir<Datos>(url, datos, () => undefined));
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo adjuntar.");
+    } finally {
+      setSubiendo(false);
+    }
+  }
+  return (
+    <p className="meta" style={{ marginTop: 0 }}>
+      {plan.documento ? <>Documento: <button type="button" className="enlace" onClick={() => descargar(url).catch(() => undefined)}>
+        {plan.documento.nombre}</button> · {Math.max(1, Math.round(plan.documento.tamano / 1024))} KB
+        · <span title={`SHA-256 ${plan.documento.huella}`}>huella {plan.documento.huella.slice(0, 12)}…</span></>
+        : "Sin documento adjunto."}
+      {puedeAdjuntar && (
+        <label className="boton chico" style={{ marginLeft: 8, cursor: "pointer" }}>
+          {subiendo ? "Adjuntando…" : plan.documento ? "Reemplazar documento" : "Adjuntar documento"}
+          <input type="file" hidden disabled={subiendo} onChange={(e) => { adjuntar(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+      )}
+      {error && <span className="aviso error" role="alert" style={{ marginLeft: 8 }}>{error}</span>}
+    </p>
+  );
+}
 
 function NuevaAccion({ fondoId, plan, alGuardar }: { fondoId: string; plan: Plan; alGuardar: (d: Datos) => void }) {
   const [tipo, setTipo] = useState("programa");
@@ -49,6 +88,7 @@ export function Gobierno() {
   const [tipo, setTipo] = useState("pgd");
   const [vigencia, setVigencia] = useState("");
   const [acto, setActo] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
 
   useEffect(() => {
     if (!fondo) return;
@@ -61,9 +101,19 @@ export function Gobierno() {
     if (!fondo) return;
     setError("");
     try {
-      setDatos(await pedir<Datos>(`/api/fondos/${fondo.id}/gobierno/planes`, { method: "POST", body: JSON.stringify({ tipo, vigencia, acto }) }));
+      const antes = new Set((datos?.planes || []).map((p) => p.id));
+      let nuevos = await pedir<Datos>(`/api/fondos/${fondo.id}/gobierno/planes`,
+        { method: "POST", body: JSON.stringify({ tipo, vigencia, acto: acto.trim() || null }) });
+      const creado = nuevos.planes.find((p) => !antes.has(p.id));
+      if (archivo && creado) {
+        const f = new FormData();
+        f.append("archivo", archivo, archivo.name);
+        nuevos = await subir<Datos>(`/api/fondos/${fondo.id}/gobierno/planes/${creado.id}/documento`, f, () => undefined);
+      }
+      setDatos(nuevos);
       setVigencia("");
       setActo("");
+      setArchivo(null);
     } catch (err) {
       setError(err instanceof ErrorAPI ? err.message : "No se pudo registrar.");
     }
@@ -85,11 +135,14 @@ export function Gobierno() {
             <select id="g-tipo" className="selector" value={tipo} onChange={(e) => setTipo(e.target.value)}>
               <option value="pgd">PGD · Programa de Gestión Documental</option><option value="pinar">PINAR · Plan Institucional de Archivos</option>
             </select></div>
-          <div className="campo"><label htmlFor="g-vig">Vigencia <span className="meta">(EDTF, p. ej. 2024/2027)</span></label>
-            <input id="g-vig" className="entrada" required value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></div>
-          <div className="campo"><label htmlFor="g-acto">Acto que lo adopta</label>
-            <input id="g-acto" className="entrada" required minLength={5} value={acto} onChange={(e) => setActo(e.target.value)}
+          <div className="campo"><label htmlFor="g-vig">Vigencia <span className="meta">(p. ej. 2025-2028)</span></label>
+            <input id="g-vig" className="entrada" required value={vigencia} onChange={(e) => setVigencia(e.target.value)}
+                   placeholder="2025-2028" /></div>
+          <div className="campo"><label htmlFor="g-acto">Acto que lo adopta <span className="meta">(opcional)</span></label>
+            <input id="g-acto" className="entrada" minLength={5} value={acto} onChange={(e) => setActo(e.target.value)}
                    placeholder="Resolución 123 de 2024" /></div>
+          <div className="campo"><label htmlFor="g-doc">Documento del plan <span className="meta">(opcional, cualquier formato)</span></label>
+            <input id="g-doc" type="file" onChange={(e) => setArchivo(e.target.files?.[0] || null)} /></div>
           <div className="acciones"><button type="submit" className="boton primario chico">Registrar plan</button></div>
         </form>
       )}
@@ -101,7 +154,8 @@ export function Gobierno() {
             <span className="meta">{p.vigencia_legible || p.vigencia}</span>
           </div>
           <div className="tarjeta-cuerpo">
-            <p className="meta" style={{ marginTop: 0 }}>{p.acto} <code className="rico">rico:Mandate</code>
+            <DocumentoPlan fondoId={fondo.id} plan={p} puedeAdjuntar={!!usuario?.es_administrador} alGuardar={setDatos} />
+            <p className="meta" style={{ marginTop: 0 }}>{p.acto || "Sin acto administrativo registrado."} <code className="rico">rico:Mandate</code>
               {puede(usuario, "vocabularios") && <> · <Link to={`/vocabularios/${p.id}`}>Abrir su ficha</Link></>}</p>
             {p.acciones.length === 0 ? <p className="pista">Sin programas, proyectos ni acciones todavía.</p> : (
               <ul className="cf-docs">

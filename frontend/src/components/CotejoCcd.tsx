@@ -111,7 +111,7 @@ export function CotejoCcd({ versionId }: { versionId: string }) {
         {c && <ResultadoCotejo c={c} />}
         <div className="acciones">
           <label className="boton chico">{ocupado ? "Cotejando…" : c ? "Cotejar con otro CCD" : "Subir el CCD"}
-            <input type="file" accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" multiple hidden disabled={ocupado}
+            <input type="file" multiple hidden disabled={ocupado}
                    onChange={(e) => void unoOVarios(e.target.files, "CCD.zip").then((f) => f && cotejar(f))} /></label>
           {c && <button type="button" className="boton chico" disabled={ocupado} onClick={repetir}>Volver a cotejar</button>}
         </div>

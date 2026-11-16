@@ -88,6 +88,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     # Vocabularios
     "fusion_vocabulario": ("Fusionó entidades del vocabulario", "Entidades del vocabulario"),
     "sugerencia_fusion_descartada": ("Descartó una sugerencia de fusión", "Entidades del vocabulario"),
+    "plan_documento_adjuntado": ("Adjuntó el documento de un PGD o un PINAR", "Gobierno archivístico"),
     "identicas_fusionadas": ("Fusionó entidades idénticas", "Entidades del vocabulario"),
     "agentes_relacionados": ("Relacionó dos agentes", "Entidades del vocabulario"),
     "entidad_enriquecida": ("Enriqueció una ficha de autoridad", "Entidades del vocabulario"),

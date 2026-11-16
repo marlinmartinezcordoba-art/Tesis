@@ -18,6 +18,7 @@ import { useVista } from "@/components/Marco";
 import { EstadoVacio } from "@/components/EstadoVacio";
 import { BotonPrevisualizar } from "@/components/VisorDocumento";
 import { NivelRiC } from "@/components/NivelRiC";
+import { esNombreProvisional } from "@/components/Grafo";
 import { AprobarInstrumento, ListaAprobados } from "@/components/InstrumentosAprobados";
 import { AdopcionRic } from "@/components/AdopcionRic";
 
@@ -251,7 +252,11 @@ function Catalogo({ nivel, ir, abrir }: { nivel: NivelCatalogo; ir: (id: string 
             <button type="button" key={h.id} className="fila fila-enlace fila-boton" onClick={() => (entra ? ir(h.id) : abrir(h.id))}>
               <span className="insignia acento">{NIVEL_NOMBRE[h.nivel]}</span> <NivelRiC nivel={h.nivel} />
               <div className="fila-principal">
-                <div className="nombre">{h.titulo}</div>
+                <div className="nombre">{h.titulo}
+                  {esNombreProvisional(h.titulo) && (
+                    <span className="insignia alerta" style={{ marginLeft: 6 }}
+                          title="La TRD trajo el código de esta dependencia o serie sin su nombre, y RICORA no lo inventa. Escríbalo en Instrumentos › Estructura orgánica.">
+                      Falta el nombre</span>)}</div>
                 <div className="meta">
                   {[h.codigo_referencia, h.fechas_extremas,
                     entra && `${h.unidades_documentales} unidad(es) documental(es)`].filter(Boolean).join(" · ") || "Sin fecha"}

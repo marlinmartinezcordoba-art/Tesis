@@ -248,6 +248,10 @@ def obtener_o_crear(db: Session, *, fondo_id: uuid.UUID, clase: str, nombre: str
     return e, True
 
 
+# Una regla de retención es la de su serie («TRD v2 2103.31.03 …» no es la de 2101.31.03 aunque el nombre
+# se parezca): no se sugiere fusionarlas.
+SIN_FUSION = ("regla",)
+
 _NUMEROS = re.compile(r"\d+")
 
 
@@ -259,7 +263,7 @@ def numeros_distintos(a: str, b: str) -> bool:
 
 
 def depurar_sugerencias(db: Session, fondo_id: uuid.UUID | None = None) -> int:
-    """Marca obsoletas (no borra) las sugerencias pendientes entre entidades cuyos números difieren."""
+    """Marca obsoletas (no borra) las sugerencias pendientes entre reglas o entre entidades cuyos números difieren."""
     from sqlalchemy.orm import aliased
 
     from app.models.descripcion import SugerenciaFusion
@@ -267,12 +271,13 @@ def depurar_sugerencias(db: Session, fondo_id: uuid.UUID | None = None) -> int:
     a, b = aliased(EntidadVocabulario), aliased(EntidadVocabulario)
     consulta = (select(SugerenciaFusion, a.nombre_normalizado, b.nombre_normalizado)
                 .join(a, a.id == SugerenciaFusion.entidad_a_id).join(b, b.id == SugerenciaFusion.entidad_b_id)
-                .where(SugerenciaFusion.estado == "pendiente", SugerenciaFusion.motivo == "nombre"))
+                .where(SugerenciaFusion.estado == "pendiente",
+                       (SugerenciaFusion.motivo == "nombre") | SugerenciaFusion.clase.in_(SIN_FUSION)))
     if fondo_id is not None:
         consulta = consulta.where(SugerenciaFusion.fondo_id == fondo_id)
     n = 0
     for s, x, y in db.execute(consulta).all():
-        if numeros_distintos(x, y):
+        if s.clase in SIN_FUSION or numeros_distintos(x, y):
             s.estado = "obsoleta"
             n += 1
     return n
@@ -477,7 +482,8 @@ def detectar_candidatos(db: Session, fondo_id: uuid.UUID | None = None) -> int:
                 .join(b, ((a.fondo_id == b.fondo_id) | (es_compartida(a) & es_compartida(b)))
                       & (a.clase == b.clase) & (a.id < b.id))
                 .join(fa, fa.c.entidad_id == a.id).join(fb, fb.c.entidad_id == b.id)
-                .where(a.estado == "activa", b.estado == "activa", func.similarity(fa.c.n, fb.c.n) >= umbral)
+                .where(a.estado == "activa", b.estado == "activa", func.similarity(fa.c.n, fb.c.n) >= umbral,
+                       a.clase.not_in(SIN_FUSION))
                 .group_by(a.id, b.id))
     # El mismo identificador externo (Wikidata, VIAF, ISNI, LCNAF) es la
     # señal más fuerte de duplicado: se sugiere siempre, sin mirar el nombre

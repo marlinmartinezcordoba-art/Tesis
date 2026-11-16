@@ -147,10 +147,10 @@ export function RegistrarFondo({ alTerminar, alCrear }: { alTerminar: () => void
              onDragOver={(e) => { e.preventDefault(); setEncima(true); }}
              onDragLeave={() => setEncima(false)}
              onDrop={(e) => { e.preventDefault(); setEncima(false); void recibir(Array.from(e.dataTransfer.files)); }}>
-        <input ref={entrada} type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+        <input ref={entrada} type="file" multiple hidden disabled={ocupado}
                onChange={(e) => { const l = Array.from(e.target.files || []); e.target.value = ""; void recibir(l); }} />
         <strong>{ocupado ? "Leyendo…" : vista ? `Agregar más archivos (${vista.archivos?.length || subidos.length} leídos)` : "Suba la TRD y el CCD"}</strong>
-        <span className="meta">Arrástrelos aquí o haga clic. Uno o varios: Excel, PDF con texto, Word, CSV o .zip, tal como
+        <span className="meta">Arrástrelos aquí o haga clic. Uno o varios: Excel, PDF (también escaneado), Word, OpenDocument, CSV, página web, RTF, imagen escaneada o un .zip, tal como
           los tiene la entidad.</span>
       </label>
       <PanelCarga estado={carga.estado} />

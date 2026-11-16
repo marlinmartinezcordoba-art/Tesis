@@ -42,7 +42,7 @@ export function ImportarFuid({ fondoId }: { fondoId: string }) {
         la serie o subserie del cuadro cuyo código trae, con sus fechas extremas, su unidad de conservación, sus folios, su
         soporte y su frecuencia de consulta. Una fila cuyo código no esté en el cuadro no se crea.</p></ParaQueSirve>
       <div className="tarjeta" style={{ padding: 14 }}>
-        <input type="file" accept=".xlsx,.csv,.pdf,.docx" aria-label="Archivo del FUID"
+        <input type="file" aria-label="Archivo del FUID"
                onChange={(e) => { setArchivo(e.target.files?.[0] || null); setPrevia(null); setResultado(null); }} />
         <button type="button" className="boton chico" disabled={!archivo || ocupado} onClick={() => enviar("vista-previa")}>
           {ocupado ? "Leyendo…" : "Ver qué se entendió"}</button>

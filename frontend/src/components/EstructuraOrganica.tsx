@@ -17,6 +17,28 @@ interface Datos {
   resultado?: { creados: number; unidos: number; subordinados: number; omitidos: string[] };
 }
 
+// Una dependencia con nombre provisional («Dependencia 3203»): la TRD trajo su código sin el nombre.
+// Se escribe el nombre tal como figura en el CCD; queda corregido en el cuadro y en la TRD.
+function NombrePendiente({ dep, alGuardar }: { dep: Dep; alGuardar: () => void }) {
+  const [nombre, setNombre] = useState("");
+  const [error, setError] = useState("");
+  return (
+    <form className="acciones" style={{ alignItems: "center", marginTop: 4 }} onSubmit={async (e) => {
+      e.preventDefault();
+      setError("");
+      try {
+        await pedir(`/api/cuadro/agrupaciones/${dep.id}`, { method: "PATCH", body: JSON.stringify({ nombre }) });
+        alGuardar();
+      } catch (err) { setError(err instanceof ErrorAPI ? err.message : "No se pudo guardar."); }
+    }}>
+      <input className="entrada" style={{ minWidth: 220 }} required minLength={3} value={nombre}
+             onChange={(e) => setNombre(e.target.value)} placeholder="Nombre según el CCD" aria-label={`Nombre de ${dep.titulo}`} />
+      <button type="submit" className="boton chico">Guardar nombre</button>
+      {error && <span className="meta" role="alert" style={{ color: "var(--danger)" }}>{error}</span>}
+    </form>
+  );
+}
+
 function Vigencia({ fondoId, dep, alGuardar }: { fondoId: string; dep: Dep; alGuardar: (d: Datos) => void }) {
   const [valor, setValor] = useState(dep.agente?.vigencia || "");
   const [error, setError] = useState("");
@@ -42,10 +64,9 @@ export function EstructuraOrganica({ fondoId }: { fondoId: string }) {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState("");
   const [trabajando, setTrabajando] = useState(false);
-  useEffect(() => {
-    pedir<Datos>(`/api/fondos/${fondoId}/estructura-organica`).then(setDatos)
-      .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo cargar."));
-  }, [fondoId]);
+  const cargar = () => pedir<Datos>(`/api/fondos/${fondoId}/estructura-organica`).then(setDatos)
+    .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo cargar."));
+  useEffect(() => { cargar(); }, [fondoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function derivar() {
     setTrabajando(true);
@@ -92,7 +113,9 @@ export function EstructuraOrganica({ fondoId }: { fondoId: string }) {
                   <tr key={d.id}>
                     <td>{d.codigo || "—"}</td>
                     <td style={{ paddingLeft: d.nivel === "subseccion" ? 24 : undefined }}>{d.titulo}
-                      {d.provisional && <span className="insignia alerta" style={{ marginLeft: 6 }}>Nombre provisional</span>}</td>
+                      {d.provisional && <span className="insignia alerta" style={{ marginLeft: 6 }}
+                        title="La TRD trajo el código sin el nombre de la dependencia; RICORA no lo inventa.">Falta el nombre</span>}
+                      {d.provisional && usuario?.es_administrador && <NombrePendiente dep={d} alGuardar={cargar} />}</td>
                     <td>{d.agente ? <Link to={`/vocabularios/${d.agente.id}`}>{d.agente.nombre}</Link> : <span className="meta">Sin agente</span>}</td>
                     <td>{d.subordinada_a?.nombre || <span className="meta">—</span>}</td>
                     <td>{d.agente && usuario?.es_administrador ? <Vigencia fondoId={fondoId} dep={d} alGuardar={setDatos} />

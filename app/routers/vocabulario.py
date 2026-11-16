@@ -202,6 +202,9 @@ def identicas(fondo_id: uuid.UUID, actor: Actor = Depends(acceso_modulo("vocabul
              summary="Candidatos a fusión detectados, pendientes de revisión")
 def sugerencias(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
     fondo_o_404(db, fondo_id)
+    # Las que ya no tienen sentido (dos reglas, dos actos con números distintos) quedan obsoletas, no se listan.
+    if vocabulario.depurar_sugerencias(db, fondo_id):
+        db.commit()
     # También las que unen una autoridad de este fondo con la misma registrada en otro.
     del_fondo = select(EntidadVocabulario.id).where(EntidadVocabulario.fondo_id == fondo_id)
     filas = db.scalars(select(SugerenciaFusion).where(

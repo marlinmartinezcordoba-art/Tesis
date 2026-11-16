@@ -250,7 +250,11 @@ def _filas_word(contenido: bytes) -> list[list[list[str]]]:
     return [filas]
 
 
-EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip")
+# Lo que se lee: Excel, PDF (con OCR si es escaneado), Word, OpenDocument (hoja y texto), CSV y texto
+# tabulado, páginas web, RTF, imágenes escaneadas (OCR) y un .zip con cualquiera de ellos.
+EXT_IMAGEN = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".gif")
+EXTENSIONES = (".xlsx", ".xlsm", ".pdf", ".csv", ".docx", ".zip", ".ods", ".odt", ".tsv", ".txt", ".html", ".htm",
+               ".rtf", *EXT_IMAGEN)
 
 
 SIN_MOTOR = ("El formato de esta tabla no es el habitual. Con el motor de análisis activado, RICORA intenta leerla; "
@@ -363,9 +367,123 @@ def _hojas(contenido: bytes, nombre: str) -> list[list[list[str]]]:
         return _filas_csv(contenido)
     if n.endswith(".docx"):
         return _filas_word(contenido)
+    if n.endswith((".ods", ".odt")):
+        return _filas_opendocument(contenido)
+    if n.endswith((".tsv", ".txt")):
+        return _filas_csv(contenido)
+    if n.endswith((".html", ".htm")):
+        return _filas_html(contenido)
+    if n.endswith(".rtf"):
+        return _filas_texto(_texto_rtf(contenido))
+    if n.endswith(EXT_IMAGEN):
+        return _filas_texto(_ocr_imagen(contenido, n))
     if n.endswith((".xls", ".doc")):
-        raise ErrorCuadro("Es un formato antiguo de Office (.xls o .doc): ábralo y guárdelo como .xlsx o .docx.")
-    raise ErrorCuadro("Formatos que se leen: Excel (.xlsx), PDF con texto, Word (.docx), CSV o un .zip con ellos.")
+        raise ErrorCuadro("Es un formato antiguo de Office (.xls o .doc) que RICORA no abre: guárdelo como .xlsx, .docx, "
+                          ".ods o PDF.")
+    raise ErrorCuadro("Formatos que se leen: Excel (.xlsx), PDF (también escaneado), Word (.docx), OpenDocument (.ods, "
+                      ".odt), CSV, texto tabulado, página web (.html), RTF, imágenes escaneadas o un .zip con ellos.")
+
+
+def _filas_opendocument(contenido: bytes) -> list[list[list[str]]]:
+    """Las tablas de un .ods (cada hoja) o de un .odt (cada tabla del texto)."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    tabla_ns = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+    try:
+        with zipfile.ZipFile(io.BytesIO(contenido)) as z:
+            raiz = ElementTree.fromstring(z.read("content.xml"))
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as exc:
+        raise ErrorCuadro("El archivo OpenDocument no se pudo abrir; puede estar dañado.") from exc
+    hojas = []
+    for tabla in raiz.iter(f"{{{tabla_ns}}}table"):
+        filas = []
+        for fila in tabla.iter(f"{{{tabla_ns}}}table-row"):
+            celdas = []
+            for celda in fila:
+                if celda.tag not in (f"{{{tabla_ns}}}table-cell", f"{{{tabla_ns}}}covered-table-cell"):
+                    continue
+                texto = " ".join(" ".join("".join(p.itertext()).split()) for p in celda if p.tag.endswith("}p")).strip()
+                # Las celdas vacías repetidas llenan la hoja hasta el final: se recortan.
+                veces = min(int(celda.get(f"{{{tabla_ns}}}number-columns-repeated", "1")), 50 if texto else 1)
+                celdas += [texto] * veces
+            while celdas and not celdas[-1]:
+                celdas.pop()
+            if celdas:
+                filas.append(celdas)
+        if filas:
+            hojas.append(filas)
+    return hojas
+
+
+def _filas_html(contenido: bytes) -> list[list[list[str]]]:
+    """Las tablas de una página web (una TRD publicada en el sitio de la entidad)."""
+    from html.parser import HTMLParser
+
+    class Tablas(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.hojas, self.fila, self.celda = [], None, None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "table":
+                self.hojas.append([])
+            elif tag == "tr" and self.hojas:
+                self.fila = []
+            elif tag in ("td", "th") and self.fila is not None:
+                self.celda = []
+
+        def handle_endtag(self, tag):
+            if tag in ("td", "th") and self.celda is not None:
+                self.fila.append(" ".join("".join(self.celda).split()))
+                self.celda = None
+            elif tag == "tr" and self.fila is not None:
+                if any(self.fila):
+                    self.hojas[-1].append(self.fila)
+                self.fila = None
+
+        def handle_data(self, data):
+            if self.celda is not None:
+                self.celda.append(data)
+
+    texto = contenido.decode("utf-8", "replace")
+    lector = Tablas()
+    lector.feed(texto)
+    return [h for h in lector.hojas if h] or _filas_texto(re.sub(r"<[^>]+>", " ", texto))
+
+
+def _texto_rtf(contenido: bytes) -> str:
+    """El texto de un RTF sin sus órdenes de formato (\\par es fin de renglón; \\cell, fin de celda)."""
+    texto = contenido.decode("latin-1", "replace")
+    texto = re.sub(r"\\'([0-9a-fA-F]{2})", lambda m: bytes([int(m.group(1), 16)]).decode("cp1252", "replace"), texto)
+    texto = re.sub(r"\\(par|row)\b ?", "\n", texto)
+    texto = re.sub(r"\\cell\b ?", "\t", texto)
+    texto = re.sub(r"\\[a-zA-Z]+-?\d* ?|[{}]", "", texto)
+    return texto
+
+
+def _filas_texto(texto: str) -> list[list[list[str]]]:
+    """Un texto sin tablas (OCR de una imagen, RTF): cada renglón es una fila y las celdas se separan por
+    tabuladores o por dos o más espacios. Si no se entiende como tabla, la lee el motor de análisis."""
+    filas = [[c.strip() for c in re.split(r"\t|\s{2,}| \| ", r) if c.strip()] for r in texto.splitlines()]
+    filas = [f for f in filas if f]
+    return [filas] if filas else []
+
+
+def _ocr_imagen(contenido: bytes, nombre: str) -> str:
+    """El texto de una imagen escaneada de la TRD, con el mismo OCR de la carga de documentos."""
+    import tempfile
+    from pathlib import Path
+
+    from app.servicios import texto as servicio_texto
+
+    with tempfile.TemporaryDirectory(prefix="ricora-trd-") as tmp:
+        ruta = Path(tmp) / f"trd{Path(nombre).suffix}"
+        ruta.write_bytes(contenido)
+        try:
+            return servicio_texto.extraer(ruta, None, lambda *_: None).contenido or ""
+        except servicio_texto.ArchivoIlegible as exc:
+            raise ErrorCuadro(f"La imagen no se pudo leer: {exc}") from exc
 
 
 # «Dependencia: …», «Dependencia productora …», «Oficina productora: …». La palabra completa: «dependencias y

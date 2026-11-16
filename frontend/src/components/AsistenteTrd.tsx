@@ -140,14 +140,14 @@ function Subir({ fondoId, versionTrdId, alTerminar }: { fondoId: string; version
   const paquete = !!vista?.partes && vista.partes.length > 1;
   return (
     <>
-      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF con texto, Word o CSV. Si viene en un archivo por
+      <p>El archivo de la TRD tal como lo tenga la entidad: Excel, PDF (también escaneado), Word, OpenDocument, CSV, página web, RTF, imagen escaneada o .zip. Si viene en un archivo por
         dependencia, <strong>seleccione todos a la vez</strong> (Ctrl + clic o Ctrl + E en la ventana de archivos); también
         sirve un .zip. El sistema le pregunta qué es cada uno.</p>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="acciones">
         <label className="boton primario">
           {ocupado && !vista ? "Leyendo…" : vista ? "Elegir otros archivos" : "Elegir los archivos"}
-          <input type="file" multiple accept=".xlsx,.xlsm,.pdf,.docx,.csv,.zip" hidden disabled={ocupado}
+          <input type="file" multiple hidden disabled={ocupado}
                  onChange={async (e) => {
                    const lista = Array.from(e.target.files || []); e.target.value = "";
                    if (!lista.length) return;

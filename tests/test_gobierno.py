@@ -30,3 +30,22 @@ def test_validaciones_y_permisos(cliente, fondo_descrito, cabeceras_admin, archi
     assert cliente.post(url, headers=archivista, json={"tipo": "pgd", "vigencia": "2024", "acto": "Resolución 1"}).status_code == 403
     assert cliente.post(url, headers=cabeceras_admin, json={"tipo": "otro", "vigencia": "2024", "acto": "Resolución 1"}).status_code == 422
     assert cliente.post(url, headers=cabeceras_admin, json={"tipo": "pinar", "vigencia": "ayer", "acto": "Resolución 1"}).status_code == 422
+
+
+def test_pinar_sin_acto_con_vigencia_escrita_y_su_documento(cliente, db, fondo_descrito, cabeceras_admin, archivista):  # noqa: F811
+    url = f"/api/fondos/{fondo_descrito['fondo'].id}/gobierno"
+    r = cliente.post(f"{url}/planes", headers=cabeceras_admin, json={"tipo": "pinar", "vigencia": "Vigencia 2025 – 2028"})
+    assert r.status_code == 200, r.text
+    [plan] = r.json()["planes"]
+    assert plan["vigencia"] == "2025/2028" and plan["acto"] is None and plan["documento"] is None
+    contenido = b"%PDF-1.4 PINAR 2025-2028"
+    r = cliente.post(f"{url}/planes/{plan['id']}/documento", headers=cabeceras_admin,
+                     files={"archivo": ("PINAR 2025.pdf", contenido, "application/pdf")})
+    assert r.status_code == 200, r.text
+    doc = r.json()["planes"][0]["documento"]
+    assert doc["nombre"] == "PINAR 2025.pdf" and doc["tamano"] == len(contenido) and len(doc["huella"]) == 64
+    r = cliente.get(f"{url}/planes/{plan['id']}/documento", headers=archivista)
+    assert r.status_code == 200 and r.content == contenido and r.headers["x-huella-sha256"] == doc["huella"]
+    # Solo la administración adjunta.
+    assert cliente.post(f"{url}/planes/{plan['id']}/documento", headers=archivista,
+                        files={"archivo": ("x.pdf", b"x", "application/pdf")}).status_code == 403
