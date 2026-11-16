@@ -56,3 +56,13 @@ def test_solo_la_administracion_lo_corrige(cliente, db):
     r = cliente.patch(f"/api/cuadro/agrupaciones/{seccion.id}", headers=ingresar(cliente, "ana@correo.com"),
                       json={"nombre": "Dirección de Bosques"})
     assert r.status_code == 403
+
+
+def test_un_nombre_real_no_se_reemplaza(cliente, db, cabeceras_admin):
+    """Si la dependencia cambió de nombre en su historia, el anterior se conserva (sucesor o nombre con periodo)."""
+    _, seccion = _cuadro(db)
+    seccion.titulo = "Oficina de Bosques"
+    db.commit()
+    r = cliente.patch(f"/api/cuadro/agrupaciones/{seccion.id}", headers=cabeceras_admin,
+                      json={"nombre": "Dirección de Bosques"})
+    assert r.status_code == 422 and "sucesor" in r.text

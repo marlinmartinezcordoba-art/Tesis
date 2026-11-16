@@ -285,6 +285,11 @@ export function EntidadVocabularioDetalle() {
       {!esMecanismo(e) && <div className="tarjeta">
         <div className="tarjeta-cab">
           <span>Documentos conectados · {detalle.documentos.length}</span>
+          {detalle.documentos.length > 0 && (
+            <Link className="boton chico" to={`/buscar?contexto_id=${e.id}`}
+                  title="Abrirlos en la búsqueda para afinar por texto, fechas, nivel u otra entidad de contexto">
+              Afinar en la búsqueda</Link>
+          )}
         </div>
         {detalle.documentos.length === 0 && (
           <div className="vacio">{e.estado === "fusionada" ? "Sus documentos pasaron a la entidad definitiva." : "Ningún documento publicado la menciona."}</div>

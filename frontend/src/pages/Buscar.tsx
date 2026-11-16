@@ -9,7 +9,10 @@ import { ALCANCE_NOMBRE, Alcance, DocumentoHallado, ResultadoBusqueda, partesRes
 import { NIVEL_NOMBRE } from "@/lib/descripcion";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
-import { CLASE_NOMBRE, ClaseVocabulario } from "@/lib/vocabulario";
+import { CLASE_NOMBRE, CLASE_NOMBRE_PLURAL, ClaseVocabulario } from "@/lib/vocabulario";
+
+// En RiC-O una función es un tipo de actividad (rico:ActivityType).
+const TITULO_CONTEXTO: Partial<Record<string, string>> = { tipo_actividad: "Funciones (tipos de actividad)" };
 
 function Fragmento({ texto }: { texto: string }) {
   return (
@@ -35,13 +38,13 @@ export function Buscar() {
   useEffect(() => setTexto(q), [q]);
 
   useEffect(() => {
-    if (q.trim().length < 2) {
+    if (q.trim().length < 2 && !parametros.get("contexto_id")) {
       setDatos(null);
       return;
     }
     const p = new URLSearchParams({ q, alcance });
     if (!todos && fondo) p.set("fondo_id", fondo.id);
-    for (const k of ["nivel", "desde", "hasta", "agente_id", "pagina"]) {
+    for (const k of ["nivel", "desde", "hasta", "agente_id", "contexto_id", "pagina"]) {
       const v = parametros.get(k);
       if (v) p.set(k, v);
     }
@@ -79,7 +82,7 @@ export function Buscar() {
   const anioDesde = parametros.get("desde") || "";
   const anioHasta = parametros.get("hasta") || "";
   const nivel = parametros.get("nivel");
-  const agente = parametros.get("agente_id");
+  const agente = parametros.get("agente_id") || parametros.get("contexto_id");
   const paginas = datos ? Math.ceil(datos.total / datos.por_pagina) : 0;
 
   return (
@@ -113,7 +116,16 @@ export function Buscar() {
         <p className="pista">Solo se busca en lo publicado y de acceso público (Ley 1712 de 2014, arts. 18 y 19).</p>
       )}
       {error && <div className="aviso error" role="alert">{error}</div>}
-      {!q && <div className="tarjeta"><div className="vacio">Escriba lo que busca: una palabra, un nombre, un código o una frase.</div></div>}
+      {!q && !agente && <div className="tarjeta"><div className="vacio">Escriba lo que busca: una palabra, un nombre, un código o una frase.
+        También puede consultar por contexto: abra una autoridad, una función o un lugar y elija «Ver sus documentos».</div></div>}
+      {datos?.contexto && (
+        <div className="aviso" role="note">
+          Documentos relacionados con {CLASE_NOMBRE[datos.contexto.clase as ClaseVocabulario]?.toLowerCase() || "la entidad"}{" "}
+          <strong>{datos.contexto.nombre}</strong>{q ? ` que además coinciden con «${q}»` : ""}: los que la citan y los que
+          documentan una actividad unida a ella (RiC-R033).{" "}
+          <button type="button" className="enlace" onClick={() => cambiar({ contexto_id: null, agente_id: null })}>Quitar este contexto</button>
+        </div>
+      )}
       {cargando && <div className="cargando">Buscando…</div>}
       {datos && !cargando && (
         <div className="busqueda-cuerpo">
@@ -131,20 +143,20 @@ export function Buscar() {
                 </div>
               </div>
             )}
-            {datos.facetas.agentes.length > 0 && (
-              <div className="tarjeta">
-                <div className="tarjeta-cab">Agentes citados</div>
+            {(datos.facetas.contextos ?? [{ clase: "agente", entidades: datos.facetas.agentes }])
+              .filter((c) => c.entidades.length > 0).map((c) => (
+              <div className="tarjeta" key={c.clase}>
+                <div className="tarjeta-cab">{TITULO_CONTEXTO[c.clase] || CLASE_NOMBRE_PLURAL[c.clase as ClaseVocabulario] || c.clase}</div>
                 <div className="tarjeta-cuerpo busqueda-opciones">
-                  {agente && <button type="button" className="enlace" onClick={() => cambiar({ agente_id: null })}>Todos los agentes</button>}
-                  {datos.facetas.agentes.map((a) => (
+                  {c.entidades.map((a) => (
                     <button key={a.id} type="button" className={`enlace${agente === a.id ? " activo" : ""}`}
-                            onClick={() => cambiar({ agente_id: a.id })}>
+                            onClick={() => cambiar({ contexto_id: agente === a.id ? null : a.id, agente_id: null })}>
                       {a.nombre} <span className="meta">({a.documentos})</span>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
+            ))}
             {datos.facetas.anios && (
               <p className="pista">Fechas de los resultados: {datos.facetas.anios[0]}–{datos.facetas.anios[1]}</p>
             )}

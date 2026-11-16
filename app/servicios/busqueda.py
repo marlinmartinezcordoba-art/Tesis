@@ -23,6 +23,13 @@ un archivo restringido no se consulta, así que no aparece ni en los
 fragmentos ni en los conteos. Una autoridad que solo citan documentos
 restringidos tampoco aparece (INS-02).
 
+**Consulta por contexto (RiC).** Además del texto, se afina por cualquier entidad de
+contexto que citan los resultados: agentes, funciones (tipos de actividad, rico:ActivityType),
+actividades, lugares, materias, mandatos y formas documentales. Con solo la entidad y sin
+texto, la consulta responde preguntas como «¿qué documentos produjo esta dependencia?» o
+«¿qué documentos responden a la función de contratación?»: los que la citan y los que
+documentan una actividad unida a ella (RiC-R033), como en la ficha de la autoridad.
+
 Quien describe (equipo de archivo) encuentra además los borradores y los
 archivos todavía sin describir, marcados como tales.
 """
@@ -40,6 +47,9 @@ from app.models.instanciacion import Instanciacion
 from app.models.recurso_documental import RecursoDocumental
 
 LARGO_MAXIMO = 200
+# Clases de contexto que se ofrecen para afinar, en el orden en que se muestran.
+CLASES_CONTEXTO = ("agente", "tipo_actividad", "actividad", "mandato", "lugar", "materia", "forma_documental")
+POR_CLASE = 8
 POR_PAGINA = 20
 ALCANCES = ("todo", "descripcion", "texto", "autoridades")
 # Marcas del fragmento resaltado: caracteres que no aparecen en un documento
@@ -238,11 +248,16 @@ def _anios(f: _Fondo, r: RecursoDocumental) -> tuple[int, int] | None:
 
 def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID | None = None,
            alcance: str = "todo", nivel: str | None = None, desde: int | None = None, hasta: int | None = None,
-           agente_id: uuid.UUID | None = None, pagina: int = 1, por_pagina: int = POR_PAGINA) -> dict:
-    from app.servicios import instrumentos
+           agente_id: uuid.UUID | None = None, contexto_id: uuid.UUID | None = None, pagina: int = 1,
+           por_pagina: int = POR_PAGINA) -> dict:
+    from app.servicios import instrumentos, vocabulario
 
     q = (q or "").strip()
-    if len(q) < 2:
+    contexto_id = contexto_id or agente_id
+    contexto = db.get(EntidadVocabulario, contexto_id) if contexto_id else None
+    if contexto_id and contexto is None:
+        raise ErrorBusqueda("La entidad de contexto no existe.")
+    if len(q) < 2 and contexto is None:
         raise ErrorBusqueda("Escriba al menos dos caracteres.")
     if len(q) > LARGO_MAXIMO:
         raise ErrorBusqueda(f"La búsqueda admite hasta {LARGO_MAXIMO} caracteres.")
@@ -265,7 +280,15 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
         por_fondo[recurso.id] = f
         return documentos.setdefault(recurso.id, _Doc(recurso, f.fondo, recurso.id in f.borradores))
 
-    for f in fondos:
+    relacionados = vocabulario._documentos_por_entidad(db, [contexto.id])[contexto.id] if contexto else set()
+    if contexto is not None and not q:
+        # Consulta por contexto, sin texto: los documentos visibles que se relacionan con la entidad.
+        for f in fondos:
+            for rid in relacionados:
+                if rid in f.visibles:
+                    doc(f, f.visibles[rid]).motivo(f"relacionado con {contexto.nombre}", 1.0)
+
+    for f in fondos if q else []:
         if alcance in ("todo", "descripcion"):
             for rid, rango in _por_descripcion(db, q, f):
                 d = doc(f, f.visibles[rid])
@@ -298,15 +321,15 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
             return bool(anios) and (not desde or anios[1] >= desde) and (not hasta or anios[0] <= hasta)
         documentos = {i: d for i, d in documentos.items() if en_rango(d)}
 
-    if agente_id:
-        citan = documentos_de_agente(db, agente_id)
-        documentos = {i: d for i, d in documentos.items() if i in citan}
+    if contexto is not None:
+        documentos = {i: d for i, d in documentos.items() if i in relacionados}
 
     # Facetas sobre lo que el usuario puede ver (antes del filtro de nivel,
     # para poder cambiarlo): nunca cuentan nada restringido.
     niveles = Counter(d.recurso.nivel for d in documentos.values())
     fondos_faceta = Counter(d.fondo.id for d in documentos.values())
-    agentes = _agentes(db, documentos, fondos, ver_restringidos)
+    contextos = _contextos(db, documentos, fondos, ver_restringidos)
+    agentes = contextos.get("agente", [])
     if nivel:
         documentos = {i: d for i, d in documentos.items() if d.recurso.nivel == nivel}
 
@@ -314,7 +337,7 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
     total = len(ordenados)
     pagina = max(pagina, 1)
     vista = ordenados[(pagina - 1) * por_pagina: pagina * por_pagina]
-    fragmentos = _fragmentos(db, q, vista)
+    fragmentos = _fragmentos(db, q, vista) if q else {}
     anios_todos = [a for d in documentos.values() if (a := _anios(por_fondo[d.recurso.id], d.recurso))]
 
     def salida_doc(d: _Doc) -> dict:
@@ -342,41 +365,64 @@ def buscar(db: Session, q: str, *, ver_restringidos: bool, fondo_id: uuid.UUID |
             "fondos": [{"id": str(i), "titulo": next(f.fondo.titulo for f in fondos if f.fondo.id == i), "total": n}
                        for i, n in fondos_faceta.most_common()],
             "agentes": agentes,
+            "contextos": [{"clase": c, "entidades": contextos[c]} for c in CLASES_CONTEXTO if contextos.get(c)],
             "anios": [min(a[0] for a in anios_todos), max(a[1] for a in anios_todos)] if anios_todos else None,
         },
         "alcance_reserva": "completo" if ver_restringidos else "publico",
+        "contexto": {"id": str(contexto.id), "nombre": contexto.nombre, "clase": contexto.clase} if contexto else None,
     }
 
 
-def _agentes(db: Session, documentos: dict[uuid.UUID, _Doc], fondos: list[_Fondo], ver_restringidos: bool) -> list[dict]:
-    """Los agentes que más citan los resultados (productores, autores,
-    destinatarios…), para afinar. Sin los que solo conocen documentos
-    restringidos."""
+def _contextos(db: Session, documentos: dict[uuid.UUID, _Doc], fondos: list[_Fondo],
+               ver_restringidos: bool) -> dict[str, list[dict]]:
+    """Las entidades de contexto que más citan los resultados, por clase, para afinar: las que cita
+    el documento y, a través de la actividad que documenta (RiC-R033), su función, su mandato y el
+    agente que la ejerce. Sin las que solo conocen documentos restringidos."""
+    from sqlalchemy.orm import aliased
+
     from app.servicios import exportacion_rico
 
     if not documentos:
-        return []
-    cuenta: Counter = Counter()
-    for entidad_id, recurso_id in db.execute(
-            select(Relacion.destino_id, Relacion.origen_id)
-            .join(EntidadVocabulario, EntidadVocabulario.id == Relacion.destino_id)
-            .where(Relacion.origen_id.in_(list(documentos)), Relacion.origen_tipo == "recurso_documental",
-                   Relacion.estado == "vigente", EntidadVocabulario.clase == "agente",
-                   EntidadVocabulario.estado == "activa")):
-        cuenta[entidad_id] += 1
+        return {}
+    ids = list(documentos)
+    pares: set[tuple[uuid.UUID, uuid.UUID]] = set()
+    for entidad_id, recurso_id in db.execute(select(Relacion.destino_id, Relacion.origen_id).where(
+            Relacion.origen_id.in_(ids), Relacion.origen_tipo == "recurso_documental",
+            Relacion.destino_tipo == "entidad_vocabulario", Relacion.estado == "vigente")):
+        pares.add((entidad_id, recurso_id))
+    for forma, recurso_id in db.execute(select(RecursoDocumental.forma_documental_id, RecursoDocumental.id)
+                                        .where(RecursoDocumental.id.in_(ids),
+                                               RecursoDocumental.forma_documental_id.is_not(None))):
+        pares.add((forma, recurso_id))
+    # Un salto desde la actividad documentada: su tipo (función), su mandato, quien la ejerce.
+    act = aliased(EntidadVocabulario)
+    por_actividad: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for a, recurso_id in db.execute(select(Relacion.destino_id, Relacion.origen_id).join(act, act.id == Relacion.destino_id)
+                                    .where(Relacion.origen_id.in_(ids), Relacion.codigo_ric == "documents",
+                                           act.clase == "actividad", Relacion.estado == "vigente")):
+        por_actividad.setdefault(a, set()).add(recurso_id)
+    if por_actividad:
+        for o, d in db.execute(select(Relacion.origen_id, Relacion.destino_id).where(
+                Relacion.estado == "vigente", Relacion.origen_tipo == "entidad_vocabulario",
+                Relacion.destino_tipo == "entidad_vocabulario",
+                or_(Relacion.origen_id.in_(list(por_actividad)), Relacion.destino_id.in_(list(por_actividad))))):
+            a, otra = (o, d) if o in por_actividad else (d, o)
+            for recurso_id in por_actividad[a]:
+                pares.add((otra, recurso_id))
+    cuenta = Counter(e for e, _ in pares)
     if not cuenta:
-        return []
+        return {}
     vedadas: set = set()
     if not ver_restringidos:
         for f in fondos:
             vedadas |= exportacion_rico._entidades_vedadas(db, f.fondo, f.arbol.nodos)
-    nombres = dict(db.execute(select(EntidadVocabulario.id, EntidadVocabulario.nombre)
-                              .where(EntidadVocabulario.id.in_(list(cuenta)))).all())
-    return [{"id": str(i), "nombre": nombres[i], "documentos": n}
-            for i, n in cuenta.most_common() if i not in vedadas][:8]
-
-
-def documentos_de_agente(db: Session, agente_id: uuid.UUID) -> set[uuid.UUID]:
-    return {o for (o,) in db.execute(select(Relacion.origen_id).where(
-        Relacion.destino_id == agente_id, Relacion.origen_tipo == "recurso_documental", Relacion.estado == "vigente"))}
-
+    entidades = {e.id: e for e in db.scalars(select(EntidadVocabulario).where(
+        EntidadVocabulario.id.in_(list(cuenta)), EntidadVocabulario.estado == "activa",
+        EntidadVocabulario.clase.in_(CLASES_CONTEXTO)))}
+    salida: dict[str, list[dict]] = {}
+    for i, n in cuenta.most_common():
+        e = entidades.get(i)
+        if e is None or i in vedadas or len(salida.setdefault(e.clase, [])) >= POR_CLASE:
+            continue
+        salida[e.clase].append({"id": str(i), "nombre": e.nombre, "documentos": n})
+    return {c: v for c, v in salida.items() if v}

@@ -1517,6 +1517,12 @@ def renombrar_agrupacion(db: Session, recurso: RecursoDocumental, nombre: str, u
     anterior = recurso.titulo
     if nombre == anterior:
         raise ErrorRenombrar("Ese ya es su nombre.")
+    # Solo se completa un nombre que nunca fue real. Si la dependencia cambió de nombre en su historia, el
+    # nombre anterior se conserva: se registra el agente sucesor (RiC-R016) o un nombre con su periodo.
+    if not _NOMBRE_PROVISIONAL.fullmatch(" ".join((anterior or "").split())):
+        raise ErrorRenombrar("Esta agrupación ya tiene un nombre real. Si la dependencia cambió de nombre, no se "
+                             "reemplaza: registre el nombre nuevo con su periodo en la autoridad del productor, o su "
+                             "agente sucesor, para que los documentos anteriores conserven su contexto.")
     recurso.titulo = nombre
     dependencias = []
     if recurso.nivel in ("seccion", "subseccion") and recurso.codigo_referencia:

@@ -67,7 +67,9 @@ export interface ResultadoBusqueda {
     niveles: Record<string, number>;
     fondos: { id: string; titulo: string; total: number }[];
     agentes: { id: string; nombre: string; documentos: number }[];
+    contextos?: { clase: string; entidades: { id: string; nombre: string; documentos: number }[] }[];
     anios: [number, number] | null;
   };
   alcance_reserva: "completo" | "publico";
+  contexto?: { id: string; nombre: string; clase: string } | null;
 }

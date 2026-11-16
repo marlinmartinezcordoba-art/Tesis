@@ -208,7 +208,8 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar,
               <strong>Nombre provisional.</strong> La TRD trajo el código de esta agrupación sin su nombre, y RICORA no lo
               inventa. Escriba el nombre tal como figura en el CCD o la TRD: se corrige aquí y en la TRD. Revise también
               su lugar: si su código empieza como el de otra sección (por ejemplo, 3203 y 3000), puede ser una
-              subsección de esa.
+              subsección de esa. Esto completa un nombre que nunca fue real; si una dependencia cambió de nombre, el
+              anterior no se reemplaza: se registra en su autoridad el nombre nuevo con su periodo o el agente sucesor.
               {usuario?.es_administrador ? (
                 <form style={{ marginTop: 8, display: "grid", gap: 6 }} onSubmit={async (e) => {
                   e.preventDefault();
@@ -286,6 +287,11 @@ function PanelDetalle({ clave, fondoId, cerrar, recentrar, abrirFicha, exportar,
                     </li>
                   ))}
                 </ul>
+                {tipo === "entidad_vocabulario" && (
+                  <p className="pista">
+                    <button type="button" className="enlace" onClick={() => navegar(`/buscar?contexto_id=${id}`)}>
+                      Ver sus documentos en la búsqueda</button>: los que la citan y los que documentan una actividad unida a ella.</p>
+                )}
                 {tipo === "recurso_documental" && ficha.clase !== "fondo" && puede(usuario, "descripcion") && (
                   <p className="pista">De dónde salió cada relación (motor o persona, certeza, evidencia, quién la confirmó y
                     cuándo) se consulta en la{" "}

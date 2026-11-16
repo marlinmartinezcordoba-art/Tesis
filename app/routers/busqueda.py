@@ -28,12 +28,14 @@ router = APIRouter(prefix="/api/buscar", tags=["Búsqueda"])
 
 @router.get("", responses={200: {"model": ResultadoBusquedaOut, "description": "Resultados paginados con sus facetas"}},
             summary="Buscar en descripciones, texto de los documentos, identificadores y autoridades")
-def buscar(q: str = Query(..., min_length=2, max_length=busqueda.LARGO_MAXIMO),
+def buscar(q: str = Query("", max_length=busqueda.LARGO_MAXIMO),
            fondo_id: uuid.UUID | None = None,
            alcance: Literal["todo", "descripcion", "texto", "autoridades"] = "todo",
            nivel: Literal[NIVEL_DESCRIPCION] | None = None,  # type: ignore[valid-type]
            desde: int | None = Query(None, ge=1, le=2999), hasta: int | None = Query(None, ge=1, le=2999),
            agente_id: uuid.UUID | None = None,
+           contexto_id: uuid.UUID | None = Query(None, description="Entidad de contexto RiC: agente, función, actividad, "
+                                                 "mandato, lugar, materia o forma documental. Sin texto, lista sus documentos."),
            pagina: int = Query(1, ge=1, le=500),
            actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
     # Se busca en lo que dice el grafo RiC-O de cada fondo (app/servicios/lectura.py).
@@ -43,6 +45,7 @@ def buscar(q: str = Query(..., min_length=2, max_length=busqueda.LARGO_MAXIMO),
     try:
         with lectura.de_los_fondos(db, list(db.scalars(consulta_fondos))) as ldb:
             return busqueda.buscar(ldb, q, ver_restringidos=ve_restringidos(actor), fondo_id=fondo_id, alcance=alcance,
-                                   nivel=nivel, desde=desde, hasta=hasta, agente_id=agente_id, pagina=pagina)
+                                   nivel=nivel, desde=desde, hasta=hasta, agente_id=agente_id, contexto_id=contexto_id,
+                                   pagina=pagina)
     except busqueda.ErrorBusqueda as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

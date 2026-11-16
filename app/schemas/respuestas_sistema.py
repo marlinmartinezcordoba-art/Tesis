@@ -89,6 +89,12 @@ class FacetaAgente(BaseModel):
     documentos: int
 
 
+class FacetaContexto(BaseModel):
+    """Entidades de contexto de una clase RiC (función, actividad, lugar…) citadas por los resultados."""
+    clase: str
+    entidades: list[FacetaAgente]
+
+
 class FacetasBusqueda(BaseModel):
     """Facetas para afinar: niveles, fondos, agentes y años extremos."""
     model_config = ConfigDict(extra="allow")
@@ -96,6 +102,7 @@ class FacetasBusqueda(BaseModel):
     niveles: dict[str, int]
     fondos: list[FacetaFondo]
     agentes: list[FacetaAgente]
+    contextos: list[FacetaContexto] = []
     anios: list[int] | None
 
 
