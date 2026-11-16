@@ -111,6 +111,9 @@ const ENTRADAS: Entrada[] = [
   // Por qué existen los documentos: funciones (tipos de actividad), actividades y mandatos.
   { ruta: "/funciones", nombre: "Contexto funcional", pista: "Funciones, actividades y mandatos", icono: "funciones",
     grupo: "trabajo", modulo: "catalogo" },
+  // PGD y PINAR como mandatos que regulan sus programas, proyectos y acciones.
+  { ruta: "/gobierno", nombre: "Gobierno archivístico", pista: "PGD y PINAR", icono: "fondos", grupo: "trabajo",
+    modulo: "catalogo" },
   // Búsqueda por texto y por contexto RiC (función, actividad, lugar, mandato, materia).
   { ruta: "/buscar", nombre: "Búsqueda", pista: "Por texto y por contexto", icono: "buscar", grupo: "trabajo", modulo: "catalogo" },
   { ruta: "/preservacion", nombre: "Preservación", icono: "preservacion", grupo: "trabajo", modulo: "preservacion", vistas: [

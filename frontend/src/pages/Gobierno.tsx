@@ -1,0 +1,119 @@
+// Gobierno archivístico: el PGD y el PINAR como mandatos RiC (rico:Mandate) adoptados por su acto
+// administrativo, y sus programas, proyectos y acciones como actividades que regulan.
+import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { ErrorAPI, pedir, puede } from "@/lib/api";
+import { useFondo } from "@/lib/fondo";
+import { useSesion } from "@/lib/sesion";
+
+interface Plan {
+  id: string; tipo: string; sigla: string; nombre: string; acto: string | null; vigencia: string | null;
+  vigencia_legible: string | null; acciones: { id: string; nombre: string; documentos: number }[];
+}
+interface Datos { planes: Plan[]; faltan: string[] }
+
+function NuevaAccion({ fondoId, plan, alGuardar }: { fondoId: string; plan: Plan; alGuardar: (d: Datos) => void }) {
+  const [tipo, setTipo] = useState("programa");
+  const [nombre, setNombre] = useState("");
+  const [error, setError] = useState("");
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      alGuardar(await pedir<Datos>(`/api/fondos/${fondoId}/gobierno/planes/${plan.id}/acciones`,
+        { method: "POST", body: JSON.stringify({ tipo, nombre }) }));
+      setNombre("");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo agregar.");
+    }
+  }
+  return (
+    <form onSubmit={guardar} className="acciones" style={{ alignItems: "center", marginTop: 8 }}>
+      <select className="selector" style={{ width: "auto" }} aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+        <option value="programa">Programa</option><option value="proyecto">Proyecto</option><option value="accion">Acción</option>
+      </select>
+      <input className="entrada" style={{ flex: 1, minWidth: 200 }} required minLength={3} maxLength={300} value={nombre}
+             onChange={(e) => setNombre(e.target.value)} placeholder="Ej.: Programa de documentos vitales" aria-label="Nombre" />
+      <button type="submit" className="boton chico">Agregar</button>
+      {error && <span className="aviso error" role="alert">{error}</span>}
+    </form>
+  );
+}
+
+export function Gobierno() {
+  const { fondo } = useFondo();
+  const { usuario } = useSesion();
+  const [datos, setDatos] = useState<Datos | null>(null);
+  const [error, setError] = useState("");
+  const [tipo, setTipo] = useState("pgd");
+  const [vigencia, setVigencia] = useState("");
+  const [acto, setActo] = useState("");
+
+  useEffect(() => {
+    if (!fondo) return;
+    pedir<Datos>(`/api/fondos/${fondo.id}/gobierno`).then(setDatos)
+      .catch((e) => setError(e instanceof ErrorAPI ? e.message : "No se pudo cargar."));
+  }, [fondo]);
+
+  async function registrar(e: FormEvent) {
+    e.preventDefault();
+    if (!fondo) return;
+    setError("");
+    try {
+      setDatos(await pedir<Datos>(`/api/fondos/${fondo.id}/gobierno/planes`, { method: "POST", body: JSON.stringify({ tipo, vigencia, acto }) }));
+      setVigencia("");
+      setActo("");
+    } catch (err) {
+      setError(err instanceof ErrorAPI ? err.message : "No se pudo registrar.");
+    }
+  }
+
+  if (!fondo) return <div className="aviso">Elija un fondo.</div>;
+  return (
+    <>
+      <h1>Gobierno archivístico</h1>
+      <p className="sub">El Programa de Gestión Documental (PGD) y el Plan Institucional de Archivos (PINAR) como contexto
+        de la gestión. En RiC, un plan adoptado por acto administrativo es un mandato (rico:Mandate), y sus programas,
+        proyectos y acciones son actividades que ese mandato regula. Los documentos que documentan una de ellas aparecen
+        bajo ella.</p>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      {datos?.faltan.length ? <p className="pista">Falta registrar: {datos.faltan.join(" y ")}.</p> : null}
+      {usuario?.es_administrador && (
+        <form className="tarjeta tca-form" onSubmit={registrar} style={{ padding: 14 }}>
+          <div className="campo"><label htmlFor="g-tipo">Plan</label>
+            <select id="g-tipo" className="selector" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              <option value="pgd">PGD · Programa de Gestión Documental</option><option value="pinar">PINAR · Plan Institucional de Archivos</option>
+            </select></div>
+          <div className="campo"><label htmlFor="g-vig">Vigencia <span className="meta">(EDTF, p. ej. 2024/2027)</span></label>
+            <input id="g-vig" className="entrada" required value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></div>
+          <div className="campo"><label htmlFor="g-acto">Acto que lo adopta</label>
+            <input id="g-acto" className="entrada" required minLength={5} value={acto} onChange={(e) => setActo(e.target.value)}
+                   placeholder="Resolución 123 de 2024" /></div>
+          <div className="acciones"><button type="submit" className="boton primario chico">Registrar plan</button></div>
+        </form>
+      )}
+      {!datos && !error && <div className="cargando">Cargando…</div>}
+      {datos?.planes.map((p) => (
+        <div className="tarjeta" key={p.id}>
+          <div className="tarjeta-cab">
+            <span><span className="cf-etiqueta funcion">{p.sigla}</span> {p.nombre}</span>
+            <span className="meta">{p.vigencia_legible || p.vigencia}</span>
+          </div>
+          <div className="tarjeta-cuerpo">
+            <p className="meta" style={{ marginTop: 0 }}>{p.acto} <code className="rico">rico:Mandate</code>
+              {puede(usuario, "vocabularios") && <> · <Link to={`/vocabularios/${p.id}`}>Abrir su ficha</Link></>}</p>
+            {p.acciones.length === 0 ? <p className="pista">Sin programas, proyectos ni acciones todavía.</p> : (
+              <ul className="cf-docs">
+                {p.acciones.map((a) => (
+                  <li key={a.id}>{a.nombre} <span className="meta">· regulada por el plan (rico:regulatesOrRegulated) · {a.documentos} documento(s)</span>
+                    {" "}<Link to={`/buscar?contexto_id=${a.id}`}>Ver documentos</Link></li>
+                ))}
+              </ul>
+            )}
+            {usuario?.es_administrador && <NuevaAccion fondoId={fondo.id} plan={p} alGuardar={setDatos} />}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}

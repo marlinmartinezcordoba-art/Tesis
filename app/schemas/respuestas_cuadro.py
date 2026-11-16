@@ -179,3 +179,12 @@ class TablaControlAcceso(BaseModel):
     fondo: dict
     series: list[dict]
     totales: dict
+
+
+class GobiernoArchivistico(BaseModel):
+    """PGD y PINAR del fondo como mandatos, con los programas, proyectos y acciones que regulan."""
+    model_config = ConfigDict(extra="allow")
+
+    fondo: dict
+    planes: list[dict]
+    faltan: list[str]

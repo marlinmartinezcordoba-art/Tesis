@@ -9,6 +9,7 @@ import { Alertas } from "@/pages/Alertas";
 import { Buscar } from "@/pages/Buscar";
 import { ContextoFuncional } from "@/pages/ContextoFuncional";
 import { Calidad } from "@/pages/Calidad";
+import { Gobierno } from "@/pages/Gobierno";
 import { Auditoria, TrazabilidadEntidad } from "@/pages/Auditoria";
 import { EvaluacionCiega } from "@/pages/Evaluacion";
 import { DefinirContrasena } from "@/pages/DefinirContrasena";
@@ -80,6 +81,7 @@ export default function App() {
       <Route path="/buscar" element={<Protegida modulo="catalogo"><Buscar /></Protegida>} />
       <Route path="/funciones" element={<Protegida modulo="catalogo"><ContextoFuncional /></Protegida>} />
       <Route path="/calidad" element={<Protegida modulo="descripcion"><Calidad /></Protegida>} />
+      <Route path="/gobierno" element={<Protegida modulo="catalogo"><Gobierno /></Protegida>} />
       <Route path="/alertas" element={<Protegida permitir={veAlertas}><Alertas /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/usuarios" element={<Protegida modulo="usuarios"><Usuarios /></Protegida>} />

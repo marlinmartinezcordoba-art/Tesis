@@ -123,6 +123,62 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
             for e in filas]
 
 
+@router.get("/{fondo_id}/gobierno", response_model=rc.GobiernoArchivistico,
+            summary="Gobierno archivístico: PGD y PINAR como mandatos, con sus programas, proyectos y acciones")
+def gobierno(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    from app.servicios import gobierno as servicio
+
+    return servicio.listar(db, fondo_o_404(db, fondo_id))
+
+
+class PlanIn(BaseModel):
+    tipo: str = Field(max_length=10)
+    vigencia: str = Field(max_length=60)
+    acto: str = Field(max_length=300)
+
+
+class AccionPlanIn(BaseModel):
+    tipo: str = Field(max_length=20)
+    nombre: str = Field(max_length=300)
+
+
+@router.post("/{fondo_id}/gobierno/planes", response_model=rc.GobiernoArchivistico,
+             summary="Registrar el PGD o el PINAR con su acto de adopción y su vigencia")
+def crear_plan(fondo_id: uuid.UUID, datos: PlanIn, actor: Actor = Depends(solo_administrador),
+               db: Session = Depends(get_db)):
+    from app.servicios import gobierno as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    try:
+        servicio.crear_plan(db, fondo, **datos.model_dump(), usuario_id=actor.id)
+    except servicio.ErrorGobierno as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return servicio.listar(db, fondo)
+
+
+@router.post("/{fondo_id}/gobierno/planes/{plan_id}/acciones", response_model=rc.GobiernoArchivistico,
+             summary="Agregar un programa, proyecto o acción que el plan regula (rico:regulatesOrRegulated)")
+def agregar_accion(fondo_id: uuid.UUID, plan_id: uuid.UUID, datos: AccionPlanIn, actor: Actor = Depends(solo_administrador),
+                   db: Session = Depends(get_db)):
+    from app.models.descripcion import EntidadVocabulario
+    from app.servicios import autoridad
+    from app.servicios import gobierno as servicio
+
+    fondo = fondo_o_404(db, fondo_id)
+    plan = db.get(EntidadVocabulario, plan_id)
+    if plan is None or plan.fondo_id != fondo.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="El plan no existe en este fondo.")
+    try:
+        servicio.agregar_accion(db, plan, **datos.model_dump(), usuario_id=actor.id)
+    except (servicio.ErrorGobierno, autoridad.ErrorAutoridad) as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    db.commit()
+    return servicio.listar(db, fondo)
+
+
 @router.get("/{fondo_id}/tca", response_model=rc.TablaControlAcceso,
             summary="Tabla de Control de Acceso: categoría, fundamento, vigencia y responsable de cada serie")
 def tca(fondo_id: uuid.UUID, _: Actor = Depends(acceso_modulo("descripcion")), db: Session = Depends(get_db)):

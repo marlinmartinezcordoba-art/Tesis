@@ -29,7 +29,8 @@ const INSTRUMENTOS: { nombre: string; que: string; ric: string; estado: Estado; 
     estado: "disponible", ruta: "/fondos?vista=tca" },
   { nombre: "FUID", que: "Inventario y localización", ric: "rico:Instantiation · ubicación", estado: "parcial",
     ruta: "/instrumentos?vista=inventario", nota: "Se genera y se aprueba; falta importar un FUID existente." },
-  { nombre: "PGD y PINAR", que: "Programas y planeación", ric: "rico:Mandate · contexto de gobierno", estado: "pendiente" },
+  { nombre: "PGD y PINAR", que: "Programas y planeación", ric: "rico:Mandate que regula actividades", estado: "disponible",
+    ruta: "/gobierno" },
   { nombre: "SIC", que: "Conservación y preservación", ric: "Eventos de conservación", estado: "pendiente",
     nota: "Fuera del alcance del prototipo." },
 ];
