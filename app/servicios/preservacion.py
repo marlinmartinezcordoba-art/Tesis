@@ -24,7 +24,6 @@ servicios/paquete.py.
 """
 
 import fnmatch
-import hashlib
 import logging
 import shutil
 import subprocess
@@ -48,6 +47,7 @@ from app.models.preservacion import Migracion, Restauracion, SegundaCopia, Verif
 from app.models.recurso_documental import RecursoDocumental
 from app.servicios import alertas, almacen, comprobaciones, derechos, formato, mecanismos, parametros, riesgo, segunda_copia
 from app.servicios.auditoria import registrar
+from app.db.consultas import contar
 
 log = logging.getLogger("ricora.preservacion")
 
@@ -216,11 +216,7 @@ def destinos_para(db: Session, inst: Instanciacion) -> list[dict]:
 
 
 def huella_de(ruta: Path) -> str:
-    h = hashlib.sha256()
-    with open(ruta, "rb") as f:
-        while bloque := f.read(almacen.TAMANO_BLOQUE):
-            h.update(bloque)
-    return h.hexdigest()
+    return almacen.sha256(ruta)
 
 
 def verificar(db: Session, inst: Instanciacion, *, origen: str, usuario_id: uuid.UUID | None = None,
@@ -423,11 +419,10 @@ def _contexto(db: Session, inst_id: uuid.UUID) -> list[dict]:
     salió de una migración)."""
     recurso_id = db.scalar(select(Relacion.origen_id).where(
         Relacion.destino_id == inst_id, Relacion.codigo_ric == "has_or_had_instantiation", Relacion.estado == "vigente"))
-    migas, actual = [], db.get(RecursoDocumental, recurso_id) if recurso_id else None
-    while actual is not None:
-        migas.append({"id": str(actual.id), "nivel": actual.nivel, "titulo": actual.titulo})
-        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id and actual.nivel != "fondo" else None
-    return list(reversed(migas))
+    from app.servicios.jerarquia import migas
+
+    return [{"id": str(x.id), "nivel": x.nivel, "titulo": x.titulo}
+            for x in migas(db, db.get(RecursoDocumental, recurso_id) if recurso_id else None)]
 
 
 ORDEN_SEVERIDAD = {"alta": 0, "media": 1, "baja": 2}
@@ -435,7 +430,7 @@ ORDEN_SEVERIDAD = {"alta": 0, "media": 1, "baja": 2}
 
 def panel(db: Session, fondo_id: uuid.UUID) -> dict:
     evaluar_riesgos(db, fondo_id)
-    total = db.scalar(select(func.count()).select_from(_verificables(db).where(Instanciacion.fondo_id == fondo_id).subquery()))
+    total = contar(db, _verificables(db).where(Instanciacion.fondo_id == fondo_id))
     pendientes = db.scalars(select(Alerta).where(Alerta.fondo_id == fondo_id, Alerta.atendida_en.is_(None),
                                                  Alerta.tipo.in_(TIPOS_ALERTA))).all()
     con_integridad = {a.entidad_id for a in pendientes if a.tipo == "integridad_alterada"}

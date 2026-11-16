@@ -19,7 +19,6 @@ mismo archivo en el disco, sin ocupar espacio de nuevo); si el sistema de
 archivos no lo permite, se copian.
 """
 
-import hashlib
 import json
 import os
 import shutil
@@ -121,11 +120,7 @@ def fijar_acta(db: Session, lote: LoteIngesta, instanciacion_id: uuid.UUID, usua
 
 
 def _sha256(ruta: Path) -> str:
-    h = hashlib.sha256()
-    with open(ruta, "rb") as f:
-        while bloque := f.read(almacen.TAMANO_BLOQUE):
-            h.update(bloque)
-    return h.hexdigest()
+    return almacen.sha256(ruta)
 
 
 def _enlazar(origen: Path, destino: Path) -> None:

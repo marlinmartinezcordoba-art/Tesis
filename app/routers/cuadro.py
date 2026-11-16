@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile as StarletteUploadFile
+from app.routers.archivos import leer_archivo
 
 from app.core.permisos import Actor, acceso_modulo, solo_administrador
 from app.db.session import get_db
@@ -41,15 +41,7 @@ def plantilla(actor: Actor = Depends(acceso_modulo("descripcion"))):
 @router.post("/vista-previa", responses={200: {"model": rc.VistaPreviaCuadro, "description": "Lo que se entendió"}},
              summary="Leer un CCD o una TRD (plantilla Excel, o TRD del AGN en Excel o PDF) sin crear nada")
 async def vista_previa(request: Request, actor: Actor = Depends(solo_administrador)):
-    formulario = await request.form(max_files=1)
-    try:
-        archivo = formulario.get("archivo")
-        if not isinstance(archivo, StarletteUploadFile):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
-        contenido = await archivo.read(3 * cuadro.MAX_BYTES + 1)
-        nombre = archivo.filename or ""
-    finally:
-        await formulario.close()
+    contenido, nombre, _ = await leer_archivo(request, 3 * cuadro.MAX_BYTES)
     try:
         vista = await run_in_threadpool(cuadro.vista_previa, contenido, nombre)
     except cuadro.ErrorCuadro as exc:
@@ -68,15 +60,7 @@ async def empezar_lectura(request: Request, actor: Actor = Depends(solo_administ
     (cuántos archivos van, cuántos faltan y cuál se lee) con GET /lecturas/{id}."""
     from app.servicios import lecturas_cuadro
 
-    formulario = await request.form(max_files=1)
-    try:
-        archivo = formulario.get("archivo")
-        if not isinstance(archivo, StarletteUploadFile):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
-        contenido = await archivo.read(3 * cuadro.MAX_BYTES + 1)
-        nombre = archivo.filename or ""
-    finally:
-        await formulario.close()
+    contenido, nombre, _ = await leer_archivo(request, 3 * cuadro.MAX_BYTES)
     if not contenido:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="El archivo está vacío.")
     return lecturas_cuadro.empezar(contenido, nombre, actor.id)

@@ -65,7 +65,7 @@ def tabla(db: Session, fondo: RecursoDocumental) -> dict:
         filas.append({"id": str(s.id), "nivel": s.nivel, "codigo": s.codigo_referencia, "titulo": s.titulo,
                       "propia": _fila(propia), "heredada": None if propia else _fila(rige),
                       "documentos": documentos(s.id)})
-    restringidas = sum(1 for f in filas if (f["propia"] or f["heredada"] or {}).get("acceso") in ("clasificado", "reservado"))
+    restringidas = sum(1 for f in filas if (f["propia"] or f["heredada"] or {}).get("acceso") in derechos.ACCESO_RESTRINGIDO)
     return {"fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "series": filas,
             "totales": {"series": len(filas), "con_condicion": sum(1 for f in filas if f["propia"]),
                         "restringidas": restringidas}}

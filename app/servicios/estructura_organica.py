@@ -67,7 +67,7 @@ def ver(db: Session, fondo: RecursoDocumental) -> dict:
         filas.append({
             "id": str(a.id), "nivel": a.nivel, "codigo": a.codigo_referencia, "titulo": a.titulo,
             "superior_en_cuadro": padre.titulo if padre is not None and padre.nivel in NIVELES else None,
-            "provisional": bool(cuadro._NOMBRE_PROVISIONAL.fullmatch(" ".join((a.titulo or "").split()))),
+            "provisional": cuadro.es_nombre_provisional(a.titulo),
             "agente": {"id": str(ag.id), "nombre": ag.nombre, "vigencia": ag.existencia_edtf,
                        "vigencia_legible": fechas.legible(ag.existencia_edtf) if ag.existencia_edtf else None} if ag else None,
             "subordinada_a": {"id": str(sup.id), "nombre": sup.nombre} if sup else None,
@@ -100,7 +100,7 @@ def derivar(db: Session, fondo: RecursoDocumental, usuario_id: uuid.UUID) -> dic
     for a in sorted(agrupaciones, key=profundidad):  # el superior llega antes que sus subordinadas
         ag = _productor(db, a.id)
         if ag is None:
-            if cuadro._NOMBRE_PROVISIONAL.fullmatch(" ".join((a.titulo or "").split())):
+            if cuadro.es_nombre_provisional(a.titulo):
                 omitidos.append(a.titulo)
                 continue
             ag = db.scalar(select(EntidadVocabulario).where(

@@ -16,6 +16,12 @@ from app.db.base import Base, ahora
 # moverlos de su lugar orgánico: los incluye como pertenencia adicional.
 NIVEL_DESCRIPCION = ("fondo", "coleccion", "seccion", "subseccion", "serie", "subserie", "expediente", "unidad_documental",
                      "parte_documental")
+# Nombre de cada nivel en las pantallas, los instrumentos y los mensajes (una sola tabla).
+NIVEL_NOMBRE = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección",
+                "serie": "Serie", "subserie": "Subserie", "expediente": "Expediente",
+                "unidad_documental": "Unidad documental", "parte_documental": "Parte documental"}
+# Los niveles del cuadro de clasificación que nacen de la TRD (dependencias y series).
+NIVELES_CUADRO = ("seccion", "subseccion", "serie", "subserie")
 
 
 # Categoría de datos personales (Ley 1581 de 2012, arts. 3, 5 y 7).

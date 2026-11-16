@@ -545,20 +545,11 @@ def fusionar(datos: FusionarIn, request: Request, actor: Actor = Depends(acceso_
 
 
 async def _archivo_eac(request: Request) -> tuple[bytes, str, dict]:
-    from starlette.datastructures import UploadFile as StarletteUploadFile
-
+    from app.routers.archivos import leer_archivo
     from app.servicios import importacion_eac
 
-    formulario = await request.form(max_files=1)
-    try:
-        archivo = formulario.get("archivo")
-        if not isinstance(archivo, StarletteUploadFile):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Adjunte el EAC-CPF (.xml) o un .zip.")
-        contenido = await archivo.read(importacion_eac.MAX_BYTES + 1)
-        datos = {k: v for k, v in formulario.items() if isinstance(v, str)}
-        return contenido, archivo.filename or "autoridad.xml", datos
-    finally:
-        await formulario.close()
+    return await leer_archivo(request, importacion_eac.MAX_BYTES, falta="Adjunte el EAC-CPF (.xml) o un .zip.",
+                              nombre_por_defecto="autoridad.xml")
 
 
 @router.post("/eac/vista-previa", responses={200: {"model": rv.VistaPreviaEac, "description": "Lo que se leyó"}},

@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { pedir } from "@/lib/api";
+import { diaCivil as fecha } from "@/lib/formato";
 
 interface Version {
   id: string; numero: number; nombre: string; acto_aprobacion: string | null; fecha_aprobacion: string | null;
@@ -39,7 +40,6 @@ const ESTADO: Record<Estado, { texto: string; clase: string }> = {
   pendiente: { texto: "Pendiente", clase: "" },
 };
 const ESTADO_VERSION: Record<string, string> = { vigente: "Vigente", historica: "Histórico", borrador: "Borrador", anulada: "Anulada" };
-const fecha = (x: string | null) => (x ? new Date(`${x}T00:00:00`).toLocaleDateString("es-CO") : "—");
 
 export function ConfiguracionInstitucional({ fondoId }: { fondoId: string }) {
   const [versiones, setVersiones] = useState<Version[] | null>(null);

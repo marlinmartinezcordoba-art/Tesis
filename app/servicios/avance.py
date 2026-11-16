@@ -19,10 +19,11 @@ from app.models.instanciacion import Instanciacion
 from app.models.instrumento_aprobado import InstrumentoAprobado
 from app.models.recurso_documental import RecursoDocumental
 from app.models.trd import VersionTrd
+from app.db.consultas import contar
 
 
 def _contar(db: Session, consulta) -> int:
-    return db.scalar(select(func.count()).select_from(consulta.subquery())) or 0
+    return contar(db, consulta)
 
 
 def avance(db: Session, fondo: RecursoDocumental) -> dict:

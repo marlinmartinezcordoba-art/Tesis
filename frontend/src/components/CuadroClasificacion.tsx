@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
 import { NivelRiC } from "@/components/NivelRiC";
+import { NIVEL_NOMBRE } from "@/lib/descripcion";
 
 // Cuadro de clasificación (CCD) del fondo y piezas compartidas con la carga de
 // la TRD desde un archivo (plantilla del sistema o formato del AGN, en Excel o
@@ -24,7 +25,6 @@ export interface Informe { creados: Record<string, number>; reutilizados: number
 export interface Validacion { conforme: boolean; ontologia: string; tripletas: number; por_clase: Record<string, number>;
   problemas_owl: string[]; resultados_shacl: { mensaje?: string | null; foco?: string | null; forma?: string | null }[] }
 
-const NIVEL: Record<string, string> = { seccion: "Sección", subseccion: "Subsección", serie: "Serie", subserie: "Subserie" };
 const DISP: Record<string, string> = { ct: "CT", e: "E", s: "S", m: "M" };
 
 function mensaje(err: unknown, porDefecto: string) {
@@ -83,7 +83,7 @@ function Rama({ n, profundidad }: { n: NodoCuadro; profundidad: number }) {
     <>
       <tr>
         <td style={{ paddingLeft: 8 + profundidad * 18 }}>
-          <span className="meta">{NIVEL[n.nivel]}</span> {n.codigo && <strong>{n.codigo}</strong>} {n.titulo}
+          <span className="meta">{NIVEL_NOMBRE[n.nivel]}</span> {n.codigo && <strong>{n.codigo}</strong>} {n.titulo}
           {" "}<NivelRiC nivel={n.nivel} />
         </td>
         <td>{n.regla && !n.regla.heredada_de ? `${n.regla.gestion_anios ?? "—"} / ${n.regla.central_anios ?? "—"}` : ""}</td>

@@ -17,6 +17,11 @@ export function dia(iso: string | null | undefined): string {
   return iso ? soloFecha.format(new Date(iso)) : "—";
 }
 
+/** Una fecha civil («2026-01-05», sin hora): el mismo día en cualquier zona horaria. */
+export function diaCivil(fechaIso: string | null | undefined): string {
+  return fechaIso ? new Date(`${fechaIso.slice(0, 10)}T12:00:00`).toLocaleDateString("es-CO") : "—";
+}
+
 const numero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
 export function peso(bytes: number | null | undefined): string {

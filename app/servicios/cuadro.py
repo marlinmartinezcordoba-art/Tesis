@@ -1492,9 +1492,15 @@ def probar_y_aplicar(db: Session, fondo: RecursoDocumental, filas: list[dict], u
 
 # --- Corregir el nombre de una agrupación ya creada -------------------------------------------------
 
-NIVELES_RENOMBRABLES = ("seccion", "subseccion", "serie", "subserie")
+from app.models.recurso_documental import NIVELES_CUADRO as NIVELES_RENOMBRABLES  # noqa: E402
 _NOMBRE_PROVISIONAL = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente|dependencia)?\s*[\d.]*",
                                  re.IGNORECASE)
+
+
+def es_nombre_provisional(titulo: str | None) -> bool:
+    """«Dependencia 3203», «Serie 27» o solo un número: el nombre que pone la carga de la TRD cuando trae el
+    código sin el nombre. Una sola regla para el cuadro, el grafo, la estructura orgánica y la calidad."""
+    return _NOMBRE_PROVISIONAL.fullmatch(" ".join((titulo or "").split())) is not None
 
 
 class ErrorRenombrar(ValueError):
@@ -1511,7 +1517,7 @@ def renombrar_agrupacion(db: Session, recurso: RecursoDocumental, nombre: str, u
     nombre = " ".join((nombre or "").split())[:300]
     if recurso.nivel not in NIVELES_RENOMBRABLES:
         raise ErrorRenombrar("Desde aquí se corrige el nombre de una sección, subsección, serie o subserie.")
-    if len(nombre) < 3 or _NOMBRE_PROVISIONAL.fullmatch(nombre):
+    if len(nombre) < 3 or es_nombre_provisional(nombre):
         raise ErrorRenombrar("Escriba el nombre de la dependencia o de la serie tal como figura en el CCD o la TRD, "
                              "no solo un número.")
     anterior = recurso.titulo
@@ -1519,7 +1525,7 @@ def renombrar_agrupacion(db: Session, recurso: RecursoDocumental, nombre: str, u
         raise ErrorRenombrar("Ese ya es su nombre.")
     # Solo se completa un nombre que nunca fue real. Si la dependencia cambió de nombre en su historia, el
     # nombre anterior se conserva: se registra el agente sucesor (RiC-R016) o un nombre con su periodo.
-    if not _NOMBRE_PROVISIONAL.fullmatch(" ".join((anterior or "").split())):
+    if not es_nombre_provisional(anterior):
         raise ErrorRenombrar("Esta agrupación ya tiene un nombre real. Si la dependencia cambió de nombre, no se "
                              "reemplaza: registre el nombre nuevo con su periodo en la autoridad del productor, o su "
                              "agente sucesor, para que los documentos anteriores conserven su contexto.")

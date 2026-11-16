@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models.descripcion import EntidadVocabulario, Fecha, Relacion
 from app.models.instanciacion import Instanciacion
-from app.models.recurso_documental import RecursoDocumental
+from app.models.recurso_documental import NIVEL_NOMBRE, RecursoDocumental
 from app.servicios import fechas
 
 # Textos que escribe una persona (columna → elemento ISAD-G).
@@ -41,9 +41,7 @@ ESCRITURAS = {
     "Hani": "han (china)", "Jpan": "japonesa", "Zmth": "notación matemática", "Zsym": "símbolos",
     "Zyyy": "común (sin escritura determinada)", "Zxxx": "sin escritura (no escrito)", "Zzzz": "escritura desconocida",
 }
-NOMBRE_NIVEL = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie",
-                "subserie": "Subserie", "expediente": "Expediente", "unidad_documental": "Unidad documental",
-                "parte_documental": "Parte documental"}
+NOMBRE_NIVEL = NIVEL_NOMBRE
 
 
 class ErrorIsadg(ValueError):
@@ -159,7 +157,8 @@ def _agentes(db: Session, recurso: RecursoDocumental, codigo: str) -> list[Entid
                                   Relacion.estado == "vigente")).all())
 
 
-def _instancias(db: Session, recurso: RecursoDocumental) -> list[Instanciacion]:
+def instancias(db: Session, recurso: RecursoDocumental) -> list[Instanciacion]:
+    """Las instanciaciones vigentes del recurso (rico:hasOrHadInstantiation)."""
     return list(db.scalars(select(Instanciacion).join(Relacion, Relacion.destino_id == Instanciacion.id).where(
         Relacion.origen_id == recurso.id, Relacion.codigo_ric == "has_or_had_instantiation",
         Relacion.estado == "vigente")).all())
@@ -174,7 +173,7 @@ def ficha(db: Session, recurso: RecursoDocumental) -> list[dict]:
     from app.servicios import lotes, retencion
 
     productores = _agentes(db, recurso, "has_creator")
-    instancias = _instancias(db, recurso)
+    instancias = instancias(db, recurso)
     digitales = sorted({i.formato_nombre or i.formato_puid for i in instancias
                         if i.estado != "registro_fisico" and (i.formato_nombre or i.formato_puid)})
     fisicos = [i for i in instancias if i.estado == "registro_fisico"]

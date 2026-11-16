@@ -27,7 +27,6 @@ de integridad, las migraciones, las segundas copias, las restauraciones, la
 descripción (grafo RiC) y las declaraciones de derechos. Nada se inventa.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -403,12 +402,10 @@ def premis_xml(db: Session, inst: Instanciacion, eventos: list[dict], declaracio
 
 
 def _jerarquia(db: Session, recurso: RecursoDocumental) -> list[dict]:
-    salida, actual = [], recurso
-    while actual is not None:
-        salida.append({"id": str(actual.id), "nivel": actual.nivel, "titulo": actual.titulo,
-                       "codigo_referencia": actual.codigo_referencia})
-        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id and actual.nivel != "fondo" else None
-    return list(reversed(salida))
+    from app.servicios.jerarquia import migas
+
+    return [{"id": str(x.id), "nivel": x.nivel, "titulo": x.titulo, "codigo_referencia": x.codigo_referencia}
+            for x in migas(db, recurso)]
 
 
 def _iso(f) -> str | None:
@@ -495,11 +492,7 @@ def nombre_seguro(nombre: str) -> str:
 
 
 def _sha256(ruta: Path) -> str:
-    h = hashlib.sha256()
-    with open(ruta, "rb") as f:
-        while bloque := f.read(almacen.TAMANO_BLOQUE):
-            h.update(bloque)
-    return h.hexdigest()
+    return almacen.sha256(ruta)
 
 
 def _cerrar_bolsa(bolsa: Path, info: dict) -> None:

@@ -979,7 +979,7 @@ def _tipo_agrupacion(ex: Exportacion, nivel: str) -> URIRef:
 
 
 
-NIVELES_CCD = ("seccion", "subseccion", "serie", "subserie")
+from app.models.recurso_documental import NIVELES_CUADRO as NIVELES_CCD  # noqa: E402
 
 
 def _codigo_ccd(r: RecursoDocumental, recursos: dict) -> str | None:

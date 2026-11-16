@@ -514,7 +514,7 @@ export function RegistroDescripcion() {
                 <div className="meta">
                   {e.motor && `Motor: ${e.motor}`}{e.motor && (e.responsable || e.registrada) && " · "}
                   {e.responsable && `Confirmó: ${e.responsable}`}{e.responsable && e.registrada && " · "}
-                  {e.registrada && `Registrada: ${new Date(e.registrada).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}`}
+                  {e.registrada && `Registrada: ${fecha(e.registrada)}`}
                 </div>
               )}
             </div>

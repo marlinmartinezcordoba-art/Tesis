@@ -17,7 +17,6 @@ Independencia (hallazgo PRE-07):
   proceso no escribe nunca en la segunda copia: la crea el trabajador.
 """
 
-import hashlib
 import logging
 import os
 import shutil
@@ -87,11 +86,7 @@ def vigente(db: Session, inst_id: uuid.UUID) -> SegundaCopia | None:
 
 
 def _huella(ruta: Path) -> str:
-    h = hashlib.sha256()
-    with open(ruta, "rb") as f:
-        while bloque := f.read(almacen.TAMANO_BLOQUE):
-            h.update(bloque)
-    return h.hexdigest()
+    return almacen.sha256(ruta)
 
 
 def comprobar(copia: SegundaCopia | None, huella_esperada: str) -> tuple[str, str | None]:

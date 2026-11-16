@@ -27,7 +27,7 @@ log = logging.getLogger("ricora.motor")
 TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental")
 ROLES_AGENTE = ("productor", "remitente", "destinatario", "mencionado")
 from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
-SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
+from app.models.descripcion import SUBTIPO_MANDATO as SUBTIPOS_MANDATO  # noqa: E402
 
 MAX_CARACTERES_DOCUMENTO = 20_000
 MAX_CARACTERES_TOTAL = 60_000

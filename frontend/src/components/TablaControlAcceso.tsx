@@ -2,6 +2,7 @@
 // vigencia, condiciones de consulta y quién autoriza. Se hereda a los expedientes y documentos de la serie.
 import { FormEvent, useEffect, useState } from "react";
 import { ErrorAPI, pedir } from "@/lib/api";
+import { diaCivil as fecha } from "@/lib/formato";
 import { useSesion } from "@/lib/sesion";
 
 interface Condicion {
@@ -12,7 +13,6 @@ interface Fila { id: string; nivel: string; codigo: string | null; titulo: strin
 interface Tabla { series: Fila[]; totales: { series: number; con_condicion: number; restringidas: number } }
 
 const CLASE: Record<string, string> = { publico: "bien", clasificado: "alerta", reservado: "error" };
-const fecha = (x: string | null) => (x ? new Date(`${x.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO") : "—");
 
 function Formulario({ fila, fondoId, alGuardar, alCancelar }: { fila: Fila; fondoId: string; alGuardar: (t: Tabla) => void; alCancelar: () => void }) {
   const c = fila.propia;

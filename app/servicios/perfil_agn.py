@@ -374,9 +374,9 @@ NIVELES_RECORD = ("unidad_documental", "parte_documental")
 
 
 def _instancias(db: Session, recurso: RecursoDocumental) -> list[Instanciacion]:
-    return list(db.scalars(select(Instanciacion).join(Relacion, Relacion.destino_id == Instanciacion.id).where(
-        Relacion.origen_id == recurso.id, Relacion.codigo_ric == "has_or_had_instantiation",
-        Relacion.estado == "vigente")).all())
+    from app.servicios.isadg import instancias
+
+    return instancias(db, recurso)
 
 
 def _acceso(db: Session, recurso: RecursoDocumental) -> str | None:

@@ -22,14 +22,11 @@ from sqlalchemy.orm import Session
 
 from app.models.descripcion import EntidadVocabulario, Fecha, Relacion
 from app.models.instanciacion import Instanciacion
-from app.models.recurso_documental import NIVEL_DESCRIPCION, RecursoDocumental
+from app.models.recurso_documental import NIVEL_DESCRIPCION, NIVEL_NOMBRE, RecursoDocumental  # noqa: F401
 from app.servicios import retencion, alertas, consulta, motor, terminos, vocabulario
 
 NIVEL_PLURAL = {"coleccion": "colecciones", "seccion": "secciones", "subseccion": "subsecciones", "serie": "series", "subserie": "subseries", "expediente": "expedientes",
                 "unidad_documental": "unidades documentales", "parte_documental": "partes documentales"}
-NIVEL_NOMBRE = {"fondo": "Fondo", "coleccion": "Colección", "seccion": "Sección", "subseccion": "Subsección", "serie": "Serie", "subserie": "Subserie",
-                "expediente": "Expediente", "unidad_documental": "Unidad documental",
-                "parte_documental": "Parte documental"}
 
 # Claves que no pueden aparecer en ninguna respuesta ni archivo de este módulo.
 CAMPOS_INTERNOS = consulta.CAMPOS_PROHIBIDOS | {"estado_revision", "origen_dato", "fragmento_inicio",

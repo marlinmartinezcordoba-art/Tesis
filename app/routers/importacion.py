@@ -9,7 +9,6 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.core.permisos import Actor, solo_administrador
 from app.db.session import get_db
@@ -20,13 +19,10 @@ router = APIRouter(prefix="/api/importacion", tags=["Importar RiC-O"])
 
 
 async def _archivo(request: Request) -> tuple[bytes, str, dict]:
-    formulario = await request.form()
-    archivo = formulario.get("archivo")
-    if not isinstance(archivo, StarletteUploadFile):
-        raise HTTPException(422, detail="Adjunte el archivo RiC-O.")
-    contenido = await archivo.read(importacion_rico.MAX_BYTES + 1)
-    datos = {k: v for k, v in formulario.items() if isinstance(v, str)}
-    return contenido, archivo.filename or "archivo", datos
+    from app.routers.archivos import leer_archivo
+
+    return await leer_archivo(request, importacion_rico.MAX_BYTES, falta="Adjunte el archivo RiC-O.",
+                              nombre_por_defecto="archivo")
 
 
 def _seccion(datos: dict) -> dict | None:

@@ -31,6 +31,7 @@ from app.schemas.respuestas_ingesta import (AcuseRecibo, CargaReciente, LoteConf
                                              VistaPreviaDocumento)
 from app.servicios import almacen, lotes, parametros, procesamiento
 from app.servicios.auditoria import ip_de, registrar
+from app.db.consultas import contar
 
 router = APIRouter(prefix="/api/ingesta", tags=["Módulo 1 · Ingesta"],
                    dependencies=[Depends(acceso_modulo("ingesta"))])
@@ -399,7 +400,7 @@ def resumen(fondo_id: uuid.UUID, db: Session = Depends(get_db)):
                                          Instanciacion.estado == "listo_para_descripcion")
     con_texto = db.scalar(select(func.count()).select_from(
         listos.where(Instanciacion.origen_texto.in_(("capa_de_texto", "ocr"))).subquery()))
-    total = db.scalar(select(func.count()).select_from(listos.subquery()))
+    total = contar(db, listos)
     panel = preservacion.panel(db, fondo_id)["resumen"]
     db.commit()  # el panel actualiza las alertas de riesgo, como en preservación
     return {"documentos": total, "con_texto": con_texto,

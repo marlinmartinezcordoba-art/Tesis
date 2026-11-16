@@ -63,11 +63,11 @@ from app.servicios.auditoria import registrar
 NIVELES_CONJUNTO = ("expediente", "subserie", "serie")
 # Los niveles del cuadro de clasificación solo nacen de aplicar una versión de la
 # TRD (Fondos › Versiones de la TRD): nadie los crea, mueve ni renombra sueltos.
-NIVELES_CUADRO = ("seccion", "subseccion", "serie", "subserie")
+from app.models.recurso_documental import NIVELES_CUADRO  # noqa: E402,F401
 CLASES_VOCABULARIO = ("agente", "lugar", "forma_documental", "actividad", "tipo_actividad", "mandato", "materia")
 TIPOS_ENTIDAD = CLASES_VOCABULARIO + ("fecha",)
 from app.models.descripcion import SUBTIPO_AGENTE as SUBTIPOS_AGENTE  # noqa: E402
-SUBTIPOS_MANDATO = ("ley", "decreto", "ordenanza", "acuerdo", "resolucion", "otro")
+from app.models.descripcion import SUBTIPO_MANDATO as SUBTIPOS_MANDATO  # noqa: E402
 
 ROLES_AGENTE = ("productor", "autor", "remitente", "destinatario", "acumulador", "mencionado", "custodio",
                 # Cobertura total de RiC-CM: receptor (R029), coleccionista (R030), propietario (R037),
@@ -843,13 +843,10 @@ def _isadg(recurso: RecursoDocumental, textos: dict | None, escrituras: list[str
 
 def _serie_de(db: Session, recurso: RecursoDocumental) -> uuid.UUID | None:
     """La serie o subserie más cercana por encima del documento."""
-    actual, vistos = recurso, set()
-    while actual is not None and actual.id not in vistos:
-        vistos.add(actual.id)
-        if actual.nivel in ("serie", "subserie"):
-            return actual.id
-        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id else None
-    return None
+    from app.servicios.jerarquia import serie_de
+
+    serie = serie_de(db, recurso)
+    return serie.id if serie is not None else None
 
 
 def _secuencia(db: Session, recurso: RecursoDocumental, otro_id: uuid.UUID, posicion: str,

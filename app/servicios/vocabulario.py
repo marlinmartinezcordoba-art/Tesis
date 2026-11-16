@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.descripcion import EntidadVocabulario, Relacion
 from app.models.recurso_documental import RecursoDocumental
+from app.db.consultas import contar
 
 
 def normalizar(texto: str) -> str:
@@ -605,7 +606,7 @@ def resumen_mecanismo(db: Session, mecanismo_id: uuid.UUID) -> dict:
         consultas.append(select(archivo.label("i")).where(columna == mecanismo_id))
     archivos = 0
     if consultas:
-        archivos = db.scalar(select(func.count()).select_from(union(*consultas).subquery())) or 0
+        archivos = contar(db, union(*consultas))
     return {"archivos": archivos, "acciones": acciones}
 
 

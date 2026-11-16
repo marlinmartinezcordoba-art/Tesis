@@ -17,7 +17,6 @@ La entidad raíz siempre se muestra.
 """
 
 import io
-import re
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -269,17 +268,14 @@ class _Contexto:
         return salida
 
 
-# «Dependencia 3203» es el nombre provisional que pone la carga de la TRD cuando trae el código sin el nombre.
-_GENERICO = re.compile(r"(fondo|secci[oó]n|subsecci[oó]n|serie|subserie|expediente|dependencia)?\s*[\d.]*",
-                       re.IGNORECASE)
-
-
 def sin_nombre(titulo: str | None, nivel: str) -> bool:
     """Una agrupación que solo tiene un número o el nombre de su nivel («Serie 27») no tiene
     título propio: el grafo la marca para que se corrija en la TRD, sin inventarle un nombre."""
     if nivel in ("unidad_documental", "parte_documental"):
         return not (titulo or "").strip()
-    return _GENERICO.fullmatch((titulo or "").strip()) is not None
+    from app.servicios.cuadro import es_nombre_provisional
+
+    return es_nombre_provisional(titulo)
 
 
 def _jerarquia(hijo: RecursoDocumental) -> str:

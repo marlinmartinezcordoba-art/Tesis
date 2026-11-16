@@ -40,7 +40,7 @@ from app.schemas.respuestas_descripcion import (
 )
 from app.servicios import (completitud, consulta, datos_personales, descripcion, digitalizacion, motor, parametros,
                            propuestas_ia, versiones_trd, vocabulario)
-from app.servicios.auditoria import registrar
+from app.servicios.auditoria import ip_de, registrar
 
 router = APIRouter(prefix="/api/descripcion", tags=["Módulo 2 · Descripción"],
                    dependencies=[Depends(acceso_modulo("descripcion"))])
@@ -277,7 +277,7 @@ def cambiar_tipos_contenido(datos: list[TipoContenidoIn], request: Request, acto
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail=f"No se puede retirar {', '.join(en_uso)}: hay documentos descritos con ese tipo.")
     try:
-        parametros.cambiar(db, "tipos_contenido_adicionales", nuevos, actor.id, "descripcion", ip=request.client.host if request.client else None)
+        parametros.cambiar(db, "tipos_contenido_adicionales", nuevos, actor.id, "descripcion", ip=ip_de(request))
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

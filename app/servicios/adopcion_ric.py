@@ -19,6 +19,7 @@ from app.models.descripcion import EntidadVocabulario, Relacion
 from app.models.grafo_rdf import GrafoRdf
 from app.models.recurso_documental import RecursoDocumental
 from app.servicios import cobertura_ric, vocabulario
+from app.db.consultas import contar
 
 NIVELES = [
     {"codigo": 0, "nombre": "Descripción multinivel", "que": "Se describe con ISAD(G) y la NTC 4095; RiC no interviene."},
@@ -56,7 +57,7 @@ def evaluar(db: Session) -> dict:
         Relacion.estado == "vigente", Relacion.origen_tipo == "recurso_documental",
         Relacion.destino_tipo == "entidad_vocabulario").group_by(Relacion.destino_id).having(
         func.count(func.distinct(doc.fondo_id)) > 1)
-    en_varios = _n(db, select(func.count()).select_from(citadas_varios.subquery()))
+    en_varios = contar(db, citadas_varios)
     clases_ok = set(vocabulario.CLASES_INSTITUCIONALES) >= {"agente", "lugar", "materia", "mandato"}
     c1 = _criterio(1, "Las entidades existen por sí mismas, no subordinadas a un fondo", clases_ok, [
         f"Autoridades de la institución: {sum(institucionales.values())} "
@@ -106,7 +107,7 @@ def evaluar(db: Session) -> dict:
 
     # 5. Consulta del acervo.
     publicos = select(GrafoRdf).where(GrafoRdf.alcance == "publico")
-    sincronizados = _n(db, select(func.count()).select_from(publicos.where(GrafoRdf.version_sincronizada > 0).subquery()))
+    sincronizados = contar(db, publicos.where(GrafoRdf.version_sincronizada > 0))
     c5 = _criterio(5, "Permite consultar el grafo de todo el acervo", True, [
         f"Fondos en el punto SPARQL del acervo: {sincronizados} de {fondos}",
         "GET /api/publico/sparql sin fondo: la unión de los grafos públicos; con fondo: solo ese"],

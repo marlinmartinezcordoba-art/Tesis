@@ -17,6 +17,18 @@ from app.core.config import settings
 TAMANO_BLOQUE = 1024 * 1024
 
 
+def sha256(ruta) -> str:
+    """Huella SHA-256 de un archivo, leída por bloques (no carga el archivo entero en memoria).
+    La única implementación: ingesta, preservación, paquetes y segunda copia la usan."""
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        while bloque := f.read(TAMANO_BLOQUE):
+            h.update(bloque)
+    return h.hexdigest()
+
+
 class ExcedeLimite(Exception):
     pass
 

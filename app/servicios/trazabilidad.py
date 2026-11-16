@@ -25,6 +25,7 @@ from app.models.auditoria import RegistroAuditoria
 from app.models.sesion import Sesion
 from app.models.usuario import Usuario
 from app.servicios.auditoria import Accion
+from app.db.consultas import contar
 
 # --- Catálogo de acciones: nombre legible y grupo del panel consolidado ---------------------------
 
@@ -320,7 +321,7 @@ def registro(db: Session, *, usuario_id: uuid.UUID | None = None, accion: str | 
     """Registro de actividad de todas las personas, por páginas (vista de la administración)."""
     from sqlalchemy import func
 
-    total = db.scalar(select(func.count()).select_from(_consulta_propia(usuario_id, accion, modulo, desde, hasta).subquery()))
+    total = contar(db, _consulta_propia(usuario_id, accion, modulo, desde, hasta))
     paginas = max(1, -(-total // por_pagina))
     pagina = min(max(1, pagina), paginas)
     filas = db.scalars(_consulta_propia(usuario_id, accion, modulo, desde, hasta).order_by(RegistroAuditoria.id.desc())

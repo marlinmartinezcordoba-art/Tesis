@@ -30,30 +30,18 @@ def _con_agente(entidades: list[dict], codigos: tuple[str, ...]) -> list[dict]:
 
 def _custodia_heredada(db: Session, recurso: RecursoDocumental) -> bool:
     """El custodio declarado en un nivel superior también custodia al documento (RiC-R039)."""
-    actual = recurso
-    for _ in range(12):
-        if actual.incluido_en_id is None:
-            return False
-        actual = db.get(RecursoDocumental, actual.incluido_en_id)
-        if actual is None:
-            return False
-        if db.scalar(select(Relacion.id).where(Relacion.origen_id == actual.id, Relacion.estado == "vigente",
-                                               Relacion.codigo_ric == "has_or_had_holder").limit(1)):
-            return True
-    return False
+    from app.servicios.jerarquia import linea
+
+    return any(db.scalar(select(Relacion.id).where(Relacion.origen_id == x.id, Relacion.estado == "vigente",
+                                                   Relacion.codigo_ric == "has_or_had_holder").limit(1))
+               for x in linea(db, recurso, incluir_propio=False))
 
 
 def _en_serie(db: Session, recurso: RecursoDocumental) -> bool:
-    actual = recurso
-    for _ in range(12):
-        if actual.incluido_en_id is None:
-            return False
-        actual = db.get(RecursoDocumental, actual.incluido_en_id)
-        if actual is None:
-            return False
-        if actual.nivel in ("serie", "subserie"):
-            return True
-    return False
+    """¿Está dentro de una serie o subserie del cuadro?"""
+    from app.servicios.jerarquia import linea
+
+    return any(x.nivel in ("serie", "subserie") for x in linea(db, recurso, incluir_propio=False))
 
 
 def componentes(db: Session, recurso: RecursoDocumental, d: dict) -> dict:

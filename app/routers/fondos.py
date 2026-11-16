@@ -124,19 +124,10 @@ def expedientes(fondo_id: uuid.UUID, _: Actor = Depends(lectura_catalogo), db: S
 
 
 async def _archivo_fuid(request: Request) -> tuple[bytes, str]:
-    from starlette.datastructures import UploadFile as StarletteUploadFile
+    from app.routers.archivos import leer_archivo
 
-    formulario = await request.form(max_files=1)
-    try:
-        archivo = formulario.get("archivo")
-        if not isinstance(archivo, StarletteUploadFile):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No llegó el archivo.")
-        contenido = await archivo.read(20 * 1024 * 1024 + 1)
-        if len(contenido) > 20 * 1024 * 1024:
-            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="El FUID supera 20 MB.")
-        return contenido, archivo.filename or ""
-    finally:
-        await formulario.close()
+    contenido, nombre, _ = await leer_archivo(request, 20 * 1024 * 1024, rechazar_si_excede=True)
+    return contenido, nombre
 
 
 @router.post("/{fondo_id}/fuid/vista-previa", response_model=rc.ImportacionFuid,

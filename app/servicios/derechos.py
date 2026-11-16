@@ -60,13 +60,13 @@ def declaracion_que_rige(db: Session, inst: Instanciacion) -> tuple[DeclaracionD
     propia = _vigente(db, inst.id)
     if propia is not None:
         return propia, "instanciacion", inst.nombre_original
+    from app.servicios.jerarquia import linea
+
     for recurso in recursos_de(db, inst):
-        actual = recurso
-        while actual is not None:
+        for actual in linea(db, recurso):
             d = _vigente(db, actual.id)
             if d is not None:
                 return d, actual.nivel, actual.titulo
-            actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id else None
     fondo = db.get(RecursoDocumental, inst.fondo_id)
     d = _vigente(db, fondo.id) if fondo else None
     return (d, "fondo", fondo.titulo) if d else (None, None, None)
@@ -75,13 +75,9 @@ def declaracion_que_rige(db: Session, inst: Instanciacion) -> tuple[DeclaracionD
 def declaracion_de_recurso(db: Session, recurso: RecursoDocumental) -> DeclaracionDerechos | None:
     """La declaración que rige una descripción: la propia o la del nivel más
     cercano hacia arriba (para el FUID y el índice de la Ley 1712)."""
-    actual = recurso
-    while actual is not None:
-        d = _vigente(db, actual.id)
-        if d is not None:
-            return d
-        actual = db.get(RecursoDocumental, actual.incluido_en_id) if actual.incluido_en_id and actual.id != actual.fondo_id else None
-    return None
+    from app.servicios.jerarquia import linea
+
+    return next((d for actual in linea(db, recurso) if (d := _vigente(db, actual.id)) is not None), None)
 
 
 def instanciacion_restringida(db: Session, inst: Instanciacion) -> bool:
