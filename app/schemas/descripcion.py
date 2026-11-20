@@ -145,6 +145,12 @@ class ProteccionIn(BaseModel):
     nota_accesibilidad: str | None = Field(default=None, max_length=2000)
 
 
+class CampoIA(BaseModel):
+    campo: str = Field(max_length=40)
+    origen: Literal["motor", "regla"]
+    decision: Literal["aceptada", "descartada", "pendiente"]
+
+
 class PublicarIn(CamposRegistro):
     trabajo_id: uuid.UUID
     clasificacion: ClasificacionIn | None = None  # vacío: hereda la del nivel superior
@@ -156,6 +162,8 @@ class PublicarIn(CamposRegistro):
     partes: list[ParteIn] = Field(default_factory=list, max_length=50)
     # Extensión (RiC-A35): folios del recurso. Vacío: sin dato.
     folios: int | None = Field(default=None, ge=0, le=100000)
+    # Qué se decidió sobre cada campo que propuso RICORA (aprobado, descartado o sin decidir), para la auditoría.
+    campos_ia: list[CampoIA] = Field(default_factory=list, max_length=30)
 
 
 class ControlIn(BaseModel):

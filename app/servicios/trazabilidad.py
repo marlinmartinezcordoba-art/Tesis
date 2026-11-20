@@ -91,6 +91,7 @@ ACCIONES: dict[str, tuple[str, str | None]] = {
     "tca_importada": ("Importó la Tabla de Control de Acceso (TCA)", "Descripción"),
     "propuestas_lote_solicitadas": ("Pidió proponer en lote la descripción de los documentos pendientes", "Descripción"),
     "propuestas_lote_generadas": ("RICORA propuso en lote la descripción de documentos pendientes", "Descripción"),
+    "campos_propuestos_decididos": ("Aprobó o descartó los campos que propuso RICORA al describir", "Descripción"),
     "descripcion_devuelta": ("La administración devolvió una descripción publicada para redescribirla", "Descripción"),
     "plan_documento_adjuntado": ("Adjuntó el documento de un PGD o un PINAR", "Gobierno archivístico"),
     "identicas_fusionadas": ("Fusionó entidades idénticas", "Entidades del vocabulario"),

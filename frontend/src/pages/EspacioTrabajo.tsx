@@ -87,6 +87,8 @@ interface Espacio {
   recuperado?: boolean;
   empezada_por?: string | null;  // si se continúa la descripción que empezó otra persona
   completitud?: RevisionCompletitud | null;
+  // Los campos que RICORA propone además de las entidades; la persona aprueba cada uno.
+  campos_propuestos?: CampoPropuesto[];
   datos_personales?: RevisionDatos | null;
 }
 
@@ -210,6 +212,50 @@ function ContextoRelacionado({ items, alElegir }: { items: { clave: string; tipo
   );
 }
 
+export interface CampoPropuesto {
+  campo: string; valor: unknown; mostrar: string; confianza: number | null; origen: "motor" | "regla"; evidencia: string;
+}
+
+const CAMPO_NOMBRE: Record<string, string> = {
+  idiomas: "Idioma (RiC-A25)", tipos_contenido: "Tipo de contenido (RiC-A10)", folios: "Extensión (RiC-A35)",
+  estado_documento: "Estado del documento (RiC-A39)", nota_integridad: "Nota de integridad (RiC-A24)",
+  asociado_a: "Documento asociado ya descrito (RiC-R022)",
+};
+
+// La descripción exhaustiva: además de las entidades, RICORA propone cada campo con su evidencia; la persona aprueba.
+function CamposPropuestos({ propuestos, decision, alAceptar, alDescartar }: {
+  propuestos: CampoPropuesto[]; decision: Record<string, "aceptada" | "descartada">;
+  alAceptar: (c: CampoPropuesto) => void; alDescartar: (c: CampoPropuesto) => void;
+}) {
+  if (!propuestos.length) return null;
+  const pendientes = propuestos.filter((c) => !decision[c.campo]).length;
+  return (
+    <details className="tarjeta campos-propuestos" open={pendientes > 0}>
+      <summary><strong>Campos que propone RICORA</strong> <span className="meta">({propuestos.length} propuesto(s) ·
+        {" "}{pendientes} por aprobar · el acceso no lo propone: lo fija la TCA)</span></summary>
+      {propuestos.map((c) => {
+        const d = decision[c.campo];
+        return (
+          <div className="fila" key={c.campo}>
+            <div className="fila-principal">
+              <div className="nombre">{CAMPO_NOMBRE[c.campo] || c.campo}: {c.mostrar.length > 160 ? `${c.mostrar.slice(0, 160)}…` : c.mostrar}</div>
+              <div className="meta">{c.evidencia} · {c.origen === "motor" ? "propuesto por la IA" : "propuesto por reglas de RICORA"}
+                {c.confianza !== null && ` · certeza ${Math.round(c.confianza * 100)} %`}</div>
+            </div>
+            {d === "aceptada" ? <span className="insignia bien">Aprobado</span>
+              : d === "descartada" ? <span className="insignia">Descartado</span> : (
+              <div className="acciones" style={{ marginTop: 0 }}>
+                <button type="button" className="boton chico primario" onClick={() => alAceptar(c)}>Aprobar</button>
+                <button type="button" className="boton chico" onClick={() => alDescartar(c)}>Descartar</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </details>
+  );
+}
+
 // Lo primero que se ve al describir: el nivel de descripción y qué propuso la IA, con el modo de trabajo.
 function TarjetaAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloqueada, alAsistir }: {
   nivel: string; motor: string | null; aviso: string | null; items: Item[]; modo: "una_a_una" | "de_una_vez";
@@ -317,7 +363,9 @@ export function EspacioTrabajo() {
       setAlcance(p?.alcance || "");
       setItems((p?.entidades || []).map((e) => nuevoItem(e)));
       // La completitud llega propuesta por el sistema; el archivista la confirma o la corrige.
-      setCampos({ ...camposVacios(p?.idiomas || []), notaIntegridad: espacio.completitud?.nota_propuesta || "" });
+      // Los campos llegan como propuestas de RICORA (tarjeta «Campos que propone RICORA»): la persona los aprueba.
+      setCampos(espacio.campos_propuestos ? camposVacios()
+        : { ...camposVacios(p?.idiomas || []), notaIntegridad: espacio.completitud?.nota_propuesta || "" });
     }
     Promise.all([nivelesSuperiores(espacio.fondo.id, espacio.nivel),
                  ubicacionSugerida(espacio.trabajo_id).catch(() => [])]).then(([opciones, sugerencia]) => {
@@ -343,8 +391,27 @@ export function EspacioTrabajo() {
     try { localStorage.setItem("ricora.modo_asistencia", m); } catch { /* sin almacenamiento */ }
     if (m === "de_una_vez") asistirDeUnaVez();
   }
+  const [decisionCampo, setDecisionCampo] = useState<Record<string, "aceptada" | "descartada">>({});
+  function aplicarCampo(c: CampoPropuesto) {
+    setCampos((v) => {
+      switch (c.campo) {
+        case "idiomas": return { ...v, idiomas: Array.from(new Set([...v.idiomas, ...(c.valor as string[])])) };
+        case "tipos_contenido": return { ...v, tiposContenido: Array.from(new Set([...v.tiposContenido, ...(c.valor as string[])])) };
+        case "estado_documento": return { ...v, estadoDocumento: c.valor as string };
+        case "nota_integridad": return { ...v, notaIntegridad: c.valor as string };
+        case "asociado_a": return { ...v, asociadoA: c.valor as { id: string; titulo: string } };
+        default: return v;
+      }
+    });
+    if (c.campo === "folios") setFolios(String(c.valor));
+    setDecisionCampo((d) => ({ ...d, [c.campo]: "aceptada" }));
+  }
+  function descartarCampo(c: CampoPropuesto) {
+    setDecisionCampo((d) => ({ ...d, [c.campo]: "descartada" }));
+  }
   function asistirDeUnaVez() {
     if (!espacio || espacio.politica_ia === "revisar_todo") return;
+    (espacio.campos_propuestos || []).filter((c) => !decisionCampo[c.campo]).forEach(aplicarCampo);
     items.filter((i) => i.decision === "pendiente" && !i.manual).forEach((i) => {
       cambiar(i.clave, { porRicora: true });
       aceptar({ ...i, porRicora: true });
@@ -362,6 +429,8 @@ export function EspacioTrabajo() {
       cambiar(i.clave, { porRicora: true });
       aceptar({ ...i, porRicora: true });
     });
+    if (!espacio.borrador) (espacio.campos_propuestos || []).filter((c) => politica === "todo" || modo === "de_una_vez"
+      || (c.confianza !== null && c.confianza >= espacio.umbral_confianza)).forEach(aplicarCampo);
   }, [espacio, items, vencido]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -523,6 +592,8 @@ export function EspacioTrabajo() {
           historia_archivistica: campos.historiaArchivistica || null,
           isadg: campos.isadg, escrituras: campos.escrituras,
           folios: folios ? Number(folios) : null,
+          campos_ia: (espacio.campos_propuestos || []).map((c) => ({ campo: c.campo, origen: c.origen,
+            decision: decisionCampo[c.campo] || "pendiente" })),
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,
           sigue_a_id: campos.secuencia?.posicion === "sigue" ? campos.secuencia.id : null,
           responde_a_id: campos.respondeA?.id || null, borrador_de_id: campos.borradorDe?.id || null,
@@ -612,6 +683,8 @@ export function EspacioTrabajo() {
       <TarjetaAsistencia nivel={espacio.nivel} motor={propuesta?.disponible ? propuesta.motor || "IA" : null}
                          aviso={propuesta?.aviso || null} items={items} modo={modo} alCambiarModo={cambiarModo}
                          bloqueada={espacio.politica_ia === "revisar_todo"} alAsistir={asistirDeUnaVez} />
+      <CamposPropuestos propuestos={espacio.campos_propuestos || []} decision={decisionCampo}
+                        alAceptar={aplicarCampo} alDescartar={descartarCampo} />
       {espacio.borrador && (
         <div className="aviso bien" role="status">
           {espacio.empezada_por ? `Continúa la descripción que empezó ${espacio.empezada_por}` : "Continúa donde iba"}{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)

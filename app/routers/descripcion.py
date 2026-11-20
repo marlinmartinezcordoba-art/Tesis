@@ -89,6 +89,12 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         "umbral_confianza": settings.umbral_confianza,
         "politica_ia": parametros.politica_ia(db),
     }
+    # Descripción exhaustiva: los campos que RICORA propone además de las entidades (la persona aprueba).
+    from app.servicios import campos_propuestos
+
+    espacio["campos_propuestos"] = campos_propuestos.proponer(
+        db, fondo_id=trabajo.fondo_id, nivel=trabajo.nivel, documentos=documentos, propuesta=espacio["propuesta"],
+        completitud=espacio["completitud"], recurso_id=trabajo.recurso_id)
     db.commit()  # la búsqueda de datos personales guarda sus hallazgos la primera vez
     return espacio
 
@@ -734,6 +740,10 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
         if datos.folios is not None:
             recurso.folios = datos.folios
+        if datos.campos_ia:  # la supervisión de los campos que propuso RICORA, para la auditoría
+            registrar(db, modulo="descripcion", accion="campos_propuestos_decididos", usuario_id=actor.id,
+                      entidad_tipo="recurso_documental", entidad_id=recurso.id,
+                      nuevo={"campos": [c.model_dump() for c in datos.campos_ia]})
         if datos.clasificacion is not None:
             _clasificar(db, recurso, datos.clasificacion, actor.id)
         _proteger(db, recurso, datos.proteccion, actor.id)
