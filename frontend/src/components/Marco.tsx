@@ -47,6 +47,8 @@ interface Entrada {
   grupo: "trabajo" | "sistema";
   modulo: Modulo | "usuarios";
   tipo?: "leer" | "escribir";
+  // Módulo que el sistema puede tener apagado (la evaluación): sin esto, siempre está.
+  activo?: (u: UsuarioBreve) => boolean;
   // Las vistas son pestañas dentro de la pantalla. Solo los módulos con
   // `submodulos` se despliegan en el menú (criterio único, decisión de la autora:
   // un módulo es un proceso archivístico; sus pasos y pestañas van adentro).
@@ -119,7 +121,8 @@ const ENTRADAS: Entrada[] = [
     { vista: "decisiones", nombre: "Decisiones de IA", permitir: (u) => u.es_administrador },
     { vista: "hallazgos", nombre: "Hallazgos de conformidad", permitir: (u) => u.es_administrador }] },
   // Evaluación ciega: quien describe y la administración. Sin vistas internas.
-  { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir" },
+  { ruta: "/evaluacion", nombre: "Evaluación", icono: "evaluacion", grupo: "sistema", modulo: "descripcion", tipo: "escribir",
+    activo: (u) => !!u.evaluacion_activa },
   { ruta: "/usuarios", nombre: "Administración", icono: "usuarios", grupo: "sistema", modulo: "usuarios", vistas: [
     { vista: "usuarios", nombre: "Usuarios" }, { vista: "roles", nombre: "Roles y permisos" },
     { vista: "biblioteca", nombre: "Biblioteca del asistente", permitir: (u) => u.es_administrador },
@@ -187,7 +190,7 @@ export function ArbolNavegacion({ alNavegar }: { alNavegar?: () => void }) {
   const { usuario } = useSesion();
   const { pathname } = useLocation();
   const [parametros] = useSearchParams();
-  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo));
+  const visibles = ENTRADAS.filter((e) => puede(usuario, e.modulo, e.tipo) && (!e.activo || (!!usuario && e.activo(usuario))));
   const actual = visibles.find((e) => pathname === e.ruta || pathname.startsWith(`${e.ruta}/`));
   // Acordeón: un solo módulo abierto a la vez. Al llegar a otro módulo, sus
   // vistas se abren y las del anterior se esconden (la barra no se alarga).
@@ -314,7 +317,7 @@ function normal(t: string): string {
 
 export function destinosDe(u: UsuarioBreve | null): Destino[] {
   const salida: Destino[] = [];
-  for (const e of ENTRADAS.filter((x) => puede(u, x.modulo, x.tipo))) {
+  for (const e of ENTRADAS.filter((x) => puede(u, x.modulo, x.tipo) && (!x.activo || (!!u && x.activo(u))))) {
     const vistas = vistasDe(e.ruta, u);
     if (!vistas.length) salida.push({ nombre: e.nombre, donde: "Módulo", ruta: e.ruta });
     vistas.forEach((v, i) => salida.push({ nombre: v.nombre, donde: [e.nombre, v.submodulo].filter(Boolean).join(" › "),

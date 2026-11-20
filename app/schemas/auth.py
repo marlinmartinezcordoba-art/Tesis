@@ -37,6 +37,8 @@ class UsuarioBreve(BaseModel):
     preservacion_activa: bool = False
     # Modo evaluación: el menú oculta la parametrización de la TRD y la disposición final.
     modo_evaluacion: bool = False
+    # Si el módulo de evaluación está encendido en este sistema.
+    evaluacion_activa: bool = False
 
 
 class SesionOut(BaseModel):

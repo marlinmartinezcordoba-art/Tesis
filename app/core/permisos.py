@@ -74,6 +74,13 @@ def preservacion_encendida() -> None:
                             detail="El módulo de preservación digital está desactivado en este sistema.")
 
 
+def evaluacion_encendida() -> None:
+    """Dependencia del router de evaluación: 404 si el módulo está apagado."""
+    if not settings.evaluacion_activa:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="El módulo de evaluación está desactivado en este sistema.")
+
+
 @dataclass
 class Actor:
     usuario: Usuario

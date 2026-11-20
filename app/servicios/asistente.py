@@ -147,6 +147,8 @@ def internet_permitido(db: Session) -> bool:
 
     if settings.modo_evaluacion:
         return False
+    if not settings.evaluacion_activa:
+        return True
     return db.scalar(select(Evaluacion.id).where(Evaluacion.estado == "en_curso").limit(1)) is None
 
 

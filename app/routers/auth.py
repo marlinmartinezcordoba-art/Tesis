@@ -102,6 +102,7 @@ def _breve(usuario: Usuario) -> UsuarioBreve:
         doble_factor_requerido=doble_factor_requerido(object_session(usuario), usuario),
         preservacion_activa=settings.preservacion_activa,
         modo_evaluacion=settings.modo_evaluacion,
+        evaluacion_activa=settings.evaluacion_activa,
     )
 
 

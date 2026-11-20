@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.permisos import Actor, sin_permiso, solo_administrador, usuario_actual
+from app.core.permisos import Actor, evaluacion_encendida, sin_permiso, solo_administrador, usuario_actual
 from app.db.session import get_db
 from app.models.evaluacion import Anotacion, Evaluacion
 from app.routers.fondos import fondo_o_404
@@ -24,7 +24,7 @@ from app.schemas import respuestas_evaluacion as re_
 from app.servicios import evaluacion
 from app.servicios.auditoria import registrar
 
-router = APIRouter(prefix="/api/evaluacion", tags=["Evaluación ciega"])
+router = APIRouter(prefix="/api/evaluacion", tags=["Evaluación ciega"], dependencies=[Depends(evaluacion_encendida)])
 
 
 def evaluador(actor: Actor = Depends(usuario_actual)) -> Actor:

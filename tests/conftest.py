@@ -14,6 +14,7 @@ os.environ["RICORA_URL_PUBLICA"] = "http://ricora.prueba"
 os.environ["RICORA_PROPUESTAS_SEGUNDO_PLANO"] = "0"
 os.environ["RICORA_COPIA_OCR"] = "0"  # las pruebas de la copia con OCR la encienden con el parámetro  # se generan en la misma petición para comprobarlas
 os.environ["RICORA_DIRECTORIO_INTERFAZ"] = "/ruta/que/no/existe"
+os.environ["RICORA_EVALUACION"] = "1"  # las pruebas cubren el módulo encendido; test_evaluacion_apagada, apagado
 os.environ["RICORA_PRESERVACION"] = "1"  # las pruebas cubren el módulo encendido; test_preservacion_apagada, apagado
 import glob  # noqa: E402
 import shutil  # noqa: E402

@@ -49,9 +49,11 @@ describe("menú por procesos: módulos, uno con submódulos, y pestañas dentro 
     expect(screen.getAllByRole("button", { expanded: false }).concat(screen.queryAllByRole("button", { expanded: true }))
       .map((b) => nombre(b.querySelector(".rama-nombre") ?? b)).sort()).toEqual(["Conocimiento RiC"]);
     for (const m of ["Instrumentos", "Carga de documentos", "Descripción", "Agentes y autoridades", "Preservación", "Auditoría",
-      "Evaluación", "Administración", "Búsqueda"]) {
+      "Administración", "Búsqueda"]) {
       expect(screen.getByRole("link", { name: m })).toBeTruthy();
     }
+    // La evaluación está apagada en este sistema: no aparece en el menú.
+    expect(screen.queryByRole("link", { name: "Evaluación" })).toBeNull();
   });
 
   it("la TRD y el CCD son pasos guiados; las direcciones de antes llevan al paso donde quedó cada tarea", () => {
