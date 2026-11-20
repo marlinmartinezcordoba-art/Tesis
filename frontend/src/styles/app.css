@@ -1989,3 +1989,10 @@ html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siemp
 /* Campos que exige la ley colombiana y que no son atributos RiC. */
 .bloque-ley { border: 1px dashed var(--borde, #cfd6e0); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
 .bloque-ley .tarjeta-cab { margin-bottom: 8px; }
+
+/* Al describir: nivel de descripción y modo de asistencia de la IA. */
+.tarjeta.asistencia { padding: 12px 16px; }
+.asistencia-fila { display: flex; flex-wrap: wrap; gap: 24px; }
+.asistencia-modos { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 10px; }
+.asistencia-modos label { display: flex; gap: 6px; align-items: flex-start; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; max-width: 460px; }
+.asistencia-modos label.elegida { border-color: var(--acento, #1f6f78); }

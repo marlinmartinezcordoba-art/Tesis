@@ -210,6 +210,49 @@ function ContextoRelacionado({ items, alElegir }: { items: { clave: string; tipo
   );
 }
 
+// Lo primero que se ve al describir: el nivel de descripción y qué propuso la IA, con el modo de trabajo.
+function TarjetaAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloqueada, alAsistir }: {
+  nivel: string; motor: string | null; aviso: string | null; items: Item[]; modo: "una_a_una" | "de_una_vez";
+  alCambiarModo: (m: "una_a_una" | "de_una_vez") => void; bloqueada: boolean; alAsistir: () => void;
+}) {
+  const propuestas = items.filter((i) => !i.manual);
+  const cuenta = (d: string) => propuestas.filter((i) => i.decision === d).length;
+  const pendientes = cuenta("pendiente");
+  return (
+    <div className="tarjeta asistencia">
+      <div className="asistencia-fila">
+        <div>
+          <div className="meta">Nivel de descripción</div>
+          <strong>{NIVEL_NOMBRE[nivel] || nivel}</strong> <NivelRiC nivel={nivel} />
+        </div>
+        <div>
+          <div className="meta">Descripción asistida por IA</div>
+          {motor ? <strong>{propuestas.length} propuesta(s) de {motor}</strong> : <strong>Sin propuesta de la IA</strong>}
+          {motor && <div className="meta">{cuenta("aceptada")} aceptada(s) · {pendientes} por revisar · {cuenta("descartada")} descartada(s)</div>}
+          {!motor && aviso && <div className="meta">{aviso}</div>}
+        </div>
+      </div>
+      {motor && propuestas.length > 0 && (
+        <div className="asistencia-modos" role="radiogroup" aria-label="Cómo trabajar con la propuesta de la IA">
+          <label className={modo === "una_a_una" ? "elegida" : ""}>
+            <input type="radio" name="modo-asistencia" checked={modo === "una_a_una"} onChange={() => alCambiarModo("una_a_una")} />
+            <span><b>Una a una</b> — usted acepta, corrige o descarta cada propuesta.</span>
+          </label>
+          <label className={modo === "de_una_vez" ? "elegida" : ""} title={bloqueada ? "La administración pidió revisar todo una a una" : undefined}>
+            <input type="radio" name="modo-asistencia" checked={modo === "de_una_vez"} disabled={bloqueada}
+                   onChange={() => alCambiarModo("de_una_vez")} />
+            <span><b>De una vez</b> — RICORA deja aceptado todo lo que propuso; usted corrige lo que no esté bien antes de publicar.</span>
+          </label>
+          {modo === "de_una_vez" && pendientes > 0 && !bloqueada && (
+            <button type="button" className="boton chico" onClick={alAsistir}>Aceptar las {pendientes} pendiente(s)</button>
+          )}
+          {bloqueada && <div className="meta">La administración pidió revisar todo una a una (o hay una evaluación en curso).</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EspacioTrabajo() {
   const { id = "" } = useParams();
   const navegar = useNavigate();
@@ -290,12 +333,30 @@ export function EspacioTrabajo() {
     }).catch(() => undefined).finally(() => { listo.current = true; });
   }, [espacio]);
 
+  // Asistir de una vez: RICORA deja aceptado todo lo que propuso y la persona corrige lo que no esté bien.
+  // Es preferencia de cada persona; si la administración exige revisar todo (o la evaluación está en curso), no aplica.
+  const [modo, setModo] = useState<"una_a_una" | "de_una_vez">(() => {
+    try { return localStorage.getItem("ricora.modo_asistencia") === "de_una_vez" ? "de_una_vez" : "una_a_una"; } catch { return "una_a_una"; }
+  });
+  function cambiarModo(m: "una_a_una" | "de_una_vez") {
+    setModo(m);
+    try { localStorage.setItem("ricora.modo_asistencia", m); } catch { /* sin almacenamiento */ }
+    if (m === "de_una_vez") asistirDeUnaVez();
+  }
+  function asistirDeUnaVez() {
+    if (!espacio || espacio.politica_ia === "revisar_todo") return;
+    items.filter((i) => i.decision === "pendiente" && !i.manual).forEach((i) => {
+      cambiar(i.clave, { porRicora: true });
+      aceptar({ ...i, porRicora: true });
+    });
+  }
+
   useEffect(() => {
     if (!espacio || vencido || autoAceptado.current === espacio.trabajo_id || !items.length) return;
     autoAceptado.current = espacio.trabajo_id;
     const politica = espacio.politica_ia || "alta_confianza";
     if (politica === "revisar_todo") return;
-    const preacepta = (i: Item) => politica === "todo"
+    const preacepta = (i: Item) => politica === "todo" || modo === "de_una_vez"
       || (i.confianza !== null && i.confianza >= espacio.umbral_confianza && i.fragmento_localizado);
     items.filter((i) => i.decision === "pendiente" && !i.manual && !i.porRicora && preacepta(i)).forEach((i) => {
       cambiar(i.clave, { porRicora: true });
@@ -548,6 +609,9 @@ export function EspacioTrabajo() {
           <> · el motor recibió {Object.values(propuesta.contexto_enviado).reduce((a, b) => a + b, 0)} entidad(es) del vocabulario del fondo</>
         )}
       </p>
+      <TarjetaAsistencia nivel={espacio.nivel} motor={propuesta?.disponible ? propuesta.motor || "IA" : null}
+                         aviso={propuesta?.aviso || null} items={items} modo={modo} alCambiarModo={cambiarModo}
+                         bloqueada={espacio.politica_ia === "revisar_todo"} alAsistir={asistirDeUnaVez} />
       {espacio.borrador && (
         <div className="aviso bien" role="status">
           {espacio.empezada_por ? `Continúa la descripción que empezó ${espacio.empezada_por}` : "Continúa donde iba"}{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)
