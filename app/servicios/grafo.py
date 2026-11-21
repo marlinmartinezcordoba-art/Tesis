@@ -497,6 +497,87 @@ def estructura(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = F
         "filtros_activos": 0})
 
 
+NIVELES_DOCUMENTO = ("unidad_documental", "expediente")
+# La regla de retención y el instrumento no relacionan documentos por su contenido: ya están en la estructura.
+_FUERA_DE_LA_RED = ("includes_or_included", "has_or_had_constituent", "has_or_had_instantiation",
+                    "regulates_or_regulated")
+
+
+def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False,
+                   max_nodos: int = MAX_NODOS) -> dict:
+    """Cómo se relacionan entre sí los documentos descritos del fondo: los vínculos directos entre ellos
+    (responde a, es copia de, está asociado a, sigue a…) y lo que comparten (el mismo productor, destinatario,
+    lugar, norma, actividad o tipo documental). Una entidad entra solo si la comparten dos o más documentos:
+    lo que cita uno solo se ve al abrir ese documento. Las fechas no entran (cada documento tiene las suyas)."""
+    ctx = _Contexto(db, fondo, ver_restringidos)
+    docs = {i: r for i, r in ctx.recursos.items() if r.nivel in NIVELES_DOCUMENTO and r.publicado_en is not None}
+    nodos: dict[str, dict] = {}
+    aristas: list[dict] = []
+    truncado = False
+
+    def poner(clave: str, tipo: str, ident) -> bool:
+        nonlocal truncado
+        if clave in nodos:
+            return True
+        datos = ctx.nodo(tipo, ident)
+        if datos is None:
+            return False
+        if len(nodos) >= max_nodos:
+            truncado = True
+            return False
+        nodos[clave] = {**datos, "id": str(ident), "clave": clave, "salto": 0}
+        return True
+
+    ids = list(docs)
+    filas = db.execute(select(Relacion.origen_tipo, Relacion.origen_id, Relacion.destino_tipo, Relacion.destino_id,
+                              Relacion.codigo_ric).where(
+        Relacion.estado == "vigente", Relacion.codigo_ric.not_in(_FUERA_DE_LA_RED),
+        or_(Relacion.origen_id.in_(ids), Relacion.destino_id.in_(ids)))).all() if ids else []
+    directas, por_entidad = [], defaultdict(list)
+    for to, o, td, d, codigo in filas:
+        if to == "recurso_documental" and td == "recurso_documental" and o in docs and d in docs and o != d:
+            directas.append((o, d, codigo))
+        elif to == "entidad_vocabulario" and d in docs:
+            por_entidad[o].append((d, codigo, True))
+        elif td == "entidad_vocabulario" and o in docs:
+            por_entidad[d].append((o, codigo, False))
+    # El tipo documental (RiC-A17) es atributo del documento; se dibuja como lo comparten.
+    for forma, rids in ctx.por_forma.items():
+        for rid in rids:
+            if rid in docs:
+                por_entidad[forma].append((rid, "forma_documental", False))
+    compartidas = {e: v for e, v in por_entidad.items() if len({d for d, _, _ in v}) >= 2}
+    ctx.precargar([("entidad_vocabulario", e) for e in compartidas])
+    for o, d, codigo in directas:
+        if poner(f"recurso_documental:{o}", "recurso_documental", o) and \
+                poner(f"recurso_documental:{d}", "recurso_documental", d):
+            aristas.append(_arista(f"recurso_documental:{o}", f"recurso_documental:{d}", codigo))
+    # Primero lo que más documentos une, para que el tope no deje fuera lo importante.
+    for e, usos in sorted(compartidas.items(), key=lambda x: -len({d for d, _, _ in x[1]})):
+        clave = f"entidad_vocabulario:{e}"
+        if not poner(clave, "entidad_vocabulario", e):
+            continue
+        vistas = set()
+        for rid, codigo, desde_entidad in usos:
+            doc = f"recurso_documental:{rid}"
+            if (rid, codigo) in vistas or not poner(doc, "recurso_documental", rid):
+                continue
+            vistas.add((rid, codigo))
+            aristas.append(_arista(clave, doc, codigo) if desde_entidad else _arista(doc, clave, codigo))
+    # Los documentos que no comparten nada también se ven: así se nota que están aislados.
+    for rid in ids:
+        poner(f"recurso_documental:{rid}", "recurso_documental", rid)
+    for n in nodos.values():
+        for k in ("fecha_inicio", "fecha_fin"):
+            n[k] = n[k].isoformat() if hasattr(n.get(k), "isoformat") else n.get(k)
+        if n["tipo"] == "entidad_vocabulario":
+            n.setdefault("documentos", len({d for d, _, _ in compartidas.get(uuid.UUID(n["id"]), [])}))
+    return sin_campos_internos({
+        "fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "centro": f"recurso_documental:{fondo.id}",
+        "saltos": 0, "nodos": list(nodos.values()), "aristas": aristas, "truncado": truncado,
+        "maximo_nodos": max_nodos, "filtros_activos": 0})
+
+
 def opciones(db: Session, fondo: RecursoDocumental, ver_restringidos: bool) -> dict:
     """Lo que ofrece el panel de filtros y el selector de entidad raíz."""
     from app.models.enums import CODIGO_RELACION_RIC

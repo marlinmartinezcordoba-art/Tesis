@@ -82,6 +82,12 @@ def estructura(fondo_id: uuid.UUID, desde: uuid.UUID | None = None, actor: Actor
         raise _error(exc) from exc
 
 
+@router.get("/documentos", responses={200: {"model": rg.Subgrafo, "description": "Red de los documentos descritos"}},
+            summary="Cómo se relacionan entre sí los documentos descritos: vínculos directos y lo que comparten")
+def documentos(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
+    return grafo.red_documentos(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
+
+
 @router.get("/{tipo}/{ident}", responses={200: {"model": rg.Subgrafo, "description": "Nodos y relaciones del subgrafo"}},
              summary="Subgrafo acotado alrededor de una entidad raíz (1 a 3 saltos, con filtros)")
 def subgrafo(tipo: str, ident: uuid.UUID, fondo_id: uuid.UUID | None = None, saltos: int = Query(1, ge=1, le=3),

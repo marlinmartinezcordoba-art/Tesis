@@ -357,7 +357,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   // La estructura se ve desde el fondo (sus dependencias) o desde una dependencia o serie (lo que incluye).
   const esRecurso = raizClave.startsWith("recurso_documental:");
   const [saltos, setSaltos] = useState(esFondo ? 0 : 1);
-  useEffect(() => { if (!esRecurso && saltos === 0) setSaltos(1); }, [esRecurso, saltos]);
+  // -1: la red de los documentos descritos (solo desde el fondo).
+  useEffect(() => { if ((!esRecurso && saltos === 0) || (!esFondo && saltos === -1)) setSaltos(1); }, [esRecurso, esFondo, saltos]);
   const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
@@ -401,7 +402,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     setError("");
     setCargando(true);
     const vivo = { si: true };
-    pedir<DatosGrafo>(saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}${esFondo ? "" : `&desde=${id}`}`
+    pedir<DatosGrafo>(saltos === -1 ? `/api/grafo/documentos?fondo_id=${fondo.id}`
+      : saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}${esFondo ? "" : `&desde=${id}`}`
       : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
       .then((d) => vivo.si && setDatos(d))
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
@@ -455,7 +457,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
 
   function exportar(formato: "turtle" | "jsonld" | "rdfxml") {
     const [tipo, id] = raizClave.split(":");
-    const p = consulta(filtros, saltos, fondo.id);
+    const p = consulta(filtros, Math.max(saltos, 1), fondo.id);
     p.set("formato", formato);
     descargar(`${rutaEntidad(tipo, id)}/exportar?${p}`)
       .catch((err) => setError(err instanceof ErrorAPI ? err.message : "No se pudo exportar."));
@@ -510,6 +512,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
                   aria-label="Qué tan lejos mostrar las relaciones">
             {esRecurso && <option value={0}>{esFondo ? "Estructura: las dependencias del fondo (abra una para ver sus series)"
               : "Estructura: lo que incluye, con sus reglas de retención y documentos"}</option>}
+            {esFondo && <option value={-1}>Red de documentos: cómo se relacionan los documentos descritos</option>}
             {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
           </select>
         </label>
@@ -533,8 +536,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
         <div className={`grafo-y-detalle${seleccion && !completa ? " con-detalle" : ""}${cargando ? " recargando" : ""}`}>
           <div className="contenedor-lienzo">
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
-                         key={saltos === 0 ? "estructura" : "contexto"}
-                         disposicionInicial={saltos === 0 ? "arbol" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
+                         key={saltos === 0 ? "estructura" : saltos === -1 ? "documentos" : "contexto"}
+                         disposicionInicial={saltos === 0 ? "arbol" : saltos === -1 ? "red" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (
