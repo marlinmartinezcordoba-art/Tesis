@@ -11,7 +11,6 @@ from app.models.instanciacion import Instanciacion
 from app.servicios import texto
 from tests.conftest import crear_usuario, ingresar
 from tests.test_descripcion import aceptar_todo, documento, eventos, fondo, iniciar, motor_prueba  # noqa: F401
-from tests.test_evaluacion import motor_eval, preparar  # noqa: F401
 
 MOTIVO = {"motivo": "Se cargó un borrador personal por error."}
 
@@ -45,8 +44,11 @@ def test_lo_descrito_o_en_edicion_no_se_elimina(cliente, db, fondo, cabeceras_ad
     assert db.get(Instanciacion, d.id) is not None
 
 
-def test_un_documento_en_una_evaluacion_no_se_elimina(cliente, db, fondo, cabeceras_admin, motor_eval):  # noqa: F811
-    _, d = preparar(cliente, db, fondo, cabeceras_admin)
+def test_un_documento_en_una_evaluacion_no_se_elimina(cliente, db, fondo, cabeceras_admin):
+    d = documento(db, fondo, "Resolucion 1 de 2024.pdf", "Resolución 1 de 2024.")
+    ev = cliente.post("/api/evaluacion", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "nombre": "Prueba"}).json()
+    assert cliente.post(f"/api/evaluacion/{ev['id']}/documentos", headers=cabeceras_admin,
+                        json={"instanciacion_ids": [str(d.id)]}).status_code == 200
     r = cliente.post(f"/api/ingesta/{d.id}/eliminar", headers=cabeceras_admin, json=MOTIVO)
     assert r.status_code == 409 and "evaluación" in r.json()["detail"]
 

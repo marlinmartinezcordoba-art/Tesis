@@ -1,157 +1,98 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ErrorAPI, descargar, pedir } from "@/lib/api";
 import { useFondo } from "@/lib/fondo";
 import { useSesion } from "@/lib/sesion";
-import { Encabezado, Indicadores } from "@/components/Encabezado";
+import { Encabezado } from "@/components/Encabezado";
 import { confirmar } from "@/lib/dialogos";
 import { Ventana } from "@/components/Ventana";
-import { NOMBRE_PASO, NOMBRE_ROL, PASOS_POR_ROL, PISTA_PASO, type Paso } from "@/lib/evaluacionRoles";
 
-// Evaluación ciega del motor frente a archivistas.
-// La archivista describe a ciegas (sin ver nunca la propuesta del motor),
-// después con la propuesta delante (asistida) y por último la califica.
-// El servidor impide describir a ciegas lo que ya se vio.
-// La descripción se hace en RiC: entidades (con su clase de RiC-O) y
-// relaciones (con su propiedad de RiC-O) entre el documento y esas entidades
-// o entre ellas. El servidor revisa la conformidad con RiC-O 1.1.
+// Evaluación del rendimiento del motor con la medida F1 (objetivo 3).
+// La referencia es la descripción que la archivista valida en Descripción: al publicar, cada
+// propuesta aceptada cuenta como acierto, cada rechazada como dato inventado, cada agregada como
+// dato omitido y cada corregida como las dos cosas. Aquí se preparan los conjuntos de desarrollo y
+// prueba, se fijan los umbrales, se congela la versión y se leen los resultados.
 
-interface Criterio { margen_f: number; minimo_casos: number; rubrica_minima: number; conformidad_asistida: number }
+type Estado = "preparacion" | "en_curso" | "cerrada";
+interface Criterio { f1: number; precision: number; exhaustividad: number; acuerdo: number }
 interface EvaluacionBreve {
-  id: string; nombre: string; protocolo: string | null; estado: "preparacion" | "en_curso" | "cerrada";
-  umbral_similitud: number; documentos: number; con_propuesta: number; criterio: Criterio;
+  id: string; nombre: string; protocolo: string | null; estado: Estado; documentos: number; desarrollo: number;
+  prueba: number; semilla: number | null; sorteada_en: string | null; criterio: Criterio;
+  version_congelada: Record<string, string | null> | null;
 }
-interface EstadoAnotacion { id: string; estado: "en_curso" | "enviada" | "anulada" }
-interface Tarea {
-  instanciacion_id: string; nombre: string; ciega: EstadoAnotacion | null; asistida: EstadoAnotacion | null;
-  puede_ciega: boolean; calificado: boolean;
-  adjudicada?: EstadoAnotacion | null; puede_adjudicar?: boolean; piloto?: boolean; rol?: string | null;
+interface Documento { instanciacion_id: string; nombre: string; anio: string; conjunto: "desarrollo" | "prueba" | null; publicado: boolean }
+interface Intervalo { inferior: number | null; superior: number | null }
+interface Dictamen { umbral: number | null; valor: number | null; limite_inferior: number | null; cumple: boolean | null }
+interface PorTipo {
+  tipo: string; texto_libre: boolean; aceptada: number; corregida: number; rechazada: number; agregada: number;
+  precision: number | null; exhaustividad: number | null; f1: number | null;
 }
-interface ReferenciaCiega { codigo: string; datos: Datos | null; enviada_en: string | null }
-interface Entidad { clave: string; tipo: string; valor: string; subtipo: string | null; edtf: string | null;
-  evidencia?: string | null }
-interface Relacion { origen: string; propiedad: string; destino: string }
-interface Datos { titulo?: string | null; alcance?: string | null; entidades: Entidad[]; relaciones: Relacion[] }
-interface Conformidad { conforme: boolean; relaciones: number; relaciones_validas: number; problemas: string[] }
-interface AnotacionAbierta {
-  id: string; condicion: "ciega" | "asistida" | "adjudicada"; estado: string; datos: Datos; conformidad: Conformidad | null;
-  justificacion?: string | null;
-  documento: { id: string; nombre: string; texto: string | null };
+interface Resultados {
+  metricas: {
+    conteo: { vp: number; fp: number; fn: number; aceptada: number; corregida: number; rechazada: number; agregada: number };
+    f1: number | null; precision: number | null; exhaustividad: number | null; f1_macro: number | null;
+    intervalos: Record<"f1" | "precision" | "exhaustividad", Intervalo>; por_tipo: PorTipo[]; documentos: number;
+  };
+  dictamen: Record<"f1" | "precision" | "exhaustividad", Dictamen> & { hipotesis: string | null };
+  acuerdo: { pares: number; iguales: number; documentos: number; porcentaje: number | null; umbral: number; cumple: boolean | null };
+  causas: { causa: string; nombre: string; cantidad: number }[];
+  avisos: string[]; decisiones: number;
 }
-interface PropiedadRic { codigo: string; rico: string; papel: string; etiqueta: string; codigo_cm: string | null; origen: string[]; destino: string[] }
+interface ErrorMotor {
+  evento_id: number; documento: string | null; tipo: string; tipo_nombre: string;
+  decision: "corregida" | "rechazada" | "agregada"; propuesto: string | null; final: string | null; causa: string | null; nota: string | null;
+}
+interface PropuestaControl { evento_id: number; tipo: string; tipo_nombre: string; propuesto: string | null; confianza: number | null; mi_decision: string | null }
 
-const ESTADO_EV: Record<EvaluacionBreve["estado"], { texto: string; clase: string }> = {
+const ESTADO: Record<Estado, { texto: string; clase: string }> = {
   preparacion: { texto: "En preparación", clase: "proceso" },
   en_curso: { texto: "En curso", clase: "alerta" },
   cerrada: { texto: "Cerrada", clase: "bien" },
 };
-const TIPOS: [string, string][] = [["agente", "Agente"], ["lugar", "Lugar"], ["fecha", "Fecha"], ["actividad", "Actividad"],
-  ["tipo_actividad", "Tipo de actividad (función)"], ["mandato", "Mandato o norma"], ["forma_documental", "Tipo documental"],
-  ["documento_citado", "Documento citado (otro documento de archivo)"]];
-const SUBTIPOS: [string, string][] = [["persona", "Persona"], ["entidad_corporativa", "Entidad corporativa"],
-  ["cargo", "Cargo"], ["grupo", "Grupo"], ["familia", "Familia"], ["mecanismo", "Mecanismo"]];
-const DOCUMENTO = "documento";
-
-// Qué tipo de extremo es, en los términos del catálogo de propiedades del servidor.
-function extremo(clave: string, entidades: Entidad[]): string {
-  if (clave === DOCUMENTO) return "documento";
-  const e = entidades.find((x) => x.clave === clave);
-  if (!e) return "";
-  return e.tipo === "agente" ? (e.subtipo ? `agente:${e.subtipo}` : "agente") : e.tipo;
-}
-
-function nombreExtremo(clave: string, entidades: Entidad[]): string {
-  if (clave === DOCUMENTO) return "Este documento";
-  const e = entidades.find((x) => x.clave === clave);
-  return e ? `${e.valor || "(sin nombre)"} · ${TIPOS.find(([k]) => k === e.tipo)?.[1] ?? e.tipo}` : "(quitada)";
-}
-
-function nombrePropiedad(codigo: string, catalogo: PropiedadRic[]): string {
-  const p = catalogo.find((x) => x.codigo === codigo);
-  return p ? `${p.papel} — ${p.etiqueta} (${p.rico}${p.codigo_cm ? ` · ${p.codigo_cm}` : ""})` : codigo;
-}
-
-function useCatalogo(): PropiedadRic[] {
-  const [catalogo, setCatalogo] = useState<PropiedadRic[]>([]);
-  useEffect(() => {
-    pedir<PropiedadRic[]>("/api/evaluacion/propiedades").then(setCatalogo).catch(() => setCatalogo([]));
-  }, []);
-  return catalogo;
-}
-
-function ListaRelaciones({ datos, catalogo }: { datos: Datos; catalogo: PropiedadRic[] }) {
-  if (!datos.relaciones?.length) return <p className="meta">Sin relaciones.</p>;
-  return (
-    <ul className="lista-relaciones">
-      {datos.relaciones.map((r, i) => (
-        <li key={i}>{nombreExtremo(r.origen, datos.entidades)} — <strong>{nombrePropiedad(r.propiedad, catalogo)}</strong> →{" "}
-          {nombreExtremo(r.destino, datos.entidades)}</li>
-      ))}
-    </ul>
-  );
-}
-
-function AvisoConformidad({ c }: { c: Conformidad | null }) {
-  if (!c) return null;
-  if (c.conforme) {
-    return <div className="aviso bien" role="status">Conforme con RiC-O 1.1: {c.relaciones} relación(es) válidas.</div>;
-  }
-  return (
-    <div className="aviso alerta" role="status">
-      <strong>Todavía no es RiC válida</strong> ({c.relaciones_validas} de {c.relaciones} relaciones válidas):
-      <ul>{c.problemas.map((p) => <li key={p}>{p}</li>)}</ul>
-    </div>
-  );
-}
-const CRITERIOS: [string, string, string][] = [
-  ["exactitud", "Exactitud", "Lo propuesto es cierto según el documento."],
-  ["completitud", "Completitud", "No le falta nada importante."],
-  ["pertinencia", "Pertinencia", "El contexto (agentes, funciones, fechas) es el que un archivista registraría."],
+const MEDIDAS: [keyof Criterio & ("f1" | "precision" | "exhaustividad"), string, string][] = [
+  ["f1", "Medida F1", "Rendimiento global, de 0 a 1"],
+  ["precision", "Precisión", "De lo que propuso el motor, cuánto estaba bien"],
+  ["exhaustividad", "Exhaustividad", "De lo que tiene el documento, cuánto encontró el motor"],
 ];
-// Descriptores de cada nivel (tabla de la rúbrica del protocolo), del 1 al 5.
-const DESCRIPTORES: Record<string, string[]> = {
-  exactitud: ["La mayor parte de lo propuesto es incorrecto",
-    "Error en el productor, la fecha principal o el tipo documental",
-    "Errores que exigen corrección, sin afectar al productor ni a la fecha principal",
-    "Un error menor que no altera el sentido",
-    "Todas las entidades y relaciones propuestas son correctas"],
-  completitud: ["Omite la mayor parte de lo esencial", "Omite un elemento principal", "Omite varios elementos secundarios",
-    "Omite un elemento secundario", "Propone todo lo que una archivista registraría"],
-  pertinencia: ["La propuesta no sirve para describir el documento", "Predominan los elementos irrelevantes",
-    "Varios elementos sin valor descriptivo", "Un elemento de poco valor descriptivo",
-    "Todo lo propuesto es relevante para describir el documento"],
+const CAUSAS: [string, string][] = [["lectura", "Lectura del texto"], ["ambiguedad", "Ambigüedad del documento"],
+  ["regla", "Regla mal aplicada"], ["invencion", "Invención del motor"]];
+const DECISION: Record<string, { texto: string; clase: string }> = {
+  aceptada: { texto: "Aceptada", clase: "bien" }, corregida: { texto: "Corregida", clase: "alerta" },
+  rechazada: { texto: "Rechazada", clase: "error" }, agregada: { texto: "Agregada por la archivista", clase: "proceso" },
 };
-const NOMBRE_TIPO = (t: string) => TIPOS.find(([k]) => k === t)?.[1] || t;
 
+const TIPO: Record<string, string> = { agente: "Agente", lugar: "Lugar", fecha: "Fecha", actividad: "Actividad",
+  tipo_actividad: "Tipo de actividad", mandato: "Mandato o norma", forma_documental: "Tipo documental", titulo: "Título",
+  alcance: "Alcance y contenido", idioma: "Idioma", documento_citado: "Documento relacionado" };
+const num = (x: number | null | undefined, d = 3) => (x === null || x === undefined ? "—" : x.toFixed(d).replace(".", ","));
+const pct = (x: number | null | undefined) => (x === null || x === undefined ? "—" : `${Math.round(x * 100)} %`);
 function mensaje(err: unknown, porDefecto: string) {
   return err instanceof ErrorAPI ? err.message : porDefecto;
 }
 
-export function EvaluacionCiega() {
+export function Evaluacion() {
   const { usuario } = useSesion();
   const { fondo } = useFondo();
   const esAdmin = !!usuario?.es_administrador;
-  const [evaluaciones, setEvaluaciones] = useState<EvaluacionBreve[] | null>(null);
+  const [lista, setLista] = useState<EvaluacionBreve[] | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
     if (!fondo) return;
-    pedir<EvaluacionBreve[]>(`/api/evaluacion?fondo_id=${fondo.id}`).then(setEvaluaciones)
+    pedir<EvaluacionBreve[]>(`/api/evaluacion?fondo_id=${fondo.id}`).then(setLista)
       .catch((err) => setError(mensaje(err, "No se pudieron cargar las evaluaciones.")));
   }, [fondo]);
   useEffect(cargar, [cargar]);
 
   if (!fondo) return <div className="vacio">Primero debe existir un fondo.</div>;
-  const actual = evaluaciones?.find((e) => e.id === abierta);
+  const actual = lista?.find((e) => e.id === abierta);
   return (
     <>
       {!actual && (
         <Encabezado titulo="Evaluación"
-                    descripcion="Mide la calidad del motor de análisis frente a expertas: cada documento se describe primero a ciegas, sin ver la propuesta del motor; después con ella delante; y al final se califica la propuesta. Es la evidencia del objetivo 3."
-                    acciones={esAdmin ? <button type="button" className="boton primario" onClick={() => setCreando(true)}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                      Nueva evaluación</button> : undefined} />
+                    acciones={esAdmin ? <button type="button" className="boton primario" onClick={() => setCreando(true)}>Nueva evaluación</button> : undefined} />
       )}
       {creando && (
         <Ventana titulo="Nueva evaluación" alCerrar={() => setCreando(false)}>
@@ -159,60 +100,60 @@ export function EvaluacionCiega() {
         </Ventana>
       )}
       {error && <div className="aviso error" role="alert">{error}</div>}
-      {actual ? (
-        <DetalleEvaluacion ev={actual} esAdmin={esAdmin} volver={() => { setAbierta(null); cargar(); }} cambio={cargar} />
-      ) : !evaluaciones ? <div className="cargando">Cargando…</div> : evaluaciones.length === 0 ? (
-        <div className="tarjeta">
-          <div className="tarjeta-cab">{esAdmin ? "Todavía no hay evaluaciones: así funciona el protocolo" : "No hay evaluaciones en curso: así funciona el protocolo"}</div>
-          <ol className="pasos-inicio">
-            <li><strong>Descripción a ciegas.</strong> La experta describe cada documento sin ver nunca la propuesta del
-              motor: esa es la referencia humana independiente.</li>
-            <li><strong>Descripción asistida.</strong> Después, el mismo documento con la propuesta del motor delante.</li>
-            <li><strong>Calificación.</strong> Se ve la propuesta y se califica de 1 a 5 en exactitud, completitud y
-              pertinencia. Al cerrar, el sistema calcula precisión, exhaustividad y F1 de entidades y de relaciones RiC
-              frente a la descripción a ciegas, la conformidad con RiC-O 1.1 y el acuerdo entre expertas.</li>
-          </ol>
-          {esAdmin && <p className="pista" style={{ padding: "0 18px 14px", margin: 0 }}>Para empezar, pulse «Nueva evaluación», agregue los documentos y registre a las expertas.</p>}
-        </div>
-      ) : (
-        <div className="tarjeta">
-          <div className="cabecera-tabla"><span>{evaluaciones.length} evaluaci{evaluaciones.length === 1 ? "ón" : "ones"}</span></div>
-          <div className="tabla-desplazable">
-            <table className="tabla-datos">
-              <thead><tr><th>Evaluación</th><th className="num">Documentos</th><th className="num">Con propuesta</th><th>Umbral</th><th>Estado</th>
-                <th className="acciones-celda"><span className="sr-only">Abrir</span></th></tr></thead>
-              <tbody>
-                {evaluaciones.map((e) => (
-                  <tr key={e.id}>
-                    <td><strong>{e.nombre}</strong></td>
-                    <td className="num">{e.documentos}</td>
-                    <td className="num">{e.con_propuesta}</td>
-                    <td>{e.umbral_similitud}</td>
-                    <td><span className={`insignia ${ESTADO_EV[e.estado].clase}`}>{ESTADO_EV[e.estado].texto}</span></td>
-                    <td className="acciones-celda" style={{ width: 90 }}><button type="button" className="boton chico" onClick={() => setAbierta(e.id)}>Abrir</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {actual ? <Detalle ev={actual} esAdmin={esAdmin} volver={() => { setAbierta(null); cargar(); }} cambio={cargar} />
+        : !lista ? <div className="cargando">Cargando…</div> : lista.length === 0 ? <ComoFunciona esAdmin={esAdmin} /> : (
+          <div className="tarjeta">
+            <div className="cabecera-tabla"><span>{lista.length} evaluaci{lista.length === 1 ? "ón" : "ones"}</span></div>
+            <div className="tabla-desplazable">
+              <table className="tabla-datos">
+                <thead><tr><th>Evaluación</th><th className="num">Documentos</th><th className="num">Desarrollo</th>
+                  <th className="num">Prueba</th><th>Estado</th><th className="acciones-celda"><span className="sr-only">Abrir</span></th></tr></thead>
+                <tbody>
+                  {lista.map((e) => (
+                    <tr key={e.id}>
+                      <td><strong>{e.nombre}</strong></td><td className="num">{e.documentos}</td>
+                      <td className="num">{e.desarrollo}</td><td className="num">{e.prueba}</td>
+                      <td><span className={`insignia ${ESTADO[e.estado].clase}`}>{ESTADO[e.estado].texto}</span></td>
+                      <td className="acciones-celda" style={{ width: 90 }}>
+                        <button type="button" className="boton chico" onClick={() => setAbierta(e.id)}>Abrir</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </>
+  );
+}
+
+function ComoFunciona({ esAdmin }: { esAdmin: boolean }) {
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Así se evalúa el motor con la medida F1</div>
+      <ol className="pasos-inicio">
+        <li><strong>Preparación.</strong> Se agregan los documentos del caso, se sortean con una semilla en un conjunto de
+          desarrollo y uno de prueba y se fijan los umbrales de aceptación.</li>
+        <li><strong>Ajuste.</strong> Con los documentos de desarrollo se ajusta la instrucción del motor. Al iniciar, la versión
+          queda congelada.</li>
+        <li><strong>Validación.</strong> Los documentos de prueba se describen en Descripción, una sola vez. Cada propuesta que
+          la archivista acepta, corrige, rechaza o agrega queda registrada al publicar.</li>
+        <li><strong>Resultados.</strong> El sistema calcula la precisión, la exhaustividad y la medida F1 con intervalos de
+          confianza del 95 %, y las compara con los umbrales.</li>
+      </ol>
+      {esAdmin && <p className="pista" style={{ padding: "0 18px 14px", margin: 0 }}>Para empezar, pulse «Nueva evaluación».</p>}
+    </div>
   );
 }
 
 function NuevaEvaluacion({ fondoId, creada }: { fondoId: string; creada: () => void }) {
   const [nombre, setNombre] = useState("");
   const [protocolo, setProtocolo] = useState("");
-  const [umbral, setUmbral] = useState(0.85);
   const [error, setError] = useState("");
   async function crear(e: FormEvent) {
     e.preventDefault();
     try {
-      await pedir("/api/evaluacion", { method: "POST", body: JSON.stringify({ fondo_id: fondoId, nombre, protocolo,
-        umbral_similitud: umbral }) });
-      setNombre("");
-      setProtocolo("");
+      await pedir("/api/evaluacion", { method: "POST", body: JSON.stringify({ fondo_id: fondoId, nombre, protocolo }) });
       creada();
     } catch (err) {
       setError(mensaje(err, "No se pudo crear."));
@@ -221,1289 +162,374 @@ function NuevaEvaluacion({ fondoId, creada }: { fondoId: string; creada: () => v
   return (
     <form onSubmit={crear}>
       <div className="campo"><label htmlFor="ev-nombre">Nombre</label>
-        <input id="ev-nombre" className="entrada" required minLength={3} value={nombre} placeholder="Humano frente a máquina · resoluciones"
-               onChange={(e) => setNombre(e.target.value)} /></div>
-      <div className="campo"><label htmlFor="ev-protocolo">Protocolo (quiénes describen, instrucciones, criterios)</label>
+        <input id="ev-nombre" className="entrada" required minLength={3} value={nombre}
+               placeholder="Rendimiento de RICORA · resoluciones de sustracción" onChange={(e) => setNombre(e.target.value)} /></div>
+      <div className="campo"><label htmlFor="ev-protocolo">Protocolo (quién valida, instrucciones, versión del motor)</label>
         <textarea id="ev-protocolo" className="entrada" rows={4} value={protocolo} onChange={(e) => setProtocolo(e.target.value)} /></div>
-      <div className="campo"><label htmlFor="ev-umbral">Umbral de similitud para la medida flexible (1 = solo valores iguales)</label>
-        <input id="ev-umbral" className="entrada" style={{ maxWidth: 140 }} type="number" min={0.5} max={1} step={0.05} value={umbral}
-               onChange={(e) => setUmbral(Number(e.target.value))} /></div>
       {error && <div className="aviso error" role="alert">{error}</div>}
       <div className="acciones"><button type="submit" className="boton primario">Crear la evaluación</button></div>
     </form>
   );
 }
 
-function DetalleEvaluacion({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBreve; esAdmin: boolean; volver: () => void;
-  cambio: () => void }) {
-  const [tareas, setTareas] = useState<Tarea[] | null>(null);
-  const [anotacion, setAnotacion] = useState<AnotacionAbierta | null>(null);
-  const [calificando, setCalificando] = useState<string | null>(null);
-  const [verResultados, setVerResultados] = useState(false);
-  const [error, setError] = useState("");
+type Pestana = "preparacion" | "documentos" | "resultados" | "errores";
 
-  const cargar = useCallback(() => {
-    pedir<{ tareas: Tarea[] }>(`/api/evaluacion/${ev.id}/tareas`).then((r) => setTareas(r.tareas))
-      .catch((err) => setError(mensaje(err, "No se pudieron cargar las tareas.")));
+function Detalle({ ev, esAdmin, volver, cambio }: { ev: EvaluacionBreve; esAdmin: boolean; volver: () => void; cambio: () => void }) {
+  const [pestana, setPestana] = useState<Pestana>(ev.estado === "preparacion" && esAdmin ? "preparacion" : "documentos");
+  const [docs, setDocs] = useState<Documento[] | null>(null);
+  const [control, setControl] = useState<Documento | null>(null);
+  const cargarDocs = useCallback(() => {
+    pedir<Documento[]>(`/api/evaluacion/${ev.id}/documentos`).then(setDocs).catch(() => setDocs([]));
   }, [ev.id]);
-  useEffect(cargar, [cargar]);
-
-  async function abrir(inst: string, condicion: "ciega" | "asistida" | "adjudicada") {
-    setError("");
-    try {
-      setAnotacion(await pedir<AnotacionAbierta>(`/api/evaluacion/${ev.id}/documentos/${inst}/anotar`,
-        { method: "POST", body: JSON.stringify({ condicion }) }));
-    } catch (err) {
-      setError(mensaje(err, "No se pudo abrir."));
-    }
-  }
-
-  if (anotacion) {
-    return <FormularioAnotacion a={anotacion} evId={ev.id} cerrar={() => { setAnotacion(null); cargar(); }} />;
-  }
-  if (calificando) {
-    return <Rubrica evId={ev.id} inst={calificando} cerrar={() => { setCalificando(null); cargar(); }} />;
-  }
-  if (verResultados) {
-    return <Resultados evId={ev.id} volver={() => setVerResultados(false)} />;
-  }
-  async function abrirAsistida(t: Tarea) {
-    // Abrir la propuesta cierra para siempre la descripción a ciegas de ese documento: se advierte antes.
-    if (t.puede_ciega && t.ciega?.estado !== "enviada" && !await confirmar(
-      `Todavía no ha descrito a ciegas «${t.nombre}». Si abre la propuesta del motor, ese documento ya no se podrá describir a ciegas. ¿Continuar?`)) return;
-    abrir(t.instanciacion_id, "asistida");
-  }
-
-  const lista = tareas || [];
-  // Cada rol ve solo los pasos que le corresponden (el servidor también lo impide).
-  const rol = lista[0]?.rol ?? null;
-  const pasos = PASOS_POR_ROL[rol || "ambas"] || PASOS_POR_ROL.ambas;
-  const hecho = (t: Tarea, p: Paso) => (p === "ciega" ? t.ciega?.estado === "enviada" : p === "asistida"
-    ? t.asistida?.estado === "enviada" : p === "calificar" ? t.calificado : t.adjudicada?.estado === "enviada");
-  const completas = lista.filter((t) => pasos.every((p) => hecho(t, p))).length;
+  useEffect(cargarDocs, [cargarDocs, ev]);
+  const pestanas: [Pestana, string][] = [
+    ...(esAdmin ? [["preparacion", "Preparación"] as [Pestana, string]] : []),
+    ["documentos", "Documentos"],
+    ...(esAdmin ? [["resultados", "Resultados"] as [Pestana, string]] : []),
+    ["errores", "Causas de error"],
+  ];
   return (
     <>
-      <Encabezado titulo={ev.nombre} ceja="Evaluación humano frente a máquina"
-                  descripcion={ev.protocolo ? <span style={{ whiteSpace: "pre-wrap" }}>{ev.protocolo}</span> : undefined}
-                  acciones={<>
-                    <span className={`insignia ${ESTADO_EV[ev.estado].clase}`}>{ESTADO_EV[ev.estado].texto}</span>
-                    <button type="button" className="boton" onClick={volver}>← Evaluaciones</button>
-                  </>} />
-      {error && <div className="aviso error" role="alert">{error}</div>}
-      {esAdmin && <Administracion ev={ev} cambio={() => { cambio(); cargar(); }} resultados={() => setVerResultados(true)} />}
-      {ev.estado === "en_curso" && (
-        <>
-          {tareas && tareas.length > 0 && (
-            <Indicadores etiqueta="Mi avance en la evaluación" items={[
-              { etiqueta: "Documentos terminados", valor: `${completas} de ${lista.length}`, avance: completas / lista.length,
-                tono: completas === lista.length ? "bien" : undefined,
-                nota: pasos.length > 1 ? "Todas sus tareas hechas" : "Su tarea hecha" },
-              ...pasos.map((p, i) => ({ etiqueta: `${i + 1}. ${NOMBRE_PASO[p]}`, valor: lista.filter((t) => hecho(t, p)).length,
-                nota: p === "calificar" ? "propuestas calificadas" : "enviadas" })),
-            ]} />
-          )}
-          <div className="tarjeta">
-            <div className="tarjeta-cab">Mis tareas{rol && <span className="meta"> · Rol: {NOMBRE_ROL[rol] || rol}</span>}</div>
-            <ol className="orden-tareas" aria-label="Orden de trabajo por documento">
-              {pasos.map((p, i) => <li key={p}><b>{i + 1}</b> {PISTA_PASO[p]}</li>)}
-            </ol>
-            {rol === "piloto" && <div className="aviso" role="note" data-fijo>Prueba piloto: estos documentos sirven para ensayar
-              el protocolo y no entran en los resultados.</div>}
-            {!tareas ? <div className="cargando">Cargando…</div> : (
-              <div className="tabla-desplazable">
-                <table className="tabla-datos tabla-tareas">
-                  <thead><tr><th>Documento</th>{pasos.map((p, i) => <th key={p}>{i + 1}. {NOMBRE_PASO[p]}</th>)}</tr></thead>
-                  <tbody>
-                    {tareas.map((t) => {
-                      const ciegaHecha = t.ciega?.estado === "enviada";
-                      const asistidaHecha = t.asistida?.estado === "enviada";
-                      const ciegaAbierta = t.ciega?.estado === "en_curso";
-                      // La tarea que sigue, en el orden del protocolo, va resaltada.
-                      const sigue = pasos.find((p) => !hecho(t, p) && !(p === "ciega" && !t.puede_ciega)) ?? null;
-                      const celdas: Record<Paso, JSX.Element> = {
-                        ciega: <PasoTarea hecho={ciegaHecha} sigue={sigue === "ciega"} textoHecho="Enviada"
-                                          bloqueo={!t.puede_ciega && !ciegaHecha ? "No disponible: ya vio la propuesta" : null}
-                                          boton={ciegaAbierta ? "Continuar" : "Describir a ciegas"}
-                                          alHacer={() => abrir(t.instanciacion_id, "ciega")} />,
-                        asistida: <PasoTarea hecho={asistidaHecha} sigue={sigue === "asistida"} textoHecho="Enviada"
-                                             bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
-                                             boton={t.asistida?.estado === "en_curso" ? "Continuar" : "Describir con la propuesta"}
-                                             alHacer={() => abrirAsistida(t)} />,
-                        calificar: <PasoTarea hecho={t.calificado} sigue={sigue === "calificar"} textoHecho="Calificada"
-                                              bloqueo={ciegaAbierta ? "Termine antes la descripción a ciegas" : null}
-                                              boton={t.calificado ? "Cambiar" : "Calificar"} botonSiHecho
-                                              alHacer={() => setCalificando(t.instanciacion_id)} />,
-                        adjudicar: <PasoTarea hecho={t.adjudicada?.estado === "enviada"} sigue={sigue === "adjudicar"}
-                                              textoHecho="Referencia enviada"
-                                              bloqueo={!t.puede_adjudicar ? "Faltan dos descripciones ciegas enviadas" : null}
-                                              boton={t.adjudicada?.estado === "en_curso" ? "Continuar" : "Consolidar la referencia"}
-                                              alHacer={() => abrir(t.instanciacion_id, "adjudicada")} />,
-                      };
-                      return (
-                        <tr key={t.instanciacion_id}>
-                          <td><strong>{t.nombre}</strong>
-                            <span className="secundario">{sigue ? "En proceso" : "Terminado"}</span></td>
-                          {pasos.map((p) => <td key={p}>{celdas[p]}</td>)}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
+      <div className="filtros" style={{ alignItems: "center" }}>
+        <button type="button" className="boton chico" onClick={volver}>← Evaluaciones</button>
+        <strong>{ev.nombre}</strong>
+        <span className={`insignia ${ESTADO[ev.estado].clase}`}>{ESTADO[ev.estado].texto}</span>
+        {ev.version_congelada && <span className="meta">Versión congelada · {ev.version_congelada.motor || "sin motor"} ·
+          instrucción {ev.version_congelada.version_instruccion} · sistema {ev.version_congelada.sistema}</span>}
+      </div>
+      <div className="pestanas" role="tablist">
+        {pestanas.map(([k, v]) => (
+          <button key={k} type="button" role="tab" aria-selected={pestana === k} className={`pestana${pestana === k ? " activa" : ""}`}
+                  onClick={() => setPestana(k)}>{v}</button>
+        ))}
+      </div>
+      {pestana === "preparacion" && <Preparacion ev={ev} docs={docs} cambio={() => { cambio(); cargarDocs(); }} />}
+      {pestana === "documentos" && <ListaDocumentos ev={ev} docs={docs} controlar={setControl} />}
+      {pestana === "resultados" && <VerResultados ev={ev} />}
+      {pestana === "errores" && <Errores ev={ev} />}
+      {control && (
+        <Ventana titulo={`Validación de control · ${control.nombre}`} alCerrar={() => setControl(null)}>
+          <Control ev={ev} doc={control} />
+        </Ventana>
       )}
     </>
   );
 }
 
-// Una celda de la tabla de tareas: el estado del paso y, si corresponde, el botón para hacerlo.
-function PasoTarea({ hecho, sigue, bloqueo, boton, textoHecho, alHacer, botonSiHecho }: {
-  hecho: boolean; sigue: boolean; bloqueo: string | null; boton: string; textoHecho: string; alHacer: () => void;
-  botonSiHecho?: boolean;
-}) {
-  if (bloqueo) return <span className="paso-tarea bloqueado">{bloqueo}</span>;
-  return (
-    <span className="paso-tarea">
-      {hecho && <span className="insignia bien">✓ {textoHecho}</span>}
-      {(!hecho || botonSiHecho) && (
-        <button type="button" className={`boton chico${sigue ? " primario" : ""}`} onClick={alHacer}>{boton}</button>
-      )}
-    </span>
-  );
-}
-
-function Administracion({ ev, cambio, resultados }: { ev: EvaluacionBreve; cambio: () => void; resultados: () => void }) {
+function Preparacion({ ev, docs, cambio }: { ev: EvaluacionBreve; docs: Documento[] | null; cambio: () => void }) {
   const { fondo } = useFondo();
   const [cola, setCola] = useState<{ id: string; nombre: string }[]>([]);
   const [elegidos, setElegidos] = useState<string[]>([]);
-  const [piloto, setPiloto] = useState(false);
+  const [semilla, setSemilla] = useState(ev.semilla ?? new Date().getFullYear());
+  const [desarrollo, setDesarrollo] = useState(15);
+  const [criterio, setCriterio] = useState<Criterio>(ev.criterio);
   const [aviso, setAviso] = useState("");
-  const [ocupado, setOcupado] = useState(false);
-  // Generación de propuestas en segundo plano: con dos motores, cada documento tarda minutos.
-  const [generando, setGenerando] = useState(false);
+  const enPreparacion = ev.estado === "preparacion";
 
   useEffect(() => {
-    if (ev.estado !== "preparacion") return;
-    let vivo = true;
-    const preguntar = () => pedir<{ generando: boolean; generadas: number; avisos: string[]; error?: string | null }>(
-      `/api/evaluacion/${ev.id}/propuestas`).then((r) => {
-      if (!vivo) return;
-      setGenerando(r.generando);
-      if (r.generando) setAviso(`Generando las propuestas con el motor… ${r.generadas} nueva(s) hasta ahora. Puede salir de esta pantalla: sigue en el servidor.`);
-      else if (generando) {
-        setAviso(r.error || `${r.generadas} propuesta(s) generadas, sin mostrarlas.${r.avisos?.length ? ` ${r.avisos.join(" · ")}` : ""}`);
-        cambio();
-      }
-    }).catch(() => undefined);
-    preguntar();
-    const t = window.setInterval(preguntar, generando ? 5000 : 30000);
-    return () => { vivo = false; window.clearInterval(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ev.id, ev.estado, generando]);
-
-  useEffect(() => {
-    if (ev.estado === "preparacion" && fondo) {
+    if (enPreparacion && fondo && !ev.sorteada_en) {
       pedir<{ id: string; nombre: string }[]>(`/api/descripcion/cola?fondo_id=${fondo.id}`).then(setCola).catch(() => setCola([]));
     }
-  }, [ev.estado, fondo]);
+  }, [enPreparacion, fondo, ev.sorteada_en, docs]);
 
-  async function accion(ruta: string, cuerpo?: object) {
-    setOcupado(true);
+  async function hacer(ruta: string, metodo: string, cuerpo?: object, exito?: string) {
     setAviso("");
     try {
-      const r = await pedir<{ generadas?: number; avisos?: string[]; generando?: boolean }>(`/api/evaluacion/${ev.id}/${ruta}`,
-        { method: "POST", body: cuerpo ? JSON.stringify(cuerpo) : undefined });
-      if (r.generando) {
-        setGenerando(true);
-        setAviso("Generando las propuestas con el motor… Puede salir de esta pantalla: sigue en el servidor.");
-      } else if (r.generadas !== undefined) {
-        setAviso(`${r.generadas} propuesta(s) generadas, sin mostrarlas.${r.avisos?.length ? ` ${r.avisos.join(" · ")}` : ""}`);
-      }
+      await pedir(`/api/evaluacion/${ev.id}/${ruta}`, { method: metodo, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+      if (exito) setAviso(exito);
       setElegidos([]);
       cambio();
     } catch (err) {
       setAviso(mensaje(err, "No se pudo."));
-    } finally {
-      setOcupado(false);
     }
   }
+  const yaEstan = new Set((docs || []).map((d) => d.instanciacion_id));
+  const disponibles = cola.filter((c) => !yaEstan.has(c.id));
 
   return (
     <div className="tarjeta">
-      <div className="tarjeta-cab">Administración</div>
       <div className="tarjeta-cuerpo">
-        <p>{ev.documentos} documento(s) · {ev.con_propuesta} con propuesta del motor</p>
-        {aviso && <div className="aviso">{aviso}</div>}
-        <Expertas ev={ev} />
-        <CriterioComparabilidad ev={ev} cambio={cambio} />
-        {ev.estado === "preparacion" && (
-          <>
-            <p className="meta">Solo documentos aún sin describir: si ya lo estuvieran, el vocabulario del fondo le daría la
-              respuesta al motor.</p>
-            <div style={{ maxHeight: 220, overflow: "auto" }}>
-              {cola.map((d) => (
-                <label key={d.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="checkbox" checked={elegidos.includes(d.id)}
-                         onChange={(e) => setElegidos(e.target.checked ? [...elegidos, d.id] : elegidos.filter((x) => x !== d.id))} />
-                  {d.nombre}
-                </label>
-              ))}
-              {cola.length === 0 && <div className="meta">No hay documentos listos sin describir.</div>}
-            </div>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-              <input type="checkbox" checked={piloto} onChange={(e) => setPiloto(e.target.checked)} />
-              Documentos de la prueba piloto <span className="meta">(solo los trabaja el rol piloto y no entran en los resultados)</span>
-            </label>
-            <div className="acciones">
-              <button type="button" className="boton chico" disabled={!elegidos.length || ocupado}
-                      onClick={() => accion("documentos", { instanciacion_ids: elegidos, piloto })}>Agregar {elegidos.length || ""}
-                {piloto ? " al piloto" : ""}</button>
-              <button type="button" className="boton chico" disabled={!ev.documentos || ocupado || generando}
-                      onClick={() => accion("propuestas")}>{ocupado ? "Trabajando…" : generando ? "Generando…"
-                        : "Generar las propuestas del motor"}</button>
-              <button type="button" className="boton chico primario" disabled={!ev.documentos || ev.con_propuesta < ev.documentos || ocupado || generando}
-                      onClick={() => accion("estado", { estado: "en_curso" })}>Iniciar la evaluación</button>
-            </div>
-          </>
-        )}
-        {ev.estado !== "preparacion" && (
-          <div className="acciones">
-            {ev.estado === "en_curso" && (
-              <button type="button" className="boton chico" disabled={ocupado}
-                      onClick={() => accion("estado", { estado: "cerrada" })}>Cerrar la evaluación</button>
-            )}
-            <button type="button" className="boton chico primario" onClick={resultados}>Ver resultados</button>
-          </div>
-        )}
-        <p className="meta">Ver los resultados muestra las propuestas: desde ahí, usted no puede describir a ciegas estos documentos.</p>
-      </div>
-    </div>
-  );
-}
+        {aviso && <div className="aviso" role="status">{aviso}</div>}
+        {!enPreparacion && <p className="pista">La evaluación ya se inició: el sorteo, los umbrales y la versión quedaron congelados.</p>}
 
-// Expertas participantes: quién hace la descripción humana de referencia (pregunta problema: humano
-// frente a máquina). Cada una entra con su cuenta, su formación, su experiencia y su consentimiento.
-// En los resultados y en la hoja de cálculo aparece por su código (E1, E2…), nunca por su nombre.
-interface Participante {
-  id: string; usuario_id: string; codigo: string; nombre: string | null; profesion: string; formacion: string;
-  formacion_nombre: string; anios_experiencia: number; anios_descripcion: number | null; cargo: string | null;
-  institucion: string | null; rol: string; rol_nombre: string; consentimiento: boolean; activa: boolean;
-  administra_la_evaluacion?: boolean;
-}
-const FORMACIONES: [string, string][] = [["tecnica", "Técnica"], ["tecnologica", "Tecnológica"], ["profesional", "Profesional"],
-  ["especializacion", "Especialización"], ["maestria", "Maestría"], ["doctorado", "Doctorado"]];
-const ROLES_EXPERTA: [string, string][] = [["descriptora", "Describe a ciegas"],
-  ["validadora", "Valida con la propuesta del motor delante"], ["adjudicadora", "Adjudica la referencia (consolida dos ciegas)"],
-  ["calificadora", "Califica la propuesta"], ["piloto", "Prueba piloto"], ["ambas", "Describe y califica (una sola persona)"]];
-const VACIA = { usuario_id: "", nombre: "", profesion: "", formacion: "profesional", anios_experiencia: "", anios_descripcion: "",
-  cargo: "", institucion: "", rol: "descriptora", consentimiento: false };
-
-function Expertas({ ev }: { ev: EvaluacionBreve }) {
-  const [lista, setLista] = useState<Participante[] | null>(null);
-  const [cuentas, setCuentas] = useState<{ id: string; nombre: string; correo: string; activo: boolean }[]>([]);
-  const [f, setF] = useState(VACIA);
-  const [abierto, setAbierto] = useState(false);
-  const [error, setError] = useState("");
-  const cargar = useCallback(() => {
-    pedir<Participante[]>(`/api/evaluacion/${ev.id}/participantes`).then(setLista).catch(() => setLista([]));
-  }, [ev.id]);
-  useEffect(cargar, [cargar]);
-  useEffect(() => {
-    if (abierto) pedir<{ usuarios: { id: string; nombre: string; correo: string; activo: boolean }[] }>("/api/auth/usuarios?activo=true")
-      .then((r) => setCuentas(r.usuarios)).catch(() => setCuentas([]));
-  }, [abierto]);
-
-  async function registrar(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    try {
-      await pedir(`/api/evaluacion/${ev.id}/participantes`, { method: "POST", body: JSON.stringify({
-        ...f, anios_experiencia: Number(f.anios_experiencia),
-        anios_descripcion: f.anios_descripcion === "" ? null : Number(f.anios_descripcion),
-        cargo: f.cargo || null, institucion: f.institucion || null }) });
-      setF(VACIA);
-      setAbierto(false);
-      cargar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo registrar."));
-    }
-  }
-
-  async function cambiar(p: Participante, cuerpo: object) {
-    setError("");
-    try {
-      await pedir(`/api/evaluacion/${ev.id}/participantes/${p.id}`, { method: "PUT", body: JSON.stringify(cuerpo) });
-      cargar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo actualizar."));
-    }
-  }
-
-  const usadas = new Set((lista || []).map((p) => p.usuario_id));
-  const listas = (lista || []).filter((p) => p.activa && p.consentimiento).length;
-  const cerrada = ev.estado === "cerrada";
-  return (
-    <div className="tarjeta">
-      <div className="tarjeta-cab">Expertas participantes</div>
-      <div className="tarjeta-cuerpo">
-        <p className="meta" style={{ marginTop: 0 }}>Quienes hacen la descripción humana con que se compara el motor. Solo describen
-          las registradas aquí, con su consentimiento. En los resultados aparecen por su código, no por su nombre.</p>
-        {lista && lista.length > 0 && (
-          <div className="tabla-desplazable">
-            <table className="tabla-permisos">
-              <thead><tr><th>Código</th><th>Nombre</th><th>Profesión y formación</th><th>Experiencia</th><th>Rol</th>
-                <th>Consentimiento</th><th /></tr></thead>
-              <tbody>
-                {lista.map((p) => (
-                  <tr key={p.id} style={p.activa ? undefined : { opacity: .55 }}>
-                    <td><strong>{p.codigo}</strong></td>
-                    <td>{p.nombre}{p.cargo && <div className="meta">{p.cargo}{p.institucion ? ` · ${p.institucion}` : ""}</div>}</td>
-                    <td>{p.profesion}<div className="meta">{p.formacion_nombre}</div></td>
-                    <td>{p.anios_experiencia} años en archivos{p.anios_descripcion !== null && <div className="meta">{p.anios_descripcion} describiendo</div>}</td>
-                    <td>{p.rol_nombre}{p.administra_la_evaluacion && (
-                      <div className="insignia alerta" title="Quien administra la evaluación conoce el motor: su descripción no es independiente. Conviene que no describa ni califique, salvo en la prueba piloto.">
-                        Administra la evaluación</div>)}</td>
-                    <td>{p.consentimiento ? "Sí" : (
-                      <button type="button" className="enlace" disabled={cerrada || !p.activa}
-                              onClick={() => cambiar(p, { consentimiento: true })}>Registrar</button>)}</td>
-                    <td>{p.activa ? (!cerrada && <button type="button" className="enlace" onClick={() => cambiar(p, { retirar: true })}>Retirar</button>)
-                      : <span className="meta">Retirada</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {lista && listas === 0 && ev.estado === "preparacion" && (
-          <div className="aviso alerta" role="status">Para iniciar, registre al menos una experta con su consentimiento. Para comparar
-            humano y máquina con un techo de acuerdo, se necesitan al menos dos que describan.</div>
-        )}
-        {lista && listas === 1 && ev.estado === "preparacion" && (
-          <p className="meta">Con una sola experta no se puede medir el acuerdo entre personas (el techo de la comparación).</p>
-        )}
-        {error && <div className="aviso error" role="alert">{error}</div>}
-        {!cerrada && !abierto && <div className="acciones"><button type="button" className="boton chico" onClick={() => setAbierto(true)}>
-          Registrar una experta</button></div>}
-        {abierto && (
-          <form onSubmit={registrar} className="formulario-experta">
-            <div className="campo">
-              <label htmlFor="exp-cuenta">Cuenta con que describe</label>
-              <select id="exp-cuenta" className="selector" required value={f.usuario_id} onChange={(e) => {
-                const c = cuentas.find((x) => x.id === e.target.value);
-                setF({ ...f, usuario_id: e.target.value, nombre: f.nombre || c?.nombre || "" });
-              }}>
-                <option value="">Elija…</option>
-                {cuentas.filter((c) => !usadas.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.nombre} · {c.correo}</option>)}
-              </select>
-              <div className="meta">¿No tiene cuenta? Créela primero en Administración.</div>
-            </div>
-            <div className="campo"><label htmlFor="exp-nombre">Nombre completo</label>
-              <input id="exp-nombre" className="entrada" required minLength={3} value={f.nombre}
-                     onChange={(e) => setF({ ...f, nombre: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-prof">Profesión</label>
-              <input id="exp-prof" className="entrada" required minLength={3} placeholder="Profesional en Archivística" value={f.profesion}
-                     onChange={(e) => setF({ ...f, profesion: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-form">Máximo nivel de formación</label>
-              <select id="exp-form" className="selector" value={f.formacion} onChange={(e) => setF({ ...f, formacion: e.target.value })}>
-                {FORMACIONES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
-            <div className="campo"><label htmlFor="exp-anios">Años de experiencia en archivos</label>
-              <input id="exp-anios" className="entrada" type="number" min={0} max={70} required value={f.anios_experiencia}
-                     onChange={(e) => setF({ ...f, anios_experiencia: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-desc">Años describiendo documentos históricos (opcional)</label>
-              <input id="exp-desc" className="entrada" type="number" min={0} max={70} value={f.anios_descripcion}
-                     onChange={(e) => setF({ ...f, anios_descripcion: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-cargo">Cargo (opcional)</label>
-              <input id="exp-cargo" className="entrada" value={f.cargo} onChange={(e) => setF({ ...f, cargo: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-inst">Institución (opcional)</label>
-              <input id="exp-inst" className="entrada" value={f.institucion} onChange={(e) => setF({ ...f, institucion: e.target.value })} /></div>
-            <div className="campo"><label htmlFor="exp-rol">Rol en la evaluación</label>
-              <select id="exp-rol" className="selector" value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })}>
-                {ROLES_EXPERTA.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
-            <div className="casillas"><label><input type="checkbox" checked={f.consentimiento}
-              onChange={(e) => setF({ ...f, consentimiento: e.target.checked })} />Firmó el consentimiento informado</label></div>
-            <div className="acciones">
-              <button type="submit" className="boton chico primario">Registrar</button>
-              <button type="button" className="boton chico" onClick={() => { setAbierto(false); setError(""); }}>Cancelar</button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Criterio de comparabilidad: se fija antes de iniciar y queda congelado (protocolo de evaluación).
-function CriterioComparabilidad({ ev, cambio }: { ev: EvaluacionBreve; cambio: () => void }) {
-  const [c, setC] = useState<Criterio>(ev.criterio);
-  const [aviso, setAviso] = useState("");
-  useEffect(() => setC(ev.criterio), [ev.criterio]);
-  const editable = ev.estado === "preparacion";
-
-  async function guardar(e: FormEvent) {
-    e.preventDefault();
-    setAviso("");
-    try {
-      await pedir(`/api/evaluacion/${ev.id}/criterio`, { method: "PUT", body: JSON.stringify(c) });
-      setAviso("Criterio guardado. Quedará fijo al iniciar la evaluación.");
-      cambio();
-    } catch (err) {
-      setAviso(mensaje(err, "No se pudo guardar el criterio."));
-    }
-  }
-
-  const campo = (k: keyof Criterio, texto: string, paso: number, min: number, max: number) => (
-    <label className="meta" style={{ display: "grid", gap: 2 }}>{texto}
-      <input className="entrada" type="number" step={paso} min={min} max={max} value={c[k]} disabled={!editable}
-             onChange={(e) => setC({ ...c, [k]: Number(e.target.value) })} />
-    </label>
-  );
-  return (
-    <form onSubmit={guardar} style={{ margin: "8px 0 12px" }}>
-      <strong>Criterio de comparabilidad</strong>{" "}
-      <span className="meta">{editable ? "Se fija antes de iniciar; después no cambia." : "Fijado al iniciar la evaluación."}</span>
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", marginTop: 6 }}>
-        {campo("margen_f", "Margen frente al acuerdo entre archivistas (F)", 0.01, 0, 0.5)}
-        {campo("minimo_casos", "Mínimo de entidades de referencia por tipo", 1, 1, 1000)}
-        {campo("rubrica_minima", "Media mínima de la rúbrica", 0.5, 1, 5)}
-        {campo("conformidad_asistida", "Conformidad mínima de las asistidas (0 a 1)", 0.05, 0, 1)}
-      </div>
-      {aviso && <div className="aviso" role="status">{aviso}</div>}
-      {editable && <div className="acciones"><button type="submit" className="boton chico">Guardar el criterio</button></div>}
-    </form>
-  );
-}
-
-function FormularioAnotacion({ a, evId, cerrar }: { a: AnotacionAbierta; evId: string; cerrar: () => void }) {
-  const catalogo = useCatalogo();
-  const adjudicada = a.condicion === "adjudicada";
-  const [justificacion, setJustificacion] = useState(a.justificacion || "");
-  const [ciegas, setCiegas] = useState<ReferenciaCiega[] | null>(null);
-  useEffect(() => {
-    if (!adjudicada) return;
-    pedir<ReferenciaCiega[]>(`/api/evaluacion/${evId}/documentos/${a.documento.id}/referencias`).then(setCiegas)
-      .catch(() => setCiegas([]));
-  }, [adjudicada, evId, a.documento.id]);
-  const [datos, setDatos] = useState<Datos>({ titulo: a.datos.titulo || "", alcance: a.datos.alcance || "",
-    entidades: a.datos.entidades || [], relaciones: a.datos.relaciones || [] });
-  const [conformidad, setConformidad] = useState<Conformidad | null>(a.conformidad);
-  const [error, setError] = useState("");
-  const soloLectura = a.estado !== "en_curso";
-
-  function cambiar(i: number, campo: keyof Entidad, valor: string) {
-    setDatos({ ...datos, entidades: datos.entidades.map((e, j) => (j === i ? { ...e, [campo]: valor || null } : e)) });
-  }
-  function nuevaEntidad() {
-    const usadas = new Set(datos.entidades.map((e) => e.clave));
-    let n = datos.entidades.length + 1;
-    while (usadas.has(`e${n}`)) n += 1;
-    setDatos({ ...datos, entidades: [...datos.entidades, { clave: `e${n}`, tipo: "agente", valor: "", subtipo: null, edtf: null }] });
-  }
-  function quitarEntidad(clave: string) {
-    setDatos({ ...datos, entidades: datos.entidades.filter((e) => e.clave !== clave),
-      relaciones: datos.relaciones.filter((r) => r.origen !== clave && r.destino !== clave) });
-  }
-  // Las propiedades que admiten esos dos extremos (las demás no se ofrecen).
-  function validas(origen: string, destino: string): PropiedadRic[] {
-    const o = extremo(origen, datos.entidades);
-    const d = extremo(destino, datos.entidades);
-    return catalogo.filter((p) => p.origen.includes(o) && p.destino.includes(d));
-  }
-  function cambiarRelacion(i: number, campo: keyof Relacion, valor: string) {
-    setDatos({ ...datos, relaciones: datos.relaciones.map((r, j) => {
-      if (j !== i) return r;
-      const nueva = { ...r, [campo]: valor };
-      // Al cambiar un extremo, la relación se vuelve a elegir: una propiedad que quedó puesta sola
-      // (válida para los extremos anteriores) no debe colarse como si la archivista la hubiera elegido.
-      if (campo !== "propiedad") nueva.propiedad = validas(nueva.origen, nueva.destino)[0]?.codigo || "";
-      return nueva;
-    }) });
-  }
-  function nuevaRelacion() {
-    const destino = datos.entidades[0]?.clave || "";
-    setDatos({ ...datos, relaciones: [...datos.relaciones, { origen: DOCUMENTO, destino,
-      propiedad: validas(DOCUMENTO, destino)[0]?.codigo || "" }] });
-  }
-
-  async function guardar(enviar: boolean) {
-    setError("");
-    try {
-      const r = await pedir<AnotacionAbierta>(`/api/evaluacion/anotaciones/${a.id}`, { method: "PUT",
-        body: JSON.stringify({ ...datos, relaciones: datos.relaciones.filter((x) => x.propiedad), enviar,
-          ...(adjudicada ? { justificacion } : {}) }) });
-      setConformidad(r.conformidad);
-      if (enviar) cerrar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo guardar."));
-    }
-  }
-
-  async function enviarFinal() {
-    if (adjudicada && !justificacion.trim()) {
-      setError("Escriba cómo resolvió las diferencias entre las descripciones ciegas: sin justificación no se envía la referencia.");
-      return;
-    }
-    if (!await confirmar("¿Enviar la descripción? Una vez enviada ya no se puede cambiar y el tiempo deja de contar.")) return;
-    guardar(true);
-  }
-
-  const extremos = [DOCUMENTO, ...datos.entidades.map((e) => e.clave)];
-  const ciega = a.condicion === "ciega";
-  return (
-    <>
-      <Encabezado ceja={adjudicada ? "Referencia adjudicada" : ciega ? "Descripción a ciegas" : "Descripción con la propuesta del motor"}
-                  titulo={a.documento.nombre}
-                  acciones={<button type="button" className="boton" onClick={cerrar}>← Volver a mis tareas</button>} />
-      {adjudicada ? (
-        <div className="aviso" role="note" data-fijo><strong>Adjudicación.</strong> Consolide la referencia a partir de las
-          descripciones ciegas de abajo (por código). No se muestra la propuesta del motor. Al enviar, escriba cómo resolvió
-          las diferencias.</div>
-      ) : ciega ? (
-        <div className="aviso" role="note"><strong>A ciegas.</strong> Describa solo a partir del documento: no abra este documento en
-          Descripción ni mire la pantalla de otra experta. El tiempo se mide desde que lo abrió hasta que lo envía.</div>
-      ) : (
-        <div className="aviso" role="note">Revise la propuesta del motor: confirme, corrija o quite lo que no corresponda.</div>
-      )}
-      {soloLectura && <div className="aviso bien" role="status">Esta descripción ya fue enviada. Se muestra solo para consulta.</div>}
-      {adjudicada && (
-        <div className="tarjeta"><div className="tarjeta-cab">Descripciones ciegas de este documento</div>
-          <div className="tarjeta-cuerpo">
-            {!ciegas ? <div className="cargando">Cargando…</div> : (
-              <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-                {ciegas.map((c) => (
-                  <div key={c.codigo} className="tarjeta" style={{ margin: 0 }}>
-                    <div className="tarjeta-cab">{c.codigo}
-                      {!soloLectura && c.datos && (
-                        <button type="button" className="enlace" style={{ marginLeft: 8 }} onClick={() => setDatos({
-                          titulo: c.datos?.titulo || "", alcance: c.datos?.alcance || "",
-                          entidades: c.datos?.entidades || [], relaciones: c.datos?.relaciones || [] })}>
-                          Partir de esta</button>)}</div>
-                    <div className="tarjeta-cuerpo">
-                      <dl className="par-dato"><dt>Título</dt><dd>{c.datos?.titulo || "—"}</dd></dl>
-                      <ul className="lista-propuesta">{(c.datos?.entidades || []).map((e) => <li key={e.clave}>
-                        <span className="insignia contexto">{TIPOS.find(([k]) => k === e.tipo)?.[1] ?? e.tipo}</span> {e.valor}
-                        {e.edtf && <span className="meta"> · {e.edtf}</span>}</li>)}</ul>
-                      {c.datos && <ListaRelaciones datos={c.datos} catalogo={catalogo} />}
-                    </div>
-                  </div>
-                ))}
+        <h3>1. Documentos · {ev.documentos}</h3>
+        {enPreparacion && !ev.sorteada_en ? (
+          disponibles.length === 0 ? <p className="meta">No hay más documentos listos y sin describir en este fondo.</p> : (
+            <>
+              <div className="tabla-desplazable" style={{ maxHeight: 220 }}>
+                <table className="tabla-datos"><tbody>
+                  {disponibles.map((c) => (
+                    <tr key={c.id}><td style={{ width: 36 }}>
+                      <input type="checkbox" aria-label={`Elegir ${c.nombre}`} checked={elegidos.includes(c.id)}
+                             onChange={(e) => setElegidos(e.target.checked ? [...elegidos, c.id] : elegidos.filter((x) => x !== c.id))} /></td>
+                      <td>{c.nombre}</td></tr>
+                  ))}
+                </tbody></table>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-      <div className="evaluacion-columnas">
-        <div className="tarjeta columna-documento"><div className="tarjeta-cab">Documento</div>
-          <div className="tarjeta-cuerpo texto-documento">
-            {a.documento.texto || <span className="meta">Sin texto extraído.</span>}</div></div>
-        <div className="tarjeta formulario-ric"><div className="tarjeta-cab">Descripción en RiC</div>
-          <div className="tarjeta-cuerpo">
-            <div className="campo">
-              <label htmlFor="an-titulo">Título <code className="rico">rico:title</code></label>
-              <input id="an-titulo" className="entrada" disabled={soloLectura} value={datos.titulo || ""}
-                     onChange={(e) => setDatos({ ...datos, titulo: e.target.value })} />
-            </div>
-            <div className="campo">
-              <label htmlFor="an-alcance">Alcance y contenido <code className="rico">rico:scopeAndContent</code></label>
-              <textarea id="an-alcance" className="entrada" rows={4} disabled={soloLectura}
-                        value={datos.alcance || ""} onChange={(e) => setDatos({ ...datos, alcance: e.target.value })} />
-            </div>
-
-            <section className="bloque-ric">
-              <h4><span className="numero-bloque">1</span> Entidades <span className="insignia acento">{datos.entidades.length}</span></h4>
-              <p className="meta">Quién, dónde, cuándo, qué actividad y qué norma aparecen en el documento. El papel de cada una
-                (productor, destinatario…) no va aquí: es una relación.</p>
-              {datos.entidades.map((e, i) => (
-                <div key={e.clave} className="fila-entidad">
-                  <span className="clave-entidad" title="Clave de la entidad">{i + 1}</span>
-                  <select className="selector" aria-label="Tipo" disabled={soloLectura} value={e.tipo}
-                          onChange={(x) => cambiar(i, "tipo", x.target.value)}>
-                    {TIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                  {e.tipo === "agente" && (
-                    <select className="selector" aria-label="Clase de agente" disabled={soloLectura} value={e.subtipo || ""}
-                            onChange={(x) => cambiar(i, "subtipo", x.target.value)}>
-                      <option value="">Clase de agente…</option>
-                      {SUBTIPOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                  )}
-                  <input className="entrada valor" aria-label="Nombre o valor" placeholder="Nombre o valor" disabled={soloLectura}
-                         value={e.valor} onChange={(x) => cambiar(i, "valor", x.target.value)} />
-                  {e.tipo === "fecha" && (
-                    <input className="entrada edtf" aria-label="EDTF" placeholder="EDTF (1948-03, 1948~…)" disabled={soloLectura}
-                           value={e.edtf || ""} onChange={(x) => cambiar(i, "edtf", x.target.value)} />
-                  )}
-                  <input className="entrada" aria-label="Evidencia: fragmento del documento" disabled={soloLectura}
-                         placeholder="Evidencia: copie el fragmento del documento (opcional)" value={e.evidencia || ""}
-                         title="El fragmento del documento que sostiene esta entidad (trazabilidad)"
-                         onChange={(x) => cambiar(i, "evidencia", x.target.value)} />
-                  {!soloLectura && (
-                    <button type="button" className="boton-icono quitar" aria-label={`Quitar ${e.valor || "entidad"}`} title="Quitar"
-                            onClick={() => quitarEntidad(e.clave)}>×</button>
-                  )}
-                </div>
-              ))}
-              {!soloLectura && <button type="button" className="boton chico agregar" onClick={nuevaEntidad}>+ Entidad</button>}
-            </section>
-
-            <section className="bloque-ric">
-              <h4><span className="numero-bloque">2</span> Relaciones RiC-O <span className="insignia acento">{datos.relaciones.length}</span></h4>
-              <p className="meta">Cómo se conectan el documento y las entidades. Solo se ofrecen las relaciones que RiC-O admite
-                entre esos dos extremos.</p>
-              {datos.relaciones.map((r, i) => {
-                const opciones = validas(r.origen, r.destino);
-                return (
-                  <div key={i} className="fila-relacion">
-                    <select className="selector" aria-label="Origen" disabled={soloLectura} value={r.origen}
-                            onChange={(x) => cambiarRelacion(i, "origen", x.target.value)}>
-                      {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
-                    </select>
-                    <span className="flecha" aria-hidden="true">→</span>
-                    <select className="selector propiedad" aria-label="Relación" disabled={soloLectura} value={r.propiedad}
-                            onChange={(x) => cambiarRelacion(i, "propiedad", x.target.value)}>
-                      {!opciones.some((p) => p.codigo === r.propiedad) && (
-                        <option value={r.propiedad}>{r.propiedad ? `${nombrePropiedad(r.propiedad, catalogo)} — no admitida` : "Ninguna relación de RiC-O une estos extremos"}</option>
-                      )}
-                      {opciones.map((p) => <option key={p.codigo} value={p.codigo}>{nombrePropiedad(p.codigo, catalogo)}</option>)}
-                    </select>
-                    <span className="flecha" aria-hidden="true">→</span>
-                    <select className="selector" aria-label="Destino" disabled={soloLectura} value={r.destino}
-                            onChange={(x) => cambiarRelacion(i, "destino", x.target.value)}>
-                      {extremos.map((k) => <option key={k} value={k}>{nombreExtremo(k, datos.entidades)}</option>)}
-                    </select>
-                    {!soloLectura && (
-                      <button type="button" className="boton-icono quitar" aria-label="Quitar relación" title="Quitar"
-                              onClick={() => setDatos({ ...datos, relaciones: datos.relaciones.filter((_, j) => j !== i) })}>×</button>
-                    )}
-                  </div>
-                );
-              })}
-              {!soloLectura && (
-                <button type="button" className="boton chico agregar" disabled={!datos.entidades.length} onClick={nuevaRelacion}
-                        title={datos.entidades.length ? undefined : "Agregue primero una entidad"}>+ Relación</button>
-              )}
-            </section>
-            {adjudicada && (
-              <div className="campo">
-                <label htmlFor="an-justificacion">Justificación de la adjudicación (obligatoria)</label>
-                <textarea id="an-justificacion" className="entrada" rows={4} disabled={soloLectura} required
-                          placeholder="Qué tomó de cada descripción ciega y por qué; cómo resolvió cada diferencia."
-                          value={justificacion} onChange={(e) => setJustificacion(e.target.value)} />
-              </div>
-            )}
-            <AvisoConformidad c={conformidad} />
-            {error && <div className="aviso error" role="alert" data-fijo>{error}</div>}
-          </div>
-        </div>
-      </div>
-      {!soloLectura && (
-        <div className="barra-publicar">
-          <span>{datos.entidades.length} entidad{datos.entidades.length === 1 ? "" : "es"} · {datos.relaciones.length} relaci{datos.relaciones.length === 1 ? "ón" : "ones"}
-            {conformidad && <> · {conformidad.conforme ? "conforme con RiC-O" : "con observaciones de conformidad"}</>}</span>
-          <div className="acciones" style={{ margin: 0 }}>
-            <button type="button" className="boton" onClick={() => guardar(false)}>Guardar y revisar conformidad</button>
-            <button type="button" className="boton primario" onClick={enviarFinal}>
-              {adjudicada ? "Enviar la referencia" : "Enviar descripción"}</button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function Rubrica({ evId, inst, cerrar }: { evId: string; inst: string; cerrar: () => void }) {
-  const catalogo = useCatalogo();
-  const [propuesta, setPropuesta] = useState<Datos | null>(null);
-  const [notas, setNotas] = useState<Record<string, number>>({});
-  const [error, setError] = useState("");
-  const [confirmado, setConfirmado] = useState(false);
-
-  async function ver() {
-    try {
-      setPropuesta(await pedir<Datos>(`/api/evaluacion/${evId}/documentos/${inst}/propuesta`, { method: "POST" }));
-    } catch (err) {
-      setError(mensaje(err, "No se pudo abrir la propuesta."));
-    }
-  }
-
-  async function guardar() {
-    try {
-      await pedir(`/api/evaluacion/${evId}/documentos/${inst}/calificacion`, { method: "PUT", body: JSON.stringify(notas) });
-      cerrar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo guardar."));
-    }
-  }
-
-  const faltan = CRITERIOS.filter(([k]) => !notas[k]).length;
-  return (
-    <>
-      <Encabezado ceja="Paso 3 de 3 · Calificación" titulo="Calificar la propuesta del motor"
-                  acciones={<button type="button" className="boton" onClick={cerrar}>← Volver a mis tareas</button>} />
-      {error && <div className="aviso error" role="alert">{error}</div>}
-      {!propuesta ? (
-        <div className="tarjeta"><div className="tarjeta-cuerpo">
-          <div className="aviso alerta" role="note">Para calificarla hay que verla. <strong>Después, este documento ya no se puede
-            describir a ciegas.</strong></div>
-          <label className="confirmacion">
-            <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />
-            Entiendo; ya describí este documento a ciegas o no lo voy a hacer.
-          </label>
-          <div className="acciones"><button type="button" className="boton primario" disabled={!confirmado} onClick={ver}>
-            Ver la propuesta</button></div>
-        </div></div>
-      ) : (
-        <div className="evaluacion-columnas">
-          <div className="tarjeta"><div className="tarjeta-cab">Propuesta del motor</div>
-            <div className="tarjeta-cuerpo">
-              <dl className="par-dato">
-                <dt>Título</dt><dd><strong>{propuesta.titulo || "—"}</strong></dd>
-                <dt>Alcance y contenido</dt><dd>{propuesta.alcance || "—"}</dd>
-              </dl>
-              <h4>Entidades <span className="insignia acento">{propuesta.entidades.length}</span></h4>
-              <ul className="lista-propuesta">{propuesta.entidades.map((e) => <li key={e.clave}>
-                <span className="insignia contexto">{TIPOS.find(([k]) => k === e.tipo)?.[1]}</span> {e.valor}
-                {e.subtipo && <span className="meta"> · {SUBTIPOS.find(([k]) => k === e.subtipo)?.[1] ?? e.subtipo}</span>}
-                {e.edtf && <span className="meta"> · {e.edtf}</span>}</li>)}</ul>
-              <h4>Relaciones RiC-O <span className="insignia acento">{propuesta.relaciones.length}</span></h4>
-              <ListaRelaciones datos={propuesta} catalogo={catalogo} />
-            </div>
-          </div>
-          <div className="tarjeta"><div className="tarjeta-cab">Rúbrica de 1 a 5</div>
-            <div className="tarjeta-cuerpo">
-              {CRITERIOS.map(([k, nombre, pista]) => (
-                <fieldset key={k} className="criterio-rubrica">
-                  <legend><strong>{nombre}</strong> <span className="meta">{pista}</span></legend>
-                  <div className="escala">
-                    {[5, 4, 3, 2, 1].map((n) => (
-                      <label key={n} className={notas[k] === n ? "elegida" : undefined}>
-                        <input type="radio" name={k} checked={notas[k] === n} onChange={() => setNotas({ ...notas, [k]: n })} />
-                        <b>{n}</b><span>{DESCRIPTORES[k][n - 1]}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
               <div className="acciones">
-                <span className="meta">{faltan ? `Faltan ${faltan} criterio${faltan === 1 ? "" : "s"}` : "Los tres criterios calificados"}</span>
-                <button type="button" className="boton primario" disabled={Object.keys(notas).length < 3}
-                        onClick={guardar}>Guardar calificación</button></div>
-            </div>
+                <button type="button" className="boton chico" onClick={() => setElegidos(disponibles.map((d) => d.id))}>Elegir todos</button>
+                <button type="button" className="boton primario" disabled={!elegidos.length}
+                        onClick={() => hacer("documentos", "POST", { instanciacion_ids: elegidos }, `${elegidos.length} documento(s) agregados.`)}>
+                  Agregar {elegidos.length || ""}</button>
+              </div>
+            </>
+          )
+        ) : <p className="meta">{ev.sorteada_en ? "Tras el sorteo no se agregan ni se quitan documentos." : ""}</p>}
+
+        <h3>2. Sorteo de los conjuntos</h3>
+        {ev.sorteada_en ? (
+          <p>Semilla <strong>{ev.semilla}</strong> · {ev.desarrollo} de desarrollo · {ev.prueba} de prueba</p>
+        ) : enPreparacion && (
+          <div className="filtros" style={{ alignItems: "flex-end" }}>
+            <div className="campo"><label htmlFor="ev-semilla">Semilla</label>
+              <input id="ev-semilla" className="entrada" type="number" min={0} value={semilla} style={{ maxWidth: 140 }}
+                     onChange={(e) => setSemilla(Number(e.target.value))} /></div>
+            <div className="campo"><label htmlFor="ev-desarrollo">Documentos de desarrollo</label>
+              <input id="ev-desarrollo" className="entrada" type="number" min={1} value={desarrollo} style={{ maxWidth: 140 }}
+                     onChange={(e) => setDesarrollo(Number(e.target.value))} /></div>
+            <button type="button" className="boton primario" disabled={ev.documentos < 3}
+                    onClick={async () => {
+                      if (await confirmar(`Se sortearán ${desarrollo} documentos de desarrollo y ${ev.documentos - desarrollo} de prueba con la semilla ${semilla}. Después no se agregan ni se quitan documentos. ¿Continuar?`))
+                        hacer("sorteo", "POST", { semilla, desarrollo }, "Sorteo realizado.");
+                    }}>Sortear</button>
           </div>
+        )}
+        <p className="meta">El sorteo es estratificado por el año que aparece en el nombre del archivo. Con la misma semilla
+          se obtiene siempre el mismo resultado.</p>
+
+        <h3>3. Umbrales de aceptación</h3>
+        <div className="filtros" style={{ alignItems: "flex-end" }}>
+          {([...MEDIDAS.map(([k, n]) => [k, n] as [keyof Criterio, string]), ["acuerdo", "Acuerdo entre validadoras"]] as [keyof Criterio, string][]).map(([k, n]) => (
+            <div className="campo" key={k}><label htmlFor={`um-${k}`}>{n}</label>
+              <input id={`um-${k}`} className="entrada" type="number" min={0.01} max={1} step={0.01} style={{ maxWidth: 120 }}
+                     disabled={!enPreparacion} value={criterio[k]}
+                     onChange={(e) => setCriterio({ ...criterio, [k]: Number(e.target.value) })} /></div>
+          ))}
+          {enPreparacion && <button type="button" className="boton" onClick={() => hacer("criterio", "PUT", criterio, "Umbrales guardados.")}>Guardar umbrales</button>}
         </div>
-      )}
-    </>
+
+        <h3>4. Iniciar</h3>
+        {enPreparacion ? (
+          <>
+            <p className="meta">Al iniciar se congelan los umbrales y la versión del sistema, del motor y de la instrucción. Ajuste
+              antes la instrucción con los documentos de desarrollo.</p>
+            <button type="button" className="boton primario" disabled={!ev.sorteada_en}
+                    onClick={async () => { if (await confirmar("¿Iniciar la evaluación y congelar la versión?")) hacer("estado", "POST", { estado: "en_curso" }); }}>
+              Iniciar la evaluación</button>
+          </>
+        ) : ev.estado === "en_curso" ? (
+          <button type="button" className="boton"
+                  onClick={async () => { if (await confirmar("¿Cerrar la evaluación?")) hacer("estado", "POST", { estado: "cerrada" }); }}>
+            Cerrar la evaluación</button>
+        ) : <p>Evaluación cerrada.</p>}
+      </div>
+    </div>
   );
 }
 
-interface Medida { vp: number; fp: number; fn: number; precision: number | null; exhaustividad: number | null; f1: number | null }
-interface Resultado {
-  umbral: number; motores: { motor: string; version_prompt: string }[];
-  expertas?: (Participante & { documentos_descritos: number; mediana_minutos_ciega: number | null;
-    mediana_minutos_asistida: number | null;
-    motor_frente_a_ella: { entidades: Medida | null; relaciones: Medida | null } })[];
-  estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-  flexible: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-  relaciones: {
-    estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-    flexible: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-    acuerdo_entre_archivistas: Medida | null;
-    confusiones: { motor: string; archivista: string; veces: number }[];
-    propiedades: Record<string, string>;
-  };
-  conformidad: Record<string, { descripciones: number; conformes: number; relaciones: number; relaciones_validas: number;
-    tasa_relaciones_validas: number | null; problemas: { problema: string; veces: number }[] }>;
-  acuerdo_entre_archivistas: Medida | null;
-  tiempos: Record<string, { n: number; mediana_minutos: number | null; media_minutos: number | null }>;
-  rubrica: Record<string, { n: number; media: number | null; pares: number; kappa_ponderado: number | null }>;
-  documentos: { instanciacion_id: string; nombre: string; entidades_motor: number; relaciones_motor: number;
-    referencias_ciegas: number; f1_flexible: number | null; f1_relaciones_flexible: number | null; motor_conforme: boolean;
-    descrito_durante_la_evaluacion: boolean }[];
-  anotaciones: { ciegas: number; asistidas: number; evaluadores: number };
-  comparabilidad: {
-    criterio: Criterio;
-    condiciones: Record<string, { valor: number | Record<string, number | null> | null; exigido: number; cumple: boolean }>;
-    tipos: { tipo: string; casos: number; f_motor: number | null; techo: number | null; diferencia: number | null;
-      estado: "comparable" | "no_comparable" | "datos_insuficientes" | "sin_techo"; motivos: string[] }[];
-    comparables: string[]; no_comparables: string[]; sin_decidir: string[];
-    base?: string;
-  };
-  evaluacion?: { version_congelada?: VersionCongelada | null };
-  asistida_frente_a_ciegas?: { pares: number; estricto: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-    flexible: { por_tipo: Record<string, Medida>; micro: Medida; macro_f1: number | null };
-    relaciones_flexible: { micro: Medida } };
-  referencia_adjudicada?: { documentos: number; margen_f?: number; minimo_casos?: number; nota: string;
-    tipos: ({ tipo: string; casos_referencia: number; techo: number | null }
-      & Record<"A0" | "A1", { estricto: Medida; flexible: Medida; estado: string;
-        diferencia_ic95: { documentos: number; inferior: number | null; superior: number | null } }>)[] };
-  calibracion?: { propuestas: number; error_esperado_de_calibracion: number | null;
-    tramos: { desde: number; hasta: number; propuestas: number; correctas: number; proporcion: number | null }[] };
-  intervalos: Record<string, { documentos: number; remuestreos: number; inferior: number | null; superior: number | null }>;
-  prueba_tiempos: { n: number; z: number | null; p: number | null; nota: string | null };
-  indicadores?: Record<"motor" | "ciega" | "asistida", { descripciones: number; fechas: number; fechas_edtf: number;
-    tasa_fechas_edtf: number | null; agentes_y_lugares: number; duplicadas: number; tasa_duplicidad: number | null;
-    cobertura: { clases: number; propiedades: number; propiedades_disponibles: number };
-    evidencia?: { entidades: number; con_evidencia: number; tasa: number | null };
-    shacl?: { descripciones: number; conformes: number; tasa: number | null; problemas: [string, number][] } }>
-    & { evidencia_motor: { entidades: number; con_fragmento: number; tasa: number | null } };
-  supervision: { por_tipo: Record<string, Record<string, number>>; total: Record<string, number>; propuestas: number;
-    pct_aceptadas: number | null; pct_corregidas: number | null; pct_rechazadas: number | null; pct_agregadas: number | null };
-  advertencias?: string[];
-  errores: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number;
-    clasificadoras: number; pares: number; kappa: number | null; por_clase: Record<string, number>;
-    distribucion: { tipo_error: string; nombre: string; veces: number; porcentaje: number | null }[] };
-}
-interface VersionCongelada { sistema?: string; motor?: string | null; version_instruccion?: string | null;
-  perfil_shacl_sha256?: string | null; congelada_en?: string }
-const ESTADO_REF: Record<string, { texto: string; clase: string }> = {
-  no_inferior: { texto: "No inferior", clase: "bien" },
-  inferior: { texto: "Inferior", clase: "error" },
-  datos_insuficientes: { texto: "Datos insuficientes", clase: "alerta" },
-  sin_techo: { texto: "Sin techo", clase: "alerta" },
-};
-const ESTADO_TIPO: Record<string, { texto: string; clase: string }> = {
-  comparable: { texto: "Comparable", clase: "bien" },
-  no_comparable: { texto: "No comparable", clase: "error" },
-  datos_insuficientes: { texto: "Datos insuficientes", clase: "alerta" },
-  sin_techo: { texto: "Sin techo (falta una segunda archivista)", clase: "alerta" },
-};
-
-const num = (x: number | null | undefined, d = 2) => (x === null || x === undefined ? "—" : x.toLocaleString("es-CO", { maximumFractionDigits: d }));
-
-function Resultados({ evId, volver }: { evId: string; volver: () => void }) {
-  const [r, setR] = useState<Resultado | null>(null);
-  const [error, setError] = useState("");
-  const [clasificando, setClasificando] = useState(false);
-  const cargar = useCallback(() => {
-    pedir<Resultado>(`/api/evaluacion/${evId}/resultados`).then(setR).catch((err) => setError(mensaje(err, "No se pudieron calcular.")));
-  }, [evId]);
-  useEffect(cargar, [cargar]);
-  if (clasificando) return <Desacuerdos evId={evId} volver={() => { setClasificando(false); cargar(); }} />;
-  if (error) return <><button type="button" className="boton chico" onClick={volver}>← Volver</button><div className="aviso error">{error}</div></>;
-  if (!r) return <div className="cargando">Calculando…</div>;
-  const tipos = Array.from(new Set([...Object.keys(r.estricto.por_tipo), ...Object.keys(r.flexible.por_tipo)]));
-  const props = Array.from(new Set([...Object.keys(r.relaciones.estricto.por_tipo), ...Object.keys(r.relaciones.flexible.por_tipo)]));
-  const rico = (c: string) => r.relaciones.propiedades[c] || c;
-  const QUIEN: Record<string, string> = { motor: "Motor", ciega: "Archivistas a ciegas", asistida: "Archivistas asistidas" };
+function ListaDocumentos({ ev, docs, controlar }: { ev: EvaluacionBreve; docs: Documento[] | null; controlar: (d: Documento) => void }) {
+  if (!docs) return <div className="cargando">Cargando…</div>;
+  if (!docs.length) return <div className="vacio">La evaluación todavía no tiene documentos.</div>;
   return (
-    <>
-      <button type="button" className="boton chico" onClick={volver}>← Volver</button>
-      <h2>Resultados</h2>
-      <p className="meta">
-        {r.anotaciones.ciegas} descripción(es) ciega(s) y {r.anotaciones.asistidas} asistida(s) de {r.anotaciones.evaluadores} persona(s).
-        Motor: {r.motores.map((m) => `${m.motor} · instrucción ${m.version_prompt}`).join("; ") || "—"}.
-      </p>
-      <div className="acciones">
-        <button type="button" className="boton chico" onClick={() => descargar(`/api/evaluacion/${evId}/resultados/hoja-de-calculo`).catch(() => undefined)}>
-          Descargar hoja de cálculo</button>
-        <button type="button" className="boton chico" title="Una fila por aserción, para recalcular las métricas fuera del sistema"
-                onClick={() => descargar(`/api/evaluacion/${evId}/resultados/coincidencias`).catch(() => undefined)}>
-          Descargar coincidencias por aserción</button>
-        <button type="button" className="boton chico" title="Hoja de calificación sin origen ni certeza, con la llave de códigos en otro archivo"
-                onClick={() => descargar(`/api/evaluacion/${evId}/hoja-ciega`).catch(() => undefined)}>
-          Descargar hoja ciega y llave</button>
-      </div>
-      {!!r.advertencias?.length && (
-        <div className="aviso alerta" role="status" data-fijo>{r.advertencias.map((a) => <div key={a}>{a}</div>)}</div>
-      )}
-      {r.evaluacion?.version_congelada && (
-        <p className="meta">Versión congelada al iniciar: sistema {r.evaluacion.version_congelada.sistema || "—"} · motor{" "}
-          {r.evaluacion.version_congelada.motor || "—"} · instrucción {r.evaluacion.version_congelada.version_instruccion || "—"} ·
-          perfil SHACL <code>{(r.evaluacion.version_congelada.perfil_shacl_sha256 || "—").slice(0, 12)}</code>.
-          Para identificar la versión evaluada, etiquete ese commit en GitHub: Actions › «Etiquetar la versión evaluada» › Run workflow, con el
-          commit <code>{r.evaluacion.version_congelada.sistema || "—"}</code>.</p>
-      )}
-      <div className="resumen-preservacion">
-        <div className="cifra"><strong>{num(r.estricto.micro.f1)}</strong><span>F1 estricto (micro)</span></div>
-        <div className="cifra"><strong>{num(r.flexible.micro.f1)}</strong><span>F1 flexible (umbral {r.umbral})</span></div>
-        <div className="cifra"><strong>{num(r.relaciones.flexible.micro.f1)}</strong><span>F1 de relaciones RiC (flexible)</span></div>
-        <div className="cifra"><strong>{r.conformidad.motor?.conformes ?? 0} / {r.conformidad.motor?.descripciones ?? 0}</strong>
-          <span>Propuestas del motor conformes con RiC-O</span></div>
-        <div className="cifra"><strong>{num(r.acuerdo_entre_archivistas?.f1)}</strong><span>Acuerdo entre archivistas (F1)</span></div>
-        <div className="cifra"><strong>{num(r.tiempos.ciega?.mediana_minutos, 1)} / {num(r.tiempos.asistida?.mediana_minutos, 1)}</strong>
-          <span>Minutos por documento: a ciegas / asistida (mediana)</span></div>
-        <div className="cifra"><strong>{num(r.tiempos.motor?.mediana_minutos, 2)}</strong>
-          <span>Minutos del motor por documento (mediana)</span></div>
-      </div>
-      {r.expertas && r.expertas.length > 0 && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Humano frente a máquina, experta por experta</div>
-          <p className="meta" style={{ padding: "0 18px" }}>El motor medido contra la descripción a ciegas de cada experta (F1 flexible).
-            Las expertas aparecen por su código; su perfil sustenta que su descripción es una referencia válida.</p>
-          <table className="tabla-permisos">
-            <thead><tr><th>Experta</th><th>Formación</th><th>Experiencia</th><th>Documentos</th><th>F1 entidades</th>
-              <th>F1 relaciones</th><th>Minutos a ciegas</th><th>Minutos asistida</th></tr></thead>
-            <tbody>
-              {r.expertas.map((e) => (
-                <tr key={e.codigo}>
-                  <td><strong>{e.codigo}</strong><div className="meta">{e.profesion}</div></td>
-                  <td>{e.formacion_nombre}</td>
-                  <td>{e.anios_experiencia} años</td>
-                  <td>{e.documentos_descritos}</td>
-                  <td>{num(e.motor_frente_a_ella.entidades?.f1)}</td>
-                  <td>{num(e.motor_frente_a_ella.relaciones?.f1)}</td>
-                  <td>{num(e.mediana_minutos_ciega, 1)}</td>
-                  <td>{num(e.mediana_minutos_asistida, 1)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Respuesta a la pregunta: ¿son comparables con las de las archivistas?</div>
-        <p className="meta" style={{ padding: "0 18px" }}>
-          Criterio fijado antes de iniciar: la F flexible del motor no queda más de {num(r.comparabilidad.criterio.margen_f)} por
-          debajo del acuerdo entre archivistas (techo), con al menos {r.comparabilidad.criterio.minimo_casos} entidades de
-          referencia; descripciones asistidas conformes ≥ {num(r.comparabilidad.criterio.conformidad_asistida * 100, 0)} %
-          ({r.comparabilidad.condiciones.conformidad_asistida?.cumple ? "cumple" : "no cumple"}); rúbrica media
-          ≥ {num(r.comparabilidad.criterio.rubrica_minima, 1)} en los tres criterios
-          ({r.comparabilidad.condiciones.rubrica?.cumple ? "cumple" : "no cumple"}).
-        </p>
-        <table className="tabla-permisos">
-          <thead><tr><th>Tipo</th><th>Casos</th><th>F del motor</th><th>Acuerdo entre archivistas</th><th>Diferencia</th>
-            <th>Resultado</th><th>Por qué</th></tr></thead>
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Documentos · {docs.length}</div>
+      <p className="pista" style={{ padding: "0 18px" }}>Los documentos se validan en Descripción, como siempre. Los de prueba se procesan
+        una sola vez, con la versión congelada. La validación de control la hace una persona distinta de quien validó.</p>
+      <div className="tabla-desplazable">
+        <table className="tabla-datos">
+          <thead><tr><th>Documento</th><th>Año</th><th>Conjunto</th><th>Estado</th><th className="acciones-celda"><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>
-            {r.comparabilidad.tipos.length === 0 && <tr><td colSpan={7} className="meta">Todavía no hay descripciones ciegas.</td></tr>}
-            {r.comparabilidad.tipos.map((t) => (
-              <tr key={t.tipo}><td>{NOMBRE_TIPO(t.tipo)}</td><td>{t.casos}</td><td>{num(t.f_motor)}</td><td>{num(t.techo)}</td>
-                <td>{num(t.diferencia)}</td>
-                <td><span className={`insignia ${ESTADO_TIPO[t.estado].clase}`}>{ESTADO_TIPO[t.estado].texto}</span></td>
-                <td className="meta">{t.motivos.join("; ") || "—"}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {r.asistida_frente_a_ciegas && r.asistida_frente_a_ciegas.pares > 0 && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Versión validada por la archivista (asistida) frente a las descripciones ciegas</div>
-          <p className="meta" style={{ padding: "0 18px" }}>Además de la propuesta del motor, se compara su versión
-            validada con las ciegas de otras personas ({r.asistida_frente_a_ciegas.pares} pares; nunca con la ciega de la
-            misma archivista). Relaciones RiC (flexible): F1 {num(r.asistida_frente_a_ciegas.relaciones_flexible.micro?.f1)}.</p>
-          <table className="tabla-permisos">
-            <thead><tr><th>Tipo</th><th>F1 estricto</th><th>F1 flexible</th><th>Precisión (flexible)</th>
-              <th>Exhaustividad (flexible)</th></tr></thead>
-            <tbody>
-              {Object.entries(r.asistida_frente_a_ciegas.flexible.por_tipo).map(([t, f]) => (
-                <tr key={t}><td>{NOMBRE_TIPO(t)}</td><td>{num(r.asistida_frente_a_ciegas!.estricto.por_tipo[t]?.f1)}</td>
-                  <td>{num(f.f1)}</td><td>{num(f.precision)}</td><td>{num(f.exhaustividad)}</td></tr>
-              ))}
-              <tr><td><strong>Total (micro)</strong></td><td>{num(r.asistida_frente_a_ciegas.estricto.micro.f1)}</td>
-                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.f1)}</td>
-                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.precision)}</td>
-                <td>{num(r.asistida_frente_a_ciegas.flexible.micro.exhaustividad)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-      {r.referencia_adjudicada && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Frente a la referencia adjudicada (R): A0 motor solo y A1 archivista con la propuesta</div>
-          <p className="meta" style={{ padding: "0 18px" }}>
-            {r.referencia_adjudicada.documentos} documento(s) con referencia adjudicada.{" "}
-            Análisis complementario: el veredicto de arriba es la hipótesis preregistrada H1 (F del motor frente a las descripciones
-            ciegas, diferencia puntual con el techo). Esta tabla no lo cambia. {r.referencia_adjudicada.nota}</p>
-          {r.referencia_adjudicada.tipos.length > 0 && (
-            <table className="tabla-permisos">
-              <thead><tr><th>Tipo</th><th>Casos en R</th><th>Techo</th><th>Fuente</th><th>F estricta</th><th>F flexible</th>
-                <th>IC 95 % de la diferencia</th><th>Estado</th></tr></thead>
-              <tbody>
-                {r.referencia_adjudicada.tipos.flatMap((t) => (["A0", "A1"] as const).map((f) => {
-                  const x = t[f];
-                  const est = ESTADO_REF[x.estado] || { texto: x.estado, clase: "" };
-                  return (
-                    <tr key={`${t.tipo}-${f}`}>
-                      {f === "A0" && <><td rowSpan={2}>{NOMBRE_TIPO(t.tipo)}</td><td rowSpan={2}>{t.casos_referencia}</td>
-                        <td rowSpan={2}>{num(t.techo)}</td></>}
-                      <td>{f === "A0" ? "A0 · motor" : "A1 · asistida"}</td><td>{num(x.estricto.f1)}</td><td>{num(x.flexible.f1)}</td>
-                      <td>{num(x.diferencia_ic95.inferior)} a {num(x.diferencia_ic95.superior)}
-                        <span className="meta"> ({x.diferencia_ic95.documentos} doc.)</span></td>
-                      <td><span className={`insignia ${est.clase}`}>{est.texto}</span></td>
-                    </tr>
-                  );
-                }))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-      {r.calibracion && r.calibracion.propuestas > 0 && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Calibración de la certeza del motor</div>
-          <p className="meta" style={{ padding: "0 18px" }}>Si la certeza está bien calibrada, de las propuestas con certeza
-            0,8 a 0,9 acierta cerca del 85 %. Error esperado de calibración: {num(r.calibracion.error_esperado_de_calibracion, 3)}
-            ({r.calibracion.propuestas} propuestas frente a R).</p>
-          <table className="tabla-permisos">
-            <thead><tr><th>Certeza</th><th>Propuestas</th><th>Correctas</th><th>Proporción de aciertos</th></tr></thead>
-            <tbody>
-              {r.calibracion.tramos.filter((t) => t.propuestas).map((t) => (
-                <tr key={t.desde}><td>{num(t.desde, 1)} a {num(t.hasta, 1)}</td><td>{t.propuestas}</td><td>{t.correctas}</td>
-                  <td>{num(t.proporcion)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Supervisión en la condición asistida</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Tipo</th><th>Aceptadas</th><th>Corregidas</th><th>Rechazadas</th><th>Agregadas por la archivista</th></tr></thead>
-          <tbody>
-            {Object.entries(r.supervision.por_tipo).map(([t, x]) => (
-              <tr key={t}><td>{NOMBRE_TIPO(t)}</td><td>{x.aceptada}</td><td>{x.corregida}</td><td>{x.rechazada}</td><td>{x.agregada}</td></tr>
-            ))}
-            <tr><td><strong>Total</strong></td><td>{r.supervision.total.aceptada ?? 0} ({num(r.supervision.pct_aceptadas, 1)} %)</td>
-              <td>{r.supervision.total.corregida ?? 0} ({num(r.supervision.pct_corregidas, 1)} %)</td>
-              <td>{r.supervision.total.rechazada ?? 0} ({num(r.supervision.pct_rechazadas, 1)} %)</td>
-              <td>{r.supervision.total.agregada ?? 0} ({num(r.supervision.pct_agregadas, 1)} %)</td></tr>
-          </tbody>
-        </table>
-        <p className="meta" style={{ padding: "0 18px" }}>
-          F1 de entidades (flexible), intervalo del 95 %: {num(r.intervalos.entidades_flexible?.inferior)} a{" "}
-          {num(r.intervalos.entidades_flexible?.superior)} · de relaciones: {num(r.intervalos.relaciones_flexible?.inferior)} a{" "}
-          {num(r.intervalos.relaciones_flexible?.superior)} ({r.intervalos.entidades_flexible?.documentos ?? 0} documento(s),
-          remuestreo por documento). Tiempos ciega frente a asistida, Wilcoxon: n = {r.prueba_tiempos.n}
-          {r.prueba_tiempos.p !== null ? `, z = ${num(r.prueba_tiempos.z)}, p = ${num(r.prueba_tiempos.p, 4)}` : ` (${r.prueba_tiempos.nota ?? "sin datos"})`}.
-        </p>
-      </div>
-      <div className="tarjeta">
-        <div className="tarjeta-cab">Análisis de errores</div>
-        <div className="tarjeta-cuerpo">
-          <p>{r.errores.desacuerdos} desacuerdo(s) entre el motor y las referencias ciegas · {r.errores.clasificados} clasificados ·{" "}
-            {r.errores.pendientes_consenso} pendientes de consenso · {r.errores.sin_clasificar} sin clasificar. Kappa entre
-            clasificadoras: {num(r.errores.kappa)} ({r.errores.pares} pares).</p>
-          {r.errores.distribucion.length > 0 && (
-            <ul>{r.errores.distribucion.map((x) => <li key={x.tipo_error}>{x.nombre}: {x.veces} ({num(x.porcentaje, 1)} %)</li>)}</ul>
-          )}
-          <div className="acciones"><button type="button" className="boton chico primario" onClick={() => setClasificando(true)}>
-            Clasificar los desacuerdos</button></div>
-        </div>
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Entidades del motor frente a las descripciones ciegas</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Tipo</th><th>P estricta</th><th>E estricta</th><th>F1 estricto</th><th>P flexible</th><th>E flexible</th>
-            <th>F1 flexible</th><th>VP / FP / FN (flexible)</th></tr></thead>
-          <tbody>
-            {tipos.map((t) => {
-              const e = r.estricto.por_tipo[t];
-              const f = r.flexible.por_tipo[t];
-              return (
-                <tr key={t}><td>{TIPOS.find(([k]) => k === t)?.[1] || t}</td>
-                  <td>{num(e?.precision)}</td><td>{num(e?.exhaustividad)}</td><td>{num(e?.f1)}</td>
-                  <td>{num(f?.precision)}</td><td>{num(f?.exhaustividad)}</td><td>{num(f?.f1)}</td>
-                  <td>{f ? `${f.vp} / ${f.fp} / ${f.fn}` : "—"}</td></tr>
-              );
-            })}
-            <tr><td><strong>Total (micro)</strong></td><td>{num(r.estricto.micro.precision)}</td><td>{num(r.estricto.micro.exhaustividad)}</td>
-              <td>{num(r.estricto.micro.f1)}</td><td>{num(r.flexible.micro.precision)}</td><td>{num(r.flexible.micro.exhaustividad)}</td>
-              <td>{num(r.flexible.micro.f1)}</td><td>{r.flexible.micro.vp} / {r.flexible.micro.fp} / {r.flexible.micro.fn}</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Relaciones RiC del motor frente a las descripciones ciegas</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Propiedad RiC-O</th><th>P estricta</th><th>E estricta</th><th>F1 estricto</th><th>P flexible</th>
-            <th>E flexible</th><th>F1 flexible</th><th>VP / FP / FN (flexible)</th></tr></thead>
-          <tbody>
-            {props.length === 0 && <tr><td colSpan={8} className="meta">Todavía no hay relaciones que comparar.</td></tr>}
-            {props.map((c) => {
-              const e = r.relaciones.estricto.por_tipo[c];
-              const f = r.relaciones.flexible.por_tipo[c];
-              return (
-                <tr key={c}><td>{rico(c)}</td>
-                  <td>{num(e?.precision)}</td><td>{num(e?.exhaustividad)}</td><td>{num(e?.f1)}</td>
-                  <td>{num(f?.precision)}</td><td>{num(f?.exhaustividad)}</td><td>{num(f?.f1)}</td>
-                  <td>{f ? `${f.vp} / ${f.fp} / ${f.fn}` : "—"}</td></tr>
-              );
-            })}
-            <tr><td><strong>Total (micro)</strong></td><td>{num(r.relaciones.estricto.micro.precision)}</td>
-              <td>{num(r.relaciones.estricto.micro.exhaustividad)}</td><td>{num(r.relaciones.estricto.micro.f1)}</td>
-              <td>{num(r.relaciones.flexible.micro.precision)}</td><td>{num(r.relaciones.flexible.micro.exhaustividad)}</td>
-              <td>{num(r.relaciones.flexible.micro.f1)}</td>
-              <td>{r.relaciones.flexible.micro.vp} / {r.relaciones.flexible.micro.fp} / {r.relaciones.flexible.micro.fn}</td></tr>
-          </tbody>
-        </table>
-        <p className="meta" style={{ padding: "0 18px" }}>Acuerdo entre archivistas en relaciones (F1):{" "}
-          {num(r.relaciones.acuerdo_entre_archivistas?.f1)}</p>
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Confusión de propiedades: la misma entidad, otra relación</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>El motor dijo</th><th>La archivista dijo</th><th>Veces</th></tr></thead>
-          <tbody>
-            {r.relaciones.confusiones.length === 0 && <tr><td colSpan={3} className="meta">Ninguna.</td></tr>}
-            {r.relaciones.confusiones.map((c) => (
-              <tr key={`${c.motor}-${c.archivista}`}><td>{rico(c.motor)}</td><td>{rico(c.archivista)}</td><td>{c.veces}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Conformidad con RiC-O 1.1</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Quién describe</th><th>Descripciones conformes</th><th>Relaciones válidas</th><th>Problemas más frecuentes</th></tr></thead>
-          <tbody>
-            {Object.entries(r.conformidad).map(([k, c]) => (
-              <tr key={k}><td>{QUIEN[k] || k}</td><td>{c.conformes} / {c.descripciones}</td>
-                <td>{c.relaciones_validas} / {c.relaciones} ({num(c.tasa_relaciones_validas)})</td>
-                <td>{c.problemas.length === 0 ? "—" : <ul>{c.problemas.slice(0, 5).map((x) => <li key={x.problema}>{x.problema} ({x.veces})</li>)}</ul>}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {r.indicadores && (
-        <div className="tarjeta tabla-desplazable">
-          <div className="tarjeta-cab">Normalización, trazabilidad y cobertura de RiC-O</div>
-          <table className="tabla-permisos">
-            <thead><tr><th>Quién describe</th><th>Fechas en EDTF</th><th>Duplicidad (agentes y lugares)</th>
-              <th>Clases RiC-O</th><th>Propiedades RiC-O</th><th>Aserciones con evidencia textual</th>
-              <th>Conformes con el perfil SHACL</th></tr></thead>
-            <tbody>
-              {(["motor", "ciega", "asistida"] as const).map((k) => {
-                const x = r.indicadores![k];
-                return x && (
-                  <tr key={k}><td>{QUIEN[k] || k}</td><td>{x.fechas_edtf} / {x.fechas} ({num(x.tasa_fechas_edtf)})</td>
-                    <td>{x.duplicadas} / {x.agentes_y_lugares} ({num(x.tasa_duplicidad)})</td>
-                    <td>{x.cobertura.clases}</td><td>{x.cobertura.propiedades} de {x.cobertura.propiedades_disponibles}</td>
-                    <td>{x.evidencia ? `${x.evidencia.con_evidencia} / ${x.evidencia.entidades} (${num(x.evidencia.tasa)})` : "—"}</td>
-                    <td title={x.shacl?.problemas?.map(([m, n]) => `${n}× ${m}`).join("\n") || undefined}>
-                      {x.shacl ? `${x.shacl.conformes} / ${x.shacl.descripciones} (${num(x.shacl.tasa)})` : "—"}</td></tr>);
-              })}
-            </tbody>
-          </table>
-          <p className="meta" style={{ padding: "0 16px" }}>Evidencia: {r.indicadores.evidencia_motor.con_fragmento} de
-            {" "}{r.indicadores.evidencia_motor.entidades} entidades propuestas por el motor traen el fragmento del documento
-            que las sostiene ({num(r.indicadores.evidencia_motor.tasa)}).</p>
-        </div>
-      )}
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Rúbrica (1 a 5)</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Criterio</th><th>Media</th><th>Calificaciones</th><th>Kappa ponderado (pares)</th></tr></thead>
-          <tbody>
-            {CRITERIOS.map(([k, nombre]) => (
-              <tr key={k}><td>{nombre}</td><td>{num(r.rubrica[k]?.media)}</td><td>{r.rubrica[k]?.n ?? 0}</td>
-                <td>{num(r.rubrica[k]?.kappa_ponderado)} ({r.rubrica[k]?.pares ?? 0})</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <div className="tarjeta-cab">Por documento</div>
-        <table className="tabla-permisos">
-          <thead><tr><th>Documento</th><th>Entidades / relaciones del motor</th><th>Descripciones ciegas</th>
-            <th>F1 entidades</th><th>F1 relaciones</th><th>Motor conforme</th><th /></tr></thead>
-          <tbody>
-            {r.documentos.map((d) => (
-              <tr key={d.instanciacion_id}><td>{d.nombre}</td><td>{d.entidades_motor} / {d.relaciones_motor}</td>
-                <td>{d.referencias_ciegas}</td><td>{num(d.f1_flexible)}</td><td>{num(d.f1_relaciones_flexible)}</td>
-                <td>{d.motor_conforme ? "Sí" : "No"}</td>
-                <td>{d.descrito_durante_la_evaluacion && <span className="insignia alerta">Se describió en el sistema durante la evaluación</span>}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="meta">
-        Estricta: mismo valor tras quitar tildes, mayúsculas y signos; las fechas, por su EDTF. Flexible: similitud de texto
-        desde el umbral. Cada entidad cuenta una sola vez (emparejamiento uno a uno, dentro del mismo tipo). Una relación
-        acierta si tiene la misma propiedad de RiC-O y sus dos extremos coinciden; si los extremos coinciden con otra
-        propiedad, es una confusión (por ejemplo, destinatario en lugar de productor). La conformidad revisa cada relación
-        contra el mapeo verificado y contra el OWL oficial de RiC-O 1.1. Cada descripción ciega es una referencia. El acuerdo entre archivistas se mide con F1, porque en la
-        extracción de entidades no hay negativos y el kappa no está definido; la rúbrica usa kappa ponderado cuadrático.
-      </p>
-    </>
-  );
-}
-
-interface DesacuerdoFila {
-  clave: string; documento: string | null; clase: string; clase_nombre: string; tipo: string; propiedad: string | null;
-  propiedad_archivista: string | null; motor: string | null; archivista: string | null; mia: string | null; otra: string | null;
-  otra_clasifico: boolean; consenso: string | null; requiere_consenso: boolean;
-}
-interface DesacuerdosRespuesta {
-  estado: string; tipos_error: Record<string, string>; clases: Record<string, string>;
-  resumen: { desacuerdos: number; clasificados: number; pendientes_consenso: number; sin_clasificar: number; kappa: number | null; pares: number };
-  desacuerdos: DesacuerdoFila[];
-}
-
-// Clasificación de cada desacuerdo con la taxonomía de errores del protocolo. Cada investigadora
-// clasifica por su cuenta; ve la clasificación de la otra solo después de dar la suya, y si
-// difieren, registran el consenso.
-function Desacuerdos({ evId, volver }: { evId: string; volver: () => void }) {
-  const [d, setD] = useState<DesacuerdosRespuesta | null>(null);
-  const [error, setError] = useState("");
-  const [filtro, setFiltro] = useState<"todos" | "pendientes" | "consenso">("pendientes");
-  const cargar = useCallback(() => {
-    pedir<DesacuerdosRespuesta>(`/api/evaluacion/${evId}/desacuerdos`).then(setD)
-      .catch((err) => setError(mensaje(err, "No se pudieron cargar los desacuerdos.")));
-  }, [evId]);
-  useEffect(cargar, [cargar]);
-
-  async function clasificar(clave: string, tipo_error: string, ronda: "individual" | "consenso") {
-    setError("");
-    try {
-      await pedir(`/api/evaluacion/${evId}/desacuerdos/${clave}`, { method: "PUT", body: JSON.stringify({ tipo_error, ronda }) });
-      cargar();
-    } catch (err) {
-      setError(mensaje(err, "No se pudo clasificar."));
-    }
-  }
-
-  if (!d) return <>{error ? <div className="aviso error">{error}</div> : <div className="cargando">Cargando…</div>}</>;
-  const filas = d.desacuerdos.filter((x) => filtro === "todos" || (filtro === "pendientes" ? !x.mia : x.requiere_consenso));
-  const opciones = Object.entries(d.tipos_error);
-  return (
-    <>
-      <button type="button" className="boton chico" onClick={volver}>← Resultados</button>
-      <h2>Clasificar los desacuerdos</h2>
-      {d.estado !== "cerrada" && <div className="aviso alerta">Se clasifican con la evaluación cerrada, cuando ya no cambian.</div>}
-      {error && <div className="aviso error" role="alert">{error}</div>}
-      <p className="meta">{d.resumen.clasificados} de {d.resumen.desacuerdos} clasificados · {d.resumen.pendientes_consenso} por
-        consenso · kappa entre clasificadoras {num(d.resumen.kappa)}. Usted ve la clasificación de la otra investigadora solo
-        después de dar la suya.</p>
-      <div className="acciones">
-        {(["pendientes", "consenso", "todos"] as const).map((f) => (
-          <button key={f} type="button" className={`boton chico${filtro === f ? " primario" : ""}`} onClick={() => setFiltro(f)}>
-            {f === "pendientes" ? "Sin mi clasificación" : f === "consenso" ? "Requieren consenso" : "Todos"}</button>
-        ))}
-      </div>
-      <div className="tarjeta tabla-desplazable">
-        <table className="tabla-permisos">
-          <thead><tr><th>Documento</th><th>Desacuerdo</th><th>Motor</th><th>Archivista</th><th>Mi clasificación</th><th>Otra / consenso</th></tr></thead>
-          <tbody>
-            {filas.length === 0 && <tr><td colSpan={6} className="meta">Nada en esta vista.</td></tr>}
-            {filas.map((x) => (
-              <tr key={x.clave}>
-                <td>{x.documento}</td>
-                <td>{x.clase_nombre}{x.tipo !== "relacion" ? ` · ${NOMBRE_TIPO(x.tipo)}` : ""}
-                  {x.propiedad && <div className="meta">{x.propiedad}{x.propiedad_archivista ? ` / ${x.propiedad_archivista}` : ""}</div>}</td>
-                <td>{x.motor ?? "—"}</td><td>{x.archivista ?? "—"}</td>
-                <td>
-                  <select className="campo" value={x.mia ?? ""} disabled={d.estado !== "cerrada"}
-                          aria-label="Mi clasificación" onChange={(e) => e.target.value && clasificar(x.clave, e.target.value, "individual")}>
-                    <option value="">Elegir…</option>
-                    {opciones.map(([k, nombre]) => <option key={k} value={k}>{nombre}</option>)}
-                  </select>
-                </td>
-                <td>
-                  {x.consenso ? <span className="insignia bien">Consenso: {d.tipos_error[x.consenso]}</span>
-                    : x.otra ? d.tipos_error[x.otra] : x.otra_clasifico ? <span className="meta">Ya clasificó (oculta)</span> : "—"}
-                  {x.requiere_consenso && (
-                    <select className="campo" value="" aria-label="Consenso"
-                            onChange={(e) => e.target.value && clasificar(x.clave, e.target.value, "consenso")}>
-                      <option value="">Registrar consenso…</option>
-                      {opciones.map(([k, nombre]) => <option key={k} value={k}>{nombre}</option>)}
-                    </select>
-                  )}
+            {docs.map((d) => (
+              <tr key={d.instanciacion_id}>
+                <td>{d.nombre}</td><td>{d.anio}</td>
+                <td>{d.conjunto ? <span className={`insignia ${d.conjunto === "prueba" ? "alerta" : "proceso"}`}>
+                  {d.conjunto === "prueba" ? "Prueba" : "Desarrollo"}</span> : <span className="meta">Sin sortear</span>}</td>
+                <td>{d.publicado ? <span className="insignia bien">Validado y publicado</span> : <span className="meta">Pendiente</span>}</td>
+                <td className="acciones-celda" style={{ width: 230 }}>
+                  {!d.publicado && ev.estado !== "preparacion" && <Link className="boton chico" to="/descripcion">Ir a Descripción</Link>}
+                  {d.publicado && d.conjunto === "prueba" && ev.estado === "en_curso" &&
+                    <button type="button" className="boton chico" onClick={() => controlar(d)}>Validación de control</button>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function Control({ ev, doc }: { ev: EvaluacionBreve; doc: Documento }) {
+  const [datos, setDatos] = useState<{ documento: { texto: string | null }; propuestas: PropuestaControl[] } | null>(null);
+  const [error, setError] = useState("");
+  const cargar = useCallback(() => {
+    pedir<{ documento: { texto: string | null }; propuestas: PropuestaControl[] }>(`/api/evaluacion/${ev.id}/control/${doc.instanciacion_id}`)
+      .then(setDatos).catch((err) => setError(mensaje(err, "No se pudo abrir la validación de control.")));
+  }, [ev.id, doc.instanciacion_id]);
+  useEffect(cargar, [cargar]);
+  async function decidir(p: PropuestaControl, decision: string) {
+    try {
+      await pedir(`/api/evaluacion/${ev.id}/control/decisiones/${p.evento_id}`, { method: "PUT", body: JSON.stringify({ decision }) });
+      cargar();
+    } catch (err) {
+      setError(mensaje(err, "No se pudo registrar."));
+    }
+  }
+  if (error) return <div className="aviso error" role="alert">{error}</div>;
+  if (!datos) return <div className="cargando">Cargando…</div>;
+  return (
+    <>
+      <p className="pista">Decida sobre cada propuesta original del motor leyendo el documento, sin ver lo que decidió la primera
+        validadora. Su decisión no cambia la descripción publicada.</p>
+      <div className="tarjeta" style={{ maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", padding: 12 }}>{datos.documento.texto}</div>
+      <table className="tabla-datos">
+        <thead><tr><th>Tipo</th><th>Propuesta del motor</th><th className="num">Certeza</th><th>Su decisión</th></tr></thead>
+        <tbody>
+          {datos.propuestas.map((p) => (
+            <tr key={p.evento_id}>
+              <td>{p.tipo_nombre}</td><td>{p.propuesto || "—"}</td><td className="num">{num(p.confianza, 2)}</td>
+              <td>
+                <select className="selector" aria-label={`Decisión sobre ${p.propuesto}`} value={p.mi_decision || ""}
+                        onChange={(e) => decidir(p, e.target.value)}>
+                  <option value="" disabled>Elegir…</option>
+                  <option value="aceptada">Aceptar</option>
+                  <option value="corregida">Corregir</option>
+                  <option value="rechazada">Rechazar</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="meta">{datos.propuestas.filter((p) => p.mi_decision).length} de {datos.propuestas.length} decididas.</p>
     </>
+  );
+}
+
+function VerResultados({ ev }: { ev: EvaluacionBreve }) {
+  const [r, setR] = useState<Resultados | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    pedir<Resultados>(`/api/evaluacion/${ev.id}/resultados`).then(setR).catch((err) => setError(mensaje(err, "No se pudieron calcular los resultados.")));
+  }, [ev.id]);
+  if (error) return <div className="aviso error" role="alert">{error}</div>;
+  if (!r) return <div className="cargando">Calculando…</div>;
+  const m = r.metricas;
+  const lectura: Record<string, string> = {
+    f1: m.f1 === null ? "" : `Rendimiento global de ${num(m.f1, 2)} sobre 1`,
+    precision: m.precision === null ? "" : `De cada 100 datos que propuso el motor, ${Math.round(m.precision * 100)} eran correctos`,
+    exhaustividad: m.exhaustividad === null ? "" : `De cada 100 datos de la descripción validada, el motor encontró ${Math.round(m.exhaustividad * 100)}`,
+  };
+  const estado = (c: boolean | null) => c === null ? <span className="meta">—</span>
+    : <span className={`insignia ${c ? "bien" : "error"}`}>{c ? "Cumple" : "No cumple"}</span>;
+  return (
+    <>
+      {r.avisos.map((a) => <div key={a} className="aviso" role="status">{a}</div>)}
+      <div className="filtros" style={{ alignItems: "center" }}>
+        <button type="button" className="boton" onClick={() => descargar(`/api/evaluacion/${ev.id}/resultados/hoja-de-calculo`)}>
+          Descargar en Excel (para el Anexo D)</button>
+        <span className="meta">{m.documentos} documento(s) de prueba · {r.decisiones} decisiones</span>
+        {r.dictamen.hipotesis && <span className={`insignia ${r.dictamen.hipotesis === "se sostiene" ? "bien" : "error"}`}>
+          La hipótesis {r.dictamen.hipotesis}</span>}
+      </div>
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Medidas y dictamen</div>
+        <div className="tabla-desplazable">
+          <table className="tabla-datos">
+            <thead><tr><th>Medida</th><th className="num">Valor</th><th className="num">Intervalo 95 %</th><th className="num">Umbral</th>
+              <th>Dictamen (límite inferior)</th><th>Cómo se lee</th></tr></thead>
+            <tbody>
+              {MEDIDAS.map(([k, n, ayuda]) => (
+                <tr key={k}>
+                  <td title={ayuda}><strong>{n}</strong></td><td className="num">{num(m[k])}</td>
+                  <td className="num">{num(m.intervalos[k].inferior)} a {num(m.intervalos[k].superior)}</td>
+                  <td className="num">{num(r.dictamen[k].umbral, 2)}</td><td>{estado(r.dictamen[k].cumple)}</td><td>{lectura[k]}</td>
+                </tr>
+              ))}
+              <tr><td>Medida F1 macro</td><td className="num">{num(m.f1_macro)}</td><td colSpan={4} className="meta">Promedio entre tipos de entidad</td></tr>
+              <tr><td>Acuerdo entre validadoras</td><td className="num">{pct(r.acuerdo.porcentaje)}</td>
+                <td className="num meta">{r.acuerdo.iguales} de {r.acuerdo.pares}</td><td className="num">{pct(r.acuerdo.umbral)}</td>
+                <td>{estado(r.acuerdo.cumple)}</td><td className="meta">{r.acuerdo.documentos} documento(s) con validación de control</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="resumen-preservacion">
+        <div className="cifra bien"><strong>{m.conteo.aceptada}</strong><span>Aceptadas (aciertos)</span></div>
+        <div className="cifra alerta"><strong>{m.conteo.corregida}</strong><span>Corregidas</span></div>
+        <div className="cifra error"><strong>{m.conteo.rechazada}</strong><span>Rechazadas (inventadas)</span></div>
+        <div className="cifra"><strong>{m.conteo.agregada}</strong><span>Agregadas (omitidas)</span></div>
+      </div>
+      <div className="tarjeta">
+        <div className="tarjeta-cab">Por tipo de dato</div>
+        <div className="tabla-desplazable">
+          <table className="tabla-datos">
+            <thead><tr><th>Tipo</th><th className="num">Aceptadas</th><th className="num">Corregidas</th><th className="num">Rechazadas</th>
+              <th className="num">Agregadas</th><th className="num">Precisión</th><th className="num">Exhaustividad</th><th className="num">F1</th></tr></thead>
+            <tbody>
+              {m.por_tipo.map((t) => (
+                <tr key={t.tipo}>
+                  <td>{TIPO[t.tipo] || t.tipo}{t.texto_libre && <span className="meta"> · texto libre, fuera de la F1 global</span>}</td>
+                  <td className="num">{t.aceptada}</td><td className="num">{t.corregida}</td><td className="num">{t.rechazada}</td>
+                  <td className="num">{t.agregada}</td><td className="num">{num(t.precision)}</td><td className="num">{num(t.exhaustividad)}</td>
+                  <td className="num">{num(t.f1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {r.causas.length > 0 && (
+        <div className="tarjeta">
+          <div className="tarjeta-cab">Causas de error</div>
+          <ul className="lista-simple" style={{ padding: "6px 36px 12px" }}>{r.causas.map((c) => <li key={c.causa}>{c.nombre} · {c.cantidad}</li>)}</ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Errores({ ev }: { ev: EvaluacionBreve }) {
+  const [lista, setLista] = useState<ErrorMotor[] | null>(null);
+  const [error, setError] = useState("");
+  const cargar = useCallback(() => {
+    pedir<ErrorMotor[]>(`/api/evaluacion/${ev.id}/errores`).then(setLista).catch((err) => setError(mensaje(err, "No se pudieron cargar.")));
+  }, [ev.id]);
+  useEffect(cargar, [cargar]);
+  async function clasificar(e: ErrorMotor, causa: string) {
+    try {
+      await pedir(`/api/evaluacion/${ev.id}/errores/${e.evento_id}`, { method: "PUT", body: JSON.stringify({ causa, nota: e.nota }) });
+      cargar();
+    } catch (err) {
+      setError(mensaje(err, "No se pudo registrar la causa."));
+    }
+  }
+  if (error) return <div className="aviso error" role="alert">{error}</div>;
+  if (!lista) return <div className="cargando">Cargando…</div>;
+  if (!lista.length) return <div className="vacio">No hay errores del motor en los documentos de prueba validados.</div>;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Errores del motor · {lista.length} · {lista.filter((e) => e.causa).length} con causa</div>
+      <div className="tabla-desplazable">
+        <table className="tabla-datos">
+          <thead><tr><th>Documento</th><th>Tipo</th><th>Decisión</th><th>Propuesto</th><th>Valor final</th><th>Causa</th></tr></thead>
+          <tbody>
+            {lista.map((e) => (
+              <tr key={e.evento_id}>
+                <td>{e.documento}</td><td>{e.tipo_nombre}</td>
+                <td><span className={`insignia ${DECISION[e.decision].clase}`}>{DECISION[e.decision].texto}</span></td>
+                <td>{e.propuesto || "—"}</td><td>{e.final || "—"}</td>
+                <td>
+                  <select className="selector" aria-label="Causa del error" value={e.causa || ""} onChange={(x) => clasificar(e, x.target.value)}>
+                    <option value="" disabled>Elegir…</option>
+                    {CAUSAS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://ricora:${POSTGRES_PASSWORD}@bd:5432/ricora
       DIRECTORIO_ALMACENAMIENTO: /data/almacen
+      # Versión del sistema que queda en cada decisión y en la versión congelada de la evaluación.
+      RICORA_VERSION: ${RICORA_VERSION:-sin etiqueta}
       RICORA_SEGUNDA_COPIA: ${RICORA_SEGUNDA_COPIA:-/data/segunda_copia}
       RICORA_RESPALDO: /data/respaldo
       RICORA_SEGUNDA_COPIA_SOLO_LECTURA: "1"

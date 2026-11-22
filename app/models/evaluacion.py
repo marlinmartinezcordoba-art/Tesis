@@ -1,22 +1,26 @@
 """
-Evaluación ciega del motor frente a archivistas.
+Evaluación del rendimiento del motor con la medida F1 (objetivo 3).
 
-Una evaluación reúne documentos aún no descritos. Para cada uno, el motor
-propone una descripción que nadie ve; archivistas lo describen a ciegas
-(patrón de referencia) y, en otra condición, con la propuesta delante
-(asistida). Además califican la propuesta con una rúbrica. Nada se borra:
-una anotación se anula, no se elimina.
+Una evaluación reúne los documentos del caso, los sortea en un conjunto de
+desarrollo (con el que se ajusta la instrucción del motor) y uno de prueba
+(que se procesa una sola vez con la versión congelada), y fija de antemano
+los umbrales de aceptación. La referencia es la descripción que la
+archivista valida en Descripción: cada propuesta confirmada, corregida,
+rechazada o agregada queda en la auditoría al publicar, y de ahí salen los
+verdaderos positivos, los falsos positivos y los falsos negativos.
 
-Con roles separados, las descriptoras solo describen a ciegas, una
-adjudicadora consolida sus descripciones en una referencia única
-(condición «adjudicada»), las validadoras solo trabajan con la propuesta
-delante y nunca ven la referencia, y los documentos de la prueba piloto
-no entran en los resultados.
+Una segunda validadora revisa por su cuenta las propuestas originales de
+algunos documentos (validación de control) para estimar la fiabilidad de
+la referencia, y la causa de cada error se registra en ClasificacionError.
+
+Las clases Anotacion, Exposicion, Calificacion y Participante corresponden
+al protocolo ciego retirado: se conservan para no perder los datos ya
+registrados, pero ningún servicio las usa.
 """
 
 import uuid
 
-from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
                         UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
@@ -46,6 +50,9 @@ class Evaluacion(Base):
     # Versión del sistema, del motor, de la instrucción y del perfil de aplicación con que se mide;
     # se fija al iniciar y no cambia después.
     version_congelada = Column(JSONB, nullable=True)
+    # Sorteo de los conjuntos de desarrollo y de prueba: la semilla lo hace reproducible.
+    semilla = Column(Integer, nullable=True)
+    sorteada_en = Column(DateTime(timezone=True), nullable=True)
 
 
 class EvaluacionDocumento(Base):
@@ -64,6 +71,7 @@ class EvaluacionDocumento(Base):
     # Documento de la prueba piloto: sirve para ensayar el protocolo y no entra en los resultados.
     piloto = Column(Boolean, nullable=False, default=False)
     segundos_motor = Column(Float, nullable=True)  # lo que tardó el motor en proponer (eficiencia)
+    conjunto = Column(String(12), nullable=True)  # desarrollo | prueba, fijado por el sorteo
 
 
 class Anotacion(Base):
@@ -127,6 +135,21 @@ class ClasificacionError(Base):
     clasificadora_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     tipo_error = Column(String(20), nullable=False)
     nota = Column(Text, nullable=True)
+    creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
+
+
+class Control(Base):
+    """Decisión de la segunda validadora sobre una propuesta original del motor (validación de
+    control). Se compara con la decisión que quedó al publicar, sin modificar la descripción."""
+    __tablename__ = "evaluacion_control"
+    __table_args__ = (UniqueConstraint("evaluacion_id", "evento_id", "usuario_id", name="uq_control_decision"),
+                      CheckConstraint("decision IN ('aceptada', 'corregida', 'rechazada')", name="ck_control_decision"))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluacion_id = Column(UUID(as_uuid=True), ForeignKey("evaluaciones.id"), nullable=False, index=True)
+    evento_id = Column(BigInteger, nullable=False)  # el evento decision_ia de la auditoría (sin clave foránea)
+    decision = Column(String(12), nullable=False)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     creada_en = Column(DateTime(timezone=True), default=ahora, nullable=False)
 
 

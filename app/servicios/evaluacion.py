@@ -1,56 +1,57 @@
 """
-Evaluación ciega del motor frente a archivistas.
+Evaluación del rendimiento del motor con la medida F1 (objetivo 3 de la tesis).
 
-Diseño (decisiones en documentacion/modulo-evaluacion.md):
-- Patrón de referencia: la descripción **ciega** de cada archivista, hecha
-  sin haber visto nunca la propuesta del motor. El servidor lo exige: quien
-  vio la propuesta de un documento (en la condición asistida, al calificarla
-  o en los resultados), o lo trabajó en Descripción, ya no puede
-  describirlo a ciegas.
-- Solo entran documentos sin describir: si ya lo estuvieran, su vocabulario
-  le daría al motor la respuesta por el contexto.
-- La descripción se hace en RiC (versión 2): entidades con su clase de
-  RiC-O y relaciones con su propiedad de RiC-O (servicios/evaluacion_ric).
-  La propuesta del motor se convierte a lo mismo, con la regla de la
-  publicación.
-- Métricas de entidades: precisión, exhaustividad y F1 por tipo, en dos
-  versiones: estricta (mismo valor normalizado) y flexible (similitud de
-  texto desde el umbral de la evaluación). Emparejamiento uno a uno.
-- Métricas de relaciones: las mismas, por propiedad de RiC-O; una relación
-  acierta si tiene la misma propiedad y sus dos extremos coinciden. Además,
-  la confusión de propiedades (mismos extremos, otra relación) y la
-  conformidad de cada descripción con RiC-O 1.1.
-- Acuerdo entre archivistas: F1 entre dos anotaciones ciegas del mismo
-  documento (en extracción de entidades no hay «negativos», así que el
-  kappa no está definido; se usa F1, como proponen Hripcsak y Rothschild,
-  2005). Para la rúbrica 1–5, kappa de Cohen ponderado cuadrático.
-- Tiempos: mediana de minutos por documento, ciega frente a asistida.
+Diseño (documentacion/modulo-evaluacion.md):
+- La evaluación reúne los documentos del caso, aún sin describir, y los sortea con una semilla en
+  un conjunto de desarrollo, con el que se ajusta la instrucción del motor, y uno de prueba, que se
+  procesa una sola vez con la versión congelada.
+- La referencia es la descripción que la archivista valida en Descripción. Al publicar, cada
+  propuesta del motor queda en la auditoría como aceptada, corregida o rechazada, y lo que la
+  archivista agregó sin que el motor lo propusiera, como agregada (servicios/descripcion.py,
+  registrar_decisiones). De ahí sale la matriz de confusión.
+      aceptada  verdadero positivo
+      rechazada falso positivo
+      agregada  falso negativo
+      corregida falso positivo y falso negativo a la vez
+- Se mide la precisión, la exhaustividad y la medida F1 por tipo y en el conjunto, la F1 micro y
+  la macro, con intervalos de confianza del 95 % por remuestreo de documentos. El título, el
+  alcance y contenido y el idioma son textos libres: se informan por tipo y no entran en la F1
+  global, porque cualquier ajuste de redacción contaría como error.
+- Un criterio se cumple cuando el límite inferior del intervalo alcanza el umbral, fijado antes de
+  iniciar y congelado al iniciar.
+- Solo cuenta la primera publicación de cada documento y solo las decisiones tomadas con la
+  versión congelada del motor y de la instrucción.
+- Validación de control: una segunda validadora decide por su cuenta sobre las propuestas
+  originales de algunos documentos de prueba; el acuerdo es el porcentaje de decisiones iguales.
+- La causa de cada error (lectura del texto, ambigüedad del documento, regla mal aplicada,
+  invención del motor) se registra en ClasificacionError.
 """
 
 import io
+import random
 import re
-import statistics
-import time
-import unicodedata
 import uuid
-from collections import Counter
-from difflib import SequenceMatcher
-from itertools import combinations
+from collections import defaultdict
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.base import ahora
-from app.models.descripcion import Relacion, TrabajoDescripcion, TrabajoInstanciacion
-from app.models.evaluacion import (CRITERIOS, Anotacion, Calificacion, Evaluacion, EvaluacionDocumento,
-                                   Exposicion)
+from app.models.auditoria import RegistroAuditoria
+from app.models.descripcion import Relacion
+from app.models.evaluacion import ClasificacionError, Control, Evaluacion, EvaluacionDocumento
 from app.models.instanciacion import Instanciacion
 from app.servicios.auditoria import registrar
-from app.servicios.datos_personales import anonimizar_para_motor
 
-# Los tipos de entidad que se comparan (los seis reutilizables y la fecha).
-# «documento_citado»: otro documento de archivo que el texto cita (recurso documental, RiC-E02 a E06; Tabla 3).
-TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental", "documento_citado")
+CONJUNTOS = ("desarrollo", "prueba")
+TEXTO_LIBRE = ("titulo", "alcance", "idioma")
+CAUSAS = {"lectura": "Lectura del texto", "ambiguedad": "Ambigüedad del documento",
+          "regla": "Regla mal aplicada", "invencion": "Invención del motor"}
+CRITERIO_POR_DEFECTO = {"f1": 0.80, "precision": 0.85, "exhaustividad": 0.80, "acuerdo": 0.80}
+REMUESTREOS = 1000
+SEMILLA_REMUESTREO = 20261031  # fija: los mismos datos dan siempre el mismo intervalo
+VENTANA_PUBLICACION = 300  # segundos: las decisiones de una misma publicación
+DECISIONES = ("aceptada", "corregida", "rechazada", "agregada")
 
 
 class ErrorEvaluacion(Exception):
@@ -59,110 +60,102 @@ class ErrorEvaluacion(Exception):
         self.codigo = codigo
 
 
-# --- Comparación (funciones puras) -----------------------------------------------------------------
+# --- Métricas (funciones puras) --------------------------------------------------------------------
 
 
-def normalizar(texto: str | None) -> str:
-    sin_tildes = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode()
-    return " ".join(re.sub(r"[^\w\s]", " ", sin_tildes.lower()).split())
-
-
-def clave_de(e: dict) -> str:
-    """Con qué se agrupa una entidad para compararla: su tipo. El papel de
-    un agente (productor, destinatario…) no es de la entidad sino de su
-    relación con el documento, y se mide con las relaciones."""
-    return e.get("tipo")
-
-
-def texto_de(e: dict) -> str:
-    """Lo que se compara: la fecha, por su EDTF si lo tiene; lo demás, por su valor."""
-    if e.get("tipo") == "fecha" and e.get("edtf"):
-        return e["edtf"].strip()
-    return normalizar(e.get("valor"))
-
-
-def pares(sistema: list[dict], referencia: list[dict], umbral: float) -> list[tuple[int, int]]:
-    """Pares uno a uno (cada entidad cuenta una sola vez), del más parecido
-    al menos, dentro del mismo tipo: (índice en sistema, índice en
-    referencia) de los que superan el umbral (1.0 = solo iguales tras
-    normalizar)."""
-    salida = []
-    for grupo in {clave_de(e) for e in sistema} & {clave_de(e) for e in referencia}:
-        s = [(n, texto_de(e)) for n, e in enumerate(sistema) if clave_de(e) == grupo]
-        r = [(n, texto_de(e)) for n, e in enumerate(referencia) if clave_de(e) == grupo]
-        candidatos = sorted(((SequenceMatcher(None, a, b).ratio() if a != b else 1.0, i, j)
-                             for i, a in s for j, b in r), reverse=True)
-        usados_s, usados_r = set(), set()
-        for parecido, i, j in candidatos:
-            if parecido < umbral:
-                break
-            if i not in usados_s and j not in usados_r:
-                usados_s.add(i)
-                usados_r.add(j)
-                salida.append((i, j))
-    return salida
-
-
-def emparejar(sistema: list[dict], referencia: list[dict], umbral: float) -> int:
-    """Cuántos pares uno a uno superan el umbral (ver «pares»)."""
-    return len(pares(sistema, referencia, umbral))
-
-
-def conteo(sistema: list[dict], referencia: list[dict], umbral: float) -> dict:
-    vp = emparejar(sistema, referencia, umbral)
-    return {"vp": vp, "fp": len(sistema) - vp, "fn": len(referencia) - vp}
+def conteo(decisiones: list[str]) -> dict:
+    """Verdaderos positivos, falsos positivos y falsos negativos de una lista de decisiones."""
+    c = {d: sum(1 for x in decisiones if x == d) for d in DECISIONES}
+    return {"vp": c["aceptada"], "fp": c["rechazada"] + c["corregida"], "fn": c["agregada"] + c["corregida"], **c}
 
 
 def prf(c: dict) -> dict:
-    p = c["vp"] / (c["vp"] + c["fp"]) if c["vp"] + c["fp"] else None
-    r = c["vp"] / (c["vp"] + c["fn"]) if c["vp"] + c["fn"] else None
-    f = 2 * p * r / (p + r) if p is not None and r is not None and p + r else (0.0 if p is not None and r is not None else None)
-    return {**c, "precision": _r(p), "exhaustividad": _r(r), "f1": _r(f)}
+    vp, fp, fn = c["vp"], c["fp"], c["fn"]
+    p = vp / (vp + fp) if vp + fp else None
+    r = vp / (vp + fn) if vp + fn else None
+    f = 2 * vp / (2 * vp + fp + fn) if 2 * vp + fp + fn else None
+    return {"precision": _r(p), "exhaustividad": _r(r), "f1": _r(f)}
 
 
-def _r(x: float | None) -> float | None:
-    return round(x, 4) if x is not None else None
+def _r(x: float | None, d: int = 4) -> float | None:
+    return None if x is None else round(x, d)
 
 
-def _sumar(a: dict, b: dict) -> dict:
-    return {k: a.get(k, 0) + b.get(k, 0) for k in ("vp", "fp", "fn")}
+def intervalo(por_documento: list[dict], medida: str, remuestreos: int = REMUESTREOS,
+              semilla: int = SEMILLA_REMUESTREO) -> dict:
+    """Intervalo de confianza del 95 % de una medida, remuestreando documentos completos."""
+    docs = [d for d in por_documento if d["vp"] + d["fp"] + d["fn"]]
+    if len(docs) < 2:
+        return {"inferior": None, "superior": None, "remuestreos": 0}
+    azar = random.Random(semilla)
+    valores = []
+    for _ in range(remuestreos):
+        muestra = [docs[azar.randrange(len(docs))] for _ in docs]
+        v = prf({k: sum(x[k] for x in muestra) for k in ("vp", "fp", "fn")})[medida]
+        if v is not None:
+            valores.append(v)
+    valores.sort()
+    if not valores:
+        return {"inferior": None, "superior": None, "remuestreos": 0}
+    n = len(valores)
+    return {"inferior": _r(valores[int(0.025 * (n - 1))]), "superior": _r(valores[int(round(0.975 * (n - 1)))]),
+            "remuestreos": n}
 
 
-def kappa_ponderado(pares: list[tuple[int, int]], categorias=(1, 2, 3, 4, 5)) -> float | None:
-    """Kappa de Cohen con pesos cuadráticos entre dos calificadores, para
-    una escala ordinal. None si no hay datos o no hay variación esperada."""
-    if not pares:
-        return None
-    k = len(categorias)
-    indice = {c: i for i, c in enumerate(categorias)}
-    n = len(pares)
-    observada = [[0.0] * k for _ in range(k)]
-    for a, b in pares:
-        observada[indice[a]][indice[b]] += 1 / n
-    fila = [sum(observada[i]) for i in range(k)]
-    columna = [sum(observada[i][j] for i in range(k)) for j in range(k)]
-    peso = [[((i - j) ** 2) / ((k - 1) ** 2) for j in range(k)] for i in range(k)]
-    desacuerdo_obs = sum(peso[i][j] * observada[i][j] for i in range(k) for j in range(k))
-    desacuerdo_esp = sum(peso[i][j] * fila[i] * columna[j] for i in range(k) for j in range(k))
-    return _r(1 - desacuerdo_obs / desacuerdo_esp) if desacuerdo_esp else None
+def metricas(filas: list[dict]) -> dict:
+    """Medidas globales (sin textos libres), por tipo y por documento, con sus intervalos."""
+    de_entidades = [f for f in filas if f["tipo"] not in TEXTO_LIBRE]
+    global_ = conteo([f["decision"] for f in de_entidades])
+    por_doc: dict[str, list[str]] = defaultdict(list)
+    for f in de_entidades:
+        por_doc[f["documento_id"]].append(f["decision"])
+    por_documento = [{"documento_id": k, **conteo(v)} for k, v in por_doc.items()]
+    por_tipo = []
+    tipos: dict[str, list[str]] = defaultdict(list)
+    for f in filas:
+        tipos[f["tipo"]].append(f["decision"])
+    for t, ds in sorted(tipos.items()):
+        c = conteo(ds)
+        por_tipo.append({"tipo": t, "texto_libre": t in TEXTO_LIBRE, **c, **prf(c)})
+    f1_tipos = [t["f1"] for t in por_tipo if not t["texto_libre"] and t["f1"] is not None]
+    medidas = prf(global_)
+    return {"conteo": global_, **medidas,
+            "f1_macro": _r(sum(f1_tipos) / len(f1_tipos)) if f1_tipos else None,
+            "intervalos": {m: intervalo(por_documento, m) for m in ("f1", "precision", "exhaustividad")},
+            "por_tipo": por_tipo, "documentos": len(por_documento)}
 
 
-def entidades_de_propuesta(propuesta: dict | None) -> list[dict]:
-    """Los nodos de la propuesta del motor: una entidad con dos roles es un
-    solo nodo (los roles son relaciones)."""
-    from app.servicios import evaluacion_ric
+def dictamen(m: dict, criterio: dict) -> dict:
+    """Cumple si el límite inferior del intervalo alcanza el umbral (y, sin intervalo, el valor puntual)."""
+    salida = {}
+    for medida in ("f1", "precision", "exhaustividad"):
+        umbral = criterio.get(medida)
+        valor = m.get(medida)
+        inferior = (m.get("intervalos", {}).get(medida) or {}).get("inferior")
+        base = inferior if inferior is not None else valor
+        salida[medida] = {"umbral": umbral, "valor": valor, "limite_inferior": inferior,
+                          "cumple": None if base is None or umbral is None else base >= umbral}
+    estados = [v["cumple"] for v in salida.values()]
+    salida["hipotesis"] = (None if any(e is None for e in estados) else
+                           "se sostiene" if all(estados) else "no se sostiene")
+    return salida
 
-    return evaluacion_ric.desde_roles(propuesta)["entidades"]
+
+def criterio_de(guardado: dict | None) -> dict:
+    return CRITERIO_POR_DEFECTO | (guardado or {})
 
 
-def entidades_de_anotacion(datos: dict | None) -> list[dict]:
-    from app.servicios import evaluacion_ric
+def validar_criterio(datos: dict) -> dict:
+    nuevo = {}
+    for k in CRITERIO_POR_DEFECTO:
+        v = datos.get(k, CRITERIO_POR_DEFECTO[k])
+        if not isinstance(v, (int, float)) or not 0 < v <= 1:
+            raise ErrorEvaluacion(f"El umbral «{k}» va de 0 a 1.")
+        nuevo[k] = round(float(v), 4)
+    return nuevo
 
-    return [e for e in evaluacion_ric.a_ric(datos)["entidades"]
-            if e.get("tipo") in TIPOS and (e.get("valor") or "").strip()]
 
-
-# --- Flujo ---------------------------------------------------------------------------------------------
+# --- Evaluación y documentos -----------------------------------------------------------------------
 
 
 def _evaluacion(db: Session, evaluacion_id: uuid.UUID) -> Evaluacion:
@@ -172,16 +165,18 @@ def _evaluacion(db: Session, evaluacion_id: uuid.UUID) -> Evaluacion:
     return ev
 
 
-def crear(db: Session, *, fondo_id: uuid.UUID, nombre: str, protocolo: str | None, umbral: float,
-          usuario_id: uuid.UUID) -> Evaluacion:
-    if not 0.5 <= umbral <= 1:
-        raise ErrorEvaluacion("El umbral de similitud va de 0,5 a 1 (1 = solo valores iguales).")
+def _documentos(db: Session, ev: Evaluacion) -> list[EvaluacionDocumento]:
+    return db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
+
+
+def crear(db: Session, *, fondo_id: uuid.UUID, nombre: str, protocolo: str | None, usuario_id: uuid.UUID) -> Evaluacion:
     ev = Evaluacion(id=uuid.uuid4(), fondo_id=fondo_id, nombre=" ".join(nombre.split())[:200],
-                    protocolo=(protocolo or "").strip() or None, umbral_similitud=umbral, creada_por_id=usuario_id)
+                    protocolo=(protocolo or "").strip() or None, umbral_similitud=1.0, creada_por_id=usuario_id,
+                    criterio=dict(CRITERIO_POR_DEFECTO))
     db.add(ev)
     db.flush()
     registrar(db, modulo="evaluacion", accion="evaluacion_creada", usuario_id=usuario_id, entidad_tipo="evaluacion",
-              entidad_id=ev.id, detalle=ev.nombre, nuevo={"umbral": umbral, "fondo_id": str(fondo_id)})
+              entidad_id=ev.id, detalle=ev.nombre, nuevo={"fondo_id": str(fondo_id), "metodo": "medida F1"})
     return ev
 
 
@@ -190,11 +185,14 @@ def descrito(db: Session, inst_id: uuid.UUID) -> bool:
                                                Relacion.codigo_ric == "has_or_had_instantiation").limit(1)) is not None
 
 
-def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuario_id: uuid.UUID,
-                       piloto: bool = False) -> int:
+def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuario_id: uuid.UUID) -> int:
+    """Solo documentos del fondo, listos y aún sin describir: si ya estuvieran descritos, no habría
+    una primera validación que medir."""
     if ev.estado != "preparacion":
         raise ErrorEvaluacion("Los documentos se agregan mientras la evaluación está en preparación.", 409)
-    ya = set(db.scalars(select(EvaluacionDocumento.instanciacion_id).where(EvaluacionDocumento.evaluacion_id == ev.id)))
+    if ev.sorteada_en:
+        raise ErrorEvaluacion("El sorteo ya se hizo: agregar documentos lo cambiaría.", 409)
+    ya = {d.instanciacion_id for d in _documentos(db, ev)}
     nuevos = 0
     for inst_id in dict.fromkeys(ids):
         inst = db.get(Instanciacion, inst_id)
@@ -203,119 +201,94 @@ def agregar_documentos(db: Session, ev: Evaluacion, ids: list[uuid.UUID], usuari
         if inst.estado != "listo_para_descripcion" or not (inst.texto_extraido or "").strip():
             raise ErrorEvaluacion(f"«{inst.nombre_original}» no está listo para describir o no tiene texto.")
         if descrito(db, inst.id):
-            raise ErrorEvaluacion(f"«{inst.nombre_original}» ya está descrito: su vocabulario le daría la respuesta "
-                                  "al motor y contaminaría la evaluación.")
+            raise ErrorEvaluacion(f"«{inst.nombre_original}» ya está descrito: no tendría una primera validación que medir.")
         from app.servicios import derechos
 
         if derechos.instanciacion_restringida(db, inst):
-            raise ErrorEvaluacion(f"«{inst.nombre_original}» tiene información clasificada o reservada: no entra a la "
-                                  "evaluación, porque su texto se enviaría al motor y lo verían las evaluadoras.")
+            raise ErrorEvaluacion(f"«{inst.nombre_original}» tiene información clasificada o reservada (Ley 1712 de "
+                                  "2014): se excluye de la evaluación.")
         if inst.id not in ya:
-            db.add(EvaluacionDocumento(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst.id, piloto=piloto))
+            db.add(EvaluacionDocumento(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst.id))
             nuevos += 1
     db.flush()
     registrar(db, modulo="evaluacion", accion="documentos_agregados", usuario_id=usuario_id, entidad_tipo="evaluacion",
-              entidad_id=ev.id, nuevo={"agregados": nuevos, "piloto": piloto})
+              entidad_id=ev.id, nuevo={"agregados": nuevos})
     return nuevos
 
 
-def generar_propuestas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID, al_avanzar=None) -> dict:
-    """El motor propone cada documento como lo haría en Descripción (con el
-    vocabulario del fondo como contexto). Nadie ve el resultado aquí: queda
-    guardado y se compara al final."""
-    from app.servicios import motor, propuestas_ia, vocabulario
-
-    if ev.estado != "preparacion":
-        raise ErrorEvaluacion("Las propuestas se generan antes de iniciar la evaluación.", 409)
-    hechas, avisos = 0, []
-    activo = motor.motor_activo()
-    actual = activo.nombre if activo else None
-    # Una evaluación mide un solo motor: las propuestas hechas con otro (o a medias, si en el consenso
-    # respondió uno solo) se rehacen con el actual mientras la evaluación está en preparación.
-    for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all():
-        if d.propuesta is not None and (actual is None or d.motor == actual):
-            continue
-        inst = db.get(Instanciacion, d.instanciacion_id)
-        contexto = vocabulario.contexto_para_motor(db, ev.fondo_id, inst.texto_extraido or "")
-        reloj = time.monotonic()
-        p = motor.proponer([motor.Documento(id=inst.id, nombre=inst.nombre_original,
-                                         texto=anonimizar_para_motor(inst.texto_extraido or "")[0])],
-                           "unidad_documental", contexto)
-        # La propuesta queda como registro inalterable (RF-AI-002), también si falló.
-        propuestas_ia.ubicar_fragmentos(db, p)
-        registro = propuestas_ia.registrar(db, p, origen="evaluacion", fondo_id=ev.fondo_id, nivel="unidad_documental",
-                                           instanciaciones=[inst.id], solicitada_por_id=usuario_id, evaluacion_id=ev.id,
-                                           estado="evaluada")
-        if not p.disponible:
-            avisos.append(f"{inst.nombre_original}: {p.aviso or 'el motor no respondió'}")
-            continue
-        d.propuesta, d.motor, d.version_prompt, d.generada_en = p.a_dict(), p.motor, p.version_prompt, ahora()
-        d.segundos_motor = round(time.monotonic() - reloj, 2)
-        d.propuesta_id = registro.id if registro else None
-        hechas += 1
-        if al_avanzar:
-            al_avanzar(hechas, avisos)  # p. ej. guardar cada documento: con dos motores, cada uno tarda minutos
+def quitar_documento(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> None:
+    if ev.estado != "preparacion" or ev.sorteada_en:
+        raise ErrorEvaluacion("Solo se quita un documento en preparación y antes del sorteo.", 409)
+    d = _documento(db, ev, inst_id)
+    db.delete(d)
     db.flush()
-    registrar(db, modulo="evaluacion", accion="propuestas_generadas", usuario_id=usuario_id, entidad_tipo="evaluacion",
-              entidad_id=ev.id, nuevo={"generadas": hechas, "sin_propuesta": len(avisos)})
-    return {"generadas": hechas, "avisos": avisos}
+    registrar(db, modulo="evaluacion", accion="documento_quitado", usuario_id=usuario_id, entidad_tipo="evaluacion",
+              entidad_id=ev.id, anterior={"instanciacion_id": str(inst_id)})
+
+
+def _documento(db: Session, ev: Evaluacion, inst_id: uuid.UUID) -> EvaluacionDocumento:
+    d = db.scalar(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id,
+                                                   EvaluacionDocumento.instanciacion_id == inst_id))
+    if d is None:
+        raise ErrorEvaluacion("Ese documento no está en la evaluación.", 404)
+    return d
+
+
+def anio_de(nombre: str) -> str:
+    """El año que aparece en el nombre del archivo, para estratificar el sorteo."""
+    m = re.search(r"(?<!\d)(1[5-9]\d{2}|20\d{2})(?!\d)", nombre or "")
+    return m.group(1) if m else "sin año"
+
+
+def sortear(db: Session, ev: Evaluacion, semilla: int, desarrollo: int, usuario_id: uuid.UUID) -> dict:
+    """Sorteo estratificado por año: en cada año se reparte la misma proporción de desarrollo.
+    Con la misma semilla y los mismos documentos, el resultado es siempre el mismo."""
+    if ev.estado != "preparacion":
+        raise ErrorEvaluacion("El sorteo se hace en preparación, antes de iniciar.", 409)
+    documentos = sorted(_documentos(db, ev), key=lambda d: str(d.instanciacion_id))
+    if len(documentos) < 3:
+        raise ErrorEvaluacion("Se necesitan al menos tres documentos para sortear.")
+    if not 1 <= desarrollo < len(documentos):
+        raise ErrorEvaluacion("El conjunto de desarrollo debe tener al menos un documento y dejar documentos para la prueba.")
+    nombres = {i.id: i.nombre_original for i in db.scalars(select(Instanciacion).where(
+        Instanciacion.id.in_([d.instanciacion_id for d in documentos])))}
+    estratos: dict[str, list[EvaluacionDocumento]] = defaultdict(list)
+    for d in documentos:
+        estratos[anio_de(nombres.get(d.instanciacion_id, ""))].append(d)
+    azar = random.Random(semilla)
+    proporcion = desarrollo / len(documentos)
+    elegidos: list[EvaluacionDocumento] = []
+    sobrantes: list[EvaluacionDocumento] = []
+    for anio in sorted(estratos):
+        grupo = estratos[anio][:]
+        azar.shuffle(grupo)
+        k = int(len(grupo) * proporcion)
+        elegidos += grupo[:k]
+        sobrantes += grupo[k:]
+    azar.shuffle(sobrantes)
+    elegidos += sobrantes[:desarrollo - len(elegidos)]
+    ids = {d.id for d in elegidos}
+    for d in documentos:
+        d.conjunto = "desarrollo" if d.id in ids else "prueba"
+    ev.semilla, ev.sorteada_en = semilla, ahora()
+    db.flush()
+    resultado = {"semilla": semilla, "desarrollo": len(ids), "prueba": len(documentos) - len(ids),
+                 "estratos": {a: len(g) for a, g in sorted(estratos.items())}}
+    registrar(db, modulo="evaluacion", accion="sorteo_realizado", usuario_id=usuario_id, entidad_tipo="evaluacion",
+              entidad_id=ev.id, nuevo=resultado)
+    return resultado
 
 
 def fijar_criterio(db: Session, ev: Evaluacion, datos: dict, usuario_id: uuid.UUID) -> dict:
-    """El criterio de comparabilidad se fija antes de iniciar: después de ver
-    los datos, cambiarlo invalidaría la respuesta a la pregunta."""
-    from app.servicios import evaluacion_analisis as an
-
+    """Los umbrales se fijan antes de iniciar: cambiarlos después de ver los datos invalidaría el dictamen."""
     if ev.estado != "preparacion":
-        raise ErrorEvaluacion("El criterio de comparabilidad se fija antes de iniciar y no cambia después.", 409)
-    try:
-        nuevo = an.validar_criterio(datos)
-    except an.ErrorAnalisis as exc:
-        raise ErrorEvaluacion(str(exc), exc.codigo) from exc
-    anterior, ev.criterio = an.criterio_de(ev.criterio), nuevo
+        raise ErrorEvaluacion("Los umbrales se fijan antes de iniciar y no cambian después.", 409)
+    nuevo = validar_criterio(datos)
+    anterior, ev.criterio = criterio_de(ev.criterio), nuevo
     registrar(db, modulo="evaluacion", accion="criterio_fijado", usuario_id=usuario_id, entidad_tipo="evaluacion",
               entidad_id=ev.id, anterior=anterior, nuevo=nuevo)
     db.flush()
     return nuevo
-
-
-def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UUID) -> None:
-    documentos = db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
-    if estado == "en_curso":
-        if ev.estado != "preparacion":
-            raise ErrorEvaluacion("Solo se inicia una evaluación en preparación.", 409)
-        if not documentos or any(d.propuesta is None for d in documentos):
-            raise ErrorEvaluacion("Antes de iniciar, cada documento necesita la propuesta del motor.", 409)
-        motores = sorted({d.motor or "?" for d in documentos})
-        if len(motores) > 1:
-            raise ErrorEvaluacion("Las propuestas se hicieron con motores distintos (" + ", ".join(motores) + "). Una "
-                                  "evaluación mide un solo motor: pulse «Generar las propuestas del motor» para rehacerlas con el "
-                                  "mismo.", 409)
-        instrucciones = sorted({d.version_prompt or "?" for d in documentos})
-        if len(instrucciones) > 1:
-            raise ErrorEvaluacion("Las propuestas se hicieron con versiones distintas de la instrucción del motor ("
-                                  + ", ".join(instrucciones) + "). Rehágalas para que todas usen la misma.", 409)
-        from app.servicios import evaluacion_participantes as participantes
-
-        if participantes.listas_para_iniciar(db, ev) == 0:
-            raise ErrorEvaluacion("Antes de iniciar, registre al menos una experta con su consentimiento informado.", 409)
-        from app.servicios import evaluacion_analisis as an
-
-        ev.criterio = an.criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
-        ev.iniciada_en = ahora()
-        ev.version_congelada = version_del_sistema(motores[0], instrucciones[0])
-    elif estado == "cerrada":
-        if ev.estado != "en_curso":
-            raise ErrorEvaluacion("Solo se cierra una evaluación en curso.", 409)
-        ev.cerrada_en = ahora()
-    else:
-        raise ErrorEvaluacion("Estado desconocido.")
-    anterior, ev.estado = ev.estado, estado
-    registrar(db, modulo="evaluacion", accion="evaluacion_iniciada" if estado == "en_curso" else "evaluacion_cerrada",
-              usuario_id=usuario_id, entidad_tipo="evaluacion", entidad_id=ev.id,
-              anterior={"estado": anterior}, nuevo={"estado": estado, "documentos": len(documentos),
-                                                    **({"criterio": ev.criterio, "version": ev.version_congelada}
-                                                       if estado == "en_curso" else {})})
 
 
 def version_del_sistema(motor: str | None, version_prompt: str | None) -> dict:
@@ -337,741 +310,303 @@ def version_del_sistema(motor: str | None, version_prompt: str | None) -> dict:
             "fijada_en": ahora().isoformat()}
 
 
-def _documento(db: Session, ev: Evaluacion, inst_id: uuid.UUID) -> EvaluacionDocumento:
-    d = db.scalar(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id,
-                                                   EvaluacionDocumento.instanciacion_id == inst_id))
-    if d is None:
-        raise ErrorEvaluacion("Ese documento no está en la evaluación.", 404)
-    return d
+def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UUID) -> None:
+    documentos = _documentos(db, ev)
+    if estado == "en_curso":
+        if ev.estado != "preparacion":
+            raise ErrorEvaluacion("Solo se inicia una evaluación en preparación.", 409)
+        if not ev.sorteada_en or not any(d.conjunto == "prueba" for d in documentos):
+            raise ErrorEvaluacion("Antes de iniciar, sortee los documentos en desarrollo y prueba.", 409)
+        from app.servicios import motor
 
-
-def contaminado(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> str | None:
-    """Por qué esta persona ya no puede describir el documento a ciegas, o None."""
-    if db.scalar(select(Exposicion.id).where(Exposicion.instanciacion_id == inst_id,
-                                             Exposicion.usuario_id == usuario_id).limit(1)):
-        return "ya vio la propuesta del motor para este documento"
-    if db.scalar(select(TrabajoInstanciacion.trabajo_id).join(TrabajoDescripcion, TrabajoDescripcion.id ==
-                                                              TrabajoInstanciacion.trabajo_id)
-                 .where(TrabajoInstanciacion.instanciacion_id == inst_id, TrabajoDescripcion.usuario_id == usuario_id)
-                 .limit(1)):
-        return "abrió este documento en Descripción, donde el motor le mostró su propuesta"
-    return None
-
-
-def _exponer(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID, motivo: str) -> None:
-    db.add(Exposicion(evaluacion_id=ev.id, instanciacion_id=inst_id, usuario_id=usuario_id, motivo=motivo))
-    registrar(db, modulo="evaluacion", accion="propuesta_vista", usuario_id=usuario_id, entidad_tipo="instanciacion",
-              entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), "motivo": motivo})
-
-
-def iniciar_anotacion(db: Session, ev: Evaluacion, inst_id: uuid.UUID, condicion: str, usuario_id: uuid.UUID) -> Anotacion:
-    if ev.estado != "en_curso":
-        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
-    from app.servicios import evaluacion_participantes as participantes
-
-    para = {"ciega": "describir", "asistida": "validar", "adjudicada": "adjudicar"}[condicion]
-    p = participantes.exigir(db, ev, usuario_id, para)
-    d = _documento(db, ev, inst_id)
-    if (p.rol == "piloto") != bool(d.piloto):
-        raise ErrorEvaluacion("Ese documento es de la prueba piloto: solo lo trabaja quien tiene ese rol." if d.piloto
-                              else "Su rol es la prueba piloto: solo trabaja los documentos marcados para el piloto.", 403)
-    existente = db.scalar(select(Anotacion).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst_id,
-                                                  Anotacion.evaluador_id == usuario_id, Anotacion.condicion == condicion))
-    if existente is not None and existente.estado != "anulada":
-        return existente
-    if condicion in ("ciega", "adjudicada"):
-        motivo = contaminado(db, ev, inst_id, usuario_id)
-        if motivo:
-            raise ErrorEvaluacion(f"No puede {'describirlo a ciegas' if condicion == 'ciega' else 'adjudicarlo'}: "
-                                  f"{motivo}.", 409)
-        if condicion == "adjudicada" and len(_ciegas_enviadas(db, ev, inst_id, excepto=usuario_id)) < 2:
-            raise ErrorEvaluacion("Para adjudicar hacen falta dos descripciones ciegas enviadas de este documento.", 409)
+        activo = motor.motor_activo()
+        ev.criterio = criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
+        ev.iniciada_en = ahora()
+        ev.version_congelada = version_del_sistema(activo.nombre if activo else None, motor.VERSION_PROMPT)
+    elif estado == "cerrada":
+        if ev.estado != "en_curso":
+            raise ErrorEvaluacion("Solo se cierra una evaluación en curso.", 409)
+        ev.cerrada_en = ahora()
     else:
-        abierta = db.scalar(select(Anotacion.id).where(Anotacion.evaluacion_id == ev.id,
-                                                       Anotacion.instanciacion_id == inst_id,
-                                                       Anotacion.evaluador_id == usuario_id,
-                                                       Anotacion.condicion == "ciega", Anotacion.estado == "en_curso"))
-        if abierta:
-            raise ErrorEvaluacion("Primero envíe su descripción a ciegas: ver la propuesta la invalidaría.", 409)
-        _exponer(db, ev, inst_id, usuario_id, "asistida")
-    if existente is not None:  # anulada: se reabre con una nueva fecha de inicio
-        existente.estado, existente.iniciada_en, existente.enviada_en = "en_curso", ahora(), None
-        existente.datos = _inicial(d) if condicion == "asistida" else None  # la asistida vuelve con la propuesta
-        existente.justificacion = None
-        a = existente
-    else:
-        a = Anotacion(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst_id, evaluador_id=usuario_id,
-                      condicion=condicion, datos=_inicial(d) if condicion == "asistida" else None)
-        db.add(a)
-    db.flush()
-    registrar(db, modulo="evaluacion", accion="anotacion_iniciada", usuario_id=usuario_id, entidad_tipo="instanciacion",
-              entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), "condicion": condicion})
-    return a
+        raise ErrorEvaluacion("Estado desconocido.")
+    anterior, ev.estado = ev.estado, estado
+    registrar(db, modulo="evaluacion", accion="evaluacion_iniciada" if estado == "en_curso" else "evaluacion_cerrada",
+              usuario_id=usuario_id, entidad_tipo="evaluacion", entidad_id=ev.id,
+              anterior={"estado": anterior}, nuevo={"estado": estado, "documentos": len(documentos),
+                                                    **({"criterio": ev.criterio, "version": ev.version_congelada}
+                                                       if estado == "en_curso" else {})})
 
 
-def _ciegas_enviadas(db: Session, ev: Evaluacion, inst_id: uuid.UUID, excepto: uuid.UUID | None = None) -> list[Anotacion]:
-    return [a for a in db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id,
-                                                          Anotacion.instanciacion_id == inst_id,
-                                                          Anotacion.condicion == "ciega",
-                                                          Anotacion.estado == "enviada")).all()
-            if a.evaluador_id != excepto]
+# --- Decisiones de validación ----------------------------------------------------------------------
 
 
-def referencias_para_adjudicar(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> list[dict]:
-    """Las descripciones ciegas de un documento, por el código de cada experta, para que la
-    adjudicadora las consolide. No muestra la propuesta del motor."""
-    if ev.estado != "en_curso":
-        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
-    from app.servicios import evaluacion_participantes as participantes
-
-    participantes.exigir(db, ev, usuario_id, "adjudicar")
-    _documento(db, ev, inst_id)
-    codigos = participantes.codigos(db, ev)
-    salida = [{"codigo": codigos[a.evaluador_id].codigo if a.evaluador_id in codigos else "?", "datos": a.datos,
-               "enviada_en": a.enviada_en} for a in _ciegas_enviadas(db, ev, inst_id, excepto=usuario_id)]
-    registrar(db, modulo="evaluacion", accion="referencias_consultadas_para_adjudicar", usuario_id=usuario_id,
-              entidad_tipo="instanciacion", entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), "n": len(salida)})
-    return sorted(salida, key=lambda x: x["codigo"])
-
-
-def _inicial(d: EvaluacionDocumento) -> dict:
-    """La condición asistida empieza con la propuesta del motor puesta, ya
-    en RiC: entidades y relaciones."""
-    from app.servicios import evaluacion_ric
-
-    return evaluacion_ric.desde_roles(d.propuesta)
-
-
-def _limpiar(datos: dict) -> dict:
-    from app.servicios import evaluacion_ric
-
-    try:
-        return evaluacion_ric.limpiar(datos)
-    except evaluacion_ric.ErrorRic as exc:
-        raise ErrorEvaluacion(str(exc)) from exc
-
-
-def guardar(db: Session, a: Anotacion, datos: dict, usuario_id: uuid.UUID, enviar: bool,
-            justificacion: str | None = None) -> Anotacion:
-    if a.evaluador_id != usuario_id:
-        raise ErrorEvaluacion("Esa anotación es de otra persona.", 403)
-    if a.estado != "en_curso":
-        raise ErrorEvaluacion("La anotación ya se envió.", 409)
-    ev = db.get(Evaluacion, a.evaluacion_id)
-    if ev.estado != "en_curso":
-        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
-    from app.servicios import evaluacion_ric
-
-    a.datos = _limpiar(datos)
-    if justificacion is not None:
-        a.justificacion = justificacion.strip()[:20000] or None
-    if enviar:
-        if a.condicion == "adjudicada" and not a.justificacion:
-            raise ErrorEvaluacion("Escriba cómo resolvió las diferencias entre las descripciones ciegas.")
-        if not a.datos["entidades"] and not a.datos["titulo"]:
-            raise ErrorEvaluacion("La descripción está vacía.")
-        # La referencia tiene que ser RiC válida: si no, se compararía el
-        # motor con algo que RiC-O no admite.
-        revision = evaluacion_ric.conformidad(a.datos)
-        if not revision["conforme"]:
-            raise ErrorEvaluacion("La descripción todavía no es RiC válida: " + " · ".join(revision["problemas"][:6]))
-        a.estado, a.enviada_en = "enviada", ahora()
-        registrar(db, modulo="evaluacion", accion="anotacion_enviada", usuario_id=usuario_id,
-                  entidad_tipo="instanciacion", entidad_id=a.instanciacion_id,
-                  nuevo={"evaluacion_id": str(ev.id), "condicion": a.condicion, "entidades": len(a.datos["entidades"]),
-                         "relaciones": len(a.datos["relaciones"]),
-                         "segundos": round((a.enviada_en - a.iniciada_en).total_seconds())})
-    db.flush()
-    return a
-
-
-def ver_propuesta(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> dict:
-    """Para calificar con la rúbrica: verla deja constancia (exposición)."""
-    if ev.estado != "en_curso":
-        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
-    from app.servicios import evaluacion_participantes as participantes
-
-    participantes.exigir(db, ev, usuario_id, "calificar")
-    d = _documento(db, ev, inst_id)
-    if db.scalar(select(Anotacion.id).where(Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst_id,
-                                            Anotacion.evaluador_id == usuario_id, Anotacion.condicion == "ciega",
-                                            Anotacion.estado == "en_curso")):
-        raise ErrorEvaluacion("Primero envíe su descripción a ciegas: ver la propuesta la invalidaría.", 409)
-    _exponer(db, ev, inst_id, usuario_id, "calificacion")
-    return _inicial(d)
-
-
-def calificar(db: Session, ev: Evaluacion, inst_id: uuid.UUID, puntajes: dict[str, int], usuario_id: uuid.UUID) -> None:
-    if ev.estado != "en_curso":
-        raise ErrorEvaluacion("La evaluación no está en curso.", 409)
-    from app.servicios import evaluacion_participantes as participantes
-
-    participantes.exigir(db, ev, usuario_id, "calificar")
-    _documento(db, ev, inst_id)
-    if not db.scalar(select(Exposicion.id).where(Exposicion.evaluacion_id == ev.id, Exposicion.instanciacion_id == inst_id,
-                                                 Exposicion.usuario_id == usuario_id).limit(1)):
-        raise ErrorEvaluacion("Para calificar la propuesta hay que verla primero.", 409)
-    if set(puntajes) != set(CRITERIOS) or any(not isinstance(v, int) or not 1 <= v <= 5 for v in puntajes.values()):
-        raise ErrorEvaluacion("Califique los tres criterios de 1 a 5.")
-    for criterio, puntaje in puntajes.items():
-        c = db.scalar(select(Calificacion).where(Calificacion.evaluacion_id == ev.id, Calificacion.instanciacion_id == inst_id,
-                                                 Calificacion.evaluador_id == usuario_id, Calificacion.criterio == criterio))
-        if c is None:
-            db.add(Calificacion(id=uuid.uuid4(), evaluacion_id=ev.id, instanciacion_id=inst_id, evaluador_id=usuario_id,
-                                criterio=criterio, puntaje=puntaje))
-        else:
-            c.puntaje = puntaje  # el valor anterior queda en la auditoría
-    registrar(db, modulo="evaluacion", accion="calificacion_registrada", usuario_id=usuario_id,
-              entidad_tipo="instanciacion", entidad_id=inst_id, nuevo={"evaluacion_id": str(ev.id), **puntajes})
-    db.flush()
-
-
-def tareas(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> list[dict]:
-    from app.servicios import evaluacion_participantes as participantes
-
-    rol = participantes.rol_de(db, ev, usuario_id)
-    salida = []
-    for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all():
-        inst = db.get(Instanciacion, d.instanciacion_id)
-        mias = {a.condicion: a for a in db.scalars(select(Anotacion).where(
-            Anotacion.evaluacion_id == ev.id, Anotacion.instanciacion_id == inst.id, Anotacion.evaluador_id == usuario_id))}
-        calificado = db.scalar(select(Calificacion.id).where(Calificacion.evaluacion_id == ev.id,
-                                                             Calificacion.instanciacion_id == inst.id,
-                                                             Calificacion.evaluador_id == usuario_id).limit(1)) is not None
-        if rol is not None and (rol == "piloto") != bool(d.piloto):
-            continue  # el piloto y la evaluación no se mezclan
-        salida.append({"instanciacion_id": str(inst.id), "nombre": inst.nombre_original,
-                       "ciega": _estado_anotacion(mias.get("ciega")), "asistida": _estado_anotacion(mias.get("asistida")),
-                       "adjudicada": _estado_anotacion(mias.get("adjudicada")),
-                       "puede_ciega": mias.get("ciega") is not None or contaminado(db, ev, inst.id, usuario_id) is None,
-                       "puede_adjudicar": rol == "adjudicadora" and (mias.get("adjudicada") is not None or len(
-                           _ciegas_enviadas(db, ev, inst.id, excepto=usuario_id)) >= 2),
-                       "piloto": bool(d.piloto), "calificado": calificado, "rol": rol})
+def _recursos_por_instanciacion(db: Session, inst_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
+    filas = db.execute(select(Relacion.destino_id, Relacion.origen_id).where(
+        Relacion.destino_id.in_(inst_ids), Relacion.origen_tipo == "recurso_documental",
+        Relacion.codigo_ric == "has_or_had_instantiation")).all()
+    salida: dict[uuid.UUID, list[str]] = defaultdict(list)
+    for inst, recurso in filas:
+        if str(recurso) not in salida[inst]:
+            salida[inst].append(str(recurso))
     return salida
 
 
-def _estado_anotacion(a: Anotacion | None) -> dict | None:
-    return {"id": str(a.id), "estado": a.estado} if a else None
+def _primera_publicacion(eventos: list[RegistroAuditoria]) -> list[RegistroAuditoria]:
+    """Las decisiones de la primera publicación del documento: las que comparten propuesta con el
+    primer evento y caen en la misma ventana de tiempo. Las ediciones posteriores no cuentan."""
+    if not eventos:
+        return []
+    eventos = sorted(eventos, key=lambda e: (e.fecha, e.id))
+    primero = eventos[0]
+    propuesta = (primero.valor_nuevo or {}).get("propuesta_id")
+    return [e for e in eventos if (e.valor_nuevo or {}).get("propuesta_id") == propuesta
+            and (e.fecha - primero.fecha).total_seconds() <= VENTANA_PUBLICACION]
 
 
-def anotacion_out(db: Session, a: Anotacion) -> dict:
-    from app.servicios import evaluacion_ric
+def decisiones(db: Session, ev: Evaluacion, conjunto: str = "prueba") -> dict:
+    """Las decisiones de validación de los documentos del conjunto, con su estado frente a la
+    versión congelada."""
+    from app.servicios.decisiones_ia import TIPO_NOMBRE, _texto
 
-    inst = db.get(Instanciacion, a.instanciacion_id)
-    datos = evaluacion_ric.a_ric(a.datos) if a.datos else {"entidades": [], "relaciones": []}
-    return {"id": str(a.id), "condicion": a.condicion, "estado": a.estado, "datos": datos,
-            "conformidad": evaluacion_ric.conformidad(a.datos) if a.datos else None,
-            "iniciada_en": a.iniciada_en, "enviada_en": a.enviada_en, "justificacion": a.justificacion,
-            "documento": {"id": str(inst.id), "nombre": inst.nombre_original, "texto": inst.texto_extraido}}
-
-
-# --- Resultados ----------------------------------------------------------------------------------------
-
-
-def resultados(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
-    # Los documentos de la prueba piloto no entran en los resultados.
-    documentos = [d for d in db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
-                  if not d.piloto]
-    for d in documentos:  # quien mira los resultados ve las propuestas: ya no describe a ciegas
-        if not db.scalar(select(Exposicion.id).where(Exposicion.evaluacion_id == ev.id,
-                                                     Exposicion.instanciacion_id == d.instanciacion_id,
-                                                     Exposicion.usuario_id == usuario_id, Exposicion.motivo == "resultados")):
-            db.add(Exposicion(evaluacion_id=ev.id, instanciacion_id=d.instanciacion_id, usuario_id=usuario_id,
-                              motivo="resultados"))
-    validos = {d.instanciacion_id for d in documentos}
-    todas = [a for a in db.scalars(select(Anotacion).where(Anotacion.evaluacion_id == ev.id,
-                                                          Anotacion.estado == "enviada")).all()
-             if a.instanciacion_id in validos]
-    adjudicadas = {a.instanciacion_id: a for a in todas if a.condicion == "adjudicada"}
-    anotaciones = [a for a in todas if a.condicion != "adjudicada"]
-    por_doc: dict[uuid.UUID, list[Anotacion]] = {}
-    for a in anotaciones:
-        por_doc.setdefault(a.instanciacion_id, []).append(a)
-
-    from app.servicios import evaluacion_ric as ric
-
-    estricto = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
-    flexible = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
-    rel_estricto: dict[str, dict] = {}
-    rel_flexible: dict[str, dict] = {}
-    confusiones: dict[tuple[str, str], int] = {}
-    acuerdo = {"vp": 0, "fp": 0, "fn": 0}
-    acuerdo_rel = {"vp": 0, "fp": 0, "fn": 0}
-    conformidad = {"motor": [], "ciega": [], "asistida": []}
-    ric_por_fuente = {"motor": [], "ciega": [], "asistida": []}  # para los indicadores de normalización y cobertura
-    por_documento = []
-    from app.servicios import evaluacion_analisis as an
-
-    acuerdo_tipo = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
-    cuentas_doc, cuentas_doc_rel = [], []
-    supervision_tipo: dict[str, dict] = {}
-    lista_desacuerdos = []
-    por_experta: dict[uuid.UUID, dict] = {}  # el motor frente a la referencia ciega de cada experta
-    # También la versión validada por la archivista (asistida) frente a las
-    # ciegas, siempre de otra persona (frente a la suya propia estaría sesgada: ya la había escrito).
-    asis_estricto = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
-    asis_flexible = {t: {"vp": 0, "fp": 0, "fn": 0} for t in TIPOS}
-    asis_rel: dict[str, dict] = {}
-    asis_pares = 0
-
-    def acumular(destino: dict, cuentas: dict) -> None:
-        for k, c in cuentas.items():
-            destino[k] = _sumar(destino.get(k, {}), c)
-
+    documentos = [d for d in _documentos(db, ev) if d.conjunto == conjunto]
+    inst = {i.id: i for i in db.scalars(select(Instanciacion).where(
+        Instanciacion.id.in_([d.instanciacion_id for d in documentos])))} if documentos else {}
+    recursos = _recursos_por_instanciacion(db, list(inst)) if inst else {}
+    todos = [r for rs in recursos.values() for r in rs]
+    eventos = db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.accion == "decision_ia",
+                                                        RegistroAuditoria.entidad_id.in_(todos))).all() if todos else []
+    por_recurso: dict[str, list[RegistroAuditoria]] = defaultdict(list)
+    for e in eventos:
+        por_recurso[e.entidad_id].append(e)
+    version = ev.version_congelada or {}
+    filas, estado_docs, fuera = [], [], 0
     for d in documentos:
-        sistema = entidades_de_propuesta(d.propuesta)
-        motor_ric = ric.desde_roles(d.propuesta)
-        sistema_rel = ric.tripletas(motor_ric)
-        rev_motor = ric.conformidad(motor_ric)
-        conformidad["motor"].append(rev_motor)
-        ric_por_fuente["motor"].append(motor_ric)
-        anotadas = por_doc.get(d.instanciacion_id, [])
-        for a in anotadas:
-            conformidad[a.condicion].append(ric.conformidad(a.datos))
-            ric_por_fuente[a.condicion].append(ric.a_ric(a.datos))
-        ciegas = [a for a in anotadas if a.condicion == "ciega"]
-        f1_doc, f1_rel_doc = [], []
-        doc_ent, doc_rel = {"vp": 0, "fp": 0, "fn": 0}, {"vp": 0, "fp": 0, "fn": 0}
-        for a in anotadas:
-            if a.condicion == "asistida":
-                for t, c in an.supervision(sistema, entidades_de_anotacion(a.datos), ev.umbral_similitud).items():
-                    supervision_tipo[t] = {k: supervision_tipo.get(t, {}).get(k, 0) + v for k, v in c.items()}
-        for a in ciegas:  # cada descripción ciega es una referencia
-            referencia = entidades_de_anotacion(a.datos)
-            for t in TIPOS:
-                s_t = [e for e in sistema if e["tipo"] == t]
-                r_t = [e for e in referencia if e["tipo"] == t]
-                estricto[t] = _sumar(estricto[t], conteo(s_t, r_t, 1.0))
-                flexible[t] = _sumar(flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
-            c_doc = conteo(sistema, referencia, ev.umbral_similitud)
-            doc_ent = _sumar(doc_ent, c_doc)
-            experta = por_experta.setdefault(a.evaluador_id, {"entidades": {}, "relaciones": {}, "documentos": 0})
-            experta["entidades"] = _sumar(experta["entidades"], c_doc)
-            experta["documentos"] += 1
-            f1_doc.append(prf(c_doc)["f1"])
-            referencia_rel = ric.tripletas(a.datos)
-            lista_desacuerdos += an.desacuerdos(str(d.instanciacion_id), str(a.id), sistema, referencia, sistema_rel,
-                                                referencia_rel, ev.umbral_similitud)
-            acumular(rel_estricto, ric.conteo_por_propiedad(sistema_rel, referencia_rel, 1.0)[0])
-            cuentas, confundidas = ric.conteo_por_propiedad(sistema_rel, referencia_rel, ev.umbral_similitud)
-            acumular(rel_flexible, cuentas)
-            for par in confundidas:
-                confusiones[par] = confusiones.get(par, 0) + 1
-            total = {"vp": 0, "fp": 0, "fn": 0}
-            for c in cuentas.values():
-                total = _sumar(total, c)
-            f1_rel_doc.append(prf(total)["f1"])
-            doc_rel = _sumar(doc_rel, total)
-            experta["relaciones"] = _sumar(experta["relaciones"], total)
-        cuentas_doc.append(doc_ent)
-        cuentas_doc_rel.append(doc_rel)
-        for x in (a for a in anotadas if a.condicion == "asistida"):
-            sistema_a, sistema_a_rel = entidades_de_anotacion(x.datos), ric.tripletas(x.datos)
-            for c in ciegas:
-                if c.evaluador_id == x.evaluador_id:
-                    continue
-                asis_pares += 1
-                referencia_c = entidades_de_anotacion(c.datos)
-                for t in TIPOS:
-                    s_t = [e for e in sistema_a if e["tipo"] == t]
-                    r_t = [e for e in referencia_c if e["tipo"] == t]
-                    asis_estricto[t] = _sumar(asis_estricto[t], conteo(s_t, r_t, 1.0))
-                    asis_flexible[t] = _sumar(asis_flexible[t], conteo(s_t, r_t, ev.umbral_similitud))
-                acumular(asis_rel, ric.conteo_por_propiedad(sistema_a_rel, ric.tripletas(c.datos), ev.umbral_similitud)[0])
-        for a, b in combinations(ciegas, 2):  # acuerdo entre archivistas
-            ea, eb = entidades_de_anotacion(a.datos), entidades_de_anotacion(b.datos)
-            acuerdo = _sumar(acuerdo, conteo(ea, eb, ev.umbral_similitud))
-            for t in TIPOS:  # el techo de cada tipo, para el criterio de comparabilidad
-                acuerdo_tipo[t] = _sumar(acuerdo_tipo[t], conteo([e for e in ea if e["tipo"] == t],
-                                                                 [e for e in eb if e["tipo"] == t], ev.umbral_similitud))
-            vp, _ = ric.emparejar(ric.tripletas(a.datos), ric.tripletas(b.datos), ev.umbral_similitud)
-            acuerdo_rel = _sumar(acuerdo_rel, {"vp": vp, "fp": len(ric.tripletas(a.datos)) - vp,
-                                               "fn": len(ric.tripletas(b.datos)) - vp})
-        inst = db.get(Instanciacion, d.instanciacion_id)
+        i = inst.get(d.instanciacion_id)
+        rs = recursos.get(d.instanciacion_id, [])
+        elegidos = _primera_publicacion([e for r in rs for e in por_recurso.get(r, [])])
+        validas = 0
+        for e in elegidos:
+            n = e.valor_nuevo or {}
+            en_version = (not version.get("version_instruccion")
+                          or n.get("version_prompt") in (None, version.get("version_instruccion")))
+            if not en_version:
+                fuera += 1
+                continue
+            validas += 1
+            filas.append({"evento_id": e.id, "documento_id": str(d.instanciacion_id), "recurso_id": e.entidad_id,
+                          "documento": n.get("titulo_documento") or (i.nombre_original if i else None),
+                          "nombre_archivo": i.nombre_original if i else None,
+                          "tipo": n.get("tipo"), "tipo_nombre": TIPO_NOMBRE.get(n.get("tipo"), n.get("tipo")),
+                          "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")),
+                          "final": _texto(n.get("final")), "confianza": n.get("confianza"),
+                          "fragmento_localizado": n.get("fragmento_localizado"), "modelo": n.get("modelo"),
+                          "version_prompt": n.get("version_prompt"), "usuario_id": str(e.usuario_id) if e.usuario_id else None,
+                          "fecha": e.fecha})
+        estado_docs.append({"instanciacion_id": str(d.instanciacion_id), "nombre": i.nombre_original if i else None,
+                            "conjunto": d.conjunto, "publicado": bool(rs), "decisiones": validas})
+    return {"filas": filas, "documentos": estado_docs, "fuera_de_version": fuera}
 
-        def media(valores):
-            v = [x for x in valores if x is not None]
-            return _r(statistics.mean(v)) if v else None
-        por_documento.append({"instanciacion_id": str(inst.id), "nombre": inst.nombre_original,
-                              "entidades_motor": len(sistema), "relaciones_motor": len(sistema_rel),
-                              "referencias_ciegas": len(ciegas), "f1_flexible": media(f1_doc),
-                              "f1_relaciones_flexible": media(f1_rel_doc), "motor_conforme": rev_motor["conforme"],
-                              "descrito_durante_la_evaluacion": descrito(db, inst.id)})
 
-    def tabla(cuentas: dict) -> dict:
-        total = {"vp": 0, "fp": 0, "fn": 0}
-        for c in cuentas.values():
-            total = _sumar(total, c)
-        filas = {t: prf(c) for t, c in cuentas.items() if c["vp"] + c["fp"] + c["fn"]}
-        f1s = [f["f1"] for f in filas.values() if f["f1"] is not None]
-        return {"por_tipo": filas, "micro": prf(total), "macro_f1": _r(statistics.mean(f1s)) if f1s else None}
+# --- Validación de control y causas de error -------------------------------------------------------
 
-    minutos = {c: [(a.enviada_en - a.iniciada_en).total_seconds() / 60 for a in anotaciones if a.condicion == c]
-               for c in ("ciega", "asistida")}
-    # El motor: lo que tardó en proponer cada documento (la archivista: de abrir a enviar).
-    minutos["motor"] = [d.segundos_motor / 60 for d in documentos if d.segundos_motor is not None]
-    tiempos = {c: {"n": len(v), "mediana_minutos": _r(statistics.median(v)) if v else None,
-                   "media_minutos": _r(statistics.mean(v)) if v else None} for c, v in minutos.items()}
-    # Las expertas no se identifican por su nombre: por su código de participante (E1, E2…).
-    from app.servicios import evaluacion_participantes as participantes
 
-    registradas = participantes.codigos(db, ev)
-    orden = sorted({a.evaluador_id for a in anotaciones},
-                   key=lambda u: min(x.iniciada_en for x in anotaciones if x.evaluador_id == u))
-    alias = {u: registradas[u].codigo if u in registradas else f"Evaluadora {i}" for i, u in enumerate(orden, 1)}
-    nombres_doc = {d.instanciacion_id: db.get(Instanciacion, d.instanciacion_id).nombre_original for d in documentos}
-    pareados: dict[tuple, dict] = {}
-    for a in anotaciones:
-        pareados.setdefault((a.evaluador_id, a.instanciacion_id), {})[a.condicion] = \
-            _r((a.enviada_en - a.iniciada_en).total_seconds() / 60)
-    tiempos_documento = [{"evaluadora": alias[u], "documento": nombres_doc.get(i), "ciega": v.get("ciega"),
-                          "asistida": v.get("asistida"),
-                          "diferencia": _r(v["ciega"] - v["asistida"]) if "ciega" in v and "asistida" in v else None}
-                         for (u, i), v in sorted(pareados.items(), key=lambda x: (alias[x[0][0]], str(nombres_doc.get(x[0][1]))))]
-    prueba_tiempos = an.wilcoxon([(t["ciega"], t["asistida"]) for t in tiempos_documento if t["diferencia"] is not None])
+def _evento_de_prueba(db: Session, ev: Evaluacion, evento_id: int) -> dict:
+    fila = next((f for f in decisiones(db, ev)["filas"] if f["evento_id"] == evento_id), None)
+    if fila is None:
+        raise ErrorEvaluacion("Esa decisión no pertenece al conjunto de prueba de esta evaluación.", 404)
+    return fila
 
-    def resumen_conformidad(revisiones: list[dict]) -> dict:
-        relaciones = sum(x["relaciones"] for x in revisiones)
-        validas = sum(x["relaciones_validas"] for x in revisiones)
-        frecuencia: dict[str, int] = {}
-        for x in revisiones:
-            for problema in x["problemas"]:
-                frecuencia[problema] = frecuencia.get(problema, 0) + 1
-        return {"descripciones": len(revisiones), "conformes": sum(1 for x in revisiones if x["conforme"]),
-                "relaciones": relaciones, "relaciones_validas": validas,
-                "tasa_relaciones_validas": _r(validas / relaciones) if relaciones else None,
-                "problemas": [{"problema": k, "veces": v}
-                              for k, v in sorted(frecuencia.items(), key=lambda x: (-x[1], x[0]))[:20]]}
 
-    calificaciones = db.scalars(select(Calificacion).where(Calificacion.evaluacion_id == ev.id)).all()
-    rubrica = {}
-    for criterio in CRITERIOS:
-        del_criterio = [c for c in calificaciones if c.criterio == criterio]
-        por_item: dict[uuid.UUID, dict[uuid.UUID, int]] = {}
-        for c in del_criterio:
-            por_item.setdefault(c.instanciacion_id, {})[c.evaluador_id] = c.puntaje
-        pares = [(p[a], p[b]) for p in por_item.values() for a, b in combinations(sorted(p, key=str), 2)]
-        rubrica[criterio] = {"n": len(del_criterio),
-                             "media": _r(statistics.mean(c.puntaje for c in del_criterio)) if del_criterio else None,
-                             "pares": len(pares), "kappa_ponderado": kappa_ponderado(pares)}
-    registrar(db, modulo="evaluacion", accion="resultados_consultados", usuario_id=usuario_id,
-              entidad_tipo="evaluacion", entidad_id=ev.id, nuevo={"anotaciones": len(anotaciones)})
+def control_pendiente(db: Session, ev: Evaluacion, inst_id: uuid.UUID, usuario_id: uuid.UUID) -> dict:
+    """Las propuestas originales del motor de un documento de prueba, sin la decisión de la primera
+    validadora, para que la segunda decida por su cuenta."""
+    d = _documento(db, ev, inst_id)
+    if d.conjunto != "prueba":
+        raise ErrorEvaluacion("La validación de control se hace sobre documentos de prueba.", 409)
+    filas = [f for f in decisiones(db, ev)["filas"] if f["documento_id"] == str(inst_id) and f["decision"] != "agregada"]
+    if not filas:
+        raise ErrorEvaluacion("Ese documento todavía no se ha validado y publicado en Descripción.", 409)
+    if any(f["usuario_id"] == str(usuario_id) for f in filas):
+        raise ErrorEvaluacion("La validación de control la hace una persona distinta de la que validó el documento.", 403)
+    hechas = {c.evento_id: c.decision for c in db.scalars(select(Control).where(
+        Control.evaluacion_id == ev.id, Control.usuario_id == usuario_id))}
+    inst = db.get(Instanciacion, inst_id)
+    return {"documento": {"id": str(inst_id), "nombre": inst.nombre_original, "texto": inst.texto_extraido},
+            "propuestas": [{"evento_id": f["evento_id"], "tipo": f["tipo"], "tipo_nombre": f["tipo_nombre"],
+                            "propuesto": f["propuesto"], "confianza": f["confianza"],
+                            "mi_decision": hechas.get(f["evento_id"])} for f in filas]}
+
+
+def guardar_control(db: Session, ev: Evaluacion, evento_id: int, decision: str, usuario_id: uuid.UUID) -> None:
+    if ev.estado != "en_curso":
+        raise ErrorEvaluacion("La validación de control se registra con la evaluación en curso.", 409)
+    if decision not in ("aceptada", "corregida", "rechazada"):
+        raise ErrorEvaluacion("La decisión es aceptada, corregida o rechazada.")
+    fila = _evento_de_prueba(db, ev, evento_id)
+    if fila["decision"] == "agregada":
+        raise ErrorEvaluacion("Lo agregado por la archivista no es una propuesta del motor.")
+    if fila["usuario_id"] == str(usuario_id):
+        raise ErrorEvaluacion("La validación de control la hace una persona distinta de la que validó el documento.", 403)
+    c = db.scalar(select(Control).where(Control.evaluacion_id == ev.id, Control.evento_id == evento_id,
+                                        Control.usuario_id == usuario_id))
+    anterior = c.decision if c else None
+    if c is None:
+        c = Control(id=uuid.uuid4(), evaluacion_id=ev.id, evento_id=evento_id, usuario_id=usuario_id, decision=decision)
+        db.add(c)
+    else:
+        c.decision = decision
     db.flush()
-    motores = sorted({(d.motor, d.version_prompt) for d in documentos if d.motor}, key=str)
-    # Humano frente a máquina, experta por experta: el motor medido contra la descripción ciega de cada una.
-    expertas = []
-    for u, p in registradas.items():
-        cuentas = por_experta.get(u, {"entidades": {}, "relaciones": {}, "documentos": 0})
-        suyos = [x for x in tiempos_documento if x["evaluadora"] == p.codigo]
-        mediana = (lambda v: _r(statistics.median(v)) if v else None)
-        expertas.append(participantes.out(p, con_nombre=False, ev=ev) | {
-            "documentos_descritos": cuentas["documentos"],
-            "motor_frente_a_ella": {"entidades": prf(cuentas["entidades"]) if cuentas["entidades"] else None,
-                                    "relaciones": prf(cuentas["relaciones"]) if cuentas["relaciones"] else None},
-            "mediana_minutos_ciega": mediana([x["ciega"] for x in suyos if x["ciega"] is not None]),
-            "mediana_minutos_asistida": mediana([x["asistida"] for x in suyos if x["asistida"] is not None])})
-    salida = {"evaluacion": evaluacion_out(db, ev), "umbral": ev.umbral_similitud,
-            "motores": [{"motor": m, "version_prompt": v} for m, v in motores],
-            "expertas": expertas,
-            "estricto": tabla(estricto), "flexible": tabla(flexible),
-            "relaciones": {"estricto": tabla(rel_estricto), "flexible": tabla(rel_flexible),
-                           "acuerdo_entre_archivistas": prf(acuerdo_rel) if sum(acuerdo_rel.values()) else None,
-                           "confusiones": [{"motor": m, "archivista": a, "veces": n} for (m, a), n in
-                                           sorted(confusiones.items(), key=lambda x: (-x[1], x[0]))],
-                           "propiedades": {c: ric.nombre_rico(c) for c in ric.PROPIEDADES}},
-            "conformidad": {k: resumen_conformidad(v) for k, v in conformidad.items()},
-            "acuerdo_entre_archivistas": prf(acuerdo) if sum(acuerdo.values()) else None,
-            "tiempos": tiempos, "tiempos_por_documento": tiempos_documento, "prueba_tiempos": prueba_tiempos, "rubrica": rubrica, "documentos": por_documento,
-            "acuerdo_por_tipo": {t: prf(c) for t, c in acuerdo_tipo.items() if sum(c.values())},
-            "intervalos": {"entidades_flexible": an.intervalo_f(cuentas_doc), "relaciones_flexible": an.intervalo_f(cuentas_doc_rel)},
-            "supervision": an.resumen_supervision(supervision_tipo),
-            "errores": _resumen_errores(db, ev, lista_desacuerdos),
-            "anotaciones": {"ciegas": sum(1 for a in anotaciones if a.condicion == "ciega"),
-                            "asistidas": sum(1 for a in anotaciones if a.condicion == "asistida"),
-                            "evaluadores": len({a.evaluador_id for a in anotaciones})}}
-    # Normalización, trazabilidad y cobertura de RiC-O (normalización, trazabilidad y conformidad).
-    salida["indicadores"] = an.indicadores(ric_por_fuente, [d.propuesta for d in documentos], ev.umbral_similitud)
-    salida["asistida_frente_a_ciegas"] = {"pares": asis_pares, "estricto": tabla(asis_estricto),
-                                          "flexible": tabla(asis_flexible), "relaciones_flexible": tabla(asis_rel)}
-    # Conformidad semántica: cumplimiento del perfil SHACL de cada descripción, por fuente.
-    for fuente, lista in ric_por_fuente.items():
-        revisadas = [ric.shacl(x) for x in lista]
-        conformes = sum(1 for x in revisadas if x["conforme"])
-        salida["indicadores"].setdefault(fuente, {})["shacl"] = {
-            "descripciones": len(revisadas), "conformes": conformes,
-            "tasa": _r(conformes / len(revisadas)) if revisadas else None,
-            "problemas": Counter(m for x in revisadas for m in x["problemas"]).most_common(10)}
-    salida["comparabilidad"] = an.veredicto(salida, ev.criterio)
-    from app.servicios import evaluacion_referencia as referencia
+    registrar(db, modulo="evaluacion", accion="control_registrado", usuario_id=usuario_id, entidad_tipo="evaluacion",
+              entidad_id=ev.id, anterior={"decision": anterior} if anterior else None,
+              nuevo={"evento_id": evento_id, "decision": decision})
 
-    salida["referencia_adjudicada"] = referencia.frente_a_referencia(documentos, por_doc, adjudicadas, ev)
-    salida["calibracion"] = referencia.calibracion(documentos, por_doc, adjudicadas, ev.umbral_similitud)
-    # El veredicto principal es la hipótesis preregistrada (H1): F flexible del motor frente a las
-    # descripciones ciegas, comparada con el techo por la diferencia puntual. El IC 95 % frente a la
-    # referencia adjudicada es un análisis complementario: se informa, no decide.
-    salida["comparabilidad"] = salida["comparabilidad"] | {"base": "h1_f_puntual_frente_a_ciegas"}
-    salida["veredicto_complementario"] = an.veredicto_con_referencia(salida["comparabilidad"],
-                                                                     salida["referencia_adjudicada"])
-    salida["evaluacion"]["version_congelada"] = ev.version_congelada
-    salida["advertencias"] = [f"{e['codigo']}: {participantes.AVISO_ADMINISTRA}" for e in expertas
-                              if e["administra_la_evaluacion"]]
+
+def acuerdo(db: Session, ev: Evaluacion, filas: list[dict] | None = None) -> dict:
+    filas = filas if filas is not None else decisiones(db, ev)["filas"]
+    original = {f["evento_id"]: f for f in filas}
+    pares = [(original[c.evento_id]["decision"], c.decision) for c in db.scalars(
+        select(Control).where(Control.evaluacion_id == ev.id)) if c.evento_id in original]
+    iguales = sum(1 for a, b in pares if a == b)
+    docs = {original[c.evento_id]["documento_id"] for c in db.scalars(select(Control).where(
+        Control.evaluacion_id == ev.id)) if c.evento_id in original}
+    return {"pares": len(pares), "iguales": iguales, "documentos": len(docs),
+            "porcentaje": _r(iguales / len(pares)) if pares else None}
+
+
+def errores(db: Session, ev: Evaluacion) -> list[dict]:
+    """Las decisiones que no fueron aceptadas, con la causa registrada si la hay."""
+    filas = [f for f in decisiones(db, ev)["filas"] if f["decision"] != "aceptada"]
+    causas = {c.clave: c for c in db.scalars(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id))}
+    salida = []
+    for f in filas:
+        c = causas.get(str(f["evento_id"]))
+        salida.append({k: f[k] for k in ("evento_id", "documento", "tipo", "tipo_nombre", "decision", "propuesto", "final")}
+                      | {"causa": c.tipo_error if c else None, "nota": c.nota if c else None})
     return salida
 
 
-def _resumen_errores(db: Session, ev: Evaluacion, lista: list[dict]) -> dict:
-    from app.models.evaluacion import ClasificacionError
-    from app.servicios import evaluacion_analisis as an
-
-    filas = db.scalars(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id)).all()
-    resumen = an.resumen_clasificaciones([x["clave"] for x in lista], filas)
-    resumen["por_clase"] = dict(Counter(x["clase"] for x in lista))
-    resumen["lista"] = [x | {"tipo_error": resumen["finales"].get(x["clave"])} for x in lista]
-    del resumen["finales"]
-    return resumen
-
-
-def desacuerdos(db: Session, ev: Evaluacion, usuario_id: uuid.UUID) -> dict:
-    """Los desacuerdos para clasificarlos. Cada investigadora ve su propia
-    clasificación; la de la otra, solo después de haber clasificado ella
-    (independencia), y el consenso cuando ya existe."""
-    from app.models.evaluacion import ClasificacionError
-    from app.servicios import evaluacion_analisis as an
-
-    datos = resultados(db, ev, usuario_id)
-    filas = db.scalars(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id)).all()
-    por_clave: dict[str, list] = {}
-    for f in filas:
-        por_clave.setdefault(f.clave, []).append(f)
-    nombres_doc = {x["instanciacion_id"]: x["nombre"] for x in datos["documentos"]}
-    items = []
-    for x in datos["errores"]["lista"]:
-        propias = por_clave.get(x["clave"], [])
-        mia = next((f.tipo_error for f in propias if f.ronda == "individual" and f.clasificadora_id == usuario_id), None)
-        otras = [f.tipo_error for f in propias if f.ronda == "individual" and f.clasificadora_id != usuario_id]
-        consenso = next((f.tipo_error for f in propias if f.ronda == "consenso"), None)
-        items.append(x | {"documento": nombres_doc.get(x["documento_id"]), "mia": mia,
-                          "otra": (otras[0] if otras else None) if mia else None, "otra_clasifico": bool(otras),
-                          "consenso": consenso,
-                          "requiere_consenso": consenso is None and mia is not None and bool(otras) and otras[0] != mia})
-    resumen = {k: v for k, v in datos["errores"].items() if k != "lista"}
-    return {"estado": ev.estado, "tipos_error": an.TIPOS_ERROR, "clases": an.CLASES_DESACUERDO, "resumen": resumen,
-            "desacuerdos": items}
+def clasificar(db: Session, ev: Evaluacion, evento_id: int, causa: str, nota: str | None, usuario_id: uuid.UUID) -> None:
+    if causa not in CAUSAS:
+        raise ErrorEvaluacion("Causa desconocida: " + ", ".join(CAUSAS.values()) + ".")
+    fila = _evento_de_prueba(db, ev, evento_id)
+    if fila["decision"] == "aceptada":
+        raise ErrorEvaluacion("Una propuesta aceptada no es un error.")
+    clave = str(evento_id)
+    c = db.scalar(select(ClasificacionError).where(ClasificacionError.evaluacion_id == ev.id,
+                                                   ClasificacionError.clave == clave))
+    anterior = c.tipo_error if c else None
+    if c is None:
+        c = ClasificacionError(id=uuid.uuid4(), evaluacion_id=ev.id, clave=clave, ronda="individual",
+                               clasificadora_id=usuario_id, tipo_error=causa, nota=(nota or "").strip() or None)
+        db.add(c)
+    else:
+        c.tipo_error, c.nota, c.clasificadora_id = causa, (nota or "").strip() or None, usuario_id
+    db.flush()
+    registrar(db, modulo="evaluacion", accion="causa_registrada", usuario_id=usuario_id, entidad_tipo="evaluacion",
+              entidad_id=ev.id, anterior={"causa": anterior} if anterior else None,
+              nuevo={"evento_id": evento_id, "causa": causa})
 
 
-def clasificar_desacuerdo(db: Session, ev: Evaluacion, clave: str, tipo_error: str, ronda: str, nota: str | None,
-                          usuario_id: uuid.UUID) -> None:
-    from app.servicios import evaluacion_analisis as an
+# --- Resultados -----------------------------------------------------------------------------------
 
-    claves = {x["clave"] for x in resultados(db, ev, usuario_id)["errores"]["lista"]}
-    try:
-        an.clasificar(db, ev, clave, tipo_error, ronda, nota, claves, usuario_id)
-    except an.ErrorAnalisis as exc:
-        raise ErrorEvaluacion(str(exc), exc.codigo) from exc
+
+def resultados(db: Session, ev: Evaluacion) -> dict:
+    datos = decisiones(db, ev)
+    m = metricas(datos["filas"])
+    criterio = criterio_de(ev.criterio)
+    a = acuerdo(db, ev, datos["filas"])
+    a["umbral"] = criterio["acuerdo"]
+    a["cumple"] = None if a["porcentaje"] is None else a["porcentaje"] >= criterio["acuerdo"]
+    causas = defaultdict(int)
+    for e in errores(db, ev):
+        causas[e["causa"] or "sin_clasificar"] += 1
+    avisos = []
+    sin_publicar = [d["nombre"] for d in datos["documentos"] if not d["publicado"]]
+    if sin_publicar:
+        avisos.append(f"{len(sin_publicar)} documento(s) de prueba todavía no se han validado y publicado.")
+    if datos["fuera_de_version"]:
+        avisos.append(f"{datos['fuera_de_version']} decisión(es) se tomaron con otra versión de la instrucción y no "
+                      "entran en el cálculo.")
+    if ev.estado == "preparacion":
+        avisos.append("La evaluación está en preparación: los resultados son provisionales hasta iniciarla.")
+    return {"metricas": m, "dictamen": dictamen(m, criterio), "criterio": criterio, "acuerdo": a,
+            "causas": [{"causa": k, "nombre": CAUSAS.get(k, "Sin clasificar"), "cantidad": v} for k, v in causas.items()],
+            "documentos": datos["documentos"], "decisiones": len(datos["filas"]), "avisos": avisos,
+            "version_congelada": ev.version_congelada}
 
 
 def evaluacion_out(db: Session, ev: Evaluacion) -> dict:
-    from app.servicios.evaluacion_analisis import criterio_de
-
-    documentos = db.scalars(select(EvaluacionDocumento).where(EvaluacionDocumento.evaluacion_id == ev.id)).all()
+    documentos = _documentos(db, ev)
     return {"id": str(ev.id), "nombre": ev.nombre, "protocolo": ev.protocolo, "estado": ev.estado,
-            "umbral_similitud": ev.umbral_similitud, "creada_en": ev.creada_en, "iniciada_en": ev.iniciada_en,
-            "cerrada_en": ev.cerrada_en, "documentos": len(documentos),
-            "criterio": criterio_de(ev.criterio),
-            "con_propuesta": sum(1 for d in documentos if d.propuesta is not None),
-            "documentos_piloto": sum(1 for d in documentos if d.piloto), "version_congelada": ev.version_congelada}
+            "creada_en": ev.creada_en, "iniciada_en": ev.iniciada_en, "cerrada_en": ev.cerrada_en,
+            "documentos": len(documentos),
+            "desarrollo": sum(1 for d in documentos if d.conjunto == "desarrollo"),
+            "prueba": sum(1 for d in documentos if d.conjunto == "prueba"),
+            "semilla": ev.semilla, "sorteada_en": ev.sorteada_en, "criterio": criterio_de(ev.criterio),
+            "version_congelada": ev.version_congelada}
 
 
-def hoja_de_calculo(datos: dict) -> bytes:
+def documentos_out(db: Session, ev: Evaluacion) -> list[dict]:
+    docs = _documentos(db, ev)
+    inst = {i.id: i for i in db.scalars(select(Instanciacion).where(
+        Instanciacion.id.in_([d.instanciacion_id for d in docs])))} if docs else {}
+    publicados = _recursos_por_instanciacion(db, list(inst)) if inst else {}
+    return sorted([{"instanciacion_id": str(d.instanciacion_id), "nombre": inst[d.instanciacion_id].nombre_original,
+                    "anio": anio_de(inst[d.instanciacion_id].nombre_original), "conjunto": d.conjunto,
+                    "publicado": bool(publicados.get(d.instanciacion_id))} for d in docs if d.instanciacion_id in inst],
+                  key=lambda x: (x["conjunto"] or "", x["nombre"]))
+
+
+def hoja_de_calculo(db: Session, ev: Evaluacion) -> bytes:
+    """Resultados y decisiones en Excel. La hoja «Decisiones» usa los mismos encabezados que la
+    exportación de Auditoría, para que el Anexo D la importe tal cual."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
-    libro = Workbook()
-    hoja = libro.active
-    hoja.title = "Entidades"
-    hoja.append(["Medida", "Tipo", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
-    for medida in ("estricto", "flexible"):
-        for tipo, f in datos[medida]["por_tipo"].items():
-            hoja.append([medida, tipo, f["vp"], f["fp"], f["fn"], f["precision"], f["exhaustividad"], f["f1"]])
-        m = datos[medida]["micro"]
-        hoja.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
-        hoja.append([medida, "F1 macro", None, None, None, None, None, datos[medida]["macro_f1"]])
-    rel = libro.create_sheet("Relaciones RiC")
-    rel.append(["Medida", "Propiedad RiC-O", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
-    nombres = datos["relaciones"]["propiedades"]
-    for medida in ("estricto", "flexible"):
-        tabla_r = datos["relaciones"][medida]
-        for codigo, f in tabla_r["por_tipo"].items():
-            rel.append([medida, nombres.get(codigo, codigo), f["vp"], f["fp"], f["fn"], f["precision"],
-                        f["exhaustividad"], f["f1"]])
-        m = tabla_r["micro"]
-        rel.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
-        rel.append([medida, "F1 macro", None, None, None, None, None, tabla_r["macro_f1"]])
-    rel.append([])
-    rel.append(["Confusión de propiedades", "Motor", "Archivista", "Veces"])
-    for c in datos["relaciones"]["confusiones"]:
-        rel.append([None, nombres.get(c["motor"], c["motor"]), nombres.get(c["archivista"], c["archivista"]), c["veces"]])
-    asis = libro.create_sheet("Asistida frente a ciegas")
-    af = datos.get("asistida_frente_a_ciegas") or {}
-    asis.append(["Versión validada por la archivista (asistida) frente a las descripciones ciegas de otras personas "
-                 "", "pares comparados", af.get("pares", 0)])
-    asis.append(["Medida", "Tipo", "VP", "FP", "FN", "Precisión", "Exhaustividad", "F1"])
-    for medida in ("estricto", "flexible"):
-        t_m = af.get(medida) or {"por_tipo": {}, "micro": {}, "macro_f1": None}
-        for tipo, f in t_m["por_tipo"].items():
-            asis.append([medida, tipo, f["vp"], f["fp"], f["fn"], f["precision"], f["exhaustividad"], f["f1"]])
-        m = t_m["micro"]
-        if m:
-            asis.append([medida, "total (micro)", m["vp"], m["fp"], m["fn"], m["precision"], m["exhaustividad"], m["f1"]])
-    r_a = (af.get("relaciones_flexible") or {}).get("micro") or {}
-    if r_a:
-        asis.append(["flexible", "relaciones RiC (micro)", r_a["vp"], r_a["fp"], r_a["fn"], r_a["precision"],
-                     r_a["exhaustividad"], r_a["f1"]])
-    exp = libro.create_sheet("Expertas")
-    exp.append(["Código", "Profesión", "Formación", "Años en archivos", "Años describiendo", "Rol", "Consentimiento",
-                "Documentos descritos", "F1 entidades (motor frente a ella)", "F1 relaciones (motor frente a ella)",
-                "Mediana minutos ciega", "Mediana minutos asistida"])
-    for e in datos.get("expertas", []):
-        m = e["motor_frente_a_ella"]
-        exp.append([e["codigo"], e["profesion"], e["formacion_nombre"], e["anios_experiencia"], e["anios_descripcion"],
-                    e["rol_nombre"], "Sí" if e["consentimiento"] else "No", e["documentos_descritos"],
-                    (m["entidades"] or {}).get("f1"), (m["relaciones"] or {}).get("f1"),
-                    e["mediana_minutos_ciega"], e["mediana_minutos_asistida"]])
-    for aviso in datos.get("advertencias") or []:
-        exp.append([f"Advertencia: {aviso}"])
-    conf = libro.create_sheet("Conformidad RiC-O")
-    conf.append(["Quién describe", "Descripciones", "Conformes", "Relaciones", "Relaciones válidas", "Tasa"])
-    for quien, c in datos["conformidad"].items():
-        conf.append([quien, c["descripciones"], c["conformes"], c["relaciones"], c["relaciones_validas"],
-                     c["tasa_relaciones_validas"]])
-    conf.append([])
-    conf.append(["Quién describe", "Problema", "Veces"])
-    for quien, c in datos["conformidad"].items():
-        for x in c["problemas"]:
-            conf.append([quien, x["problema"], x["veces"]])
-    otra = libro.create_sheet("Acuerdo, tiempos y rúbrica")
-    a = datos["acuerdo_entre_archivistas"] or {}
-    otra.append(["Acuerdo entre archivistas (F1)", a.get("f1")])
-    otra.append(["Acuerdo entre archivistas en relaciones (F1)", (datos["relaciones"]["acuerdo_entre_archivistas"] or {}).get("f1")])
-    for c, t in datos["tiempos"].items():
-        otra.append([f"Tiempo {c} (mediana, minutos)", t["mediana_minutos"], "n", t["n"]])
-    for criterio, r in datos["rubrica"].items():
-        otra.append([f"Rúbrica · {criterio} (media)", r["media"], "kappa ponderado", r["kappa_ponderado"],
-                     "pares", r["pares"]])
-    for nombre, i in (("F1 entidades (flexible)", datos["intervalos"]["entidades_flexible"]),
-                      ("F1 relaciones (flexible)", datos["intervalos"]["relaciones_flexible"])):
-        otra.append([f"IC 95 % {nombre}", i["inferior"], i["superior"], "documentos", i["documentos"],
-                     "remuestreos", i["remuestreos"]])
-    w = datos["prueba_tiempos"]
-    otra.append(["Wilcoxon, tiempos ciega frente a asistida", "n", w["n"], "z", w["z"], "p", w["p"], w["nota"] or ""])
-    if datos.get("indicadores"):
-        ind = libro.create_sheet("Normalización y cobertura")
-        ind.append(["Indicador", "Motor", "Archivista a ciegas", "Archivista asistida"])
-        i = datos["indicadores"]
-        filas = (("Descripciones", "descripciones"), ("Fechas", "fechas"), ("Fechas con EDTF válido", "fechas_edtf"),
-                 ("Porcentaje de fechas en EDTF", "tasa_fechas_edtf"), ("Agentes y lugares", "agentes_y_lugares"),
-                 ("Agentes y lugares repetidos con otra forma", "duplicadas"), ("Tasa de duplicidad", "tasa_duplicidad"))
-        for nombre, clave in filas:
-            ind.append([nombre, *[(i.get(f) or {}).get(clave) for f in ("motor", "ciega", "asistida")]])
-        ind.append(["Clases RiC-O usadas", *[(i.get(f) or {}).get("cobertura", {}).get("clases") for f in ("motor", "ciega", "asistida")]])
-        ind.append(["Propiedades RiC-O usadas", *[(i.get(f) or {}).get("cobertura", {}).get("propiedades") for f in ("motor", "ciega", "asistida")]])
-        ev_m = i.get("evidencia_motor") or {}
-        ind.append(["Entidades del motor con fragmento de evidencia", ev_m.get("con_fragmento"), "de", ev_m.get("entidades"),
-                    "tasa", ev_m.get("tasa")])
-        ind.append(["Descripciones conformes con el perfil SHACL",
-                    *[((i.get(f) or {}).get("shacl") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
-        ind.append(["Aserciones con evidencia textual",
-                    *[((i.get(f) or {}).get("evidencia") or {}).get("tasa") for f in ("motor", "ciega", "asistida")]])
-    comp = libro.create_sheet("Comparabilidad")
-    c = datos["comparabilidad"]
-    comp.append(["Veredicto principal: hipótesis preregistrada H1 (F flexible del motor frente a las descripciones ciegas, "
-                 "diferencia puntual con el acuerdo entre archivistas)"])
-    comp.append(["Criterio fijado antes de iniciar", "margen F", c["criterio"]["margen_f"], "mínimo de casos",
-                 c["criterio"]["minimo_casos"], "rúbrica mínima", c["criterio"]["rubrica_minima"],
-                 "conformidad asistida", c["criterio"]["conformidad_asistida"]])
-    comp.append(["Tipo", "Casos de referencia", "F del motor (flexible)", "Acuerdo entre archivistas (techo)",
-                 "Diferencia", "Resultado", "Motivos"])
-    for t in c["tipos"]:
-        comp.append([t["tipo"], t["casos"], t["f_motor"], t["techo"], t["diferencia"], t["estado"], "; ".join(t["motivos"])])
-    ins = libro.create_sheet("Matriz de evaluación ciega")
-    ins.append(["ID Unidad Documental", "Experta (código)", "Tipo de entidad RiC-CM / propiedad RiC-O",
-                "Valor propuesto por el motor", "Valor en la descripción ciega de la experta", "Resultado (VP, FP o FN)",
-                "Clase de desacuerdo", "Tipo de error", "Precisión (P)", "Exhaustividad (R)", "Medida F1"])
-    filas_i1 = datos.get("instrumento_1") or []
-    for f in filas_i1:
-        ins.append(f)
-    n = len(filas_i1) + 1
-    if filas_i1:
-        rango = f"F2:F{n}"
-        vp, fp, fn = (f'COUNTIF({rango},"{x}")' for x in ("VP", "FP", "FN"))
-        ins.append(["TOTALES (micro)", None, None, None, None, f'={vp}&" VP · "&{fp}&" FP · "&{fn}&" FN"', None, None,
-                    f'=IFERROR({vp}/({vp}+{fp}),"")', f'=IFERROR({vp}/({vp}+{fn}),"")',
-                    f'=IFERROR(2*I{n + 1}*J{n + 1}/(I{n + 1}+J{n + 1}),"")'])
-    ins.append(["Entidades, con el emparejamiento flexible (umbral de la evaluación). Las relaciones están en las hojas "
-                "«Relaciones RiC» y en el libro de coincidencias."])
-    ref = libro.create_sheet("Frente a la referencia")
-    r = datos.get("referencia_adjudicada") or {"documentos": 0, "tipos": [], "nota": ""}
-    v = datos.get("version_congelada") or (datos.get("evaluacion") or {}).get("version_congelada") or {}
-    ref.append(["Versión congelada al iniciar", "sistema", v.get("sistema"), "motor", v.get("motor"), "instrucción",
-                v.get("version_instruccion"), "perfil SHACL (SHA-256)", v.get("perfil_shacl_sha256")])
-    ref.append(["Documentos con referencia adjudicada (R)", r.get("documentos"), "margen F", r.get("margen_f"),
-                "mínimo de casos", r.get("minimo_casos")])
-    ref.append(["Tipo", "Casos en R", "Techo (acuerdo entre archivistas)", "Fuente", "F estricta", "F flexible",
-                "IC 95 % de la diferencia: inferior", "IC 95 %: superior", "Documentos del remuestreo", "Estado"])
-    for t in r.get("tipos") or []:
-        for fuente, nombre in (("A0", "A0 · motor solo"), ("A1", "A1 · archivista con la propuesta")):
-            x = t.get(fuente) or {}
-            ic = x.get("diferencia_ic95") or {}
-            ref.append([t["tipo"], t["casos_referencia"], t["techo"], nombre, (x.get("estricto") or {}).get("f1"),
-                        (x.get("flexible") or {}).get("f1"), ic.get("inferior"), ic.get("superior"), ic.get("documentos"),
-                        x.get("estado")])
-    ref.append([r.get("nota") or ""])
-    vc = datos.get("veredicto_complementario") or {}
-    if vc.get("base") == "referencia_adjudicada_ic95":
-        ref.append([])
-        ref.append(["Veredicto complementario con el IC 95 % (no decide: el veredicto es la hipótesis H1, hoja «Comparabilidad»)"])
-        ref.append(["Tipo", "Estado", "Motivos"])
-        for t in vc.get("tipos", []):
-            ref.append([t["tipo"], t["estado"], "; ".join(t.get("motivos") or [])])
-    cal = libro.create_sheet("Calibración")
-    k = datos.get("calibracion") or {"tramos": [], "propuestas": 0, "error_esperado_de_calibracion": None}
-    cal.append(["Certeza desde", "Certeza hasta", "Propuestas", "Correctas frente a R", "Proporción de aciertos"])
-    for t in k["tramos"]:
-        cal.append([t["desde"], t["hasta"], t["propuestas"], t["correctas"], t.get("proporcion")])
-    cal.append(["Total de propuestas", k["propuestas"], "Error esperado de calibración", k["error_esperado_de_calibracion"]])
-    sup = libro.create_sheet("Supervisión (asistida)")
-    sup.append(["Tipo", "Aceptadas", "Corregidas", "Rechazadas", "Agregadas por la archivista"])
-    for t, x in datos["supervision"]["por_tipo"].items():
-        sup.append([t, x["aceptada"], x["corregida"], x["rechazada"], x["agregada"]])
-    tot = datos["supervision"]["total"]
-    sup.append(["Total", tot.get("aceptada", 0), tot.get("corregida", 0), tot.get("rechazada", 0), tot.get("agregada", 0)])
-    tie = libro.create_sheet("Tiempos por documento")
-    tie.append(["Evaluadora", "Documento", "Minutos a ciegas", "Minutos asistida", "Diferencia"])
-    for t in datos["tiempos_por_documento"]:
-        tie.append([t["evaluadora"], t["documento"], t["ciega"], t["asistida"], t["diferencia"]])
-    des = libro.create_sheet("Desacuerdos")
-    des.append(["Clave", "Documento", "Clase", "Tipo", "Propiedad (motor)", "Propiedad (archivista)", "Motor",
-                "Archivista", "Tipo de error (final)"])
-    nombres_doc = {d["instanciacion_id"]: d["nombre"] for d in datos["documentos"]}
-    from app.servicios.evaluacion_analisis import TIPOS_ERROR
+    from app.servicios.decisiones_ia import DECISION_NOMBRE
 
-    for x in datos["errores"]["lista"]:
-        des.append([x["clave"], nombres_doc.get(x["documento_id"]), x["clase_nombre"], x["tipo"],
-                    nombres.get(x["propiedad"], x["propiedad"]) if x["propiedad"] else None,
-                    nombres.get(x["propiedad_archivista"], x["propiedad_archivista"]) if x["propiedad_archivista"] else None,
-                    x["motor"], x["archivista"], TIPOS_ERROR.get(x["tipo_error"]) if x["tipo_error"] else None])
-    des.append([])
-    e = datos["errores"]
-    des.append(["Kappa entre clasificadoras", e["kappa"], "pares", e["pares"], "pendientes de consenso",
-                e["pendientes_consenso"], "sin clasificar", e["sin_clasificar"]])
-    docs = libro.create_sheet("Documentos")
-    docs.append(["Documento", "Entidades del motor", "Relaciones del motor", "Referencias ciegas", "F1 flexible",
-                 "F1 relaciones (flexible)", "Motor conforme con RiC-O", "Descrito durante la evaluación"])
-    for d in datos["documentos"]:
-        docs.append([d["nombre"], d["entidades_motor"], d["relaciones_motor"], d["referencias_ciegas"], d["f1_flexible"],
-                     d["f1_relaciones_flexible"], "sí" if d["motor_conforme"] else "no",
-                     "sí" if d["descrito_durante_la_evaluacion"] else "no"])
-    for h in libro.worksheets:
-        for celda in h[1]:
+    datos = decisiones(db, ev)
+    r = resultados(db, ev)
+    m, dic = r["metricas"], r["dictamen"]
+    libro = Workbook()
+    h = libro.active
+    h.title = "Resumen"
+    h.append(["Evaluación", ev.nombre])
+    h.append(["Versión congelada", ", ".join(f"{k}: {v}" for k, v in (ev.version_congelada or {}).items() if k != "perfil_shacl_sha256")])
+    h.append(["Semilla del sorteo", ev.semilla])
+    h.append([])
+    h.append(["Medida", "Valor", "Límite inferior IC 95 %", "Límite superior IC 95 %", "Umbral", "Cumple"])
+    for medida, nombre in (("f1", "Medida F1"), ("precision", "Precisión"), ("exhaustividad", "Exhaustividad")):
+        ic = m["intervalos"][medida]
+        d = dic[medida]
+        h.append([nombre, m[medida], ic["inferior"], ic["superior"], d["umbral"],
+                  None if d["cumple"] is None else ("Sí" if d["cumple"] else "No")])
+    h.append(["Medida F1 macro", m["f1_macro"]])
+    h.append(["Hipótesis", dic["hipotesis"]])
+    h.append(["Acuerdo entre validadoras", r["acuerdo"]["porcentaje"], None, None, r["acuerdo"]["umbral"],
+              None if r["acuerdo"]["cumple"] is None else ("Sí" if r["acuerdo"]["cumple"] else "No")])
+    h.append([])
+    h.append(["Tipo", "Aceptadas", "Corregidas", "Rechazadas", "Agregadas", "Precisión", "Exhaustividad", "Medida F1",
+              "Texto libre"])
+    for t in m["por_tipo"]:
+        h.append([t["tipo"], t["aceptada"], t["corregida"], t["rechazada"], t["agregada"], t["precision"],
+                  t["exhaustividad"], t["f1"], "Sí" if t["texto_libre"] else "No"])
+    det = libro.create_sheet("Decisiones")
+    det.append(["Fecha", "Documento", "Tipo", "Clase RiC-O", "Propuesto por el motor", "Valor final", "Decisión",
+                "Propiedad RiC-O", "Confianza", "Modelo", "Versión de la instrucción", "Etiqueta", "Archivista",
+                "Archivo", "Fragmento hallado"])
+    for f in datos["filas"]:
+        det.append([f["fecha"].replace(tzinfo=None), f["documento"], f["tipo_nombre"], None, f["propuesto"], f["final"],
+                    DECISION_NOMBRE.get(f["decision"], f["decision"]), None, f["confianza"], f["modelo"],
+                    f["version_prompt"], None, None, f["nombre_archivo"],
+                    None if f["fragmento_localizado"] is None else ("Sí" if f["fragmento_localizado"] else "No")])
+    ca = libro.create_sheet("Causas")
+    ca.append(["Documento", "Tipo", "Decisión", "Propuesto", "Valor final", "Causa", "Nota"])
+    for e in errores(db, ev):
+        ca.append([e["documento"], e["tipo_nombre"], e["decision"], e["propuesto"], e["final"],
+                   CAUSAS.get(e["causa"], "Sin clasificar"), e["nota"]])
+    for hoja in (h, det, ca):
+        for celda in hoja[1]:
             celda.font = Font(bold=True)
     salida = io.BytesIO()
     libro.save(salida)

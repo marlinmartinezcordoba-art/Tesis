@@ -339,14 +339,16 @@ const GUIAS: Record<string, Guia> = {
     ],
   },
   evaluacion: {
-    titulo: "Evaluación ciega",
+    titulo: "Evaluación del rendimiento (medida F1)",
     pasos: [
-      { titulo: "Para medir la calidad del motor frente a archivistas.",
-        texto: "Cada documento se describe primero a ciegas, sin ver nunca la propuesta; luego con ella delante; y al final se califica." },
-      { titulo: "El orden importa.",
-        texto: "Haga primero «Describir a ciegas», luego «Describir con la propuesta» y por último «Calificar la propuesta». Una vez vista la propuesta de un documento, ya no se puede describir a ciegas." },
-      { titulo: "Para la administración.",
-        texto: "Cree la evaluación, agregue documentos aún sin describir, genere las propuestas (nadie las ve) e iníciela. Al final, «Ver resultados» muestra precisión, exhaustividad y F1. Al verlos, usted queda expuesta a las propuestas." },
+      { titulo: "Mide qué tan bien propone el motor.",
+        texto: "Compara las propuestas originales del motor con la descripción que la archivista valida en Descripción: aceptada es un acierto, rechazada un dato inventado, agregada un dato omitido y corregida las dos cosas." },
+      { titulo: "Preparación, solo la administración.",
+        texto: "Agregue los documentos del caso, sortéelos con una semilla en desarrollo y prueba, fije los umbrales e inicie. Al iniciar se congela la versión del motor y de la instrucción." },
+      { titulo: "Validación.",
+        texto: "Los documentos de prueba se describen en Descripción una sola vez. Una segunda persona hace la validación de control de algunos documentos y se registra la causa de cada error." },
+      { titulo: "Resultados.",
+        texto: "Precisión, exhaustividad y medida F1 con intervalos de confianza del 95 %, por tipo y en el conjunto, frente a los umbrales. El Excel se importa al Anexo D." },
     ],
   },
   buscar: {

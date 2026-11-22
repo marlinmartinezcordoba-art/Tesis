@@ -1,275 +1,257 @@
 """
-Evaluación ciega del motor frente a archivistas .
+Evaluación del rendimiento del motor con la medida F1 (objetivo 3).
+
+La referencia es la descripción que la archivista valida en Descripción: cada propuesta aceptada
+es un verdadero positivo, cada rechazada un falso positivo, cada agregada un falso negativo y
+cada corregida un falso positivo y un falso negativo. Los textos libres no entran en la F1 global.
 """
 
 import io
-import uuid
-from datetime import timedelta
 
 import pytest
 from openpyxl import load_workbook
-from sqlalchemy import select
 
-from app.models.auditoria import RegistroAuditoria
-from app.models.evaluacion import Anotacion
+from app.models.evaluacion import Evaluacion
 from app.servicios import evaluacion as ev_s
-from app.servicios import motor
 from tests.conftest import crear_usuario, ingresar
-from tests.test_descripcion import MotorDePrueba, aceptar_todo, documento, fondo, iniciar  # noqa: F401
-
-TEXTO = ("Oficio 210 de 1948. La Alcaldía Municipal de Tunja remite al Concejo Municipal el informe de permisos "
-         "para las fiestas.")
-PROPUESTA = {"titulo": "Oficio de la Alcaldía al Concejo", "alcance_contenido": "Informe de permisos.", "entidades": [
-    {"tipo": "agente", "subtipo": "entidad_corporativa", "rol": "productor", "valor": "Alcaldía Municipal de Tunja",
-     "fragmento": "La Alcaldía Municipal de Tunja", "documento": 1, "confianza": 0.9},
-    {"tipo": "agente", "subtipo": "entidad_corporativa", "rol": "destinatario", "valor": "Concejo Municipal",
-     "fragmento": "al Concejo Municipal", "documento": 1, "confianza": 0.9},
-    {"tipo": "lugar", "valor": "Tunja", "fragmento": "Tunja", "documento": 1, "confianza": 0.8},
-    {"tipo": "fecha", "valor": "1948", "subtipo_fecha": "simple", "edtf": "1948", "fragmento": "de 1948",
-     "documento": 1, "confianza": 0.9},
-    {"tipo": "forma_documental", "valor": "Oficio", "fragmento": "Oficio", "documento": 1, "confianza": 0.9},
-]}
-# Lo que describe una archivista a ciegas: el productor sin tilde (igual al
-# normalizar), el destinatario más largo (solo coincide con umbral flexible),
-# otro lugar (falso positivo y falso negativo), la fecha y la forma iguales.
-CIEGA_A = {"titulo": "Oficio 210 de 1948", "entidades": [
-    {"tipo": "agente", "rol": "productor", "valor": "Alcaldia Municipal de Tunja"},
-    {"tipo": "agente", "rol": "destinatario", "valor": "Concejo Municipal de Tunja"},
-    {"tipo": "lugar", "valor": "Boyacá"},
-    {"tipo": "fecha", "valor": "1948", "edtf": "1948"},
-    {"tipo": "forma_documental", "valor": "oficio"}]}
-CIEGA_B = {"titulo": "Oficio sobre permisos", "entidades": [
-    {"tipo": "agente", "rol": "productor", "valor": "Alcaldía Municipal de Tunja"},
-    {"tipo": "fecha", "valor": "1948", "edtf": "1948"},
-    {"tipo": "forma_documental", "valor": "Oficio"}]}
+from tests.test_descripcion import (OFICIO_114, OFICIO_115, aceptar_todo, archivista, documento, eventos, fondo,  # noqa: F401
+                                    iniciar, motor_prueba)
 
 
 # --- Métricas (a mano) ---------------------------------------------------------------------------
 
 
-def test_emparejamiento_uno_a_uno_por_tipo():
-    s = [{"tipo": "agente", "rol": "productor", "valor": "Alcaldía"}, {"tipo": "agente", "rol": "productor", "valor": "Alcaldía"}]
-    r = [{"tipo": "agente", "rol": "productor", "valor": "alcaldia"}]
-    assert ev_s.emparejar(s, r, 1.0) == 1  # una referencia no cuenta dos veces
-    assert ev_s.emparejar(r, s, 1.0) == 1  # ni una entidad del sistema
-    otro_rol = [{"tipo": "agente", "rol": "destinatario", "valor": "Alcaldía"}]
-    # La entidad es la misma aunque su papel cambie: el papel es una relación y se mide aparte
-    # (tests/test_evaluacion_ric.py, confusión de propiedades).
-    assert ev_s.emparejar(s, otro_rol, 1.0) == 1
-    assert ev_s.emparejar([{"tipo": "fecha", "valor": "marzo 1948", "edtf": "1948-03"}],
-                          [{"tipo": "fecha", "valor": "1948-03", "edtf": "1948-03"}], 1.0) == 1  # la fecha, por su EDTF
+def test_cada_decision_cuenta_como_dice_la_metodologia():
+    c = ev_s.conteo(["aceptada", "aceptada", "rechazada", "agregada", "corregida"])
+    assert (c["vp"], c["fp"], c["fn"]) == (2, 2, 2)
+    m = ev_s.prf(c)
+    assert m == {"precision": 0.5, "exhaustividad": 0.5, "f1": 0.5}
+    assert ev_s.prf(ev_s.conteo([])) == {"precision": None, "exhaustividad": None, "f1": None}
 
 
-def test_precision_exhaustividad_y_f1_calculadas_a_mano():
-    sistema = ev_s.entidades_de_propuesta(PROPUESTA | {"entidades": [e | {} for e in PROPUESTA["entidades"]]})
-    referencia = ev_s.entidades_de_anotacion(CIEGA_A)
-    estricto = ev_s.prf(ev_s.conteo(sistema, referencia, 1.0))
-    assert (estricto["vp"], estricto["fp"], estricto["fn"]) == (3, 2, 2)
-    assert estricto["precision"] == 0.6 and estricto["exhaustividad"] == 0.6 and estricto["f1"] == 0.6
-    flexible = ev_s.prf(ev_s.conteo(sistema, referencia, 0.75))  # «Concejo Municipal» ≈ «Concejo Municipal de Tunja»
-    assert (flexible["vp"], flexible["fp"], flexible["fn"]) == (4, 1, 1) and flexible["f1"] == 0.8
+def test_los_textos_libres_no_entran_en_la_f1_global():
+    filas = [{"tipo": "agente", "decision": "aceptada", "documento_id": "a"},
+             {"tipo": "fecha", "decision": "aceptada", "documento_id": "a"},
+             {"tipo": "titulo", "decision": "corregida", "documento_id": "a"},
+             {"tipo": "alcance", "decision": "corregida", "documento_id": "a"}]
+    m = ev_s.metricas(filas)
+    assert m["f1"] == 1.0 and m["conteo"]["vp"] == 2
+    titulo = next(t for t in m["por_tipo"] if t["tipo"] == "titulo")
+    assert titulo["texto_libre"] and titulo["f1"] == 0.0
+    assert m["f1_macro"] == 1.0  # el promedio entre tipos tampoco los incluye
 
 
-def test_kappa_ponderado_cuadratico():
-    assert ev_s.kappa_ponderado([(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]) == 1.0
-    assert ev_s.kappa_ponderado([(1, 1), (5, 5), (1, 5), (5, 1)]) == 0.0  # tanto acuerdo como el azar
-    # A mano: desacuerdo observado 4 · ¼ · 1/16 = 0,0625; esperado (1/16) · (1/16) · Σ(i−j)² = (1/256) · 80
-    # = 0,3125 (categorías 1, 2, 4 y 5, cada una con ¼); κ = 1 − 0,0625 / 0,3125 = 0,8.
-    assert ev_s.kappa_ponderado([(1, 2), (2, 1), (4, 5), (5, 4)]) == 0.8
-    assert ev_s.kappa_ponderado([]) is None
+def test_el_intervalo_es_reproducible_y_contiene_el_valor():
+    docs = [{"vp": 8, "fp": 1, "fn": 2}, {"vp": 5, "fp": 2, "fn": 1}, {"vp": 9, "fp": 0, "fn": 1},
+            {"vp": 4, "fp": 3, "fn": 2}, {"vp": 7, "fp": 1, "fn": 0}]
+    a, b = ev_s.intervalo(docs, "f1"), ev_s.intervalo(docs, "f1")
+    assert a == b and a["remuestreos"] == ev_s.REMUESTREOS
+    total = ev_s.prf({k: sum(d[k] for d in docs) for k in ("vp", "fp", "fn")})["f1"]
+    assert a["inferior"] <= total <= a["superior"]
 
 
-# --- Flujo y ceguera -------------------------------------------------------------------------------
+def test_el_dictamen_usa_el_limite_inferior():
+    m = {"f1": 0.85, "precision": 0.90, "exhaustividad": 0.82,
+         "intervalos": {"f1": {"inferior": 0.78}, "precision": {"inferior": 0.86}, "exhaustividad": {"inferior": 0.80}}}
+    d = ev_s.dictamen(m, ev_s.CRITERIO_POR_DEFECTO)
+    assert d["f1"]["cumple"] is False  # 0,85 supera 0,80, pero el límite inferior (0,78) no
+    assert d["precision"]["cumple"] and d["exhaustividad"]["cumple"]
+    assert d["hipotesis"] == "no se sostiene"
+
+
+def test_el_anio_sale_del_nombre_del_archivo():
+    assert ev_s.anio_de("Resolución 0818 de 2025.pdf") == "2025"
+    assert ev_s.anio_de("res_2021_0045.pdf") == "2021"
+    assert ev_s.anio_de("borrador.pdf") == "sin año"
+
+
+# --- Flujo completo ------------------------------------------------------------------------------
+
+
+def crear_evaluacion(cliente, cab, fondo, ids):
+    r = cliente.post("/api/evaluacion", headers=cab, json={"fondo_id": str(fondo.id), "nombre": "Prueba RICORA"})
+    assert r.status_code == 201, r.text
+    ev_id = r.json()["id"]
+    r = cliente.post(f"/api/evaluacion/{ev_id}/documentos", headers=cab, json={"instanciacion_ids": [str(i) for i in ids]})
+    assert r.status_code == 200, r.text
+    return ev_id
+
+
+def test_el_sorteo_es_reproducible_con_la_misma_semilla(cliente, db, fondo, cabeceras_admin):
+    ids = [documento(db, fondo, f"Resolucion {n} de {anio}.pdf", f"Texto {n}").id
+           for n, anio in enumerate([2021, 2021, 2022, 2022, 2023, 2023, 2024, 2024, 2025, 2025])]
+    resultados = []
+    for _ in range(2):
+        ev_id = crear_evaluacion(cliente, cabeceras_admin, fondo, ids)
+        r = cliente.post(f"/api/evaluacion/{ev_id}/sorteo", headers=cabeceras_admin, json={"semilla": 2026, "desarrollo": 3})
+        assert r.status_code == 200, r.text
+        assert r.json()["desarrollo"] == 3 and r.json()["prueba"] == 7 and len(r.json()["estratos"]) == 5
+        docs = cliente.get(f"/api/evaluacion/{ev_id}/documentos", headers=cabeceras_admin).json()
+        resultados.append(sorted(d["instanciacion_id"] for d in docs if d["conjunto"] == "desarrollo"))
+    assert resultados[0] == resultados[1]
+
+
+def test_reglas_de_preparacion(cliente, db, fondo, cabeceras_admin, archivista, motor_prueba):  # noqa: F811
+    a, b, c = (documento(db, fondo, f"Resolucion {n} de 2023.pdf", OFICIO_114).id for n in range(3))
+    ev_id = crear_evaluacion(cliente, cabeceras_admin, fondo, [a, b, c])
+    # Sin sorteo no se inicia.
+    r = cliente.post(f"/api/evaluacion/{ev_id}/estado", headers=cabeceras_admin, json={"estado": "en_curso"})
+    assert r.status_code == 409 and "sortee" in r.json()["detail"]
+    assert cliente.put(f"/api/evaluacion/{ev_id}/criterio", headers=cabeceras_admin,
+                       json={"f1": 0.75, "precision": 0.8, "exhaustividad": 0.7, "acuerdo": 0.8}).status_code == 200
+    assert cliente.post(f"/api/evaluacion/{ev_id}/sorteo", headers=cabeceras_admin,
+                        json={"semilla": 1, "desarrollo": 1}).status_code == 200
+    # Tras el sorteo no se agregan ni se quitan documentos.
+    d = documento(db, fondo, "otra.pdf", OFICIO_115)
+    assert cliente.post(f"/api/evaluacion/{ev_id}/documentos", headers=cabeceras_admin,
+                        json={"instanciacion_ids": [str(d.id)]}).status_code == 409
+    assert cliente.post(f"/api/evaluacion/{ev_id}/estado", headers=cabeceras_admin,
+                        json={"estado": "en_curso"}).status_code == 200
+    ev = db.get(Evaluacion, ev_id)
+    db.refresh(ev)
+    assert ev.version_congelada["motor"] == "motor-de-prueba" and ev.version_congelada["version_instruccion"]
+    assert ev.criterio["f1"] == 0.75
+    # Los umbrales y el sorteo quedan congelados.
+    assert cliente.put(f"/api/evaluacion/{ev_id}/criterio", headers=cabeceras_admin, json={"f1": 0.5}).status_code == 409
+    assert cliente.post(f"/api/evaluacion/{ev_id}/sorteo", headers=cabeceras_admin,
+                        json={"semilla": 2, "desarrollo": 1}).status_code == 409
+    # Un documento ya descrito no entra a una evaluación nueva.
+    espacio = iniciar(cliente, archivista, [d.id])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(espacio)).status_code == 201
+    otra = cliente.post("/api/evaluacion", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "nombre": "Otra"}).json()
+    r = cliente.post(f"/api/evaluacion/{otra['id']}/documentos", headers=cabeceras_admin,
+                     json={"instanciacion_ids": [str(d.id)]})
+    assert r.status_code == 422 and "descrito" in r.json()["detail"]
+    # La archivista no administra la evaluación.
+    assert cliente.post("/api/evaluacion", headers=archivista,
+                        json={"fondo_id": str(fondo.id), "nombre": "No"}).status_code == 403
 
 
 @pytest.fixture()
-def motor_eval(monkeypatch):
-    m = MotorDePrueba(PROPUESTA)
-    monkeypatch.setattr(motor, "motor_activo", lambda: m)
-    return m
+def evaluacion_en_curso(cliente, db, fondo, cabeceras_admin, motor_prueba):  # noqa: F811
+    ids = [documento(db, fondo, f"Resolucion {n} de 2024.pdf", OFICIO_114).id for n in range(4)]
+    ev_id = crear_evaluacion(cliente, cabeceras_admin, fondo, ids)
+    assert cliente.post(f"/api/evaluacion/{ev_id}/sorteo", headers=cabeceras_admin,
+                        json={"semilla": 7, "desarrollo": 1}).status_code == 200
+    assert cliente.post(f"/api/evaluacion/{ev_id}/estado", headers=cabeceras_admin,
+                        json={"estado": "en_curso"}).status_code == 200
+    docs = cliente.get(f"/api/evaluacion/{ev_id}/documentos", headers=cabeceras_admin).json()
+    desarrollo = [d["instanciacion_id"] for d in docs if d["conjunto"] == "desarrollo"]
+    prueba = [d["instanciacion_id"] for d in docs if d["conjunto"] == "prueba"]
+    return ev_id, desarrollo, prueba
 
 
-def registrar_experta(db, ev, usuario, rol="ambas", consentimiento=True):
-    """La registra como experta participante (formación, experiencia y consentimiento)."""
-    from app.models.usuario import Usuario
-    from app.servicios import evaluacion_participantes
-
-    registrante = db.scalar(select(Usuario).where(Usuario.rol == "administrador").limit(1)) or usuario
-    p = evaluacion_participantes.registrar_participante(db, ev, {
-        "usuario_id": usuario.id, "nombre": usuario.nombre, "profesion": "Profesional en Archivística",
-        "formacion": "profesional", "anios_experiencia": 8, "anios_descripcion": 5, "rol": rol,
-        "consentimiento": consentimiento}, registrante.id)
-    db.commit()
-    return p
+def validar_con_errores(espacio):
+    """Acepta casi todo: rechaza el lugar, corrige la forma documental y agrega un lugar que el motor no vio."""
+    datos = aceptar_todo(espacio)
+    datos["entidades"] = [e for e in datos["entidades"] if e["valor"] != "Boyacá"]
+    for e in datos["entidades"]:
+        if e["tipo"] == "forma_documental":
+            e["valor"] = "Carta"
+    datos["entidades"].append({"tipo": "lugar", "valor": "Tunja", "crear_nueva": True})
+    return datos
 
 
-def evaluadora(cliente, db, correo, nombre, registrar=True):
-    """Una archivista con cuenta; si ya hay una evaluación, queda registrada como experta en la más reciente."""
-    from app.models.evaluacion import Evaluacion
+def test_flujo_completo_calcula_la_f1_desde_las_decisiones(cliente, db, fondo, cabeceras_admin, archivista,
+                                                         evaluacion_en_curso):
+    ev_id, desarrollo, prueba = evaluacion_en_curso
+    # El documento de desarrollo se describe, pero no entra en los resultados.
+    espacio = iniciar(cliente, archivista, [desarrollo[0]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(espacio)).status_code == 201
+    # Primer documento de prueba: todo aceptado. Segundo: con errores. El tercero queda sin publicar.
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(espacio)).status_code == 201
+    espacio = iniciar(cliente, archivista, [prueba[1]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(espacio)).status_code == 201
 
-    usuario = crear_usuario(db, correo, "archivista", nombre=nombre)
-    ev = db.scalar(select(Evaluacion).order_by(Evaluacion.creada_en.desc()).limit(1))
-    if registrar and ev is not None and ev.estado != "cerrada":
-        registrar_experta(db, ev, usuario)
-    return ingresar(cliente, correo)
+    r = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin)
+    assert r.status_code == 200, r.text
+    res = r.json()
+    c = res["metricas"]["conteo"]
+    # 6 entidades aceptadas en el primero; en el segundo 4 aceptadas, 1 rechazada, 1 corregida y 1 agregada.
+    assert (c["aceptada"], c["rechazada"], c["corregida"], c["agregada"]) == (10, 1, 1, 1)
+    assert (c["vp"], c["fp"], c["fn"]) == (10, 2, 2)
+    assert res["metricas"]["precision"] == round(10 / 12, 4) and res["metricas"]["f1"] == round(20 / 24, 4)
+    assert res["metricas"]["documentos"] == 2
+    assert any("todavía no se han validado" in a for a in res["avisos"])
+    assert res["dictamen"]["f1"]["umbral"] == 0.80
+    tipos = {t["tipo"]: t for t in res["metricas"]["por_tipo"]}
+    assert tipos["titulo"]["texto_libre"] and not tipos["agente"]["texto_libre"]
 
-
-def _registrar_quien_administra(cliente, db, adm, ev_id):
-    from app.models.evaluacion import Evaluacion
-    from app.models.usuario import Usuario
-
-    yo = db.get(Usuario, uuid.UUID(cliente.get("/api/auth/perfil", headers=adm).json()["id"]))
-    registrar_experta(db, db.get(Evaluacion, uuid.UUID(ev_id)), yo)
-
-
-def preparar(cliente, db, fondo, adm, umbral=0.75):
-    d = documento(db, fondo, "Oficio_210_1948.pdf", TEXTO)
-    ev = cliente.post("/api/evaluacion", headers=adm, json={"fondo_id": str(fondo.id), "nombre": "Prueba piloto",
-                                                             "protocolo": "Dos archivistas, a ciegas y asistidas.",
-                                                             "umbral_similitud": umbral}).json()
-    assert cliente.post(f"/api/evaluacion/{ev['id']}/documentos", headers=adm,
-                        json={"instanciacion_ids": [str(d.id)]}).status_code == 200
-    # No se inicia sin las propuestas del motor.
-    assert cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"}).status_code == 409
-    r = cliente.post(f"/api/evaluacion/{ev['id']}/propuestas", headers=adm).json()
-    assert r["generadas"] == 1 and "entidades" not in str(r)  # se genera sin mostrarla
-    # Tampoco sin al menos una experta registrada con su consentimiento.
-    r = cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"})
-    assert r.status_code == 409 and "experta" in r.json()["detail"]
-    _registrar_quien_administra(cliente, db, adm, ev["id"])
-    assert cliente.post(f"/api/evaluacion/{ev['id']}/estado", headers=adm, json={"estado": "en_curso"}).status_code == 200
-    return ev["id"], d
-
-
-def anotar(cliente, cab, ev_id, inst_id, condicion, datos=None, enviar=True):
-    r = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{inst_id}/anotar", headers=cab, json={"condicion": condicion})
-    if r.status_code != 200:
-        return r
-    a = r.json()
-    if datos is not None:
-        r = cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=cab, json=datos | {"enviar": enviar})
-    return r
+    # La hoja de cálculo trae la hoja Decisiones con los encabezados que importa el Anexo D.
+    r = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
+    assert r.status_code == 200
+    libro = load_workbook(io.BytesIO(r.content))
+    encabezado = [c.value for c in libro["Decisiones"][1]]
+    for columna in ("Documento", "Tipo", "Propuesto por el motor", "Valor final", "Decisión", "Confianza"):
+        assert columna in encabezado
+    decisiones = [f[encabezado.index("Decisión")] for f in libro["Decisiones"].iter_rows(min_row=2, values_only=True)]
+    assert decisiones.count("Agregada por la archivista") == 1
+    assert libro["Resumen"]["A6"].value == "Medida F1"
 
 
-def test_ciclo_completo_con_metricas_acuerdo_tiempos_y_rubrica(cliente, db, fondo, cabeceras_admin, motor_eval):
-    ev_id, d = preparar(cliente, db, fondo, cabeceras_admin)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
-    # A ciegas: el documento sin la propuesta.
-    r = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "ciega"})
-    assert r.status_code == 200 and r.json()["datos"] == {"entidades": [], "relaciones": []} and "Alcaldía" in r.json()["documento"]["texto"]
-    # Con la descripción ciega abierta no se puede ver la propuesta.
-    assert cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/propuesta", headers=ana).status_code == 409
-    assert cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana,
-                        json={"condicion": "asistida"}).status_code == 409
-    assert anotar(cliente, ana, ev_id, d.id, "ciega", CIEGA_A).status_code == 200
-    assert anotar(cliente, luis, ev_id, d.id, "ciega", CIEGA_B).status_code == 200
-    # Asistida: empieza con la propuesta puesta.
-    asistida = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "asistida"}).json()
-    assert len(asistida["datos"]["entidades"]) == 5 and len(asistida["datos"]["relaciones"]) == 5
-    assert {"origen": "documento", "propiedad": "has_creator", "destino": "e1"} in asistida["datos"]["relaciones"]
-    cliente.put(f"/api/evaluacion/anotaciones/{asistida['id']}", headers=ana, json=asistida["datos"] | {"enviar": True})
-    # Rúbrica: verla primero; los dos califican.
-    assert cliente.put(f"/api/evaluacion/{ev_id}/documentos/{d.id}/calificacion", headers=luis,
-                       json={"exactitud": 4, "completitud": 3, "pertinencia": 4}).status_code == 409
-    for cab, notas in ((ana, {"exactitud": 4, "completitud": 3, "pertinencia": 5}),
-                       (luis, {"exactitud": 4, "completitud": 4, "pertinencia": 5})):
-        cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/propuesta", headers=cab)
-        assert cliente.put(f"/api/evaluacion/{ev_id}/documentos/{d.id}/calificacion", headers=cab, json=notas).status_code == 200
-    # Para medir tiempos, la ciega de Ana tardó 30 minutos.
-    a = db.scalar(select(Anotacion).where(Anotacion.condicion == "ciega", Anotacion.datos["titulo"].astext == "Oficio 210 de 1948"))
-    a.iniciada_en = a.enviada_en - timedelta(minutes=30)
-    db.commit()
-
-    # La archivista no ve los resultados.
-    assert cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=ana).status_code == 403
+def test_causas_de_error(cliente, db, fondo, cabeceras_admin, archivista, evaluacion_en_curso):
+    ev_id, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(espacio)).status_code == 201
+    errores = cliente.get(f"/api/evaluacion/{ev_id}/errores", headers=archivista).json()
+    assert sorted(e["decision"] for e in errores if e["tipo"] not in ev_s.TEXTO_LIBRE) == ["agregada", "corregida", "rechazada"]
+    rechazada = next(e for e in errores if e["decision"] == "rechazada")
+    r = cliente.put(f"/api/evaluacion/{ev_id}/errores/{rechazada['evento_id']}", headers=archivista,
+                    json={"causa": "invencion", "nota": "Boyacá no aparece como lugar del documento."})
+    assert r.status_code == 200, r.text
+    assert next(e for e in cliente.get(f"/api/evaluacion/{ev_id}/errores", headers=archivista).json()
+                if e["evento_id"] == rechazada["evento_id"])["causa"] == "invencion"
     res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()
-    # Estricto, sumando las dos referencias: Ana (3 VP, 2 FP, 2 FN) y Luis (3 VP, 2 FP, 0 FN).
-    assert (res["estricto"]["micro"]["vp"], res["estricto"]["micro"]["fp"], res["estricto"]["micro"]["fn"]) == (6, 4, 2)
-    assert res["estricto"]["micro"]["precision"] == 0.6 and res["estricto"]["micro"]["exhaustividad"] == 0.75
-    assert res["flexible"]["micro"]["vp"] == 7
-    assert res["flexible"]["por_tipo"]["fecha"]["f1"] == 1.0 and res["flexible"]["por_tipo"]["lugar"]["vp"] == 0
-    # Acuerdo entre Ana y Luis: 3 en común de 5 y 3.
-    assert res["acuerdo_entre_archivistas"]["vp"] == 3 and res["acuerdo_entre_archivistas"]["f1"] == 0.75
-    # Relaciones RiC: Ana acierta productor, fecha de creación y forma, y con el umbral flexible también
-    # el destinatario (4 VP); el lugar como tema no coincide. Luis: 3 VP y 2 FP.
-    rel = res["relaciones"]
-    assert (rel["estricto"]["micro"]["vp"], rel["estricto"]["micro"]["fp"], rel["estricto"]["micro"]["fn"]) == (6, 4, 2)
-    assert (rel["flexible"]["micro"]["vp"], rel["flexible"]["micro"]["fp"], rel["flexible"]["micro"]["fn"]) == (7, 3, 1)
-    assert rel["flexible"]["por_tipo"]["has_creator"]["f1"] == 1.0 and rel["propiedades"]["has_creator"] == "rico:hasCreator"
-    assert rel["acuerdo_entre_archivistas"]["f1"] == 0.75 and rel["confusiones"] == []
-    assert res["conformidad"]["motor"]["conformes"] == 1 and res["conformidad"]["ciega"]["descripciones"] == 2
-    assert res["conformidad"]["ciega"]["tasa_relaciones_validas"] == 1.0
-    assert res["documentos"][0]["relaciones_motor"] == 5 and res["documentos"][0]["motor_conforme"] is True
-    assert res["tiempos"]["ciega"]["n"] == 2 and res["tiempos"]["asistida"]["n"] == 1
-    assert res["tiempos"]["ciega"]["media_minutos"] >= 15
-    assert res["rubrica"]["exactitud"]["kappa_ponderado"] is None or res["rubrica"]["exactitud"]["pares"] == 1
-    assert res["rubrica"]["pertinencia"]["media"] == 5 and res["rubrica"]["completitud"]["media"] == 3.5
-    assert res["anotaciones"] == {"ciegas": 2, "asistidas": 1, "evaluadores": 2}
-    assert res["motores"] == [{"motor": "motor-de-prueba", "version_prompt": motor.VERSION_PROMPT}]
-    hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
-    assert load_workbook(io.BytesIO(hoja.content)).sheetnames == ["Entidades", "Relaciones RiC", "Asistida frente a ciegas", "Expertas", "Conformidad RiC-O",
-                                                                  "Acuerdo, tiempos y rúbrica", "Normalización y cobertura", "Comparabilidad",
-                                                                  "Matriz de evaluación ciega", "Frente a la referencia", "Calibración",
-                                                                  "Supervisión (asistida)", "Tiempos por documento",
-                                                                  "Desacuerdos", "Documentos"]
-    # Todo queda en la auditoría.
-    acciones = {e.accion for e in db.scalars(select(RegistroAuditoria).where(RegistroAuditoria.modulo == "evaluacion"))}
-    assert {"evaluacion_creada", "documentos_agregados", "propuestas_generadas", "evaluacion_iniciada",
-            "anotacion_iniciada", "anotacion_enviada", "propuesta_vista", "calificacion_registrada",
-            "resultados_consultados"} <= acciones
+    assert {"causa": "invencion", "nombre": "Invención del motor", "cantidad": 1} in res["causas"]
+    assert cliente.put(f"/api/evaluacion/{ev_id}/errores/{rechazada['evento_id']}", headers=archivista,
+                       json={"causa": "otra"}).status_code == 422
 
 
-def test_quien_vio_la_propuesta_ya_no_describe_a_ciegas(cliente, db, fondo, cabeceras_admin, motor_eval, admin):
-    ev_id, d = preparar(cliente, db, fondo, cabeceras_admin)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    # Asistida primero: después, la ciega queda cerrada para ella.
-    assert anotar(cliente, ana, ev_id, d.id, "asistida").status_code == 200
-    r = anotar(cliente, ana, ev_id, d.id, "ciega")
-    assert r.status_code == 409 and "ya vio la propuesta" in r.json()["detail"]
-    # Quien lo abrió en Descripción (donde el motor le mostró su propuesta), tampoco.
-    luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
-    iniciar(cliente, luis, [d.id])
-    r = anotar(cliente, luis, ev_id, d.id, "ciega")
-    assert r.status_code == 409 and "Descripción" in r.json()["detail"]
-    # La administradora, después de mirar los resultados, tampoco.
-    cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin)
-    assert anotar(cliente, cabeceras_admin, ev_id, d.id, "ciega").status_code == 409
-    tareas = cliente.get(f"/api/evaluacion/{ev_id}/tareas", headers=ana).json()["tareas"]
-    assert tareas[0]["puede_ciega"] is False
+def test_validacion_de_control_y_acuerdo(cliente, db, fondo, cabeceras_admin, archivista, evaluacion_en_curso):
+    ev_id, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(espacio)).status_code == 201
+    # Quien validó el documento no hace su control.
+    assert cliente.get(f"/api/evaluacion/{ev_id}/control/{prueba[0]}", headers=archivista).status_code == 403
+    crear_usuario(db, "zully@correo.com", "archivista", nombre="Zully")
+    segunda = ingresar(cliente, "zully@correo.com")
+    r = cliente.get(f"/api/evaluacion/{ev_id}/control/{prueba[0]}", headers=segunda)
+    assert r.status_code == 200, r.text
+    propuestas = r.json()["propuestas"]
+    assert propuestas and all("decision" not in p for p in propuestas)  # no ve la decisión de la primera
+    originales = {e.id: e.valor_nuevo["decision"] for e in eventos(db, "decision_ia")}
+    # Coincide en todas menos en una.
+    for i, p in enumerate(propuestas):
+        decision = originales[p["evento_id"]]
+        if i == 0:
+            decision = "rechazada" if decision != "rechazada" else "aceptada"
+        assert cliente.put(f"/api/evaluacion/{ev_id}/control/decisiones/{p['evento_id']}", headers=segunda,
+                           json={"decision": decision}).status_code == 200
+    a = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()["acuerdo"]
+    assert a["pares"] == len(propuestas) and a["iguales"] == len(propuestas) - 1 and a["documentos"] == 1
+    assert a["porcentaje"] == round((len(propuestas) - 1) / len(propuestas), 4)
 
 
-def test_solo_documentos_sin_describir_y_reglas_de_estado(cliente, db, fondo, cabeceras_admin, motor_eval):
-    descrito = documento(db, fondo, "ya.pdf", TEXTO)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    espacio = iniciar(cliente, ana, [descrito.id])
-    assert cliente.post("/api/descripcion/publicar", headers=ana, json=aceptar_todo(espacio)).status_code == 201
-    ev = cliente.post("/api/evaluacion", headers=cabeceras_admin, json={"fondo_id": str(fondo.id), "nombre": "Otra"}).json()
-    r = cliente.post(f"/api/evaluacion/{ev['id']}/documentos", headers=cabeceras_admin,
-                     json={"instanciacion_ids": [str(descrito.id)]})
-    assert r.status_code == 422 and "contaminaría" in r.json()["detail"]
-    # Ni la archivista crea evaluaciones ni el revisor anota.
-    assert cliente.post("/api/evaluacion", headers=ana, json={"fondo_id": str(fondo.id), "nombre": "X" * 5}).status_code == 403
-    crear_usuario(db, "revisor@correo.com", "revisor")
-    revisor = ingresar(cliente, "revisor@correo.com")
-    assert cliente.get("/api/evaluacion", headers=revisor, params={"fondo_id": str(fondo.id)}).status_code == 403
-    # La archivista solo ve las evaluaciones en curso.
-    assert cliente.get("/api/evaluacion", headers=ana, params={"fondo_id": str(fondo.id)}).json() == []
+def test_solo_cuenta_la_version_congelada(cliente, db, fondo, cabeceras_admin, archivista, evaluacion_en_curso):
+    ev_id, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(espacio)).status_code == 201
+    ev = db.get(Evaluacion, ev_id)
+    ev.version_congelada = ev.version_congelada | {"version_instruccion": "otraversi"}
+    db.commit()
+    res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()
+    assert res["decisiones"] == 0 and any("otra versión" in a for a in res["avisos"])
 
 
-def test_una_anotacion_ajena_no_se_toca_y_la_anulada_no_se_borra(cliente, db, fondo, cabeceras_admin, motor_eval):
-    ev_id, d = preparar(cliente, db, fondo, cabeceras_admin)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
-    a = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "ciega"}).json()
-    assert cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=luis, json=CIEGA_B).status_code == 403
-    # Un agente sin relación con el documento: el borrador se guarda y dice por qué no es RiC; no se envía.
-    sin_rol = CIEGA_B | {"entidades": [{"tipo": "agente", "valor": "Alcaldía"}]}
-    r = cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana, json=sin_rol)
-    assert r.status_code == 200 and r.json()["conformidad"]["conforme"] is False
-    assert any("no está relacionada" in x for x in r.json()["conformidad"]["problemas"])
-    r = cliente.put(f"/api/evaluacion/anotaciones/{a['id']}", headers=ana, json=sin_rol | {"enviar": True})
-    assert r.status_code == 422 and "no es RiC válida" in r.json()["detail"]
-    assert cliente.post(f"/api/evaluacion/anotaciones/{a['id']}/anular", headers=ana).status_code == 403
-    assert cliente.post(f"/api/evaluacion/anotaciones/{a['id']}/anular", headers=cabeceras_admin).json()["estado"] == "anulada"
-    assert db.get(Anotacion, uuid.UUID(a["id"])) is not None
+def test_solo_cuenta_la_primera_publicacion(cliente, db, fondo, cabeceras_admin, archivista, evaluacion_en_curso):
+    ev_id, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    publicado = cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(espacio))
+    assert publicado.status_code == 201
+    antes = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()["decisiones"]
+    recurso = publicado.json()["id"]
+    trabajo = cliente.post(f"/api/descripcion/registros/{recurso}/reabrir", headers=archivista).json()["trabajo_id"]
+    assert cliente.patch(f"/api/descripcion/{recurso}", headers=archivista,
+                         json={"trabajo_id": trabajo, "titulo": "Otro título"}).status_code == 200
+    assert cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()["decisiones"] == antes

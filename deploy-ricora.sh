@@ -30,6 +30,9 @@ RICORA_URL_PUBLICA=http://${IP}
 ENVEOF
 fi
 
+# La versión desplegada (etiqueta de git, p. ej. v1.0.0) queda en cada decisión de validación.
+export RICORA_VERSION="${RICORA_VERSION:-$(git describe --tags --always 2>/dev/null || echo 'sin etiqueta')}"
+echo "Versión de RICORA: $RICORA_VERSION"
 docker compose up --build -d
 echo "RICORA quedó en http://${IP}. Cree la cuenta administradora con:"
 echo "  RICORA_ADMIN_CORREO=... RICORA_ADMIN_PASSWORD=... docker compose exec -T -e RICORA_ADMIN_CORREO -e RICORA_ADMIN_PASSWORD web python -m app.cli cuenta-administradora"

@@ -1,5 +1,6 @@
 """
-Evaluación ciega en RiC (versión 2 del módulo de evaluación).
+Conversión a RiC heredada del protocolo ciego (servicios/evaluacion_ric.py), que sigue sirviendo al
+catálogo de propiedades. Las pruebas de la evaluación vigente están en tests/test_evaluacion.py.
 
 - La descripción se hace con entidades y relaciones de RiC-O; la propuesta
   del motor se convierte a lo mismo con la regla de la publicación.
@@ -8,14 +9,21 @@ Evaluación ciega en RiC (versión 2 del módulo de evaluación).
   oficial. Una descripción que no es RiC válida no se envía.
 """
 
-import io
 
-from openpyxl import load_workbook
 
 from app.servicios import evaluacion_ric as ric
 from app.servicios import ric_o
-from tests.test_evaluacion import PROPUESTA, anotar, evaluadora, motor_eval, preparar  # noqa: F401
-from tests.test_descripcion import fondo  # noqa: F401
+
+PROPUESTA = {"titulo": "Oficio de la Alcaldía al Concejo", "alcance_contenido": "Informe de permisos.", "entidades": [
+    {"tipo": "agente", "subtipo": "entidad_corporativa", "rol": "productor", "valor": "Alcaldía Municipal de Tunja",
+     "fragmento": "La Alcaldía Municipal de Tunja", "documento": 1, "confianza": 0.9},
+    {"tipo": "agente", "subtipo": "entidad_corporativa", "rol": "destinatario", "valor": "Concejo Municipal",
+     "fragmento": "al Concejo Municipal", "documento": 1, "confianza": 0.9},
+    {"tipo": "lugar", "valor": "Tunja", "fragmento": "Tunja", "documento": 1, "confianza": 0.8},
+    {"tipo": "fecha", "valor": "1948", "subtipo_fecha": "simple", "edtf": "1948", "fragmento": "de 1948",
+     "documento": 1, "confianza": 0.9},
+    {"tipo": "forma_documental", "valor": "Oficio", "fragmento": "Oficio", "documento": 1, "confianza": 0.9},
+]}
 
 
 def _ric(entidades, relaciones, titulo="Oficio 210 de 1948"):
@@ -127,57 +135,3 @@ def test_relacion_acierta_con_misma_propiedad_y_extremos_y_la_confusion_de_papel
 
 
 # --- Flujo por la API ------------------------------------------------------------------------------
-
-
-def test_la_archivista_describe_en_ric_y_no_envia_una_descripcion_que_rico_no_admite(cliente, db, fondo, cabeceras_admin,
-                                                                                     motor_eval):
-    ev_id, d = preparar(cliente, db, fondo, cabeceras_admin)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    luis = evaluadora(cliente, db, "luis@correo.com", "Luis Pardo")
-    cat = cliente.get("/api/evaluacion/propiedades", headers=ana)
-    assert cat.status_code == 200 and any(c["codigo"] == "documents" for c in cat.json())
-    a = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "ciega"}).json()
-    url = f"/api/evaluacion/anotaciones/{a['id']}"
-    # Una propiedad que no es de RiC-O, o una relación hacia una entidad que no está: 422.
-    assert cliente.put(url, headers=ana, json=_ric([ALCALDIA], [{"origen": "documento", "propiedad": "fue_hecho_por",
-                                                                  "destino": "e1"}])).status_code == 422
-    assert cliente.put(url, headers=ana, json=_ric([ALCALDIA], [{"origen": "documento", "propiedad": "has_creator",
-                                                                  "destino": "e9"}])).status_code == 422
-    # El borrador con una relación que RiC-O no admite se guarda y lo dice; enviarlo, no.
-    mala = _ric([ALCALDIA, FECHA], [{"origen": "documento", "propiedad": "has_creator", "destino": "e1"},
-                                    {"origen": "documento", "propiedad": "has_creator", "destino": "e3"}])
-    r = cliente.put(url, headers=ana, json=mala)
-    assert r.status_code == 200 and r.json()["conformidad"]["relaciones_validas"] == 1
-    r = cliente.put(url, headers=ana, json=mala | {"enviar": True})
-    assert r.status_code == 422 and "rico:hasCreator no admite Date como destino" in r.json()["detail"]
-    buena = _ric([ALCALDIA, CONCEJO, FECHA], [{"origen": "documento", "propiedad": "has_creator", "destino": "e1"},
-                                              {"origen": "documento", "propiedad": "has_creator", "destino": "e2"},
-                                              {"origen": "e3", "propiedad": "is_creation_date_of", "destino": "documento"}])
-    r = cliente.put(url, headers=ana, json=buena | {"enviar": True})
-    assert r.status_code == 200 and r.json()["conformidad"]["conforme"] and len(r.json()["datos"]["relaciones"]) == 3
-    # Luis anota con el formato anterior (roles): se convierte a RiC.
-    assert anotar(cliente, luis, ev_id, d.id, "ciega", {"titulo": "Oficio", "entidades": [
-        {"tipo": "agente", "rol": "productor", "valor": "Alcaldía Municipal de Tunja"},
-        {"tipo": "fecha", "valor": "1948", "edtf": "1948"}]}).status_code == 200
-
-    res = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()
-    rel = res["relaciones"]
-    # Ana dijo que el Concejo produjo el oficio; el motor, que lo recibió.
-    assert {"motor": "has_addressee", "archivista": "has_creator", "veces": 1} in rel["confusiones"]
-    assert rel["estricto"]["por_tipo"]["has_creator"]["vp"] == 2  # la Alcaldía, frente a Ana y frente a Luis
-    assert res["conformidad"]["ciega"] == res["conformidad"]["ciega"] | {"descripciones": 2, "conformes": 2}
-    hoja = cliente.get(f"/api/evaluacion/{ev_id}/resultados/hoja-de-calculo", headers=cabeceras_admin)
-    libro = load_workbook(io.BytesIO(hoja.content))
-    filas = [[c.value for c in f] for f in libro["Relaciones RiC"].iter_rows()]
-    # Ana también dijo que el Concejo produjo el oficio: un falso negativo.
-    assert ["estricto", "rico:hasCreator", 2, 0, 1, 1.0, 0.6667, 0.8] in filas
-    assert any(f[:3] == [None, "rico:hasAddressee", "rico:hasCreator"] for f in filas)
-
-
-def test_una_asistida_anulada_se_reabre_con_la_propuesta_del_motor(cliente, db, fondo, cabeceras_admin, motor_eval):
-    ev_id, d = preparar(cliente, db, fondo, cabeceras_admin)
-    ana = evaluadora(cliente, db, "ana@correo.com", "Ana Ruiz")
-    a = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "asistida"}).json()
-    assert cliente.post(f"/api/evaluacion/anotaciones/{a['id']}/anular", headers=cabeceras_admin).status_code == 200
-    otra = cliente.post(f"/api/evaluacion/{ev_id}/documentos/{d.id}/anotar", headers=ana, json={"condicion": "asistida"}).json()
-    assert otra["id"] == a["id"] and len(otra["datos"]["relaciones"]) == 5 and otra["conformidad"]["conforme"]

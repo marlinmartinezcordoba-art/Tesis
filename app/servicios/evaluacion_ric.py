@@ -1,5 +1,6 @@
 """
-La descripción de la evaluación ciega en términos de RiC.
+Conversión de descripciones a entidades y relaciones de RiC (utilidad heredada del protocolo
+ciego retirado; la usan el catálogo de propiedades y las pruebas de términos).
 
 Antes, la archivista anotaba una ficha: título, alcance y entidades sueltas
 con un «rol». Ahora describe como lo pide RiC-CM: **entidades** (nodos con
@@ -18,13 +19,30 @@ Aquí están:
   (servicios/ric_o.py) y, por separado, contra el archivo OWL oficial
   (servicios/conformidad_rico.verificar_owl).
 
-Decisiones en documentacion/modulo-evaluacion.md (versión 2).
+Decisiones en documentacion/modulo-evaluacion-ciega-retirado.md (versión 2).
 """
 
+import re
+import unicodedata
 from difflib import SequenceMatcher
 
 from app.servicios import ric_o, terminos
-from app.servicios.evaluacion import TIPOS, normalizar, texto_de
+
+# Los tipos de entidad que se comparan (los seis reutilizables y la fecha).
+# «documento_citado»: otro documento de archivo que el texto cita (recurso documental, RiC-E02 a E06; Tabla 3).
+TIPOS = ("agente", "lugar", "fecha", "actividad", "tipo_actividad", "mandato", "forma_documental", "documento_citado")
+
+
+def normalizar(texto: str | None) -> str:
+    sin_tildes = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[^\w\s]", " ", sin_tildes.lower()).split())
+
+
+def texto_de(e: dict) -> str:
+    """Lo que se compara: la fecha, por su EDTF si lo tiene; lo demás, por su valor."""
+    if e.get("tipo") == "fecha" and e.get("edtf"):
+        return e["edtf"].strip()
+    return normalizar(e.get("valor"))
 
 DOCUMENTO = "documento"  # el Record que se describe (cada documento de la evaluación es una unidad documental)
 CLASE_DOCUMENTO = "Record"

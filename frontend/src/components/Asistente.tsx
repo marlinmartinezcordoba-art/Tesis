@@ -40,8 +40,8 @@ const PREGUNTAS: [string, string[]][] = [
     "¿Qué es RiC-O y para qué sirve publicarlo?", "¿Cómo consulto el grafo con SPARQL?"]],
   ["/auditoria", ["¿Qué debe quedar registrado en la trazabilidad de un archivo?", "¿Por cuánto tiempo se conservan los registros de auditoría?",
     "¿Qué significa que la cadena de huellas está íntegra?", "¿Cómo exporto el registro de actividad?"]],
-  ["/evaluacion", ["¿Por qué se describe primero a ciegas?", "¿Qué miden la precisión, la exhaustividad y F1?",
-    "¿Qué es el acuerdo entre expertas?", "¿Cómo califico exactitud, completitud y pertinencia?"]],
+  ["/evaluacion", ["¿Qué miden la precisión, la exhaustividad y la medida F1?", "¿Por qué se separan desarrollo y prueba?",
+    "¿Qué es la validación de control?", "¿Cómo se lee el intervalo de confianza?"]],
   ["/usuarios", ["¿Qué permisos debe tener una archivista que describe?", "¿Qué hace el rol de revisor?",
     "¿Qué borra la puesta en marcha y qué conserva?", "¿Cómo protejo los datos personales de las cuentas?"]],
 ];

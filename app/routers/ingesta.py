@@ -282,7 +282,7 @@ def impedimento_eliminar(db: Session, inst: Instanciacion) -> str | None:
                                                                TrabajoInstanciacion.abierto.is_(True)).limit(1)):
         return "alguien lo está describiendo en este momento"
     if db.scalar(select(EvaluacionDocumento.id).where(EvaluacionDocumento.instanciacion_id == inst.id).limit(1)):
-        return "está en una evaluación ciega (datos de investigación)"
+        return "está en una evaluación (datos de investigación)"
     if db.scalar(select(Instanciacion.id).where(or_(Instanciacion.derivada_de_id == inst.id,
                                                     Instanciacion.recorte_de_id == inst.id)).limit(1)):
         return "tiene versiones derivadas o recortes"

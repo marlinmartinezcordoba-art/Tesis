@@ -50,7 +50,7 @@ CONSERVAR = ("alembic_version", "usuarios", "roles", "sesiones", "tokens_un_uso"
 TESAUROS = ("tesauros", "conceptos_tesauro", "etiquetas_concepto")
 # Todo lo cargado y lo descrito.
 BORRAR = ("actividades", "alertas", "cargas_instrumento", "comprobaciones_tecnicas", "datos_personales_detectados",
-          "declaraciones_derechos", "digitalizaciones", "entidades_vocabulario", "evaluacion_anotaciones",
+          "declaraciones_derechos", "digitalizaciones", "entidades_vocabulario", "evaluacion_anotaciones", "evaluacion_control",
           "evaluacion_calificaciones", "evaluacion_documentos", "evaluacion_errores", "evaluacion_exposiciones",
           "evaluacion_participantes", "evaluaciones", "fechas", "grafos_rdf", "hallazgos_conformidad", "hitos",
           "identificadores_entidad", "instanciaciones", "instrumentos_aprobados", "lotes_ingesta", "migraciones",

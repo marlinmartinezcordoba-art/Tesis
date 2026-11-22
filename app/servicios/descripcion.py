@@ -41,6 +41,7 @@ análisis de la evaluación.
 """
 
 import json
+import os
 import re
 import uuid
 from dataclasses import dataclass
@@ -727,7 +728,8 @@ def registrar_decisiones(db: Session, recurso: RecursoDocumental, propuesta: dic
     comun = {"modelo": propuesta.get("motor"), "mecanismo_id": str(motor.id) if motor else None,
              "version_prompt": propuesta.get("version_prompt"), "propuesta_id": propuesta.get("propuesta_id"),
              "version_modelo": propuesta.get("version_modelo"),
-             "fondo_id": str(recurso.fondo_id), "titulo_documento": recurso.titulo}
+             "fondo_id": str(recurso.fondo_id), "titulo_documento": recurso.titulo,
+             "version_sistema": os.environ.get("RICORA_VERSION") or None}
     n = 0
 
     def evento(**datos):
