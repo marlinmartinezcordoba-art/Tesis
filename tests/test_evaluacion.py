@@ -255,3 +255,19 @@ def test_solo_cuenta_la_primera_publicacion(cliente, db, fondo, cabeceras_admin,
     assert cliente.patch(f"/api/descripcion/{recurso}", headers=archivista,
                          json={"trabajo_id": trabajo, "titulo": "Otro título"}).status_code == 200
     assert cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()["decisiones"] == antes
+
+
+def test_los_documentos_de_la_evaluacion_se_revisan_uno_a_uno(cliente, db, fondo, cabeceras_admin, archivista,
+                                                               evaluacion_en_curso):
+    """Si RICORA dejara aceptadas de antemano las propuestas (política «todo» o «de una vez»), la
+    evaluación contaría como acierto lo que nadie revisó: en sus documentos la política es «revisar todo»."""
+    from app.servicios import parametros
+
+
+    db.commit()
+    r = cliente.put("/api/descripcion/politica-ia", headers=cabeceras_admin, json={"politica": "todo"})
+    assert r.status_code == 200, r.text
+    assert parametros.politica_ia(db) == "todo"
+    _, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    assert espacio["politica_ia"] == "revisar_todo"

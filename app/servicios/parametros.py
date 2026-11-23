@@ -106,9 +106,22 @@ DEFINICIONES: dict[str, Definicion] = {
 POLITICAS_IA = ("revisar_todo", "alta_confianza", "todo")
 
 
-def politica_ia(db: Session) -> str:
-    """La política vigente; en modo evaluación siempre «revisar_todo», para medir la validación humana."""
-    return "revisar_todo" if settings.modo_evaluacion else leer(db, "ia_politica_aceptacion")
+def politica_ia(db: Session, instanciaciones=None) -> str:
+    """La política vigente; en modo evaluación siempre «revisar_todo», para medir la validación humana.
+    También para los documentos de una evaluación en curso: si RICORA los dejara aceptados de antemano,
+    la evaluación contaría como acierto lo que ninguna persona revisó."""
+    if settings.modo_evaluacion:
+        return "revisar_todo"
+    if instanciaciones and settings.evaluacion_activa:
+        from sqlalchemy import select
+
+        from app.models.evaluacion import Evaluacion, EvaluacionDocumento
+
+        ids = [getattr(i, "id", i) for i in instanciaciones]
+        if db.scalar(select(EvaluacionDocumento.id).join(Evaluacion, Evaluacion.id == EvaluacionDocumento.evaluacion_id)
+                     .where(Evaluacion.estado == "en_curso", EvaluacionDocumento.instanciacion_id.in_(ids)).limit(1)):
+            return "revisar_todo"
+    return leer(db, "ia_politica_aceptacion")
 
 
 def _segunda_ubicacion(valor: Any) -> str | None:

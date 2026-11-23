@@ -40,9 +40,9 @@ class Settings:
     # descripción, no la preservación (decisión de la autora). El código y los
     # datos se conservan; RICORA_PRESERVACION=1 lo vuelve a encender.
     preservacion_activa: bool = os.getenv("RICORA_PRESERVACION", "0").strip().lower() in ("1", "true", "si", "sí")
-    # Módulo de evaluación del motor frente a archivistas. Apagado por decisión de la autora: el
-    # código y los datos se conservan; RICORA_EVALUACION=1 lo vuelve a encender.
-    evaluacion_activa: bool = os.getenv("RICORA_EVALUACION", "0").strip().lower() in ("1", "true", "si", "sí")
+    # Módulo de evaluación del rendimiento con la medida F1 (objetivo 3). Encendido; RICORA_EVALUACION=0 lo
+    # apaga sin tocar sus datos.
+    evaluacion_activa: bool = os.getenv("RICORA_EVALUACION", "1").strip().lower() in ("1", "true", "si", "sí")
     # Modo evaluación: el asistente no consulta internet y el menú oculta la parametrización de la TRD y la
     # disposición final, para que nada ajeno al protocolo intervenga. Mientras haya una evaluación en curso, el
     # asistente tampoco consulta internet, aunque este modo esté apagado.

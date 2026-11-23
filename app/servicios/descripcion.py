@@ -1232,7 +1232,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     # sugerido o preaceptado.
     registrar(db, modulo="descripcion", accion="descripcion_publicada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=recurso.id,
-              nuevo={**resumen(db, recurso), "politica_ia": parametros.politica_ia(db)})
+              nuevo={**resumen(db, recurso), "politica_ia": parametros.politica_ia(db, instanciaciones_del_trabajo(db, trabajo))})
     registrar_decisiones(db, recurso, propuesta, finales, [e for e in entidades if e.clave not in claves_propuestas],
                          titulo, alcance, usuario_id)
     return recurso

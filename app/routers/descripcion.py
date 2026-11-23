@@ -87,7 +87,7 @@ def _espacio(db: Session, trabajo: TrabajoDescripcion) -> dict:
         # Posibles datos personales (Ley 1581): cada uno se confirma, corrige o descarta antes de publicar.
         "datos_personales": datos_personales.de_documentos(db, descripcion.instanciaciones_del_trabajo(db, trabajo)),
         "umbral_confianza": settings.umbral_confianza,
-        "politica_ia": parametros.politica_ia(db),
+        "politica_ia": parametros.politica_ia(db, documentos),
     }
     # Descripción exhaustiva: los campos que RICORA propone además de las entidades (la persona aprueba).
     from app.servicios import campos_propuestos
