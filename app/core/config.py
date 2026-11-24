@@ -101,6 +101,9 @@ class Settings:
     # Motor de análisis: Gemini (clave de Google AI Studio). Sin clave, la
     # descripción funciona igual pero sin propuestas automáticas.
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    # Segunda llave de Gemini (opcional, otra cuenta gratuita): los pedidos se reparten entre las dos y,
+    # si una agota su cuota, se sigue con la otra. Va solo en el secreto GEMINI_API_KEY_2 de GitHub.
+    gemini_api_key_2: str = os.getenv("GEMINI_API_KEY_2", "")
     modelo_ia: str = os.getenv("RICORA_MODELO_IA", "gemini-3.5-flash")
     segundos_motor: int = _entero("RICORA_SEGUNDOS_MOTOR", 90)
     # Motor de IA: «gemini» (en la nube, con GEMINI_API_KEY) o «local» (Ollama en el mismo servidor:

@@ -9,6 +9,7 @@ fragmento no aparece de verdad en el texto, la confianza se rebaja y se
 marca, para que nadie publique algo que el motor pudo inventar.
 """
 
+import itertools
 import hashlib
 import json
 import logging
@@ -264,9 +265,13 @@ def _limite_diario(texto: str) -> bool:
     return bool(re.search(r"PerDay|per day|RequestsPerDay", texto or "", re.I))
 
 
+_turno = itertools.count()  # reparte los pedidos entre las llaves configuradas
+
+
 class MotorGemini:
-    def __init__(self, clave: str, modelo: str):
-        self.clave = clave
+    def __init__(self, clave: str | list[str], modelo: str):
+        self.claves = [c for c in ([clave] if isinstance(clave, str) else clave) if c]
+        self.clave = self.claves[0] if self.claves else ""
         self.modelo = modelo
         self.nombre = modelo
         # Lo que dijo el proveedor de la última respuesta: versión exacta del
@@ -334,9 +339,18 @@ class MotorGemini:
         # segundo plano de un paquete de TRD): el límite por minuto de la cuenta gratuita se espera el
         # tiempo que indica Gemini (hasta un minuto, varias veces) en vez de dejar el archivo sin leer.
         intentos = 5 if paciente else 2
-        for intento in range(1, intentos + 1):
+        # Con dos llaves, cada pedido empieza por la que le toca; ante una cuota agotada (429) se pasa a la
+        # otra antes de esperar. Así dos cuentas gratuitas dan el doble de pedidos por minuto y por día.
+        claves = self.claves or [self.clave]
+        inicio = next(_turno) % len(claves)
+        orden = claves[inicio:] + claves[:inicio]
+        cambios = 0
+        intento = 0
+        while intento < intentos:
+            intento += 1
+            clave = orden[cambios % len(orden)]
             try:
-                r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": self.clave}, timeout=settings.segundos_motor)
+                r = httpx.post(url, json=cuerpo, headers={"x-goog-api-key": clave}, timeout=settings.segundos_motor)
             except httpx.TimeoutException as exc:
                 raise MotorError(f"El motor de análisis tardó más de {settings.segundos_motor} segundos (el documento "
                                  "puede ser muy largo o el servicio estar lento).") from exc
@@ -345,6 +359,11 @@ class MotorGemini:
                     time.sleep(3)
                     continue
                 raise MotorError("No hubo conexión con el motor de análisis.") from exc
+            if r.status_code == 429 and cambios < len(orden) - 1:
+                cambios += 1  # esta llave agotó su cuota: la otra, sin esperar ni gastar un intento
+                intento -= 1
+                log.warning("Gemini respondió 429 con una llave; se sigue con la otra.")
+                continue
             if r.status_code == 429 and _limite_diario(r.text):
                 break
             if r.status_code in (429, 500, 502, 503, 504) and intento < intentos:
@@ -633,7 +652,8 @@ def motor_activo():
     """El motor configurado, o None si no hay ninguno. Con la IA local y la clave de Gemini, los
     dos trabajan juntos (consenso), salvo que RICORA_MOTOR_IA diga solo uno."""
     local = MotorLocal(settings.ollama_url, settings.modelo_local) if settings.motor_ia in ("local", "consenso") else None
-    nube = MotorGemini(settings.gemini_api_key, settings.modelo_ia) if settings.gemini_api_key else None
+    claves = [c for c in (settings.gemini_api_key, settings.gemini_api_key_2) if c]
+    nube = MotorGemini(claves, settings.modelo_ia) if claves else None
     if local and nube and settings.motor_ia_descripcion != "solo_local":
         return MotorConsenso(nube, local)
     return local or nube
