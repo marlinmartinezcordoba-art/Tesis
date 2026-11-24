@@ -164,6 +164,8 @@ class PublicarIn(CamposRegistro):
     folios: int | None = Field(default=None, ge=0, le=100000)
     # Qué se decidió sobre cada campo que propuso RICORA (aprobado, descartado o sin decidir), para la auditoría.
     campos_ia: list[CampoIA] = Field(default_factory=list, max_length=30)
+    # Cómo trabajó la persona con la propuesta: una a una o «de una vez» (para la evaluación automática).
+    modo_asistencia: Literal["una_a_una", "de_una_vez"] | None = None
 
 
 class ControlIn(BaseModel):

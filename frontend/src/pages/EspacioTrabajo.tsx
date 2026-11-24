@@ -592,6 +592,7 @@ export function EspacioTrabajo() {
           historia_archivistica: campos.historiaArchivistica || null,
           isadg: campos.isadg, escrituras: campos.escrituras,
           folios: folios ? Number(folios) : null,
+          modo_asistencia: espacio.politica_ia === "revisar_todo" ? "una_a_una" : modo,
           campos_ia: (espacio.campos_propuestos || []).map((c) => ({ campo: c.campo, origen: c.origen,
             decision: decisionCampo[c.campo] || "pendiente" })),
           precede_a_id: campos.secuencia?.posicion === "precede" ? campos.secuencia.id : null,

@@ -102,3 +102,14 @@ class ErrorOut(_Abierto):
 
 class HechoOut(_Abierto):
     ok: bool
+
+
+class AutomaticaOut(_Abierto):
+    """La evaluación que calcula cada descripción publicada: las revisadas una a una (con dictamen) y todas."""
+    revisadas_una_a_una: dict[str, Any]
+    todas: dict[str, Any]
+    criterio: dict[str, Any]
+    documentos: list[dict[str, Any]]
+    versiones: list[dict[str, Any]]
+    decisiones: int
+    avisos: list[str]

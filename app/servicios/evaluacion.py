@@ -611,3 +611,71 @@ def hoja_de_calculo(db: Session, ev: Evaluacion) -> bytes:
     salida = io.BytesIO()
     libro.save(salida)
     return salida.getvalue()
+
+
+# --- Evaluación automática: la calcula cada descripción publicada -----------------------------------
+
+
+def automatica(db: Session, fondo_id: uuid.UUID) -> dict:
+    """La evaluación que se hace sola: cada descripción que se publica deja sus decisiones de validación
+    (aceptada, corregida, rechazada, agregada) y aquí se cuentan, sin crear una evaluación a mano.
+
+    - Solo cuenta la primera publicación de cada documento.
+    - Se separan las descripciones revisadas una a una (política «Revisar todo») de las demás: con la
+      política de alta confianza o «todo», o con el modo «De una vez», RICORA deja aceptadas propuestas
+      antes de que una persona las vea, y contarlas como acierto inflaría la medida. El dictamen se hace
+      solo con las revisadas una a una.
+    - Se informa por versión de la instrucción del motor: cambiar la instrucción cambia lo que se mide."""
+    from app.models.recurso_documental import RecursoDocumental
+    from app.servicios.decisiones_ia import TIPO_NOMBRE, _texto
+
+    recursos = {str(i): t for i, t in db.execute(select(RecursoDocumental.id, RecursoDocumental.titulo).where(
+        RecursoDocumental.fondo_id == fondo_id, RecursoDocumental.publicado_en.is_not(None)))}
+    eventos = db.scalars(select(RegistroAuditoria).where(
+        RegistroAuditoria.accion == "decision_ia", RegistroAuditoria.entidad_id.in_(list(recursos)))).all() if recursos else []
+    publicaciones = db.scalars(select(RegistroAuditoria).where(
+        RegistroAuditoria.accion == "descripcion_publicada", RegistroAuditoria.entidad_id.in_(list(recursos)))
+        .order_by(RegistroAuditoria.fecha)).all() if recursos else []
+    como: dict[str, dict] = {}
+    for p in publicaciones:  # la primera publicación de cada documento
+        n = p.valor_nuevo or {}
+        como.setdefault(p.entidad_id, {"politica": n.get("politica_ia"), "modo": n.get("modo_asistencia")})
+    por_recurso: dict[str, list[RegistroAuditoria]] = defaultdict(list)
+    for e in eventos:
+        por_recurso[e.entidad_id].append(e)
+    todas, limpias, versiones = [], [], defaultdict(int)
+    documentos = []
+    for rid, evs in por_recurso.items():
+        forma = como.get(rid, {})
+        revisada = forma.get("politica") == "revisar_todo" and forma.get("modo") != "de_una_vez"
+        elegidos = _primera_publicacion(evs)
+        for e in elegidos:
+            n = e.valor_nuevo or {}
+            fila = {"evento_id": e.id, "documento_id": rid, "recurso_id": rid, "documento": recursos.get(rid),
+                    "tipo": n.get("tipo"), "tipo_nombre": TIPO_NOMBRE.get(n.get("tipo"), n.get("tipo")),
+                    "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")), "final": _texto(n.get("final")),
+                    "confianza": n.get("confianza"), "version_prompt": n.get("version_prompt"), "modelo": n.get("modelo"),
+                    "revisada_una_a_una": revisada, "fecha": e.fecha}
+            todas.append(fila)
+            if revisada:
+                limpias.append(fila)
+            versiones[n.get("version_prompt") or "sin versión"] += 1
+        documentos.append({"recurso_id": rid, "titulo": recursos.get(rid), "decisiones": len(elegidos),
+                           "politica": forma.get("politica"), "modo": forma.get("modo"), "revisada_una_a_una": revisada})
+    criterio = criterio_de(None)
+    m_limpias, m_todas = metricas(limpias), metricas(todas)
+    avisos = []
+    if not todas:
+        avisos.append("Todavía no hay descripciones publicadas con propuestas de la IA en este fondo.")
+    elif not limpias:
+        avisos.append("Ninguna descripción se revisó una a una: con la política de alta confianza, «todo» o el modo "
+                      "«De una vez», RICORA acepta propuestas antes de que una persona las vea. Para que cuenten en el "
+                      "dictamen, la administración debe fijar la política «Revisar todo» en Descripción.")
+    if len(versiones) > 1:
+        avisos.append(f"Las decisiones se tomaron con {len(versiones)} versiones de la instrucción del motor; "
+                      "compare los resultados por versión antes de concluir.")
+    return {"revisadas_una_a_una": {"metricas": m_limpias, "dictamen": dictamen(m_limpias, criterio)},
+            "todas": {"metricas": m_todas},
+            "criterio": criterio, "documentos": sorted(documentos, key=lambda d: d["titulo"] or ""),
+            "versiones": [{"version": k, "decisiones": v} for k, v in sorted(versiones.items())],
+            "decisiones": len(todas), "avisos": avisos}

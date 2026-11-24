@@ -100,6 +100,8 @@ export function Evaluacion() {
         </Ventana>
       )}
       {error && <div className="aviso error" role="alert">{error}</div>}
+      {!actual && <EvaluacionAutomatica fondoId={fondo.id} />}
+      {!actual && <h2 style={{ marginTop: 18 }}>Evaluaciones con protocolo (sorteo y versión congelada)</h2>}
       {actual ? <Detalle ev={actual} esAdmin={esAdmin} volver={() => { setAbierta(null); cargar(); }} cambio={cargar} />
         : !lista ? <div className="cargando">Cargando…</div> : lista.length === 0 ? <ComoFunciona esAdmin={esAdmin} /> : (
           <div className="tarjeta">
@@ -124,6 +126,91 @@ export function Evaluacion() {
           </div>
         )}
     </>
+  );
+}
+
+interface MetricasAuto {
+  conteo: Resultados["metricas"]["conteo"]; f1: number | null; precision: number | null; exhaustividad: number | null;
+  f1_macro: number | null; intervalos: Record<"f1" | "precision" | "exhaustividad", Intervalo>;
+  por_tipo: PorTipo[]; documentos: number;
+}
+interface Automatica {
+  revisadas_una_a_una: { metricas: MetricasAuto; dictamen: Resultados["dictamen"] };
+  todas: { metricas: MetricasAuto };
+  criterio: Criterio; decisiones: number; avisos: string[];
+  versiones: { version: string; decisiones: number }[];
+  documentos: { recurso_id: string; titulo: string | null; decisiones: number; revisada_una_a_una: boolean }[];
+}
+
+// La evaluación que se hace sola: cada descripción publicada deja sus decisiones y aquí se cuentan.
+function EvaluacionAutomatica({ fondoId }: { fondoId: string }) {
+  const [a, setA] = useState<Automatica | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    pedir<Automatica>(`/api/evaluacion/automatica?fondo_id=${fondoId}`).then(setA)
+      .catch((err) => setError(mensaje(err, "No se pudo calcular la evaluación automática.")));
+  }, [fondoId]);
+  if (error) return <div className="aviso error" role="alert">{error}</div>;
+  if (!a) return <div className="cargando">Calculando la evaluación automática…</div>;
+  const limpia = a.revisadas_una_a_una.metricas, todas = a.todas.metricas, d = a.revisadas_una_a_una.dictamen;
+  const estado = (c: boolean | null) => c === null ? <span className="meta">—</span>
+    : <span className={`insignia ${c ? "bien" : "error"}`}>{c ? "Cumple" : "No cumple"}</span>;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Evaluación automática <span className="meta">(se actualiza con cada descripción publicada;
+        no hay que crear nada)</span></div>
+      <div className="tarjeta-cuerpo">
+        {a.avisos.map((x) => <div key={x} className="aviso" role="status">{x}</div>)}
+        <p className="meta">Cada propuesta de la IA aceptada cuenta como acierto, la rechazada como dato inventado, la
+          agregada por la archivista como dato omitido y la corregida como las dos cosas. Solo cuenta la primera
+          publicación de cada documento. El dictamen usa solo las descripciones revisadas una a una.</p>
+        <div className="tabla-desplazable">
+          <table className="tabla-datos">
+            <thead><tr><th>Medida</th><th className="num">Revisadas una a una</th><th className="num">Intervalo 95 %</th>
+              <th className="num">Umbral</th><th>Dictamen</th><th className="num">Todas las descripciones</th></tr></thead>
+            <tbody>
+              {MEDIDAS.map(([k, n, ayuda]) => (
+                <tr key={k}>
+                  <td title={ayuda}><strong>{n}</strong></td><td className="num">{num(limpia[k])}</td>
+                  <td className="num">{num(limpia.intervalos[k].inferior)} a {num(limpia.intervalos[k].superior)}</td>
+                  <td className="num">{num(d[k].umbral, 2)}</td><td>{estado(d[k].cumple)}</td><td className="num">{num(todas[k])}</td>
+                </tr>
+              ))}
+              <tr><td>Documentos</td><td className="num">{limpia.documentos}</td><td colSpan={3} /><td className="num">{todas.documentos}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="resumen-preservacion">
+          <div className="cifra bien"><strong>{todas.conteo.aceptada}</strong><span>Aceptadas (aciertos)</span></div>
+          <div className="cifra alerta"><strong>{todas.conteo.corregida}</strong><span>Corregidas</span></div>
+          <div className="cifra error"><strong>{todas.conteo.rechazada}</strong><span>Rechazadas (inventadas)</span></div>
+          <div className="cifra"><strong>{todas.conteo.agregada}</strong><span>Agregadas (omitidas)</span></div>
+        </div>
+        {a.versiones.length > 0 && <div className="meta">Versiones de la instrucción del motor: {a.versiones.map((v) =>
+          `${v.version} (${v.decisiones} decisiones)`).join(" · ")}</div>}
+        {todas.por_tipo.length > 0 && (
+          <details style={{ marginTop: 8 }}>
+            <summary>Por tipo de dato (todas las descripciones)</summary>
+            <div className="tabla-desplazable">
+              <table className="tabla-datos">
+                <thead><tr><th>Tipo</th><th className="num">Aceptadas</th><th className="num">Corregidas</th><th className="num">Rechazadas</th>
+                  <th className="num">Agregadas</th><th className="num">Precisión</th><th className="num">Exhaustividad</th><th className="num">F1</th></tr></thead>
+                <tbody>
+                  {todas.por_tipo.map((t) => (
+                    <tr key={t.tipo}>
+                      <td>{TIPO[t.tipo] || t.tipo}{t.texto_libre && <span className="meta"> · texto libre, fuera de la F1 global</span>}</td>
+                      <td className="num">{t.aceptada}</td><td className="num">{t.corregida}</td><td className="num">{t.rechazada}</td>
+                      <td className="num">{t.agregada}</td><td className="num">{num(t.precision)}</td><td className="num">{num(t.exhaustividad)}</td>
+                      <td className="num">{num(t.f1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+      </div>
+    </div>
   );
 }
 

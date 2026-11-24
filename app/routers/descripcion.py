@@ -737,7 +737,8 @@ def publicar(datos: PublicarIn, actor: Actor = Depends(acceso_modulo("descripcio
             copia_de_id=datos.copia_de_id, asociado_a_id=datos.asociado_a_id,
             vinculo_genetico_con_id=datos.vinculo_genetico_con_id, tipos_contenido=datos.tipos_contenido,
             fechas_predominantes=datos.fechas_predominantes, fecha_acumulacion=datos.fecha_acumulacion,
-            historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras)
+            historia_archivistica=datos.historia_archivistica, isadg_textos=datos.isadg, escrituras=datos.escrituras,
+            modo_asistencia=datos.modo_asistencia)
         if datos.folios is not None:
             recurso.folios = datos.folios
         if datos.campos_ia:  # la supervisión de los campos que propuso RICORA, para la auditoría

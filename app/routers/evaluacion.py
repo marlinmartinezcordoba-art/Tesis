@@ -107,6 +107,12 @@ def listar(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session =
     return [evaluacion.evaluacion_out(db, e) for e in db.scalars(consulta).all()]
 
 
+@router.get("/automatica", response_model=re_.AutomaticaOut, summary="Evaluación automática: la calculan las descripciones publicadas del fondo")
+def automatica(fondo_id: uuid.UUID, actor: Actor = Depends(evaluador), db: Session = Depends(get_db)):
+    fondo_o_404(db, fondo_id)
+    return evaluacion.automatica(db, fondo_id)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED,
              responses={201: {"model": re_.EvaluacionOut, "description": "Evaluación creada"}}, summary="Crear una evaluación")
 def crear(datos: EvaluacionIn, actor: Actor = Depends(solo_administrador), db: Session = Depends(get_db)):

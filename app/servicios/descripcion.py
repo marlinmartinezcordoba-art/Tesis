@@ -1161,7 +1161,7 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
              nota_integridad: str | None = None, copia_de_id: uuid.UUID | None = None,
              asociado_a_id: uuid.UUID | None = None, vinculo_genetico_con_id: uuid.UUID | None = None,
              tipos_contenido: list[str] | None = None, fechas_predominantes: str | None = None,
-             fecha_acumulacion: str | None = None) -> RecursoDocumental:
+             fecha_acumulacion: str | None = None, modo_asistencia: str | None = None) -> RecursoDocumental:
     """Crea en una sola transacción el Record Resource, sus entidades y
     relaciones, la inclusión y el vínculo con las instanciaciones. Si algo
     falla, no queda nada a medias (quien llama hace rollback)."""
@@ -1232,7 +1232,8 @@ def publicar(db: Session, *, trabajo: TrabajoDescripcion, usuario_id: uuid.UUID,
     # sugerido o preaceptado.
     registrar(db, modulo="descripcion", accion="descripcion_publicada", usuario_id=usuario_id,
               entidad_tipo="recurso_documental", entidad_id=recurso.id,
-              nuevo={**resumen(db, recurso), "politica_ia": parametros.politica_ia(db, instanciaciones_del_trabajo(db, trabajo))})
+              nuevo={**resumen(db, recurso), "politica_ia": parametros.politica_ia(db, instanciaciones_del_trabajo(db, trabajo)),
+                     "modo_asistencia": modo_asistencia})
     registrar_decisiones(db, recurso, propuesta, finales, [e for e in entidades if e.clave not in claves_propuestas],
                          titulo, alcance, usuario_id)
     return recurso

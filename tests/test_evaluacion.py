@@ -271,3 +271,24 @@ def test_los_documentos_de_la_evaluacion_se_revisan_uno_a_uno(cliente, db, fondo
     _, _, prueba = evaluacion_en_curso
     espacio = iniciar(cliente, archivista, [prueba[0]])
     assert espacio["politica_ia"] == "revisar_todo"
+
+
+def test_evaluacion_automatica_con_cada_descripcion(cliente, db, fondo, cabeceras_admin, archivista, motor_prueba):  # noqa: F811
+    """Sin crear nada: cada descripción publicada cuenta. El dictamen usa solo las revisadas una a una."""
+    url = "/api/evaluacion/automatica"
+    vacia = cliente.get(url, headers=cabeceras_admin, params={"fondo_id": str(fondo.id)}).json()
+    assert vacia["decisiones"] == 0 and vacia["avisos"]
+    # Una con la política por defecto (alta confianza) y otra revisada una a una.
+    e1 = iniciar(cliente, archivista, [documento(db, fondo, "a.pdf", OFICIO_114).id])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(e1)).status_code == 201
+    assert cliente.put("/api/descripcion/politica-ia", headers=cabeceras_admin,
+                       json={"politica": "revisar_todo"}).status_code == 200
+    e2 = iniciar(cliente, archivista, [documento(db, fondo, "b.pdf", OFICIO_115).id])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista,
+                        json={**aceptar_todo(e2), "modo_asistencia": "una_a_una"}).status_code == 201
+    a = cliente.get(url, headers=cabeceras_admin, params={"fondo_id": str(fondo.id)}).json()
+    assert a["todas"]["metricas"]["documentos"] == 2
+    assert a["revisadas_una_a_una"]["metricas"]["documentos"] == 1
+    assert a["revisadas_una_a_una"]["metricas"]["conteo"]["rechazada"] == 0
+    assert a["todas"]["metricas"]["conteo"]["rechazada"] >= 1
+    assert [d["revisada_una_a_una"] for d in a["documentos"]].count(True) == 1
