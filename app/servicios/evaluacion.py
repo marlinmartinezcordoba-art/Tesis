@@ -118,11 +118,27 @@ def metricas(filas: list[dict]) -> dict:
         c = conteo(ds)
         por_tipo.append({"tipo": t, "texto_libre": t in TEXTO_LIBRE, **c, **prf(c)})
     f1_tipos = [t["f1"] for t in por_tipo if not t["texto_libre"] and t["f1"] is not None]
+    # Por propiedad de RiC-O (3.6 de la tesis): cada relación que el motor propuso, con su propiedad.
+    propiedades: dict[str, list[str]] = defaultdict(list)
+    for f in de_entidades:
+        if f.get("codigo_ric"):
+            propiedades[f["codigo_ric"]].append(f["decision"])
+    por_propiedad = []
+    for codigo, ds in sorted(propiedades.items()):
+        c = conteo(ds)
+        por_propiedad.append({"codigo_ric": codigo, "propiedad": _propiedad_rico(codigo), **c, **prf(c)})
     medidas = prf(global_)
-    return {"conteo": global_, **medidas,
+    return {"conteo": global_, **medidas, "por_propiedad": por_propiedad,
             "f1_macro": _r(sum(f1_tipos) / len(f1_tipos)) if f1_tipos else None,
             "intervalos": {m: intervalo(por_documento, m) for m in ("f1", "precision", "exhaustividad")},
             "por_tipo": por_tipo, "documentos": len(por_documento)}
+
+
+def _propiedad_rico(codigo: str) -> str | None:
+    from app.servicios import ric_o
+
+    uri = ric_o.uri(codigo)
+    return f"rico:{uri.rsplit('#', 1)[-1].rsplit('/', 1)[-1]}" if uri else None
 
 
 def dictamen(m: dict, criterio: dict) -> dict:
@@ -323,6 +339,11 @@ def cambiar_estado(db: Session, ev: Evaluacion, estado: str, usuario_id: uuid.UU
         ev.criterio = criterio_de(ev.criterio)  # queda congelado tal como estaba al iniciar
         ev.iniciada_en = ahora()
         ev.version_congelada = version_del_sistema(activo.nombre if activo else None, motor.VERSION_PROMPT)
+        # Los ejemplos con que se ajustó el motor (descripciones validadas del conjunto de desarrollo) quedan
+        # congelados con la versión: son los mismos para todo el conjunto de prueba.
+        from app.servicios import ejemplos
+
+        ev.version_congelada = ev.version_congelada | {"ejemplos": ejemplos.congelar(db, ev)}
     elif estado == "cerrada":
         if ev.estado != "en_curso":
             raise ErrorEvaluacion("Solo se cierra una evaluación en curso.", 409)
@@ -400,7 +421,8 @@ def decisiones(db: Session, ev: Evaluacion, conjunto: str = "prueba") -> dict:
                           "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")),
                           "final": _texto(n.get("final")), "confianza": n.get("confianza"),
                           "fragmento_localizado": n.get("fragmento_localizado"), "modelo": n.get("modelo"),
-                          "version_prompt": n.get("version_prompt"), "usuario_id": str(e.usuario_id) if e.usuario_id else None,
+                          "version_prompt": n.get("version_prompt"), "codigo_ric": n.get("codigo_ric"),
+                          "usuario_id": str(e.usuario_id) if e.usuario_id else None,
                           "fecha": e.fecha})
         estado_docs.append({"instanciacion_id": str(d.instanciacion_id), "nombre": i.nombre_original if i else None,
                             "conjunto": d.conjunto, "publicado": bool(rs), "decisiones": validas})
@@ -655,6 +677,7 @@ def automatica(db: Session, fondo_id: uuid.UUID) -> dict:
                     "tipo": n.get("tipo"), "tipo_nombre": TIPO_NOMBRE.get(n.get("tipo"), n.get("tipo")),
                     "decision": n.get("decision"), "propuesto": _texto(n.get("propuesto")), "final": _texto(n.get("final")),
                     "confianza": n.get("confianza"), "version_prompt": n.get("version_prompt"), "modelo": n.get("modelo"),
+                    "codigo_ric": n.get("codigo_ric"),
                     "revisada_una_a_una": revisada, "fecha": e.fecha}
             todas.append(fila)
             if revisada:

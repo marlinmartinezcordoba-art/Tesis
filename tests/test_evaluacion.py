@@ -7,6 +7,7 @@ cada corregida un falso positivo y un falso negativo. Los textos libres no entra
 """
 
 import io
+import uuid
 
 import pytest
 from openpyxl import load_workbook
@@ -292,3 +293,45 @@ def test_evaluacion_automatica_con_cada_descripcion(cliente, db, fondo, cabecera
     assert a["revisadas_una_a_una"]["metricas"]["conteo"]["rechazada"] == 0
     assert a["todas"]["metricas"]["conteo"]["rechazada"] >= 1
     assert [d["revisada_una_a_una"] for d in a["documentos"]].count(True) == 1
+
+
+def test_por_propiedad_y_el_conjunto_de_prueba_se_procesa_una_vez(cliente, db, fondo, cabeceras_admin, archivista,
+                                                                  evaluacion_en_curso):
+    ev_id, _, prueba = evaluacion_en_curso
+    espacio = iniciar(cliente, archivista, [prueba[0]])
+    # El motor ya respondió: volver a consultarlo cambiaría lo que se mide.
+    r = cliente.post(f"/api/descripcion/trabajos/{espacio['trabajo_id']}/reproponer", headers=archivista)
+    assert r.status_code == 409 and "una sola vez" in r.json()["detail"]
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=validar_con_errores(espacio)).status_code == 201
+    m = cliente.get(f"/api/evaluacion/{ev_id}/resultados", headers=cabeceras_admin).json()["metricas"]
+    assert m["por_propiedad"] and all(p["propiedad"] is None or p["propiedad"].startswith("rico:") for p in m["por_propiedad"])
+
+
+def test_el_motor_aprende_de_lo_validado_y_en_evaluacion_usa_los_ejemplos_congelados(
+        cliente, db, fondo, cabeceras_admin, archivista, motor_prueba):  # noqa: F811
+    from app.servicios import ejemplos
+
+    # Fuera de evaluación: lo ya validado del fondo sirve de ejemplo para el siguiente documento.
+    e1 = iniciar(cliente, archivista, [documento(db, fondo, "Resolucion 1 de 2023.pdf", OFICIO_114).id])
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(e1)).status_code == 201
+    iniciar(cliente, archivista, [documento(db, fondo, "Resolucion 2 de 2023.pdf", OFICIO_115).id])
+    assert len(motor_prueba.ejemplos) == 1 and motor_prueba.ejemplos[0]["entidades"]
+    # En evaluación: los ejemplos quedan congelados al iniciar (los del conjunto de desarrollo) y ningún
+    # documento de prueba sirve nunca de ejemplo.
+    ids = [documento(db, fondo, f"Resolucion {n} de 2024.pdf", OFICIO_114).id for n in range(10, 14)]
+    ev_id = crear_evaluacion(cliente, cabeceras_admin, fondo, ids)
+    assert cliente.post(f"/api/evaluacion/{ev_id}/sorteo", headers=cabeceras_admin,
+                        json={"semilla": 3, "desarrollo": 1}).status_code == 200
+    docs = cliente.get(f"/api/evaluacion/{ev_id}/documentos", headers=cabeceras_admin).json()
+    desarrollo = [d["instanciacion_id"] for d in docs if d["conjunto"] == "desarrollo"]
+    prueba = [d["instanciacion_id"] for d in docs if d["conjunto"] == "prueba"]
+    ed = iniciar(cliente, archivista, desarrollo)
+    assert cliente.post("/api/descripcion/publicar", headers=archivista, json=aceptar_todo(ed)).status_code == 201
+    assert cliente.post(f"/api/evaluacion/{ev_id}/estado", headers=cabeceras_admin,
+                        json={"estado": "en_curso"}).status_code == 200
+    congelados = db.get(Evaluacion, uuid.UUID(ev_id)).version_congelada["ejemplos"]
+    assert len(congelados) == 1
+    iniciar(cliente, archivista, [prueba[0]])
+    assert [e["id"] for e in motor_prueba.ejemplos] == congelados
+    excluidos = ejemplos._de_prueba(db)
+    assert not any(uuid.UUID(e["id"]) in excluidos for e in ejemplos.para(db, fondo.id, [], ""))

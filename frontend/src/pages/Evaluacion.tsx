@@ -27,12 +27,44 @@ interface PorTipo {
   tipo: string; texto_libre: boolean; aceptada: number; corregida: number; rechazada: number; agregada: number;
   precision: number | null; exhaustividad: number | null; f1: number | null;
 }
+interface PorPropiedad {
+  codigo_ric: string; propiedad: string | null; aceptada: number; corregida: number; rechazada: number; agregada: number;
+  precision: number | null; exhaustividad: number | null; f1: number | null;
+}
+
+function TablaPropiedades({ filas }: { filas?: PorPropiedad[] }) {
+  if (!filas?.length) return null;
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-cab">Por propiedad de RiC-O <span className="meta">(cada relación que propuso el motor)</span></div>
+      <div className="tabla-desplazable">
+        <table className="tabla-datos">
+          <thead><tr><th>Propiedad</th><th className="num">Aceptadas</th><th className="num">Corregidas</th><th className="num">Rechazadas</th>
+            <th className="num">Agregadas</th><th className="num">Precisión</th><th className="num">Exhaustividad</th><th className="num">F1</th></tr></thead>
+          <tbody>
+            {filas.map((p) => (
+              <tr key={p.codigo_ric}>
+                <td><code className="rico">{p.propiedad || p.codigo_ric}</code></td>
+                <td className="num">{p.aceptada}</td><td className="num">{p.corregida}</td><td className="num">{p.rechazada}</td>
+                <td className="num">{p.agregada}</td><td className="num">{num(p.precision)}</td><td className="num">{num(p.exhaustividad)}</td>
+                <td className="num">{num(p.f1)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface Resultados {
   metricas: {
     conteo: { vp: number; fp: number; fn: number; aceptada: number; corregida: number; rechazada: number; agregada: number };
     f1: number | null; precision: number | null; exhaustividad: number | null; f1_macro: number | null;
     intervalos: Record<"f1" | "precision" | "exhaustividad", Intervalo>; por_tipo: PorTipo[]; documentos: number;
+    por_propiedad?: PorPropiedad[];
   };
+  version_congelada?: { ejemplos?: string[]; version_instruccion?: string | null; sistema?: string } | null;
   dictamen: Record<"f1" | "precision" | "exhaustividad", Dictamen> & { hipotesis: string | null };
   acuerdo: { pares: number; iguales: number; documentos: number; porcentaje: number | null; umbral: number; cumple: boolean | null };
   causas: { causa: string; nombre: string; cantidad: number }[];
@@ -566,6 +598,12 @@ function VerResultados({ ev }: { ev: EvaluacionBreve }) {
           </table>
         </div>
       </div>
+      <TablaPropiedades filas={m.por_propiedad} />
+      {r.version_congelada && (
+        <p className="meta">Versión evaluada: sistema {r.version_congelada.sistema || "sin etiqueta"} · instrucción{" "}
+          {r.version_congelada.version_instruccion || "—"} · {r.version_congelada.ejemplos?.length || 0} ejemplo(s) del conjunto
+          de desarrollo congelado(s) como guía del motor.</p>
+      )}
       {r.causas.length > 0 && (
         <div className="tarjeta">
           <div className="tarjeta-cab">Causas de error</div>

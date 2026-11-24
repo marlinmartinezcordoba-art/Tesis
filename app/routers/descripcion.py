@@ -312,6 +312,12 @@ async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id:
     documentos_trabajo = descripcion.documentos_de(db, trabajo)
     if reusar_lote and len(documentos_trabajo) == 1 and trabajo.nivel == propuestas_lote.NIVEL:
         previa = propuestas_lote.vigente(db, documentos_trabajo[0].id)
+        # En una evaluación en curso solo vale una propuesta hecha con la versión congelada (desde que se inició).
+        from app.servicios import ejemplos as servicio_ejemplos
+
+        ev = servicio_ejemplos.en_evaluacion(db, [documentos_trabajo[0].id])
+        if previa is not None and ev is not None and ev.iniciada_en and previa.generada_en < ev.iniciada_en:
+            previa = None
         if previa is not None:
             trabajo.propuesta_id = previa.id  # la propuesta es inalterable: el trabajo la cita
             trabajo.propuesta = json.dumps({**previa.contenido, "propuesta_id": str(previa.id)}, ensure_ascii=False)
@@ -326,7 +332,12 @@ async def _consultar_motor(db: Session, trabajo: TrabajoDescripcion, usuario_id:
     # El motor no propone a ciegas: recibe las entidades del vocabulario del
     # fondo que ya aparecen en el texto, para poder reutilizarlas.
     contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
-    propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel, contexto)
+    # Aprende de lo validado: una o dos descripciones aprobadas del fondo como ejemplo (congeladas en evaluación).
+    from app.servicios import ejemplos as servicio_ejemplos
+
+    muestras = servicio_ejemplos.para(db, trabajo.fondo_id, [d.id for d in documentos],
+                                      "\n".join(d.texto_extraido or "" for d in descripcion.documentos_de(db, trabajo)))
+    propuesta = await run_in_threadpool(motor.proponer, documentos, trabajo.nivel, contexto, muestras)
     # La forma documental, de las tipologías de la TRD: la que el documento declara en su encabezado.
     from app.servicios import formas_trd
 
@@ -356,6 +367,15 @@ async def reproponer(trabajo_id: uuid.UUID, request: Request, actor: Actor = Dep
         db.commit()
         return _error(exc)
     anterior = trabajo.propuesta_id
+    # El conjunto de prueba se procesa una sola vez (3.6 de la tesis): si el motor ya respondió, no se repite.
+    from app.servicios import ejemplos as servicio_ejemplos
+
+    previa = json.loads(trabajo.propuesta) if trabajo.propuesta else {}
+    if (previa.get("titulo") or previa.get("entidades")) and servicio_ejemplos.en_evaluacion(
+            db, [d.id for d in descripcion.documentos_de(db, trabajo)]) is not None:
+        db.commit()
+        return JSONResponse({"detail": "Este documento está en una evaluación en curso: el motor lo procesa una sola "
+                                       "vez con la versión congelada. Valide la propuesta que ya hizo."}, status_code=409)
     await _consultar_motor(db, trabajo, actor.id, reusar_lote=False)
     registrar(db, modulo="descripcion", accion="propuesta_repetida", usuario_id=actor.id,
               entidad_tipo="trabajo_descripcion", entidad_id=trabajo.id,
@@ -1214,7 +1234,11 @@ async def proponer_para_registro(recurso_id: uuid.UUID, trabajo_id: uuid.UUID,
     documentos = [motor.Documento(id=d.id, nombre=d.nombre_original,
                                   texto=anonimizar_para_motor(d.texto_extraido or "")[0]) for d in instancias]
     contexto = vocabulario.contexto_para_motor(db, trabajo.fondo_id, "\n".join(d.texto for d in documentos))
-    propuesta = await run_in_threadpool(motor.proponer, documentos, recurso.nivel, contexto)
+    from app.servicios import ejemplos as servicio_ejemplos
+
+    muestras = servicio_ejemplos.para(db, trabajo.fondo_id, [i.id for i in instancias],
+                                      " ".join(i.texto_extraido or "" for i in instancias), excluir={recurso.id})
+    propuesta = await run_in_threadpool(motor.proponer, documentos, recurso.nivel, contexto, muestras)
     formas_trd.ajustar(db, trabajo.fondo_id, propuesta, documentos)
     propuestas_ia.ubicar_fragmentos(db, propuesta)
     propuestas_ia.registrar(db, propuesta, origen="descripcion", fondo_id=trabajo.fondo_id, nivel=recurso.nivel,

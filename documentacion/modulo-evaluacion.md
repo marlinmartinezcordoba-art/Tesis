@@ -74,3 +74,15 @@ Precisión = VP / (VP + FP). Exhaustividad = VP / (VP + FN). F1 = 2VP / (2VP + F
 
 - Los documentos citados que propone el motor todavía no se publican como relación ni generan decisión; cuando se publiquen, entrarán solos en la medida.
 - La versión del sistema depende de que el despliegue fije `RICORA_VERSION` (por ejemplo, con la etiqueta `v1.0.0`).
+
+## 6. Ajustes a la tesis del 24 de noviembre de 2026
+
+- **Por propiedad de RiC-O (3.6).** Además de por tipo, la precisión, la exhaustividad y la F1 se calculan por la
+  propiedad de RiC-O de cada relación propuesta (`metricas.por_propiedad`).
+- **Ejemplos del conjunto de desarrollo (3.4).** El motor no se reentrena: con cada documento recibe una o dos
+  descripciones ya validadas del fondo como ejemplo (`servicios/ejemplos.py`). Al iniciar la evaluación quedan
+  congelados los del conjunto de desarrollo (`version_congelada.ejemplos`) y se usan, los mismos, para todo el
+  conjunto de prueba. Ningún documento de prueba sirve nunca de ejemplo.
+- **Una sola vez (3.6).** Un documento de prueba de una evaluación en curso no se vuelve a consultar al motor si ya
+  respondió, y una propuesta en lote anterior al inicio no se reutiliza: solo vale la de la versión congelada.
+- **Revisión una a una.** En los documentos de una evaluación en curso la política de la IA es «revisar todo».

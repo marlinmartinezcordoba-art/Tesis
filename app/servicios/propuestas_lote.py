@@ -58,7 +58,10 @@ def proponer(db: Session, fondo_id: uuid.UUID, inst: Instanciacion, usuario_id: 
     documentos = [motor.Documento(id=inst.id, nombre=inst.nombre_original,
                                   texto=anonimizar_para_motor(inst.texto_extraido or "")[0])]
     contexto = vocabulario.contexto_para_motor(db, fondo_id, documentos[0].texto)
-    propuesta = motor.proponer(documentos, NIVEL, contexto)
+    from app.servicios import ejemplos
+
+    propuesta = motor.proponer(documentos, NIVEL, contexto,
+                               ejemplos.para(db, fondo_id, [inst.id], inst.texto_extraido or ""))
     formas_trd.ajustar(db, fondo_id, propuesta, documentos)
     propuestas_ia.ubicar_fragmentos(db, propuesta)
     return propuestas_ia.registrar(db, propuesta, origen=ORIGEN, fondo_id=fondo_id, nivel=NIVEL,

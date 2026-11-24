@@ -286,8 +286,10 @@ class MotorGemini:
             total += len(texto)
             # El documento va entre marcas de inicio y fin: lo que diga adentro es contenido, no instrucciones.
             partes.append(f"[DOCUMENTO {i}: {d.nombre}]\n{texto or '(sin texto extraído)'}\n[FIN DEL DOCUMENTO {i}]")
+        from app.servicios.ejemplos import texto as texto_ejemplos
+
         pedido = (f"Describe {NIVELES.get(nivel, nivel)} formado por {len(documentos)} documento(s).\n\n"
-                  + texto_contexto(contexto) + "\n\n".join(partes))
+                  + texto_contexto(contexto) + texto_ejemplos(getattr(self, "ejemplos", None)) + "\n\n".join(partes))
         cuerpo = {
             "systemInstruction": {"parts": [{"text": INSTRUCCION}]},
             "contents": [{"role": "user", "parts": [{"text": pedido}]}],
@@ -862,7 +864,8 @@ def _enlazar_contexto(entidades: list[EntidadPropuesta], actividades: list[tuple
             act.agente_clave = agente.clave
 
 
-def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None) -> Propuesta:
+def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaContexto] | None = None,
+             ejemplos: list[dict] | None = None) -> Propuesta:
     from app.db.base import ahora
 
     motor = motor_activo()
@@ -870,8 +873,13 @@ def proponer(documentos: list[Documento], nivel: str, contexto: list[EntradaCont
     if motor is None:
         return Propuesta(aviso="No hay un motor de análisis configurado en el servidor. Puede describir a mano: "
                                "escriba el título y el alcance, y agregue las entidades.", generada_en=momento)
+    # Las descripciones ya validadas que se le muestran como ejemplo (servicios/ejemplos).
+    for m in (motor, getattr(motor, "nube", None), getattr(motor, "local", None)):
+        if m is not None:
+            m.ejemplos = ejemplos or []
+    entrada = entrada_de(documentos, contexto) | {"ejemplos": [e.get("id") for e in ejemplos or []]}
     comun = {"motor": motor.nombre, "version_prompt": VERSION_PROMPT, "generada_en": momento,
-             "parametros": parametros_de_generacion(), "entrada": entrada_de(documentos, contexto)}
+             "parametros": parametros_de_generacion(), "entrada": entrada}
     if not any((d.texto or "").strip() for d in documentos):
         return Propuesta(**comun, aviso="Los documentos no tienen texto extraído (por ejemplo, una imagen "
                                          "sin texto legible). Describa a mano.")
