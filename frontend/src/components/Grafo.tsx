@@ -294,7 +294,8 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
       centro.fy = 0;
     }
     puntos.current = new Map(nodos.map((n) => [n.clave, n]));
-    if (disposicion === "descripcion" && grupos) {
+    // Sin la entidad raíz entre los nodos no hay desde dónde ordenar: se dibuja por relaciones.
+    if (disposicion === "descripcion" && grupos && puntos.current.has(datos.centro)) {
       const de = (g: Grupo) => nodos.filter((n) => grupos.get(n.clave) === g).map((n) => puntos.current.get(n.clave)!);
       const fijar = (p: Punto, x: number, y: number) => { p.x = x; p.y = y; p.fx = x; p.fy = y; };
       const fila = (ps: Punto[], y: number, x0: number, paso: number) => ps.forEach((p, j) => fijar(p, x0 + (j - (ps.length - 1) / 2) * paso, y));
@@ -338,7 +339,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
     }
     paneles.current = [];
     setRotulos([]);
-    if (disposicion === "arbol") {
+    if (disposicion === "arbol" && puntos.current.has(datos.centro)) {
       // Por niveles: cada entidad en la fila de su distancia a la raíz y, dentro de la fila,
       // junto a las demás hijas de su mismo padre. Sin fuerzas: la estructura se lee de arriba abajo.
       // Primero la estructura (inclusión y regla de cada serie), después lo demás: así la regla de

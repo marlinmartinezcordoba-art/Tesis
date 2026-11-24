@@ -408,7 +408,10 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
       : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
       .then((d) => {
         if (!vivo.si) return;
-        if (saltos === -1 && !d.nodos.length) { setSaltos(0); return; }  // sin documentos descritos todavía
+        // Sin documentos descritos todavía (solo queda el fondo): la estructura de la TRD.
+        if (saltos === -1 && !d.nodos.some((n) => ["unidad_documental", "expediente", "parte_documental"].includes(n.clase))) {
+          setSaltos(0); return;
+        }
         setDatos(d);
       })
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
@@ -517,7 +520,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
                   aria-label="Qué tan lejos mostrar las relaciones">
             {esRecurso && <option value={0}>{esFondo ? "Estructura: las dependencias del fondo (abra una para ver sus series)"
               : "Estructura: lo que incluye, con sus reglas de retención y documentos"}</option>}
-            {esFondo && <option value={-1}>Red de documentos: cómo se relacionan los documentos descritos</option>}
+            {esFondo && <option value={-1}>Documentos descritos: la entidad, sus series y subseries, y cómo se relacionan los documentos</option>}
             {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
           </select>
         </label>
@@ -542,7 +545,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
           <div className="contenedor-lienzo">
             <LienzoGrafo datos={datos} seleccion={seleccion} alSeleccionar={setSeleccion} enfoque={enfoque} alArrastrar={alArrastrar}
                          key={saltos === 0 ? "estructura" : saltos === -1 ? "documentos" : "contexto"}
-                         disposicionInicial={saltos === 0 ? "arbol" : saltos === -1 ? "red" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
+                         disposicionInicial={saltos === 0 || saltos === -1 ? "arbol" : (() => { const c = datos.nodos.find((n) => n.clave === datos.centro)?.clase || ""; return ["fondo", "coleccion", "seccion", "subseccion"].includes(c) ? "arbol" : ["unidad_documental", "parte_documental", "expediente"].includes(c) ? "descripcion" : "red"; })()} />
             {vacio && (
               <div className="vacio-lienzo">
                 {numFiltros ? (

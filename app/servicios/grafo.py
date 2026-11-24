@@ -550,14 +550,24 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
                 por_entidad[forma].append((rid, "forma_documental", False))
     compartidas = dict(por_entidad)  # todas; las que unen más documentos entran primero
     ctx.precargar([("entidad_vocabulario", e) for e in compartidas])
-    # Los documentos primero, para que el tope nunca los deje fuera; luego su clasificación en el cuadro.
+    # El árbol: la entidad (el fondo) arriba y, por cada documento descrito, la cadena del cuadro que lo
+    # clasifica (dependencia, serie, subserie, expediente). Solo las ramas que tienen documentos: el resto de
+    # la TRD está en la vista Estructura. Va primero, para que el tope de nodos nunca la deje fuera.
+    raiz = f"recurso_documental:{fondo.id}"
+    poner(raiz, "recurso_documental", fondo.id)
+    vistas_jerarquia: set[tuple[str, str]] = set()
     for rid in ids:
-        poner(f"recurso_documental:{rid}", "recurso_documental", rid)
-    for rid in ids:
-        padre = docs[rid].incluido_en_id
-        if padre and padre != fondo.id and padre in ctx.recursos and \
-                poner(f"recurso_documental:{padre}", "recurso_documental", padre):
-            aristas.append(_arista(f"recurso_documental:{padre}", f"recurso_documental:{rid}", _jerarquia(docs[rid])))
+        actual = docs[rid]
+        while actual is not None and actual.id != fondo.id:
+            hijo = f"recurso_documental:{actual.id}"
+            padre_id = actual.incluido_en_id if actual.incluido_en_id in ctx.recursos else fondo.id
+            padre = f"recurso_documental:{padre_id}"
+            if not (poner(hijo, "recurso_documental", actual.id) and poner(padre, "recurso_documental", padre_id)):
+                break
+            if (padre, hijo) not in vistas_jerarquia:
+                vistas_jerarquia.add((padre, hijo))
+                aristas.append(_arista(padre, hijo, _jerarquia(actual)))
+            actual = ctx.recursos.get(padre_id)
     for o, d, codigo in directas:
         if poner(f"recurso_documental:{o}", "recurso_documental", o) and \
                 poner(f"recurso_documental:{d}", "recurso_documental", d):
@@ -580,7 +590,7 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
         if n["tipo"] == "entidad_vocabulario":
             n.setdefault("documentos", len({d for d, _, _ in compartidas.get(uuid.UUID(n["id"]), [])}))
     return sin_campos_internos({
-        "fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "centro": f"recurso_documental:{fondo.id}",
+        "fondo": {"id": str(fondo.id), "titulo": fondo.titulo}, "centro": raiz,
         "saltos": 0, "nodos": list(nodos.values()), "aristas": aristas, "truncado": truncado,
         "maximo_nodos": max_nodos, "filtros_activos": 0})
 

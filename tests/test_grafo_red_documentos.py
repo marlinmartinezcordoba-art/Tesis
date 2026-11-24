@@ -45,6 +45,15 @@ def test_une_los_documentos_por_lo_que_comparten_y_por_sus_vinculos(cliente, db,
     productor = [x for x in g["aristas"] if x["hacia"] == f"entidad_vocabulario:{mina.id}"]
     assert {x["desde"] for x in productor} == {f"recurso_documental:{a.id}", f"recurso_documental:{b.id}"}
     assert any(x["desde"] == f"recurso_documental:{b.id}" and x["hacia"] == f"recurso_documental:{c.id}" for x in g["aristas"])
-    # La clasificación de cada documento en el cuadro también se ve (lo une a los de su misma serie).
-    docs = {n["clave"] for n in g["nodos"] if n["clase"] in ("unidad_documental", "expediente")}
-    assert all(x["hacia"] in docs for x in g["aristas"] if x["codigo_ric"] == "includes_or_included")
+    # El árbol: el fondo es la raíz y cada documento cuelga de la cadena del cuadro que lo clasifica.
+    raiz = f"recurso_documental:{fondo.id}"
+    assert g["centro"] == raiz and raiz in claves
+    padres = {x["hacia"]: x["desde"] for x in g["aristas"] if x["codigo_ric"] == "includes_or_included"}
+    for d in (a, b, c):
+        assert padres[f"recurso_documental:{d.id}"] == raiz
+    o114 = f"recurso_documental:{fondo_descrito['o114'].id}"
+    cadena, actual = [], o114
+    while actual in padres:
+        actual = padres[actual]
+        cadena.append(actual)
+    assert cadena[-1] == raiz and len(cadena) >= 2  # oficio → expediente → serie → fondo
