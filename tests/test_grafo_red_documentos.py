@@ -39,10 +39,12 @@ def test_une_los_documentos_por_lo_que_comparten_y_por_sus_vinculos(cliente, db,
     g = r.json()
     etiquetas = {n["etiqueta"] for n in g["nodos"]}
     assert {"Resolución 1919", "Resolución 1920", "Resolución 2001", "Ministerio de Ambiente y Desarrollo Sostenible"} <= etiquetas
-    assert "Vereda única" not in etiquetas  # la cita un solo documento: se ve al abrirlo
+    assert "Vereda única" in etiquetas  # la de un solo documento también entra, después de las compartidas
     claves = {n["clave"] for n in g["nodos"]}
     assert all(x["desde"] in claves and x["hacia"] in claves for x in g["aristas"])
     productor = [x for x in g["aristas"] if x["hacia"] == f"entidad_vocabulario:{mina.id}"]
     assert {x["desde"] for x in productor} == {f"recurso_documental:{a.id}", f"recurso_documental:{b.id}"}
     assert any(x["desde"] == f"recurso_documental:{b.id}" and x["hacia"] == f"recurso_documental:{c.id}" for x in g["aristas"])
-    assert not any(x["codigo_ric"] == "includes_or_included" for x in g["aristas"])
+    # La clasificación de cada documento en el cuadro también se ve (lo une a los de su misma serie).
+    docs = {n["clave"] for n in g["nodos"] if n["clase"] in ("unidad_documental", "expediente")}
+    assert all(x["hacia"] in docs for x in g["aristas"] if x["codigo_ric"] == "includes_or_included")

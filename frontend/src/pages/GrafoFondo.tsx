@@ -356,7 +356,8 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   const esFondo = raizClave === `recurso_documental:${fondo.id}`;
   // La estructura se ve desde el fondo (sus dependencias) o desde una dependencia o serie (lo que incluye).
   const esRecurso = raizClave.startsWith("recurso_documental:");
-  const [saltos, setSaltos] = useState(esFondo ? 0 : 1);
+  // Desde el fondo se abre la red de los documentos descritos; si aún no hay, la estructura de la TRD.
+  const [saltos, setSaltos] = useState(esFondo ? -1 : 1);
   // -1: la red de los documentos descritos (solo desde el fondo).
   useEffect(() => { if ((!esRecurso && saltos === 0) || (!esFondo && saltos === -1)) setSaltos(1); }, [esRecurso, esFondo, saltos]);
   const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
@@ -405,7 +406,11 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     pedir<DatosGrafo>(saltos === -1 ? `/api/grafo/documentos?fondo_id=${fondo.id}`
       : saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}${esFondo ? "" : `&desde=${id}`}`
       : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
-      .then((d) => vivo.si && setDatos(d))
+      .then((d) => {
+        if (!vivo.si) return;
+        if (saltos === -1 && !d.nodos.length) { setSaltos(0); return; }  // sin documentos descritos todavía
+        setDatos(d);
+      })
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
       .finally(() => vivo.si && setCargando(false));
     return () => { vivo.si = false; };

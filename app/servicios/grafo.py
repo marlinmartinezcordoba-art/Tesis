@@ -508,7 +508,9 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
     """Cómo se relacionan entre sí los documentos descritos del fondo: los vínculos directos entre ellos
     (responde a, es copia de, está asociado a, sigue a…) y lo que comparten (el mismo productor, destinatario,
     lugar, norma, actividad o tipo documental). Una entidad entra solo si la comparten dos o más documentos:
-    lo que cita uno solo se ve al abrir ese documento. Las fechas no entran (cada documento tiene las suyas)."""
+    primero entran las que comparten más documentos y después las de uno solo, hasta el tope de nodos. Cada
+    documento lleva también la serie o el expediente donde está clasificado (rico:includesOrIncluded), que es
+    lo que lo une a los demás de la misma serie. Las fechas no entran (cada documento tiene las suyas)."""
     ctx = _Contexto(db, fondo, ver_restringidos)
     docs = {i: r for i, r in ctx.recursos.items() if r.nivel in NIVELES_DOCUMENTO and r.publicado_en is not None}
     nodos: dict[str, dict] = {}
@@ -546,8 +548,16 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
         for rid in rids:
             if rid in docs:
                 por_entidad[forma].append((rid, "forma_documental", False))
-    compartidas = {e: v for e, v in por_entidad.items() if len({d for d, _, _ in v}) >= 2}
+    compartidas = dict(por_entidad)  # todas; las que unen más documentos entran primero
     ctx.precargar([("entidad_vocabulario", e) for e in compartidas])
+    # Los documentos primero, para que el tope nunca los deje fuera; luego su clasificación en el cuadro.
+    for rid in ids:
+        poner(f"recurso_documental:{rid}", "recurso_documental", rid)
+    for rid in ids:
+        padre = docs[rid].incluido_en_id
+        if padre and padre != fondo.id and padre in ctx.recursos and \
+                poner(f"recurso_documental:{padre}", "recurso_documental", padre):
+            aristas.append(_arista(f"recurso_documental:{padre}", f"recurso_documental:{rid}", _jerarquia(docs[rid])))
     for o, d, codigo in directas:
         if poner(f"recurso_documental:{o}", "recurso_documental", o) and \
                 poner(f"recurso_documental:{d}", "recurso_documental", d):
@@ -564,9 +574,6 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
                 continue
             vistas.add((rid, codigo))
             aristas.append(_arista(clave, doc, codigo) if desde_entidad else _arista(doc, clave, codigo))
-    # Los documentos que no comparten nada también se ven: así se nota que están aislados.
-    for rid in ids:
-        poner(f"recurso_documental:{rid}", "recurso_documental", rid)
     for n in nodos.values():
         for k in ("fecha_inicio", "fecha_fin"):
             n[k] = n[k].isoformat() if hasattr(n.get(k), "isoformat") else n.get(k)
