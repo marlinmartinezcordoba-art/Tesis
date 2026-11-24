@@ -248,7 +248,7 @@ function BarraAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloq
           <span className="ba-valor">{NIVEL_NOMBRE[nivel] || nivel}</span> <NivelRiC nivel={nivel} />
         </div>
         <div className="ba-bloque ba-ia">
-          <span className="ba-rotulo">Propuesta de la IA{motor ? ` · ${motor}` : ""}</span>
+          <span className="ba-rotulo">IA</span>{motor && <span className="meta">{motor}</span>}
           {motor && propuestas.length ? (
             <div className="ba-avance" title={`${cuenta("aceptada")} aceptadas · ${pendientes} por revisar · ${cuenta("descartada")} descartadas`}>
               <div className="ba-pista" role="progressbar" aria-valuenow={avance} aria-valuemin={0} aria-valuemax={100}
@@ -275,7 +275,7 @@ function BarraAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloq
         {campos.length > 0 && (
           <button type="button" className={`ba-campos${camposPendientes.length ? " con-pendientes" : ""}`} aria-expanded={abierta}
                   onClick={() => setAbierta(!abierta)}>
-            Campos propuestos
+            Campos
             <span className="ba-contador">{camposPendientes.length ? `${camposPendientes.length} por aprobar` : "aprobados"}</span>
             <span aria-hidden="true">{abierta ? "▴" : "▾"}</span>
           </button>
