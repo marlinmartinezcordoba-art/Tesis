@@ -151,3 +151,22 @@ def test_la_clasificacion_usa_la_tipologia_y_el_expediente_citado(db, fondo):  #
     [primera, segunda, *_] = descripcion.sugerir_ubicacion(db, fondo.id, texto)
     assert primera["id"] == expediente.id and primera["palabras"] == ["expediente SRF 676"]
     assert segunda["id"] == con_tipologia.id and "tipología resolución" in segunda["palabras"]
+
+
+def test_una_resolucion_no_va_a_conceptos_tecnicos_por_mencionarlos(db, fondo):  # noqa: F811
+    """El texto de una resolución dice «conceptos técnicos ambientales», pero su encabezado dice qué es: va en la
+    serie que recibe resoluciones según la TRD, no en la que solo comparte palabras."""
+    from app.servicios import descripcion
+
+    resolucion = entidad(db, fondo, "Resolución", clase="forma_documental")
+    concepto = entidad(db, fondo, "Concepto técnico", clase="forma_documental")
+    conceptos = RecursoDocumental(id=uuid.uuid4(), nivel="subserie", titulo="Conceptos Técnicos Ambientales sobre sustracción",
+                                  fondo_id=fondo.id, incluido_en_id=fondo.id, formas_miembros=[concepto.id])
+    resoluciones = RecursoDocumental(id=uuid.uuid4(), nivel="subserie", titulo="Resoluciones",
+                                     fondo_id=fondo.id, incluido_en_id=fondo.id, formas_miembros=[resolucion.id])
+    db.add_all([conceptos, resoluciones])
+    db.commit()
+    texto = ("RESOLUCIÓN No. 1919 del 31 de diciembre de 2025\nPor la cual se resuelve un recurso de reposición. "
+             + "Según los conceptos técnicos ambientales de sustracción emitidos por la Dirección, " * 20)
+    [primera, *_] = descripcion.sugerir_ubicacion(db, fondo.id, texto)
+    assert primera["id"] == resoluciones.id and "tipología resolución" in primera["palabras"]

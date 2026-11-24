@@ -2025,3 +2025,11 @@ html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siemp
 /* El código RiC junto a la etiqueta de un campo: una pastilla discreta (el interruptor RiC-O la oculta). */
 code.etiqueta-ric { font-size: .68rem; padding: 1px 6px; border-radius: 6px; background: var(--proc-bg); color: var(--proc);
   font-weight: 600; vertical-align: 1px; }
+
+/* Trazabilidad del nodo señalado en el grafo: de dónde viene (fondo › … › documento) o dónde se cita. */
+.traza-grafo { position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 150px); z-index: 3; background: var(--surface);
+  border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; box-shadow: var(--sombra);
+  padding: 8px 12px; font-size: .84rem; pointer-events: none; }
+.traza-rotulo { font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-right: 8px; }
+.traza-paso { font-weight: 600; }
+.traza-extra { color: var(--muted); }

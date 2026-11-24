@@ -544,6 +544,50 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
   const zoom = (factor: number) => setVista((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
   const activo = encima || seleccion;
   const atenuar = encima;
+  // Trazabilidad del nodo señalado: de dónde viene. Un documento muestra la cadena del cuadro que lo
+  // clasifica hasta el fondo y quién lo produjo; un lugar, un agente o una norma, los documentos que lo
+  // citan, cada uno con su cadena. Lo demás se atenúa.
+  const traza = useMemo(() => {
+    if (!atenuar) return null;
+    const padreDe = new Map<string, string>();
+    for (const a of datos.aristas) if (JERARQUIA.has(a.codigo_ric)) padreDe.set(a.hacia, a.desde);
+    const nodos = new Set<string>([atenuar]);
+    const aristas = new Set<string>();
+    const clave = (a: AristaGrafo) => `${a.desde}-${a.hacia}-${a.codigo_ric}`;
+    const subir = (c: string) => {
+      let actual = c;
+      for (let i = 0; i < 12 && padreDe.has(actual); i++) {
+        const padre = padreDe.get(actual)!;
+        const a = datos.aristas.find((x) => x.hacia === actual && x.desde === padre && JERARQUIA.has(x.codigo_ric));
+        if (a) aristas.add(clave(a));
+        nodos.add(padre);
+        actual = padre;
+      }
+    };
+    const n = porClave.get(atenuar);
+    const esDoc = !!n && esRecurso(n);
+    for (const a of datos.aristas) {
+      if (a.desde !== atenuar && a.hacia !== atenuar) continue;
+      if (esDoc && JERARQUIA.has(a.codigo_ric) && a.desde === atenuar) continue;  // sus partes no son su origen
+      aristas.add(clave(a));
+      const otro = a.desde === atenuar ? a.hacia : a.desde;
+      nodos.add(otro);
+      const o = porClave.get(otro);
+      if (!esDoc && o && esRecurso(o)) subir(otro);  // cada documento que cita la entidad, con su cadena
+    }
+    if (esDoc) subir(atenuar);
+    // La cadena legible: del fondo al documento (o los documentos que citan la entidad).
+    const cadena: string[] = [];
+    if (esDoc) {
+      let actual: string | undefined = atenuar;
+      while (actual) { cadena.unshift(actual); actual = padreDe.get(actual); }
+    }
+    const productores = esDoc ? datos.aristas.filter((a) => a.codigo_ric === "has_creator" && a.desde === atenuar)
+      .map((a) => porClave.get(a.hacia)).filter(Boolean).map((x) => x!.etiqueta) : [];
+    const documentos = esDoc ? [] : [...nodos].map((c) => porClave.get(c)).filter((x) => x && esRecurso(x)
+      && ["unidad_documental", "expediente", "parte_documental"].includes(x.clase)).map((x) => x!.etiqueta);
+    return { nodos, aristas, cadena, productores, documentos, esDoc };
+  }, [atenuar, datos, porClave]);
   // Etiquetas de las relaciones: siempre, mientras se puedan leer; en un
   // grafo muy denso o muy alejado, solo las del nodo señalado.
   const etiquetasLegibles = disposicion === "descripcion" || (datos.aristas.length <= 60 && vista.k >= 0.7);
@@ -626,6 +670,22 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
           <svg viewBox="0 0 24 24" width="14" height="14" {...trazo}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
         </button>
       </div>
+      {traza && (traza.cadena.length > 1 || traza.productores.length > 0 || traza.documentos.length > 0) && (
+        <div className="traza-grafo" role="status" aria-live="polite">
+          {traza.esDoc ? (<>
+            <span className="traza-rotulo">Trazabilidad</span>
+            {traza.cadena.map((c, i) => (
+              <span key={c} className="traza-paso">{i > 0 && <span aria-hidden="true"> › </span>}{corto(porClave.get(c)?.etiqueta || "", 48)}</span>
+            ))}
+            {traza.productores.length > 0 && <span className="traza-extra"> · producido por {traza.productores.join(", ")}</span>}
+          </>) : (<>
+            <span className="traza-rotulo">Citado en</span>
+            <span className="traza-paso">{traza.documentos.length} documento(s)</span>
+            {traza.documentos.length > 0 && <span className="traza-extra">: {traza.documentos.slice(0, 3).map((d) => corto(d, 50)).join(" · ")}
+              {traza.documentos.length > 3 ? "…" : ""}</span>}
+          </>)}
+        </div>
+      )}
       <svg ref={lienzo} className="svg-grafo" role="img"
            viewBox={`${-tamano.ancho / 2} ${-tamano.alto / 2} ${tamano.ancho} ${tamano.alto}`}
            aria-label={`Grafo con ${datos.nodos.length} entidades y ${datos.aristas.length} relaciones`}
@@ -661,7 +721,8 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
               const largo = Math.hypot(dx, dy) || 1;
               const r = radio(nq, a.hacia === datos.centro) + 3;
               const fin = { x: q.x - (dx / largo) * r, y: q.y - (dy / largo) * r };
-              const resaltada = activo === a.desde || activo === a.hacia;
+              const resaltada = traza ? traza.aristas.has(`${a.desde}-${a.hacia}-${a.codigo_ric}`)
+                : activo === a.desde || activo === a.hacia;
               // «incluye» en cada flecha de la estructura no dice nada nuevo: solo se escribe al señalar el nodo.
               const ver = (etiquetasLegibles && (disposicion === "descripcion" || !JERARQUIA.has(a.codigo_ric))) || resaltada;
               // La etiqueta va al lado de la línea (no encima), girada con ella si es legible.
@@ -671,7 +732,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
               let angulo = (Math.atan2(dy, dx) * 180) / Math.PI;
               if (angulo > 90 || angulo < -90) angulo += 180;
               return (
-                <g key={`${a.desde}-${a.hacia}-${a.codigo_ric}`} className={`arista${resaltada ? " resaltada" : ""}${atenuar && atenuar !== a.desde && atenuar !== a.hacia ? " tenue" : ""}`}>
+                <g key={`${a.desde}-${a.hacia}-${a.codigo_ric}`} className={`arista${resaltada ? " resaltada" : ""}${traza && !resaltada ? " tenue" : ""}`}>
                   <line x1={p.x} y1={p.y} x2={fin.x} y2={fin.y} markerEnd={a.dirigida ? "url(#flecha)" : undefined} />
                   {ver && (
                     <text x={mx} y={my} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${angulo} ${mx} ${my})`}>
@@ -687,8 +748,7 @@ export function LienzoGrafo({ datos: completo, seleccion, alSeleccionar, enfoque
               if (!p) return null;
               const raiz = n.clave === datos.centro;
               const r = radio(n, raiz);
-              const conectado = !atenuar || atenuar === n.clave || datos.aristas.some(
-                (a) => (a.desde === atenuar && a.hacia === n.clave) || (a.hacia === atenuar && a.desde === n.clave));
+              const conectado = !traza || traza.nodos.has(n.clave);
               const escala = (r * 1.15) / 24;
               return (
                 <g key={n.clave} transform={`translate(${p.x} ${p.y})`}

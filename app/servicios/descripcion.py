@@ -605,12 +605,13 @@ def _agregar_entidades(db: Session, recurso: RecursoDocumental, entidades: list[
                 finales[e.clave or ""] = finales.get(e.clave or "", {}) | {"edtf": expedicion.edtf}
             regula = any(x.tipo == "actividad" and x.mandato_clave == e.clave for x in entidades)
             if e.clave in finales:
-                finales[e.clave]["codigo_ric"] = "regulates_or_regulated" if regula else "has_or_had_subject"
+                finales[e.clave]["codigo_ric"] = "regulates_or_regulated"
             if not regula:
-                # Citado sin una actividad que regule: queda como mencionado.
-                db.add(Relacion(origen_tipo="recurso_documental", origen_id=recurso.id, destino_tipo="entidad_vocabulario",
-                                destino_id=nodo.id, tipo_relacion="asociacion", codigo_ric="has_or_had_subject",
-                                rol="mandato", origen=origen, confianza=confianza, motor=motor_e,
+                # Citado sin una actividad que regule: es el fundamento normativo del documento, no su tema.
+                # La norma (rico:Mandate, subclase de rico:Rule) regula el documento (RiC-R063).
+                db.add(Relacion(origen_tipo="entidad_vocabulario", origen_id=nodo.id, destino_tipo="recurso_documental",
+                                destino_id=recurso.id, tipo_relacion="asociacion", codigo_ric="regulates_or_regulated",
+                                rol="fundamento", origen=origen, confianza=confianza, motor=motor_e,
                                 confirmada_por_id=usuario_id, **evidencia))
         elif e.tipo == "actividad":
             if e.clave in finales:
@@ -709,10 +710,8 @@ def codigo_de_decision(tipo: str, datos: dict | None, propuesta: dict | None = N
         return "forma_documental"
     if tipo == "tipo_actividad":
         return "has_activity_type"
-    if tipo == "mandato":
-        citado = any(x.get("tipo") == "actividad" and x.get("mandato_clave") == datos.get("clave")
-                     for x in (propuesta or {}).get("entidades", []))
-        return "regulates_or_regulated" if citado else "has_or_had_subject"
+    if tipo == "mandato":  # regula la actividad que cita o, si no cita ninguna, el documento (su fundamento)
+        return "regulates_or_regulated"
     par = RELACION_POR_ROL.get((tipo, datos.get("rol") if tipo == "agente" else None))
     return par[0] if par else None
 
@@ -1090,6 +1089,9 @@ def sugerir_ubicacion(db: Session, fondo_id: uuid.UUID, texto: str, maximo: int 
     del_doc = set(_palabras(texto[:40000])) - _VACIAS
     if not del_doc:
         return []
+    # El encabezado dice qué es el documento; el resto del texto puede mencionar cualquier cosa
+    # («conceptos técnicos» en una resolución que resuelve un recurso): lo del encabezado pesa el doble.
+    cabeza = set(_palabras(texto[:1500])) - _VACIAS
     candidatos = db.scalars(select(RecursoDocumental).where(RecursoDocumental.fondo_id == fondo_id,
                                                             RecursoDocumental.nivel.in_(("serie", "subserie")))).all()
     puntuados = []
@@ -1099,7 +1101,7 @@ def sugerir_ubicacion(db: Session, fondo_id: uuid.UUID, texto: str, maximo: int 
         if not nombre and not tipos:
             continue
         en_nombre, en_tipos = nombre & del_doc, tipos & del_doc
-        puntaje = (2 * len(en_nombre) + len(en_tipos)) / math.sqrt(2 * len(nombre) + len(tipos))
+        puntaje = (2 * len(en_nombre) + len(en_tipos) + 2 * len(nombre & cabeza)) / math.sqrt(2 * len(nombre) + len(tipos))
         if r.nivel == "subserie":
             puntaje *= 1.05  # lo más específico, a igualdad
         if puntaje > 0:
@@ -1111,8 +1113,11 @@ def sugerir_ubicacion(db: Session, fondo_id: uuid.UUID, texto: str, maximo: int 
     hallada = formas_trd.en_encabezado(formas_trd.tipologias(db, fondo_id), [type("D", (), {"texto": texto, "id": None})()])
     if hallada is not None:
         forma = hallada[0]
-        puntuados = [(p * 1.6, r, [f"tipología {forma.nombre.lower()}", *c]) if forma.id in (r.formas_miembros or [])
-                     else (p, r, c) for p, r, c in puntuados]
+        # Si alguna serie del cuadro tiene esa tipología en la TRD, las que no la tienen casi no cuentan: una
+        # resolución no va en una serie que no recibe resoluciones, aunque comparta palabras con ella.
+        alguna = any(forma.id in (r.formas_miembros or []) for _, r, _ in puntuados)
+        puntuados = [(p * 2.5, r, [f"tipología {forma.nombre.lower()}", *c]) if forma.id in (r.formas_miembros or [])
+                     else (p * (0.25 if alguna else 1), r, c) for p, r, c in puntuados]
     # Un expediente que ya existe y cuyo identificador cita el documento («expediente SRF 676»): el
     # documento va en ese expediente, dentro de su serie.
     puntuados += _expedientes_citados(db, fondo_id, texto)
