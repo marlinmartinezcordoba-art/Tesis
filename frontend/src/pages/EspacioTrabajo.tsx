@@ -216,86 +216,106 @@ export interface CampoPropuesto {
   campo: string; valor: unknown; mostrar: string; confianza: number | null; origen: "motor" | "regla"; evidencia: string;
 }
 
-const CAMPO_NOMBRE: Record<string, string> = {
-  idiomas: "Idioma (RiC-A25)", tipos_contenido: "Tipo de contenido (RiC-A10)", folios: "Extensión (RiC-A35)",
-  estado_documento: "Estado del documento (RiC-A39)", nota_integridad: "Nota de integridad (RiC-A24)",
-  asociado_a: "Documento asociado ya descrito (RiC-R022)",
+const CAMPO_NOMBRE: Record<string, [string, string]> = {
+  idiomas: ["Idioma", "RiC-A25"], tipos_contenido: ["Tipo de contenido", "RiC-A10"], folios: ["Extensión", "RiC-A35"],
+  estado_documento: ["Estado del documento", "RiC-A39"], nota_integridad: ["Nota de integridad", "RiC-A24"],
+  asociado_a: ["Documento asociado", "RiC-R022"],
 };
 
-// La descripción exhaustiva: además de las entidades, RICORA propone cada campo con su evidencia; la persona aprueba.
-function CamposPropuestos({ propuestos, decision, alAceptar, alDescartar }: {
-  propuestos: CampoPropuesto[]; decision: Record<string, "aceptada" | "descartada">;
+type Modo = "una_a_una" | "de_una_vez";
+
+// Arriba de la descripción, en una sola franja: el nivel, lo que propuso la IA y cuánto falta, el modo de
+// trabajo y los campos que RICORA propone (plegados: se abren para aprobarlos sin quitarle espacio al documento).
+function BarraAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloqueada, alAsistir,
+                           campos, decision, alAceptar, alDescartar }: {
+  nivel: string; motor: string | null; aviso: string | null; items: Item[]; modo: Modo;
+  alCambiarModo: (m: Modo) => void; bloqueada: boolean; alAsistir: () => void;
+  campos: CampoPropuesto[]; decision: Record<string, "aceptada" | "descartada">;
   alAceptar: (c: CampoPropuesto) => void; alDescartar: (c: CampoPropuesto) => void;
 }) {
-  if (!propuestos.length) return null;
-  const pendientes = propuestos.filter((c) => !decision[c.campo]).length;
-  return (
-    <details className="tarjeta campos-propuestos" open={pendientes > 0}>
-      <summary><strong>Campos que propone RICORA</strong> <span className="meta">({propuestos.length} propuesto(s) ·
-        {" "}{pendientes} por aprobar · el acceso no lo propone: lo fija la TCA)</span></summary>
-      {propuestos.map((c) => {
-        const d = decision[c.campo];
-        return (
-          <div className="fila" key={c.campo}>
-            <div className="fila-principal">
-              <div className="nombre">{CAMPO_NOMBRE[c.campo] || c.campo}: {c.mostrar.length > 160 ? `${c.mostrar.slice(0, 160)}…` : c.mostrar}</div>
-              <div className="meta">{c.evidencia} · {c.origen === "motor" ? "propuesto por la IA" : "propuesto por reglas de RICORA"}
-                {c.confianza !== null && ` · certeza ${Math.round(c.confianza * 100)} %`}</div>
-            </div>
-            {d === "aceptada" ? <span className="insignia bien">Aprobado</span>
-              : d === "descartada" ? <span className="insignia">Descartado</span> : (
-              <div className="acciones" style={{ marginTop: 0 }}>
-                <button type="button" className="boton chico primario" onClick={() => alAceptar(c)}>Aprobar</button>
-                <button type="button" className="boton chico" onClick={() => alDescartar(c)}>Descartar</button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </details>
-  );
-}
-
-// Lo primero que se ve al describir: el nivel de descripción y qué propuso la IA, con el modo de trabajo.
-function TarjetaAsistencia({ nivel, motor, aviso, items, modo, alCambiarModo, bloqueada, alAsistir }: {
-  nivel: string; motor: string | null; aviso: string | null; items: Item[]; modo: "una_a_una" | "de_una_vez";
-  alCambiarModo: (m: "una_a_una" | "de_una_vez") => void; bloqueada: boolean; alAsistir: () => void;
-}) {
+  const [abierta, setAbierta] = useState(false);
   const propuestas = items.filter((i) => !i.manual);
   const cuenta = (d: string) => propuestas.filter((i) => i.decision === d).length;
   const pendientes = cuenta("pendiente");
+  const revisadas = propuestas.length - pendientes;
+  const camposPendientes = campos.filter((c) => !decision[c.campo]);
+  const avance = propuestas.length ? Math.round((revisadas / propuestas.length) * 100) : 0;
   return (
-    <div className="tarjeta asistencia">
-      <div className="asistencia-fila">
-        <div>
-          <div className="meta">Nivel de descripción</div>
-          <strong>{NIVEL_NOMBRE[nivel] || nivel}</strong> <NivelRiC nivel={nivel} />
+    <section className="barra-asistencia" aria-label="Asistencia de la IA">
+      <div className="barra-asistencia-fila">
+        <div className="ba-bloque">
+          <span className="ba-rotulo">Nivel</span>
+          <span className="ba-valor">{NIVEL_NOMBRE[nivel] || nivel}</span> <NivelRiC nivel={nivel} />
         </div>
-        <div>
-          <div className="meta">Descripción asistida por IA</div>
-          {motor ? <strong>{propuestas.length} propuesta(s) de {motor}</strong> : <strong>Sin propuesta de la IA</strong>}
-          {motor && <div className="meta">{cuenta("aceptada")} aceptada(s) · {pendientes} por revisar · {cuenta("descartada")} descartada(s)</div>}
-          {!motor && aviso && <div className="meta">{aviso}</div>}
+        <div className="ba-bloque ba-ia">
+          <span className="ba-rotulo">Propuesta de la IA{motor ? ` · ${motor}` : ""}</span>
+          {motor && propuestas.length ? (
+            <div className="ba-avance" title={`${cuenta("aceptada")} aceptadas · ${pendientes} por revisar · ${cuenta("descartada")} descartadas`}>
+              <div className="ba-pista" role="progressbar" aria-valuenow={avance} aria-valuemin={0} aria-valuemax={100}
+                   aria-label="Propuestas revisadas"><span style={{ width: `${avance}%` }} /></div>
+              <span className="ba-valor">{revisadas} de {propuestas.length} revisadas</span>
+              {pendientes > 0 && <span className="insignia alerta">{pendientes} por revisar</span>}
+            </div>
+          ) : <span className="meta">{aviso || "Sin propuesta: describa a mano."}</span>}
         </div>
+        {motor && propuestas.length > 0 && (bloqueada ? (
+          <span className="insignia proceso" title="La administración pidió revisar todo una a una, o el documento está en una evaluación en curso">
+            Revisión una a una</span>
+        ) : (
+          <div className="ba-modo" role="radiogroup" aria-label="Cómo trabajar con la propuesta">
+            <button type="button" role="radio" aria-checked={modo === "una_a_una"} className={modo === "una_a_una" ? "activo" : ""}
+                    title="Usted acepta, corrige o descarta cada propuesta" onClick={() => alCambiarModo("una_a_una")}>Una a una</button>
+            <button type="button" role="radio" aria-checked={modo === "de_una_vez"} className={modo === "de_una_vez" ? "activo" : ""}
+                    title="RICORA deja aceptado lo que propuso; usted corrige antes de publicar" onClick={() => alCambiarModo("de_una_vez")}>De una vez</button>
+          </div>
+        ))}
+        {modo === "de_una_vez" && !bloqueada && (pendientes > 0 || camposPendientes.length > 0) && (
+          <button type="button" className="boton chico" onClick={alAsistir}>Aceptar lo pendiente</button>
+        )}
+        {campos.length > 0 && (
+          <button type="button" className={`ba-campos${camposPendientes.length ? " con-pendientes" : ""}`} aria-expanded={abierta}
+                  onClick={() => setAbierta(!abierta)}>
+            Campos propuestos
+            <span className="ba-contador">{camposPendientes.length ? `${camposPendientes.length} por aprobar` : "aprobados"}</span>
+            <span aria-hidden="true">{abierta ? "▴" : "▾"}</span>
+          </button>
+        )}
       </div>
-      {motor && propuestas.length > 0 && (
-        <div className="asistencia-modos" role="radiogroup" aria-label="Cómo trabajar con la propuesta de la IA">
-          <label className={modo === "una_a_una" ? "elegida" : ""}>
-            <input type="radio" name="modo-asistencia" checked={modo === "una_a_una"} onChange={() => alCambiarModo("una_a_una")} />
-            <span><b>Una a una</b> — usted acepta, corrige o descarta cada propuesta.</span>
-          </label>
-          <label className={modo === "de_una_vez" ? "elegida" : ""} title={bloqueada ? "La administración pidió revisar todo una a una" : undefined}>
-            <input type="radio" name="modo-asistencia" checked={modo === "de_una_vez"} disabled={bloqueada}
-                   onChange={() => alCambiarModo("de_una_vez")} />
-            <span><b>De una vez</b> — RICORA deja aceptado todo lo que propuso; usted corrige lo que no esté bien antes de publicar.</span>
-          </label>
-          {modo === "de_una_vez" && pendientes > 0 && !bloqueada && (
-            <button type="button" className="boton chico" onClick={alAsistir}>Aceptar las {pendientes} pendiente(s)</button>
-          )}
-          {bloqueada && <div className="meta">La administración pidió revisar todo una a una (o hay una evaluación en curso).</div>}
+      {abierta && campos.length > 0 && (
+        <div className="ba-panel">
+          <div className="ba-panel-cab">
+            <span className="meta">RICORA propone estos campos con su evidencia. El acceso no lo propone: lo fija la TCA de la serie.</span>
+            {camposPendientes.length > 1 && (
+              <button type="button" className="boton chico" onClick={() => camposPendientes.forEach(alAceptar)}>Aprobar todos</button>
+            )}
+          </div>
+          <div className="ba-tarjetas">
+            {campos.map((c) => {
+              const d = decision[c.campo];
+              const [nombre, codigo] = CAMPO_NOMBRE[c.campo] || [c.campo, ""];
+              return (
+                <article key={c.campo} className={`ba-tarjeta${d ? ` ${d}` : ""}`}>
+                  <header>
+                    <span className="ba-rotulo">{nombre}</span>
+                    {codigo && <code className="rico etiqueta-ric">{codigo}</code>}
+                    {c.confianza !== null && <span className="ba-certeza">{Math.round(c.confianza * 100)} %</span>}
+                  </header>
+                  <p className="ba-propuesto" title={c.mostrar}>{c.mostrar}</p>
+                  <p className="ba-evidencia" title={c.evidencia}>{c.origen === "motor" ? "IA · " : "Reglas · "}{c.evidencia}</p>
+                  <footer>
+                    {d === "aceptada" ? <span className="insignia bien">Aprobado</span>
+                      : d === "descartada" ? <span className="insignia">Descartado</span> : (<>
+                        <button type="button" className="boton chico primario" onClick={() => alAceptar(c)}>Aprobar</button>
+                        <button type="button" className="boton chico" onClick={() => alDescartar(c)}>Descartar</button>
+                      </>)}
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -681,11 +701,11 @@ export function EspacioTrabajo() {
           <> · el motor recibió {Object.values(propuesta.contexto_enviado).reduce((a, b) => a + b, 0)} entidad(es) del vocabulario del fondo</>
         )}
       </p>
-      <TarjetaAsistencia nivel={espacio.nivel} motor={propuesta?.disponible ? propuesta.motor || "IA" : null}
-                         aviso={propuesta?.aviso || null} items={items} modo={modo} alCambiarModo={cambiarModo}
-                         bloqueada={espacio.politica_ia === "revisar_todo"} alAsistir={asistirDeUnaVez} />
-      <CamposPropuestos propuestos={espacio.campos_propuestos || []} decision={decisionCampo}
-                        alAceptar={aplicarCampo} alDescartar={descartarCampo} />
+      <BarraAsistencia nivel={espacio.nivel} motor={propuesta?.disponible ? propuesta.motor || "IA" : null}
+                       aviso={propuesta?.aviso || null} items={items} modo={modo} alCambiarModo={cambiarModo}
+                       bloqueada={espacio.politica_ia === "revisar_todo"} alAsistir={asistirDeUnaVez}
+                       campos={espacio.campos_propuestos || []} decision={decisionCampo}
+                       alAceptar={aplicarCampo} alDescartar={descartarCampo} />
       {espacio.borrador && (
         <div className="aviso bien" role="status">
           {espacio.empezada_por ? `Continúa la descripción que empezó ${espacio.empezada_por}` : "Continúa donde iba"}{espacio.borrador_guardado_en ? ` (avance guardado el ${new Date(espacio.borrador_guardado_en)
@@ -756,24 +776,24 @@ export function EspacioTrabajo() {
           )}
           <div className="tarjeta-prop fija" hidden={!ver("identidad", "caracteristicas")}>
             <div className="campo" hidden={!ver("identidad")}>
-              <label htmlFor="titulo">Título <span className="meta">(<code className="rico">RiC-A28</code>)</span> <GuiaCampo clave="titulo" /></label>
+              <label htmlFor="titulo">Título <code className="rico etiqueta-ric">RiC-A28</code> <GuiaCampo clave="titulo" /></label>
               <input id="titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
               {propuesta?.titulo && <EvidenciaCampo campo="titulo" evidencia={propuesta.evidencia_titulo} activa={activa}
                                                     alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" hidden={!ver("caracteristicas")}>
-              <label htmlFor="alcance">Alcance y contenido <span className="meta">(<code className="rico">RiC-A38</code>)</span> <GuiaCampo clave="alcance_contenido" /></label>
+              <label htmlFor="alcance">Alcance y contenido <code className="rico etiqueta-ric">RiC-A38</code> <GuiaCampo clave="alcance_contenido" /></label>
               <textarea id="alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} />
               {propuesta?.alcance && <EvidenciaCampo campo="alcance" evidencia={propuesta.evidencia_alcance} activa={activa}
                                                      alElegir={(c) => elegir(c)} />}
             </div>
             <div className="campo" hidden={!ver("caracteristicas")}>
-              <label htmlFor="folios">Extensión <span className="meta">(<code className="rico">RiC-A35</code> · número de folios · opcional)</span></label>
+              <label htmlFor="folios">Extensión <code className="rico etiqueta-ric">RiC-A35</code> <span className="meta">(número de folios · opcional)</span></label>
               <input id="folios" className="entrada" style={{ width: 140 }} inputMode="numeric" value={folios}
                      onChange={(e) => setFolios(e.target.value.replace(/\D/g, "").slice(0, 6))} />
             </div>
             <div className="campo" style={{ marginBottom: 0 }} hidden={!ver("identidad")}>
-              <label htmlFor="incluido">Clasificación <span className="meta">(<code className="rico">RiC-A07</code> · dónde queda en el cuadro)</span></label>
+              <label htmlFor="incluido">Clasificación <code className="rico etiqueta-ric">RiC-A07</code> <span className="meta">(dónde queda en el cuadro)</span></label>
               {(() => {
                 const elegida = superiores.find((o) => o.id === incluidoEn);
                 const sugerida = sugeridas.find((x) => x.id === incluidoEn);

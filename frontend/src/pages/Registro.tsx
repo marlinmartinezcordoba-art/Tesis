@@ -399,7 +399,7 @@ export function RegistroDescripcion() {
                 <input id="r-titulo" className="entrada" value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
               <div className="campo"><label htmlFor="r-alcance">Alcance y contenido <GuiaCampo clave="alcance_contenido" /></label>
                 <textarea id="r-alcance" className="entrada" rows={5} value={alcance} onChange={(e) => setAlcance(e.target.value)} /></div>
-              <div className="campo"><label htmlFor="r-incluido">Clasificación <span className="meta">(<code className="rico">RiC-A07</code> · dónde queda en el cuadro)</span></label>
+              <div className="campo"><label htmlFor="r-incluido">Clasificación <code className="rico etiqueta-ric">RiC-A07</code> <span className="meta">(dónde queda en el cuadro)</span></label>
                 <select id="r-incluido" className="selector" value={incluido} onChange={(e) => setIncluido(e.target.value)}>
                   {superiores.map((s) => <option key={s.id} value={s.id}>{NIVEL_NOMBRE[s.nivel]}: {s.codigo ? `${s.codigo} · ` : ""}{s.titulo}{s.dependencia ? ` — ${s.dependencia}` : ""}</option>)}
                 </select>

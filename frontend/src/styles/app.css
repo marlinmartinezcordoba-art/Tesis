@@ -1990,9 +1990,38 @@ html[data-ric="ocultar"] .siempre-ric code.rico, html[data-ric="ocultar"] .siemp
 .bloque-ley { border: 1px dashed var(--borde, #cfd6e0); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
 .bloque-ley .tarjeta-cab { margin-bottom: 8px; }
 
-/* Al describir: nivel de descripción y modo de asistencia de la IA. */
-.tarjeta.asistencia { padding: 12px 16px; }
-.asistencia-fila { display: flex; flex-wrap: wrap; gap: 24px; }
-.asistencia-modos { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 10px; }
-.asistencia-modos label { display: flex; gap: 6px; align-items: flex-start; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; max-width: 460px; }
-.asistencia-modos label.elegida { border-color: var(--acento, #1f6f78); }
+/* Al describir: una franja con el nivel, la propuesta de la IA, el modo y los campos propuestos. */
+.barra-asistencia { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sombra);
+  margin-bottom: 10px; }
+.barra-asistencia-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 10px 14px; }
+.ba-bloque { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ba-ia { flex: 1 1 280px; }
+.ba-rotulo { font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.ba-valor { font-weight: 600; white-space: nowrap; }
+.ba-avance { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.ba-pista { flex: 1 1 80px; max-width: 180px; height: 6px; border-radius: 999px; background: var(--proc-bg); overflow: hidden; }
+.ba-pista > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
+.ba-modo { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--bg); }
+.ba-modo button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .82rem; font-weight: 600;
+  padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.ba-modo button.activo { background: var(--surface); color: var(--accent); box-shadow: var(--sombra); }
+.ba-campos { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); font: inherit; font-size: .85rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+.ba-campos.con-pendientes { border-color: var(--warn); }
+.ba-contador { font-size: .74rem; padding: 1px 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok); }
+.ba-campos.con-pendientes .ba-contador { background: var(--warn-bg); color: var(--warn); }
+.ba-panel { border-top: 1px solid var(--line); padding: 10px 14px 14px; }
+.ba-panel-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.ba-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.ba-tarjeta { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  background: var(--surface); }
+.ba-tarjeta.aceptada { border-color: var(--ok); background: color-mix(in srgb, var(--ok-bg) 35%, var(--surface)); }
+.ba-tarjeta.descartada { opacity: .65; }
+.ba-tarjeta header { display: flex; align-items: center; gap: 6px; }
+.ba-certeza { margin-left: auto; font-size: .72rem; color: var(--muted); }
+.ba-propuesto { margin: 0; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ba-evidencia { margin: 0; font-size: .78rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ba-tarjeta footer { display: flex; gap: 6px; margin-top: auto; }
+/* El código RiC junto a la etiqueta de un campo: una pastilla discreta (el interruptor RiC-O la oculta). */
+code.etiqueta-ric { font-size: .68rem; padding: 1px 6px; border-radius: 6px; background: var(--proc-bg); color: var(--proc);
+  font-weight: 600; vertical-align: 1px; }
