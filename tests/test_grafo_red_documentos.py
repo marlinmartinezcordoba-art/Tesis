@@ -39,7 +39,7 @@ def test_une_los_documentos_por_lo_que_comparten_y_por_sus_vinculos(cliente, db,
     g = r.json()
     etiquetas = {n["etiqueta"] for n in g["nodos"]}
     assert {"Resolución 1919", "Resolución 1920", "Resolución 2001", "Ministerio de Ambiente y Desarrollo Sostenible"} <= etiquetas
-    assert "Vereda única" in etiquetas  # la de un solo documento también entra, después de las compartidas
+    assert "Vereda única" not in etiquetas  # la cita un solo documento: se ve al abrirlo o con «todo»
     claves = {n["clave"] for n in g["nodos"]}
     assert all(x["desde"] in claves and x["hacia"] in claves for x in g["aristas"])
     productor = [x for x in g["aristas"] if x["hacia"] == f"entidad_vocabulario:{mina.id}"]
@@ -57,3 +57,5 @@ def test_une_los_documentos_por_lo_que_comparten_y_por_sus_vinculos(cliente, db,
         actual = padres[actual]
         cadena.append(actual)
     assert cadena[-1] == raiz and len(cadena) >= 2  # oficio → expediente → serie → fondo
+    todo = cliente.get("/api/grafo/documentos", headers=archivista, params={"fondo_id": str(fondo.id), "todo": True}).json()
+    assert "Vereda única" in {n["etiqueta"] for n in todo["nodos"]}

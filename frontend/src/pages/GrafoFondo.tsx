@@ -360,7 +360,9 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
   const [saltos, setSaltos] = useState(esFondo ? -1 : 1);
   // -1: la red de los documentos descritos (solo desde el fondo).
   useEffect(() => { if ((!esRecurso && saltos === 0) || (!esFondo && saltos === -1)) setSaltos(1); }, [esRecurso, esFondo, saltos]);
-  const [recarga, setRecarga] = useState(0);  // vuelve a pedir el grafo tras corregir un nombre
+  const [recarga, setRecarga] = useState(0);
+  // En la red de documentos: también lo que cita un solo documento (por defecto, solo lo que los une).
+  const [todo, setTodo] = useState(false);  // vuelve a pedir el grafo tras corregir un nombre
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
   const [base, setDatos] = useState<DatosGrafo | null>(null);
@@ -403,7 +405,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
     setError("");
     setCargando(true);
     const vivo = { si: true };
-    pedir<DatosGrafo>(saltos === -1 ? `/api/grafo/documentos?fondo_id=${fondo.id}`
+    pedir<DatosGrafo>(saltos === -1 ? `/api/grafo/documentos?fondo_id=${fondo.id}${todo ? "&todo=true" : ""}`
       : saltos === 0 ? `/api/grafo/estructura?fondo_id=${fondo.id}${esFondo ? "" : `&desde=${id}`}`
       : `${rutaEntidad(tipo, id)}?${consulta(filtros, saltos, fondo.id)}`)
       .then((d) => {
@@ -417,7 +419,7 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
       .catch((err) => vivo.si && setError(err instanceof ErrorAPI ? err.message : "No se pudo cargar el grafo."))
       .finally(() => vivo.si && setCargando(false));
     return () => { vivo.si = false; };
-  }, [raizClave, saltos, filtros, fondo.id, recarga]);
+  }, [raizClave, saltos, filtros, fondo.id, recarga, todo]);
 
   useEffect(() => setSeleccion(null), [raizClave]);
   useEffect(() => setExpansiones({}), [raizClave, saltos, filtros, recarga]);
@@ -524,6 +526,12 @@ export function PestanaGrafo({ fondo, centro, centrar, abrirFicha }: {
             {ALCANCE.map(([n, texto]) => <option key={n} value={n}>{texto}</option>)}
           </select>
         </label>
+        {saltos === -1 && (
+          <label className="alcance-grafo" title="Por defecto solo se ve lo que comparten dos o más documentos: es lo que los relaciona">
+            <input type="checkbox" checked={todo} onChange={(e) => setTodo(e.target.checked)} />
+            <span>Incluir lo que cita un solo documento</span>
+          </label>
+        )}
         <button type="button" className="boton" onClick={() => setCompleta(!completa)} aria-pressed={completa}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" {...trazo}>
             {completa ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /> : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}

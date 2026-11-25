@@ -503,12 +503,15 @@ _FUERA_DE_LA_RED = ("includes_or_included", "has_or_had_constituent", "has_or_ha
                     "regulates_or_regulated")
 
 
+MAX_COMPARTIDAS = 40  # las entidades que más documentos unen; el resto se ve al abrir cada documento
+
+
 def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool = False,
-                   max_nodos: int = MAX_NODOS) -> dict:
+                   max_nodos: int = MAX_NODOS, todo: bool = False) -> dict:
     """Cómo se relacionan entre sí los documentos descritos del fondo: los vínculos directos entre ellos
     (responde a, es copia de, está asociado a, sigue a…) y lo que comparten (el mismo productor, destinatario,
-    lugar, norma, actividad o tipo documental). Una entidad entra solo si la comparten dos o más documentos:
-    primero entran las que comparten más documentos y después las de uno solo, hasta el tope de nodos. Cada
+    lugar, norma o actividad). Una entidad entra solo si la comparten dos o más documentos (con `todo`,
+    también las de uno solo y el tipo documental), primero las que unen más documentos. Cada
     documento lleva también la serie o el expediente donde está clasificado (rico:includesOrIncluded), que es
     lo que lo une a los demás de la misma serie. Las fechas no entran (cada documento tiene las suyas)."""
     ctx = _Contexto(db, fondo, ver_restringidos)
@@ -543,12 +546,18 @@ def red_documentos(db: Session, fondo: RecursoDocumental, ver_restringidos: bool
             por_entidad[o].append((d, codigo, True))
         elif td == "entidad_vocabulario" and o in docs:
             por_entidad[d].append((o, codigo, False))
-    # El tipo documental (RiC-A17) es atributo del documento; se dibuja como lo comparten.
-    for forma, rids in ctx.por_forma.items():
-        for rid in rids:
-            if rid in docs:
-                por_entidad[forma].append((rid, "forma_documental", False))
-    compartidas = dict(por_entidad)  # todas; las que unen más documentos entran primero
+    # El tipo documental (RiC-A17): solo con `todo`. Casi todos los documentos de una serie lo comparten
+    # («Resolución») y, como nodo, los uniría a todos sin decir nada; la serie ya los agrupa.
+    if todo:
+        for forma, rids in ctx.por_forma.items():
+            for rid in rids:
+                if rid in docs:
+                    por_entidad[forma].append((rid, "forma_documental", False))
+    # Lo que relaciona documentos: las entidades que comparten dos o más (las MAX_COMPARTIDAS que más unen).
+    # Con `todo`, también lo que cita uno solo, hasta el tope de nodos.
+    cuantos = {e: len({d for d, _, _ in v}) for e, v in por_entidad.items()}
+    elegidas = sorted((e for e in por_entidad if todo or cuantos[e] >= 2), key=lambda e: -cuantos[e])
+    compartidas = {e: por_entidad[e] for e in (elegidas if todo else elegidas[:MAX_COMPARTIDAS])}
     ctx.precargar([("entidad_vocabulario", e) for e in compartidas])
     # El árbol: la entidad (el fondo) arriba y, por cada documento descrito, la cadena del cuadro que lo
     # clasifica (dependencia, serie, subserie, expediente). Solo las ramas que tienen documentos: el resto de

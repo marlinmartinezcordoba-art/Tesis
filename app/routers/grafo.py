@@ -84,8 +84,10 @@ def estructura(fondo_id: uuid.UUID, desde: uuid.UUID | None = None, actor: Actor
 
 @router.get("/documentos", responses={200: {"model": rg.Subgrafo, "description": "Red de los documentos descritos"}},
             summary="Cómo se relacionan entre sí los documentos descritos: vínculos directos y lo que comparten")
-def documentos(fondo_id: uuid.UUID, actor: Actor = Depends(lectura_catalogo), db: Session = Depends(get_db)):
-    return grafo.red_documentos(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor))
+def documentos(fondo_id: uuid.UUID, todo: bool = False, actor: Actor = Depends(lectura_catalogo),
+               db: Session = Depends(get_db)):
+    """Sin `todo`: solo lo que comparten dos o más documentos. Con `todo`: también lo que cita uno solo."""
+    return grafo.red_documentos(db, fondo_o_404(db, fondo_id), _ver_restringidos(actor), todo=todo)
 
 
 @router.get("/{tipo}/{ident}", responses={200: {"model": rg.Subgrafo, "description": "Nodos y relaciones del subgrafo"}},
